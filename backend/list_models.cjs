@@ -24,7 +24,7 @@ async function listModels() {
             await model.generateContent("Hi");
             console.log(`✅ ${modelName} is WORKING.`);
         } catch (e) {
-            console.log(`❌ ${modelName} Failed: ${e.message.split(':')[0]}...`);
+            console.log(`❌ ${modelName} Failed: ${e.message}`);
         }
     }
 }

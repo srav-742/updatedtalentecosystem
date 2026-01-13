@@ -31,7 +31,8 @@ const Applicants = () => {
                     assessmentScore: app.assessmentScore,
                     interviewScore: app.interviewScore,
                     finalScore: app.finalScore,
-                    status: app.status
+                    status: app.status,
+                    resultsVisibleAt: app.resultsVisibleAt
                 }));
 
                 if (targetJobId) {
@@ -127,9 +128,18 @@ const Applicants = () => {
                                     <tr key={app.id} className="group transition-all hover:bg-white/[0.02]">
                                         <td className="py-6 pl-4">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center font-bold text-sm">
-                                                    {app.name[0]}
-                                                </div>
+                                                {app.profilePic ? (
+                                                    <img
+                                                        src={app.profilePic}
+                                                        alt={app.name}
+                                                        className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                                        onError={(e) => { e.target.src = ''; e.target.style.display = 'none'; }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center font-bold text-sm text-blue-400">
+                                                        {app.name[0]}
+                                                    </div>
+                                                )}
                                                 <div>
                                                     <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
                                                     <p className="text-xs text-gray-500 mt-0.5 font-bold uppercase tracking-widest">{app.job}</p>

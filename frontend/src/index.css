@@ -52,3 +52,23 @@ body {
     @apply border-white/10;
   }
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  #interview-report {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: black !important;
+  }
+  #interview-report * {
+    color: black !important;
+    border-color: #eee !important;
+  }
+}
