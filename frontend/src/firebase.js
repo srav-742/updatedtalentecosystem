@@ -45,11 +45,15 @@ export const loginWithEmail = async (email, password) => {
 export const signInWithGoogle = async () => {
     console.log(`[AUTH] Starting Google Popup...`);
     try {
-        const result = await withTimeout(signInWithPopup(auth, googleProvider));
+        // Direct call to preserve user interaction context for browsers
+        const result = await signInWithPopup(auth, googleProvider);
         console.log(`[AUTH] Google Auth Success.`);
         return result.user;
     } catch (error) {
         console.error("Google Auth Error:", error);
+        if (error.code === 'auth/popup-blocked') {
+            throw new Error("Popup blocked. Please allow popups for this site.");
+        }
         throw error;
     }
 };
@@ -57,11 +61,14 @@ export const signInWithGoogle = async () => {
 export const signInWithGithub = async () => {
     console.log(`[AUTH] Starting GitHub Popup...`);
     try {
-        const result = await withTimeout(signInWithPopup(auth, githubProvider));
+        const result = await signInWithPopup(auth, githubProvider);
         console.log(`[AUTH] GitHub Auth Success.`);
         return result.user;
     } catch (error) {
         console.error("Github Auth Error:", error);
+        if (error.code === 'auth/popup-blocked') {
+            throw new Error("Popup blocked. Please allow popups for this site.");
+        }
         throw error;
     }
 };

@@ -50,6 +50,7 @@ const MyApplications = () => {
                                     <th className="p-8 pl-10">Job Opportunity</th>
                                     <th className="p-8 text-center">Resume Match</th>
                                     <th className="p-8 text-center">Assessment</th>
+                                    <th className="p-8 text-center">AI Interview</th>
                                     <th className="p-8 text-center">Final Score</th>
                                     <th className="p-8 text-right pr-10">Status</th>
                                 </tr>
@@ -75,15 +76,20 @@ const MyApplications = () => {
                                         </td>
                                         <td className="p-8 text-center">
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-black text-lg">
-                                                {app.assessmentScore || '--'}
+                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.assessmentScore || '--')}
+                                            </div>
+                                        </td>
+                                        <td className="p-8 text-center">
+                                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-500/5 border border-purple-500/10 text-purple-400 font-black text-lg">
+                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.interviewScore || '--')}
                                             </div>
                                         </td>
                                         <td className="p-8 text-center font-black text-xl text-white">
-                                            {app.finalScore || '--'}
+                                            {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.finalScore || '--')}
                                         </td>
                                         <td className="p-8 text-right pr-10">
                                             <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-inner ${getStatusStyle(app.status)}`}>
-                                                {app.status}
+                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? 'AUDITING...' : app.status}
                                             </span>
                                         </td>
                                     </tr>
