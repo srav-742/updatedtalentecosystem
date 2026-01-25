@@ -20,7 +20,7 @@ const PostJob = () => {
         type: 'Full-time',
         skills: [],
         minExperience: 0,
-        minPercentage: 85,
+        minPercentage: 60,
         assessment: {
             enabled: false,
             type: 'MCQ',

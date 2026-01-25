@@ -63,6 +63,7 @@ const ApplicationFlow = () => {
     const [assessmentStarted, setAssessmentStarted] = useState(false);
     const [interviewQuestions, setInterviewQuestions] = useState([]);
     const [interviewAnswers, setInterviewAnswers] = useState({});
+    const [resumeText, setResumeText] = useState(""); // Full Resume Content Storage
 
     // Sync state to Ref for closures
     useEffect(() => { interviewAnswersRef.current = interviewAnswers; }, [interviewAnswers]);
@@ -79,7 +80,6 @@ const ApplicationFlow = () => {
     const [isProcessingAudio, setIsProcessingAudio] = useState(false);
     const [interimTranscript, setInterimTranscript] = useState("");
     const [isNoisyTranscript, setIsNoisyTranscript] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(60);
     const [isListening, setIsListening] = useState(false);
     const [proctorStatus, setProctorStatus] = useState("SECURE");
     const [thinkingLatency, setThinkingLatency] = useState(0);
@@ -88,16 +88,29 @@ const ApplicationFlow = () => {
     const [faceDetectionActive, setFaceDetectionActive] = useState(false);
     const [proctorLogs, setProctorLogs] = useState([]);
     const [waitingForVoice, setWaitingForVoice] = useState(false);
-    const [globalTimeLeft, setGlobalTimeLeft] = useState(420);
 
     const [analysis, setAnalysis] = useState({
         matchPercentage: 0,
         matchedSkills: [],
         missingSkills: [],
+        missingSkillsDetails: [],
         explanation: '',
         assessmentScore: 0,
-        interviewScore: 0
+        interviewScore: 0,
+        metrics: {
+            tradeOffs: 0,
+            thinkingLatency: 0,
+            bargeInResilience: 0,
+            communicationDelta: 0,
+            ownershipMindset: 0
+        }
     });
+
+    // 🛠️ ORCHESTRATOR STATE
+    const [interviewMap, setInterviewMap] = useState([]); // Structured Skill Map
+    const [orchestrator, setOrchestrator] = useState({ skillIdx: 0, phase: 'PRIMARY', nodesCompleted: 0 });
+    const [sessionTimeLeft, setSessionTimeLeft] = useState(600); // 10 Minute Hard Stop
+    const sessionTimerRef = useRef(null);
 
     const canvasRef = useRef(null);
     const detectIntervalRef = useRef(null);
@@ -129,6 +142,7 @@ const ApplicationFlow = () => {
         }
         if (detectIntervalRef.current) clearInterval(detectIntervalRef.current);
         setFaceDetectionActive(false);
+        isProctoringRef.current = false;
     };
 
     const submitAssessment = async () => {
@@ -144,7 +158,7 @@ const ApplicationFlow = () => {
             let correctCount = 0;
             const qs = questions.length > 0 ? questions : [];
 
-            qs.forEach((q, i) => {
+            qs?.forEach((q, i) => {
                 const userAnswer = answers[i];
                 if (q.options) {
                     // MCQ Scoring
@@ -193,8 +207,11 @@ const ApplicationFlow = () => {
         } finally { setLoading(false); }
     };
 
+    const isProctoringRef = useRef(false);
+
     const startProctoring = async () => {
         console.log("[PROCTOR] Loading Neural Models...");
+        isProctoringRef.current = true;
         try {
             // Load from CDN if local /models missing
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
@@ -205,48 +222,61 @@ const ApplicationFlow = () => {
             ]);
             console.log("[PROCTOR] Neural Face Sync: ACTIVE");
 
+            if (detectIntervalRef.current) clearInterval(detectIntervalRef.current);
+
             detectIntervalRef.current = setInterval(async () => {
-                if (videoRef.current && faceDetectionActive) {
-                    const detections = await faceapi.detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions());
+                if (videoRef.current && isProctoringRef.current && !videoRef.current.paused && !videoRef.current.ended) {
+                    // Optimized options for better recall
+                    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+                    const detections = await faceapi.detectAllFaces(videoRef.current, options);
 
                     if (detections.length === 0) {
+                        console.warn("[PROCTOR] No face detected");
                         updateProctorStatus("NO_FACE_DETECTED", "Candidate not visible in frame.");
                     } else if (detections.length > 1) {
-                        updateProctorStatus("MULTIPLE_FACES", "Multiple identities detected in session.");
+                        console.warn("[PROCTOR] Multiple faces detected:", detections.length);
+                        updateProctorStatus("MULTIPLE_FACES", `Integrity Alert: ${detections.length} faces detected.`);
                     } else {
                         setProctorStatus("SECURE");
                     }
                 }
-            }, 4000); // Optimized to 4s to reduce main thread blocking
+            }, 2000); // Check every 2s for responsiveness
         } catch (err) {
             console.error("[PROCTOR] Model Load Failed:", err);
+            updateProctorStatus("AI_MODEL_ERROR", "Proctoring failed to load.");
         }
     };
 
     const updateProctorStatus = (status, log) => {
         setProctorStatus(status);
-        setProctorLogs(prev => [...prev.slice(-4), { time: new Date().toLocaleTimeString(), message: log }]);
+        if (status !== 'SECURE') {
+            const entry = { time: new Date().toLocaleTimeString(), message: log };
+            setProctorLogs(prev => {
+                // Prevent duplicate logs spamming
+                const last = prev[0];
+                if (last && last.message === log) return prev;
+                return [entry, ...prev].slice(0, 8);
+            });
+            // Haptic/Visual Warning
+            if (window.navigator.vibrate) window.navigator.vibrate(200);
+        }
     };
 
 
-    // Effect to trigger question flow when index changes
+    // 🛠️ UNIFIED INTERACTION EFFECT (Step 3: Persona Driven)
     useEffect(() => {
-        if (interviewActive && interviewQuestions.length > 0) {
-            const currentQ = interviewQuestions[currentQuestionIdx];
-            if (currentQ) {
-                // HIDE question initially
-                setDisplayedQuestion("");
-                setWaitingForVoice(true);
+        if (interviewActive && interviewMap.length > 0) {
+            const skill = interviewMap[orchestrator.skillIdx];
+            const node = skill?.nodes?.find(n => n.type === orchestrator.phase);
+            const currentQ = node?.question || interviewQuestions[currentQuestionIdx] || "Error loading node.";
 
-                // Fetch Voice -> Then Show Text
-                speakQuestion(currentQ).then(() => {
-                    // This creates the type-writer effect only AFTER voice starts (or fallback)
-                    // The actual state update happens inside speakQuestion's play callback or fallback
-                });
-            }
-            setQuestionEndTime(Date.now());
+            setDisplayedQuestion("");
+            setWaitingForVoice(true);
+            setIsTyping(false); // Only start typing when audio starts
+
+            speakQuestion(typeof currentQ === 'string' ? currentQ : currentQ.question);
         }
-    }, [currentQuestionIdx, interviewActive, interviewQuestions]);
+    }, [orchestrator.skillIdx, orchestrator.phase, interviewActive]);
 
 
     const speakQuestion = async (text) => {
@@ -259,10 +289,19 @@ const ApplicationFlow = () => {
             if (res.data.audioUrl) {
                 audioRef.current.src = `${API_BASE_URL}${res.data.audioUrl}?t=${Date.now()}`;
 
-                // EVENT: When audio *actually* starts playing, show the text
+                // EVENT: When audio *actually* starts playing, show the text with typing effect
                 audioRef.current.onplay = () => {
                     setWaitingForVoice(false);
-                    setDisplayedQuestion(text);
+                    setIsTyping(true);
+                    let i = 0;
+                    const interval = setInterval(() => {
+                        setDisplayedQuestion(text.slice(0, i + 1));
+                        i++;
+                        if (i >= text.length) {
+                            clearInterval(interval);
+                            setIsTyping(false);
+                        }
+                    }, 40);
                     setQuestionEndTime(Date.now() + (audioRef.current.duration * 1000));
                 };
 
@@ -296,8 +335,17 @@ const ApplicationFlow = () => {
             // Critical Sync: Only show text when browser voice ACTUALLY starts
             utterance.onstart = () => {
                 setWaitingForVoice(false);
-                setDisplayedQuestion(text);
-                setQuestionEndTime(Date.now() + (text.length * 50));
+                setIsTyping(true);
+                let i = 0;
+                const interval = setInterval(() => {
+                    setDisplayedQuestion(text.slice(0, i + 1));
+                    i++;
+                    if (i >= text.length) {
+                        clearInterval(interval);
+                        setIsTyping(false);
+                        setQuestionEndTime(Date.now());
+                    }
+                }, 40);
             };
 
             // Loop: Auto-Mic
@@ -314,84 +362,69 @@ const ApplicationFlow = () => {
 
     // AI Proctoring removed logic placeholder was here - Logic is restored above
 
-    // GLOBAL SESSION TIMER (10 Minute Cap)
+    // ADVANCED ADVERSARIAL RESILIENCE: Detect Tab Switching & Clipboard
     useEffect(() => {
-        let globalTimer;
-        if (interviewActive && globalTimeLeft > 0 && !qAnalysis) {
-            globalTimer = setInterval(() => {
-                setGlobalTimeLeft(prev => prev - 1);
-            }, 1000);
-        } else if (globalTimeLeft === 0 && interviewActive) {
-            console.warn("[SESSION] 7-Minute Hard Stop Triggered.");
-            // Force finish
-            setQAnalysis({ isMatch: true, feedback: "Session Time Exceeded. Auto-submitting logs.", score: 75 });
-            setAnalyzingAnswer(false);
-        }
-        return () => clearInterval(globalTimer);
-    }, [interviewActive, globalTimeLeft, qAnalysis]);
-
-
-    // TIMER LOGIC: 60s countdown for each question
-    useEffect(() => {
-        let timer;
-        // Proceed if active and not in a transition state
-        if (interviewActive && !isTyping && !analyzingAnswer && timeLeft > 0) {
-            timer = setInterval(() => {
-                setTimeLeft(prev => prev - 1);
-            }, 1000);
-        } else if (timeLeft === 0 && !analyzingAnswer) {
-            console.log("[TIMER] Time's up! Auto-proceeding to next node...");
-            handleAnalyzeAnswer();
-        }
-        return () => clearInterval(timer);
-    }, [interviewActive, isTyping, timeLeft, analyzingAnswer]);
-
-    useEffect(() => {
-        let interval;
-        let initialDelay;
-
-        if (interviewActive && interviewQuestions.length > 0) {
-            const rawQ = interviewQuestions[currentQuestionIdx];
-            const currentQ = typeof rawQ === 'string' ? rawQ : (rawQ?.question || "Error loading question.");
-
-            setDisplayedQuestion("");
-            setIsTyping(true);
-            setTimeLeft(60); // Reset timer for new question
-            // console.log("[DEBUG] Resetting Timer to 180s");
-
-            initialDelay = setTimeout(() => {
-                speakQuestion(currentQ);
-
-                let i = 0;
-                interval = setInterval(() => {
-                    setDisplayedQuestion(currentQ.slice(0, i + 1));
-                    i++;
-                    if (i >= currentQ.length) {
-                        clearInterval(interval);
-                        setIsTyping(false);
-                        setQuestionEndTime(Date.now()); // Mark when question ended
-                    }
-                }, 40); // Slightly faster typing for better UX
-            }, 800);
-        }
-
-        return () => {
-            if (initialDelay) clearTimeout(initialDelay);
-            if (interval) clearInterval(interval);
+        const handleVisibilityChange = () => {
+            if (document.hidden && interviewActive) {
+                const log = { time: new Date().toLocaleTimeString(), message: "Neural Link Diverted (Tab Switched)" };
+                setProctorLogs(prev => [log, ...prev].slice(0, 5));
+                setProctorStatus('NEURAL_DIVERSION');
+            }
         };
-    }, [currentQuestionIdx, interviewActive, interviewQuestions]);
 
-    // Safety: Auto-cleanup
-    useEffect(() => {
+        const handleClipboardUse = () => {
+            if (interviewActive) {
+                const log = { time: new Date().toLocaleTimeString(), message: "External Buffer Accessed (Paste Detected)" };
+                setProctorLogs(prev => [log, ...prev].slice(0, 5));
+                setProctorStatus('BUFFER_VIOLATION');
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('paste', handleClipboardUse);
+
         return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            document.removeEventListener('paste', handleClipboardUse);
             if (isListening) setIsListening(false);
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         };
-    }, []);
+    }, [interviewActive, isListening]);
 
 
 
-    // Backend-integrated Transcription + Live Local Preview
+    // 🛠️ ORCHESTRATOR: Session Timer Removed as per User Request
+    /*
+    useEffect(() => {
+        if (interviewActive && sessionTimeLeft > 0) {
+            sessionTimerRef.current = setInterval(() => {
+                setSessionTimeLeft(prev => {
+                    if (prev <= 1) {
+                        clearInterval(sessionTimerRef.current);
+                        console.log("[ORCHESTRATOR] 10-minute hard stop reached. Finalizing session...");
+                        handleInterviewSubmit();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => { if (sessionTimerRef.current) clearInterval(sessionTimerRef.current); };
+    }, [interviewActive]);
+    */
+
+    // 🔥 UPDATE DISPLAYED QUESTION when index changes
+    useEffect(() => {
+        if (interviewActive && interviewQuestions && interviewQuestions.length > 0) {
+            const currentQ = interviewQuestions[currentQuestionIdx];
+            if (currentQ) {
+                console.log(`[INTERVIEW] Displaying question ${currentQuestionIdx + 1}/${interviewQuestions.length}`);
+                setDisplayedQuestion(currentQ);
+                setQuestionEndTime(Date.now());
+            }
+        }
+    }, [currentQuestionIdx, interviewActive, interviewQuestions]);
+
     const toggleListening = async () => {
         const activeIdx = currentQuestionIdxRef.current;
         if (!isListeningRef.current) {
@@ -425,13 +458,16 @@ const ApplicationFlow = () => {
                     recognitionRef.current.onstart = () => console.log("[STT] Browser Recognition Active for Node:", activeIdx);
                     recognitionRef.current.onerror = (e) => {
                         console.error("[STT] Browser Recognition Error:", e.error);
+                        if (e.error === 'no-speech') setIsNoisyTranscript(true); // Reuse as "no-content" flag
                     };
 
                     recognitionRef.current.onend = () => {
-                        // Auto-restart if we are still explicitly listening and not submitting
                         if (isListeningRef.current && !isAdvancingRef.current) {
-                            console.log("[STT] Recognition stopped (silence/network). Auto-restarting...");
-                            try { recognitionRef.current.start(); } catch (e) { console.warn("Restart failed", e); }
+                            setTimeout(() => {
+                                if (isListeningRef.current && recognitionRef.current) {
+                                    try { recognitionRef.current.start(); } catch (e) { }
+                                }
+                            }, 500);
                         }
                     };
 
@@ -640,20 +676,29 @@ const ApplicationFlow = () => {
                 finalOutput = currentText; // Preservation
             }
 
-            // LAYER 3/4 MERGE: MAXIMIZE DATA RETENTION
-            // We compare 3 sources and pick the LONGEST one to ensure no part of a lengthy answer is lost.
+            // 🛠️ ENHANCED MERGE: PHRASE-SANITY FILTER
+            // We compare 3 sources and pick the LONGEST ONE that isn't a known hallucination.
             const backendText = finalOutput;
-            const refText = transcriptAccumulatorRef.current || "";
-            const stateText = interviewAnswersRef.current[activeIdx] || "";
+            const refText = (transcriptAccumulatorRef.current || "").trim();
+            const stateText = (interviewAnswersRef.current[activeIdx] || "").trim();
 
-            console.log(`[STT-MERGE] Length Check - Backend: ${backendText.length}, Ref: ${refText.length}, State: ${stateText.length}`);
+            console.log(`[STT-MERGE] Input check - Backend: ${backendText.length}, Ref: ${refText.length}, State: ${stateText.length}`);
 
-            // Sort by length descending
-            const candidates = [backendText, refText, stateText];
-            candidates.sort((a, b) => b.length - a.length);
+            const candidates = [backendText, refText, stateText].filter(t => {
+                if (!t || t.length < 5) return false;
+                const lower = t.toLowerCase();
+                // If it contains markers of a Whisper loop, discard it from the merge
+                if (lower.includes("[music]") || lower.includes("if you can't eat it") || lower.includes("i'm so proud of you")) {
+                    console.warn("[STT-MERGE] Discarding hallucination candidate:", t.substring(0, 30));
+                    return false;
+                }
+                return true;
+            });
 
-            const chosenText = candidates[0]; // Pick the longest
-            console.log("[STT-MERGE] Selected Source Length:", chosenText.length);
+            // If everything was filtered out, default to the most recent backend effort or just "..."
+            const chosenText = candidates.sort((a, b) => b.length - a.length)[0] || backendText || "...";
+
+            console.log("[STT-MERGE] Final Selection Length:", chosenText.length);
 
             // Sync state
             setInterviewAnswers(prev => ({ ...prev, [activeIdx]: chosenText }));
@@ -731,6 +776,8 @@ const ApplicationFlow = () => {
                     Projects: ${createData.projects}
                 `;
             }
+
+            setResumeText(resumeText); // Store full text for interview generation
 
             // Analyze with Gemini
             const res = await axios.post(`${API_BASE_URL}/api/analyze-resume`, {
@@ -909,41 +956,22 @@ const ApplicationFlow = () => {
                 jobDescription: job.description,
                 candidateSkills: analysis.matchedSkills,
                 experienceLevel: (job.minExperience > 5) ? 'Senior' : (job.minExperience > 2 ? 'Mid-Level' : 'Junior'),
-                assessmentType: job.assessment?.type || 'MCQ',
-                totalQuestions: job.assessment?.totalQuestions || 10,
+                assessmentType: (job.assessment?.type || 'MCQ').toUpperCase(),
+                totalQuestions: parseInt(job.assessment?.totalQuestions) || 10,
                 userId: user.uid || user._id || user.id
             });
 
             if (res.data) {
-                // Combine MCQs and Coding into the main questions array for Page 4
                 const allAssessmentQs = [
                     ...(res.data.mcq || []),
                     ...(res.data.coding || [])
                 ];
 
-                setQuestions(allAssessmentQs);
-
-                // Store interview questions for Page 5
-                const interviewData = Array.isArray(res.data.interview) ? res.data.interview : [];
-                let formattedInterview = interviewData.map(q => {
-                    if (typeof q === 'string') return q;
-                    if (q?.question) return `${q.question}${q.followUp ? ` (Follow-up: ${q.followUp})` : ''}`;
-                    return "Describe your approach to learning new technologies.";
-                });
-
-                // Enforce exactly 5 questions
-                if (formattedInterview.length < 5) {
-                    const fallbacks = [
-                        "Walk me through a technical challenge you solved recently.",
-                        "How do you ensure your code is scalable and maintainable?",
-                        "Describe your typical workflow when debugging complex systems.",
-                        "What is your approach to collaboration in a remote team?",
-                        "How do you stay updated with industry trends?"
-                    ];
-                    formattedInterview = [...formattedInterview, ...fallbacks].slice(0, 5);
+                if (allAssessmentQs.length === 0) {
+                    throw new Error("AI failed to generate assessment questions. Please check job skills and try again.");
                 }
-                setInterviewQuestions(formattedInterview);
 
+                setQuestions(allAssessmentQs);
                 setAssessmentStarted(true);
                 setCurrentAssessmentIdx(0);
                 setCurrentQuestionIdx(0);
@@ -954,49 +982,8 @@ const ApplicationFlow = () => {
             }
         } catch (error) {
             console.error("Expert Assessment Failure:", error);
-
-            // Professional Multi-Question Fallback
-            const fallbackSkills = job.skills.length > 0 ? job.skills : ['Technical Strategy'];
-            const templates = [
-                (s) => `In an enterprise ${s} environment, which strategy ensures maximum horizontal scalability?`,
-                (s) => `What is the most critical security vulnerability to address for a production-grade ${s} implementation?`,
-                (s) => `Which design pattern is best suited for decouplng business logic in a ${s} system?`,
-                (s) => `How should state management be handled in a distributed ${s}-heavy architecture?`,
-                (s) => `Identify the optimal structural pattern for high-concurrency modules using ${s}.`
-            ];
-
-            const fallbackQs = Array.from({ length: job.assessment?.totalQuestions || 5 }, (_, i) => {
-                const skill = fallbackSkills[i % fallbackSkills.length];
-                const optTemplates = [
-                    ["Modular Decoupling", "Monolithic State", "Direct Bonding", "Manual Locking"],
-                    ["SQL Injection Mitigation", "Code Refactoring", "UI Polish", "Unit Testing"],
-                    ["Connection Pooling", "Single Connection", "Global Variable", "File System DB"],
-                    ["Microservices", "Monolith", "Serverless", "Desktop App"],
-                    ["Dockerization", "Standard ZIP", "Direct Upload", "Manual Copy"]
-                ];
-                const template = templates[i % templates.length];
-                const options = optTemplates[i % optTemplates.length];
-
-                return {
-                    title: `${skill} Advanced Assessment`,
-                    question: template(skill),
-                    options: [...options].sort(() => Math.random() - 0.5),
-                    correctAnswer: 0,
-                    explanation: `Deep technical knowledge of ${skill} is essential for this role.`
-                };
-            });
-
-            setQuestions(fallbackQs);
-            const dynamicInterviewFallback = [
-                `Could you walk me through your technical experience with ${fallbackSkills[0] || 'the core technology'}?`,
-                `Describe a complex scenario where you implemented ${fallbackSkills[1] || 'a key skill'} to solve a problem.`,
-                "How do you ensure system scalability and performance in high-traffic environments?",
-                "Tell me about a time you had to manage a technical conflict or lead a team through a challenge.",
-                "What is your philosophy on maintainable code and the future of this tech stack?"
-            ];
-
-            setInterviewQuestions(dynamicInterviewFallback);
-            setAssessmentStarted(true);
+            alert("The AI Architect is currently busy or failed to generate unique questions. Please try again in a moment.");
+            setStep(3); // Stay on eligibility page
         } finally { setLoading(false); }
     };
 
@@ -1005,49 +992,42 @@ const ApplicationFlow = () => {
     };
 
     const startInterview = async () => {
-        console.log("[FLOW] Initializing Elite Interview Sequence. Fetching fresh questions...");
+        console.log("[FLOW] Initializing Elite Interview Sequence. Fetching Architect Map...");
 
-        setLoading(true);
         try {
+            // Get resume text from previous steps or state
+            const resumeText = analysis?.explanation || ""; // Fallback to matched skills if text missing
+
             const res = await axios.post(`${API_BASE_URL}/api/generate-interview-questions`, {
                 skills: analysis?.matchedSkills || job.skills,
                 jobTitle: job.title,
                 jobDescription: job.description,
+                resumeText: resumeText || analysis?.explanation || "",
                 userId: user.uid || user._id || user.id
             });
 
-            if (Array.isArray(res.data) && res.data.length >= 5) {
-                // Sanitize: Remove "1. ", "2. " from start of questions
-                const cleanQs = res.data.map(q => {
-                    const txt = typeof q === 'string' ? q : (q.question || "");
-                    return txt.replace(/^\d+[\.\)]\s*/, '');
+            if (res.data && Array.isArray(res.data.map)) {
+                const map = res.data.map;
+                setInterviewMap(map);
+
+                // Flatten questions for the legacy display if needed, but orchestrator will use map
+                const flatQs = [];
+                map.forEach(s => {
+                    s.nodes.forEach(n => flatQs.push(n.question));
                 });
-                setInterviewQuestions(cleanQs);
+                setInterviewQuestions(flatQs);
+                setOrchestrator({ skillIdx: 0, phase: 'PRIMARY', nodesCompleted: 0 });
+                setCurrentQuestionIdx(0);
+                setStep(5);
+                setInterviewActive(true);
+                startCamera();
             } else {
-                // Secondary fallback
-                if (interviewQuestions.length < 5) {
-                    const fallbackQs = [
-                        `Walk me through a technical challenge you solved recently involving ${job.title}.`,
-                        "How do you ensure your systems are scalable and maintainable?",
-                        "Describe your typical workflow when debugging complex systems.",
-                        "What is your approach to collaboration in an elite team?",
-                        "How do you stay updated with industry trends?"
-                    ];
-                    setInterviewQuestions(fallbackQs);
-                }
+                throw new Error("AI failed to generate technical map.");
             }
-            setCurrentQuestionIdx(0);
-            setStep(5);
-            setInterviewActive(true);
-            startCamera();
         } catch (error) {
             console.error("Interview Resume Fallback Error:", error);
-            if (interviewQuestions.length < 1) {
-                setInterviewQuestions(["Tell me about your experience.", "How do you handle pressure?", "Describe a success.", "Why this role?", "Future goals?"]);
-            }
-            setStep(5);
-            setInterviewActive(true);
-            startCamera();
+            alert("The AI Interviewer is offline. Please try again soon.");
+            setStep(3);
         } finally { setLoading(false); }
     };
 
@@ -1061,119 +1041,191 @@ const ApplicationFlow = () => {
             return;
         }
 
-        // LOCK: Claim ownership of the transition immediately to prevent recursive triggers
+        // LOCK: Claim ownership of the transition immediately
         isAdvancingRef.current = true;
         lastProcessedQuestionId.current = activeIdx;
         setAnalyzingAnswer(true);
 
-        console.log(`[FLOW] Handling Answer Submission for Node ${activeIdx}...`);
+        let finalAnswer = overriddenAnswer;
 
-        // 1. Capture Base Answer (State + Interim + Accumulator Ref)
-        let currentBest = overriddenAnswer;
+        if (!finalAnswer) {
+            // AGGRESSIVE MERGE STRATEGY
+            // 1. Get Typed/State Answer
+            const stateAnswer = interviewAnswersRef.current[activeIdx] || "";
 
-        if (!currentBest) {
-            // Priority: Accumulator Ref (Sync) > State (Async)
-            const refVal = transcriptAccumulatorRef.current || "";
-            const stateVal = interviewAnswersRef.current[activeIdx] || "";
-            const baseVal = refVal.length > stateVal.length ? refVal : stateVal;
+            // 2. Get Accumulated Voice Transcript (Stable)
+            const accumulatedVoice = transcriptAccumulatorRef.current || "";
 
-            // Append interim text if it exists and isn't already there
-            if (interimTranscript && !baseVal.trim().endsWith(interimTranscript.trim())) {
-                console.log("[FLOW] Capturing interim text before mic stop:", interimTranscript);
-                currentBest = (baseVal + " " + interimTranscript).trim();
-            } else {
-                currentBest = baseVal;
-            }
-        }
+            // 3. Get Interim Voice (If talking while clicking Next)
+            const remainingInterim = interimTranscript || "";
 
-        // 2. Handle Active Mic (Stop & Retrieve High-Quality Transcript)
-        if (isListeningRef.current && !overriddenAnswer) {
-            console.log("[FLOW] Mic active during submission. Stopping and fetching backend result...");
-            try {
-                // This call will returns the result from finishRecording
-                // Because isAdvancingRef is now true, finishRecording will NOT auto-call handleAnalyzeAnswer
-                const micResult = await toggleListening();
-
-                // Merge Strategy: Prefer Backend Result if significant
-                if (micResult && micResult.length >= (currentBest || "").length) {
-                    console.log("[FLOW] Using Backend/Mic Result over Interim.");
-                    currentBest = micResult;
+            // 4. Handle Active Mic Buffer (The most critical part)
+            let micFlushResult = "";
+            if (isListeningRef.current) {
+                console.log("[FLOW] Mic active during submission. performing emergency flush...");
+                try {
+                    // This creates the final high-quality WAV transcript
+                    micFlushResult = await toggleListening();
+                } catch (err) {
+                    console.error("[FLOW] Emergency mic flush failed:", err);
                 }
-            } catch (err) {
-                console.error("[FLOW] Error stopping mic during submit:", err);
             }
-        }
 
-        const finalAnswer = (currentBest || "").trim();
+            // ⚖️ BALANCED MERGE STRATEGY
+            // 1. Prioritize Mic Flush result (Layer 1 - High Accuracy)
+            // 2. Fallback to Accumulated Voice (Layer 2 - Real-time)
+            // 3. Last resort: Textarea (State)
+
+            const micText = (micFlushResult || "").trim();
+            const voiceText = (accumulatedVoice + " " + remainingInterim).trim();
+            const manualText = stateAnswer.trim();
+
+            if (micText.length > 5) {
+                finalAnswer = micText;
+                console.log("[FLOW] Choosing Layer 1 (WAV) capture.");
+            } else if (voiceText.length > 5) {
+                finalAnswer = voiceText;
+                console.log("[FLOW] Choosing Layer 2 (RT) capture.");
+            } else {
+                finalAnswer = manualText;
+                console.log("[FLOW] Choosing Manual Text capture.");
+            }
+
+            console.log(`[FLOW] Answer Merge Report for Q${activeIdx}:`, {
+                state: stateAnswer.length,
+                accVoice: accumulatedVoice.length,
+                micFlush: micFlushResult ? micFlushResult.length : 0,
+                FINAL_CHOICE: finalAnswer.substring(0, 30) + "..."
+            });
+        }
 
         // 3. Update State & Ref Final Force
         const updatedAnswers = { ...interviewAnswersRef.current, [activeIdx]: finalAnswer };
         setInterviewAnswers(updatedAnswers);
         interviewAnswersRef.current = updatedAnswers;
 
-        console.log(`[FLOW] Finalizing Node ${activeIdx} with content:`, finalAnswer ? `"${finalAnswer.substring(0, 50)}..."` : "[NO RESPONSE]");
-
-        // 4. Trigger UI Progression (Fast DB Save is below)
+        // 4. Trigger UI Progression & Audit (NOW BLOCKING FOR DYNAMIC PROBES)
         const currentQuestion = interviewQuestions[activeIdx];
         const rawText = typeof currentQuestion === 'string' ? currentQuestion : (currentQuestion?.question || "");
 
-        // Fast progression (800ms)
-        setTimeout(() => {
-            if (activeIdx < interviewQuestions.length - 1) {
-                console.log(`[FLOW] Moving from Node ${activeIdx + 1} to ${activeIdx + 2}`);
-                setCurrentQuestionIdx(prev => prev + 1);
-                setTimeLeft(60);
-                setInterimTranscript("");
-                setAnalyzingAnswer(false);
-                isAdvancingRef.current = false; // RELEASE LOCK
-                lastProcessedQuestionId.current = null;
-            } else {
-                console.log("[FLOW] Last Question Captured. Auto-finalizing...");
-                handleInterviewSubmit(updatedAnswers);
-                // Note: We don't release lock here as we are moving to next step
-            }
-        }, 800);
-
-        // 5. Backend Persistence & Audit
         try {
-            // Incremental Save
+            // 🛠️ STEP 5: NEURAL POLISH
+            console.log("[FLOW] Applying Neural Polish to transcript...");
+            let refinedAnswer = finalAnswer;
+            try {
+                const polishRes = await axios.post(`${API_BASE_URL}/api/refine-text`, {
+                    text: finalAnswer,
+                    jobTitle: job.title
+                });
+                if (polishRes.data && polishRes.data.refinedText && !polishRes.data.refinedText.includes("[NO_TECHNICAL_CONTENT]")) {
+                    refinedAnswer = polishRes.data.refinedText;
+                    console.log("[FLOW] Neural Polish Complete.");
+                } else {
+                    console.log("[FLOW] Neural Polish rejected noise-only input. Using raw transcript.");
+                }
+            } catch (reErr) {
+                console.warn("[FLOW] Polish failed, using raw transcript.");
+            }
+
+            // Incremental Save (Both versions stored in final audit object)
             await axios.post(`${API_BASE_URL}/api/applications/interview-answer`, {
                 jobId,
                 userId: user.uid || user._id || user.id,
                 question: rawText,
-                answer: finalAnswer || "No response recorded"
+                answer: refinedAnswer,
+                rawAnswer: finalAnswer
             });
-            console.log("[STT-STORE] Incremental save successful");
 
-            // Fetch Real-time Feedback
+            // Fetch Real-time Feedback + Probe Check (Step 3: Barge-in & Ad-Pivots)
             const auditRes = await axios.post(`${API_BASE_URL}/api/validate-answer`, {
                 question: rawText,
-                answer: finalAnswer,
-                jobTitle: job.title,
+                answer: refinedAnswer,
+                jobTitle: job?.title || "Technical Session",
                 userId: user.uid || user._id || user.id
             });
 
             if (auditRes.data) {
-                setInterviewAnalyses(prev => ({ ...prev, [activeIdx]: { ...auditRes.data, answer: finalAnswer } }));
+                const audit = auditRes.data;
+                setInterviewAnalyses(prev => ({ ...prev, [activeIdx]: { ...audit, answer: finalAnswer } }));
+
+                // 🛠️ ORCHESTRATOR PIVOT LOGIC
+                const phases = ['PRIMARY', 'DRILL_DOWN', 'STRESS_TEST'];
+                const currentPhaseIdx = phases.indexOf(orchestrator.phase);
+                let nextSkillIdx = orchestrator.skillIdx;
+                let nextPhase = orchestrator.phase;
+
+                if (audit.score > 70 && currentPhaseIdx < 2 && !audit.needsProbe) {
+                    // PASS: Increase technical depth
+                    nextPhase = phases[currentPhaseIdx + 1];
+                    console.log(`[ORCHESTRATOR] Pass detected (Score: ${audit.score}). Escalating to ${nextPhase}.`);
+                } else if (audit.needsProbe) {
+                    // 🛠️ STEP 3: BARGE-IN (PAUSE ORCHESTRATOR)
+                    console.log("[ORCHESTRATOR] Barge-in triggered. Highlighting probe...");
+                    setDisplayedQuestion("");
+                    setIsTyping(true);
+
+                    // Update current question text to the probe
+                    setInterviewQuestions(prev => {
+                        const newQs = [...prev];
+                        newQs[activeIdx] = audit.probeText;
+                        return newQs;
+                    });
+
+                    setAnalyzingAnswer(false);
+                    isAdvancingRef.current = false;
+                    lastProcessedQuestionId.current = null;
+                    return; // EXIT: Do not advance index
+                } else {
+                    // FAIL or MAX DEPTH: Switch skill
+                    if (orchestrator.skillIdx < interviewMap.length - 1) {
+                        nextSkillIdx += 1;
+                        nextPhase = 'PRIMARY';
+                    } else {
+                        // END OF MAP
+                        console.log("[ORCHESTRATOR] Global technical map completed.");
+                        return handleInterviewSubmit(updatedAnswers);
+                    }
+                }
+
+                setOrchestrator(prev => ({
+                    skillIdx: nextSkillIdx,
+                    phase: nextPhase,
+                    nodesCompleted: prev.nodesCompleted + 1
+                }));
+
+                // 🛠️ CRITICAL FIX: Sync legacy index with Architect Map
+                // Each skill has 3 nodes/questions.
+                const nextTrueIdx = (nextSkillIdx * 3) + phases.indexOf(nextPhase);
+                setCurrentQuestionIdx(nextTrueIdx);
             }
+
+            setInterimTranscript("");
+            setAnalyzingAnswer(false);
+            isAdvancingRef.current = false;
+            lastProcessedQuestionId.current = null;
 
         } catch (e) {
             console.error("[STT-STORE] Audit/Save failed:", e);
+            setCurrentQuestionIdx(prev => prev + 1);
+            setAnalyzingAnswer(false);
+            isAdvancingRef.current = false;
+            lastProcessedQuestionId.current = null;
         }
     };
 
 
 
     const handleInterviewSubmit = async (finalAnswersOverride = null) => {
+        stopCamera(); // Stop camera immediately for UX/Privacy
         setLoading(true);
         const targetAnswers = finalAnswersOverride || interviewAnswersRef.current;
 
         try {
-            const rawQs = interviewQuestions.map(q => typeof q === 'string' ? q : q.question);
+            const rawQs = (interviewQuestions || []).map(q => typeof q === 'string' ? q : q.question);
             const res = await axios.post(`${API_BASE_URL}/api/analyze-interview`, {
                 answers: targetAnswers,
                 questions: rawQs,
-                skills: job.skills,
+                skills: job?.skills || [],
                 userId: user.uid || user._id || user.id,
                 metrics: {
                     latencies: questionLatencies,
@@ -1202,7 +1254,9 @@ const ApplicationFlow = () => {
                 ...prev,
                 interviewScore: interviewScore,
                 finalScore: final,
-                resultsVisibleAt: visibleAt // Track this locally
+                overallFeedback: res.data.overallFeedback,
+                metrics: res.data.metrics || prev.metrics,
+                resultsVisibleAt: visibleAt
             }));
 
             await axios.post(`${API_BASE_URL}/api/applications`, {
@@ -1219,10 +1273,16 @@ const ApplicationFlow = () => {
                 finalScore: final,
                 resultsVisibleAt: visibleAt // Save to DB
             });
-            stopCamera(); // Cleanup
+            // stopCamera(); // Moved to top
             setStep(6);
         } catch (error) {
-            console.error(error);
+            console.error("Submission Error:", error);
+            // Backup: Ensure metrics exist to prevent rendering crash
+            setAnalysis(prev => ({
+                ...prev,
+                metrics: prev.metrics || { tradeOffs: 0, thinkingLatency: 0, bargeInResilience: 0, communicationDelta: 0, ownershipMindset: 0 }
+            }));
+            setStep(6);
         } finally {
             setLoading(false);
             setAnalyzingAnswer(false);
@@ -1272,7 +1332,7 @@ const ApplicationFlow = () => {
                         </div>
                         <div>
                             <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Analyzing Your Ledger...</h2>
-                            <p className="text-gray-500 font-medium">Running AI match against {job?.skills.length} target skills.</p>
+                            <p className="text-gray-500 font-medium">Running AI match against {job?.skills?.length || 0} target skills.</p>
                         </div>
                     </motion.div>
                 )}
@@ -1311,7 +1371,7 @@ const ApplicationFlow = () => {
                                         </div>
 
                                         {/* Missing Skills Warning Block */}
-                                        {analysis.missingSkills && analysis.missingSkills.length > 0 && (
+                                        {analysis?.missingSkills?.length > 0 && (
                                             <div className="max-w-lg mx-auto p-6 rounded-3xl bg-yellow-500/5 border border-yellow-500/10 text-left space-y-3">
                                                 <div className="flex items-center gap-3 text-yellow-500">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
@@ -1320,9 +1380,9 @@ const ApplicationFlow = () => {
                                                 <p className="text-xs text-gray-500 font-medium leading-relaxed">
                                                     The following required nodes were not explicitly found in your ledger:
                                                 </p>
-                                                {analysis.missingSkillsDetails && analysis.missingSkillsDetails.length > 0 ? (
+                                                {analysis?.missingSkillsDetails?.length > 0 ? (
                                                     <div className="space-y-2 w-full mt-2">
-                                                        {analysis.missingSkillsDetails.map((item, i) => (
+                                                        {analysis?.missingSkillsDetails?.map((item, i) => (
                                                             <div key={i} className="flex gap-3 items-start bg-yellow-500/10 p-3 rounded-xl border border-yellow-500/10 text-left">
                                                                 <div className="min-w-[4px] h-[4px] mt-1.5 rounded-full bg-yellow-500" />
                                                                 <div className="flex-1">
@@ -1334,7 +1394,7 @@ const ApplicationFlow = () => {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-wrap gap-2">
-                                                        {analysis.missingSkills.map((skill, i) => (
+                                                        {analysis?.missingSkills?.map((skill, i) => (
                                                             <span key={i} className="px-3 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 text-[10px] font-bold uppercase tracking-wide">
                                                                 {skill}
                                                             </span>
@@ -1424,12 +1484,16 @@ const ApplicationFlow = () => {
                         {/* Header / Progress */}
                         <div className="flex items-center justify-between mb-8 px-4">
                             <div>
-                                <h2 className="text-2xl font-black uppercase tracking-tighter text-white">Technical Assessment</h2>
-                                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Job Core Verification</p>
+                                <h2 className="text-2xl font-black uppercase tracking-tighter text-white">
+                                    {questions[currentAssessmentIdx]?.category === 'MCQ' || questions[currentAssessmentIdx]?.options ? 'Technical MCQ' : 'Coding Challenge'}
+                                </h2>
+                                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                                    {questions[currentAssessmentIdx]?.category === 'MCQ' || questions[currentAssessmentIdx]?.options ? 'Single Choice Verification' : 'Dynamic Problem Solving'}
+                                </p>
                             </div>
                             <div className="flex items-center gap-3 overflow-x-auto max-w-md no-scrollbar py-2">
-                                {questions.map((_, i) => (
-                                    <div key={i} className={`h-1.5 min-w-[32px] rounded-full transition-all flex-shrink-0 ${i === currentAssessmentIdx ? 'bg-teal-500' : i < currentAssessmentIdx ? 'bg-emerald-500/50' : 'bg-white/10'}`} />
+                                {questions?.map((q, i) => (
+                                    <div key={i} className={`h-1.5 min-w-[32px] rounded-full transition-all flex-shrink-0 ${i === currentAssessmentIdx ? 'bg-teal-500' : i < currentAssessmentIdx ? 'bg-emerald-500/50' : (q.options ? 'bg-white/10' : 'bg-purple-500/20')}`} />
                                 ))}
                             </div>
                         </div>
@@ -1440,7 +1504,9 @@ const ApplicationFlow = () => {
                                     <div className="py-20 border-2 border-dashed border-white/10 rounded-[2rem] bg-black/20">
                                         <BrainCircuit size={48} className="text-teal-500 mx-auto mb-4" />
                                         <h3 className="text-xl font-bold uppercase mb-2">Module Initialized</h3>
-                                        <p className="text-gray-500 text-sm italic">5 Dynamic Challenges Prepared</p>
+                                        <p className="text-gray-500 text-sm italic">
+                                            {questions.length > 0 ? `${questions.length} Challenges Organized (MCQs + Coding)` : "Preparing Dynamic Assessment..."}
+                                        </p>
                                     </div>
                                     <button onClick={startAssessment} className="w-full py-5 rounded-[2rem] bg-teal-500 text-white font-black uppercase tracking-widest text-xs hover:bg-teal-600 transition-all shadow-xl shadow-teal-500/20">
                                         {loading ? <Loader2 className="animate-spin mx-auto" /> : "Start Assessment"}
@@ -1451,14 +1517,25 @@ const ApplicationFlow = () => {
                             <div className="flex-1 flex flex-col lg:flex-row gap-8 overflow-hidden min-h-0">
                                 {/* Left Side: Statement */}
                                 <div className="lg:w-1/2 flex flex-col bg-[#0a0c12] border border-white/5 rounded-[2.5rem] overflow-hidden">
-                                    <div className="flex border-b border-white/5 bg-white/[0.02]">
-                                        <div className="px-8 py-4 border-b-2 border-teal-500 text-teal-500 text-[10px] font-black uppercase tracking-widest bg-teal-500/5">Statement</div>
-                                        <div className="px-8 py-4 text-gray-500 text-[10px] font-black uppercase tracking-widest hover:text-gray-300 cursor-not-allowed">AI Help</div>
+                                    <div className="flex border-b border-white/5 bg-white/[0.02] items-center justify-between pr-6">
+                                        <div className="flex">
+                                            <div className="px-8 py-4 border-b-2 border-teal-500 text-teal-500 text-[10px] font-black uppercase tracking-widest bg-teal-500/5">Challenge Statement</div>
+                                            <div className="px-8 py-4 text-gray-500 text-[10px] font-black uppercase tracking-widest hover:text-gray-300 cursor-not-allowed">Docs</div>
+                                        </div>
+                                        <div className="px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-[8px] font-black text-teal-500 uppercase tracking-widest flex items-center gap-2">
+                                            <div className="w-1 h-1 rounded-full bg-teal-500 animate-pulse" />
+                                            Node: {questions[currentAssessmentIdx]?.skill || "Technical Core"}
+                                        </div>
                                     </div>
                                     <div className="flex-1 p-10 overflow-y-auto space-y-8 custom-scrollbar">
-                                        <div>
-                                            <h3 className="text-2xl font-bold text-white mb-2">{questions[currentAssessmentIdx]?.title || questions[currentAssessmentIdx]?.question || "Technical Challenge"}</h3>
-                                            <p className="text-gray-400 leading-relaxed font-medium">{questions[currentAssessmentIdx]?.problem || (questions[currentAssessmentIdx]?.title ? questions[currentAssessmentIdx]?.question : "") || "Select the most appropriate answer for this scenario:"}</p>
+                                        <div className="space-y-4">
+                                            <h3 className="text-2xl font-black text-white leading-tight uppercase tracking-tighter italic">
+                                                {questions[currentAssessmentIdx]?.title || "Architectural Challenge"}
+                                            </h3>
+                                            <div className="h-1 w-12 bg-teal-500/50 rounded-full" />
+                                            <p className="text-gray-400 leading-relaxed font-medium text-lg">
+                                                {questions[currentAssessmentIdx]?.question || questions[currentAssessmentIdx]?.problem || "Select the most appropriate answer for this scenario:"}
+                                            </p>
                                         </div>
 
                                         {(questions[currentAssessmentIdx]?.codeSnippet || questions[currentAssessmentIdx]?.starterCode) ? (
@@ -1468,17 +1545,18 @@ const ApplicationFlow = () => {
                                                     <code>{questions[currentAssessmentIdx].codeSnippet || questions[currentAssessmentIdx].starterCode}</code>
                                                 </pre>
                                             </div>
-                                        ) : !questions[currentAssessmentIdx]?.options && (
+                                        ) : (questions[currentAssessmentIdx]?.category !== 'MCQ' && !questions[currentAssessmentIdx]?.options) && (
                                             <div className="p-10 border border-dashed border-white/10 rounded-3xl bg-white/5 flex flex-col items-center justify-center text-center">
                                                 <Code className="text-gray-600 mb-2" size={32} />
-                                                <p className="text-xs text-gray-500 uppercase tracking-widest font-black">No snippet available for this task</p>
+                                                <p className="text-xs text-gray-500 uppercase tracking-widest font-black">Architecture Analysis Required</p>
                                             </div>
                                         )}
 
-                                        {/* Optional Video-like hint area */}
                                         <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-400"><Sparkles size={18} /></div>
-                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Analyze the code structure carefully before selecting.</p>
+                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                                {questions[currentAssessmentIdx]?.options ? "Analyze the implications of each architectural choice." : "Implement a solution that prioritizes scalability and clean code."}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -1487,11 +1565,11 @@ const ApplicationFlow = () => {
                                 <div className="lg:w-1/2 flex flex-col space-y-6 overflow-y-auto custom-scrollbar">
                                     <div className="p-10 bg-[#0a0c12] border border-white/5 rounded-[2.5rem] space-y-8">
                                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-                                            {questions[currentAssessmentIdx]?.options ? "Pick the correct option:" : "Enter your solution code:"}
+                                            {questions[currentAssessmentIdx]?.category === 'MCQ' || questions[currentAssessmentIdx]?.options ? "Pick the correct option:" : "Enter your solution code:"}
                                         </h4>
                                         <div className="space-y-4">
-                                            {questions[currentAssessmentIdx]?.options ? (
-                                                questions[currentAssessmentIdx].options.map((opt, i) => (
+                                            {questions[currentAssessmentIdx]?.category === 'MCQ' || questions[currentAssessmentIdx]?.options ? (
+                                                questions[currentAssessmentIdx].options?.map((opt, i) => (
                                                     <button
                                                         key={i}
                                                         onClick={() => handleAnswerSelect(currentAssessmentIdx, i)}
@@ -1536,28 +1614,28 @@ const ApplicationFlow = () => {
                                         disabled={currentAssessmentIdx === 0}
                                         className="px-10 py-5 rounded-[2rem] bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                     >
-                                        Previous
+                                        Return
                                     </button>
 
                                     {currentAssessmentIdx < questions.length - 1 ? (
                                         <button
                                             onClick={() => {
-                                                if (!answers[currentAssessmentIdx] && answers[currentAssessmentIdx] !== 0) {
-                                                    alert("Please provide an answer to continue.");
+                                                if (answers[currentAssessmentIdx] === undefined || answers[currentAssessmentIdx] === '') {
+                                                    alert("Response Required: Please finalize your selection or code before advancing.");
                                                     return;
                                                 }
                                                 setCurrentAssessmentIdx(prev => prev + 1);
                                             }}
                                             className="flex-1 py-5 rounded-[2rem] bg-teal-500 text-white font-black uppercase tracking-widest text-xs hover:bg-teal-600 transition-all shadow-xl shadow-teal-500/20"
                                         >
-                                            Submit & Next
+                                            Commit & Advance
                                         </button>
                                     ) : (
                                         <button
                                             onClick={submitAssessment}
                                             className="flex-1 py-5 rounded-[2rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black uppercase tracking-widest text-xs hover:shadow-emerald-500/30 transition-all shadow-xl shadow-emerald-500/10"
                                         >
-                                            Finalize Result
+                                            Finalize Phase 02
                                         </button>
                                     )}
                                 </div>
@@ -1574,12 +1652,6 @@ const ApplicationFlow = () => {
                                 <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] mt-2 italic shadow-sm">Phase 05: Behavioral & Technical Verification</p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className={`flex items-center gap-3 px-6 py-2 rounded-full border border-white/10 ${globalTimeLeft < 60 ? 'bg-red-500/20 animate-pulse' : 'bg-white/5'}`}>
-                                    <div className={`w-2 h-2 rounded-full ${globalTimeLeft < 60 ? 'bg-red-500' : 'bg-teal-500'}`} />
-                                    <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none font-mono">
-                                        Session: {Math.floor(globalTimeLeft / 60)}:{(globalTimeLeft % 60).toString().padStart(2, '0')}
-                                    </span>
-                                </div>
                                 <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-purple-500/10 border border-purple-500/20">
                                     <Users size={16} className="text-purple-400" />
                                     <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">1-on-1 Session</span>
@@ -1601,9 +1673,10 @@ const ApplicationFlow = () => {
                                         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale opacity-60" />
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
                                             {proctorStatus !== 'SECURE' && (
-                                                <div className="bg-red-500/80 p-2 rounded-lg">
-                                                    <XCircle size={16} className="text-white mx-auto" />
-                                                    <p className="text-[8px] font-black text-white uppercase mt-1">Integrity Alert</p>
+                                                <div className="bg-red-500/90 p-4 rounded-xl border-2 border-white/20 animate-pulse shadow-2xl z-50">
+                                                    <XCircle size={32} className="text-white mx-auto mb-2" />
+                                                    <p className="text-[10px] font-black text-white uppercase tracking-widest leading-tight">Integrity Violation</p>
+                                                    <p className="text-[8px] text-white font-bold mt-1">{proctorStatus === 'MULTIPLE_FACES' ? 'Unauthorized Person Detected' : 'Candidate Not Visible'}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -1615,41 +1688,15 @@ const ApplicationFlow = () => {
 
                                     <div className="space-y-3">
                                         <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-1">
-                                            <p className="text-[8px] font-black text-gray-600 uppercase">Current Status</p>
+                                            <p className="text-[8px] font-black text-gray-600 uppercase">Integrity Status</p>
                                             <p className={`text-[10px] font-bold uppercase tracking-wide ${proctorStatus === 'SECURE' ? 'text-emerald-400' : 'text-red-400'}`}>
                                                 {proctorStatus.replace(/_/g, ' ')}
                                             </p>
                                         </div>
-                                        <div className="space-y-2">
-                                            <p className="text-[8px] font-black text-gray-600 uppercase ml-1">Neuro-Logs</p>
-                                            {proctorLogs.map((log, i) => (
-                                                <div key={i} className="flex gap-2 text-[8px] font-medium leading-tight">
-                                                    <span className="text-gray-700 tabular-nums">{log.time}</span>
-                                                    <span className="text-gray-400">{log.message}</span>
-                                                </div>
-                                            ))}
-                                            {proctorLogs.length === 0 && (
-                                                <p className="text-[8px] text-gray-700 italic ml-1">Initializing ledger...</p>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="p-6 rounded-[2rem] bg-purple-500/5 border border-purple-500/10 space-y-4">
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-400/60">Elite Metrics</h4>
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <div className="flex justify-between items-center px-4 py-3 rounded-xl bg-black/20 border border-white/5">
-                                            <span className="text-[8px] font-black text-gray-500 uppercase">Thinking Latency</span>
-                                            <span className="text-[10px] font-black text-purple-400">{thinkingLatency.toFixed(2)}s</span>
-                                        </div>
-                                        <div className="flex justify-between items-center px-4 py-3 rounded-xl bg-black/20 border border-white/5">
-                                            <span className="text-[8px] font-black text-gray-500 uppercase">Linguistic Refinement</span>
-                                            <span className={`text-[8px] font-black uppercase ${isNoisyTranscript ? 'text-amber-500' : 'text-emerald-500'}`}>
-                                                {isNoisyTranscript ? 'Noisy' : 'Active'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
+                                {/* Elite Metrics Hidden for Presentation */}
                             </div>
 
                             {/* MAIN AREA: Question & Answer */}
@@ -1659,22 +1706,25 @@ const ApplicationFlow = () => {
                                         <BrainCircuit size={80} />
                                     </div>
                                     <div className="relative z-10 space-y-6 text-center">
-                                        <div className="flex items-center justify-center gap-4">
-                                            <span className="px-4 py-1.5 rounded-xl bg-purple-500 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-purple-500/20">Interviewer Node {currentQuestionIdx + 1}/{interviewQuestions.length || 5}</span>
+                                        {proctorStatus !== 'SECURE' && (
+                                            <motion.div
+                                                initial={{ y: -20, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                className="px-6 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-500 text-[10px] font-black uppercase tracking-widest animate-pulse mx-auto w-fit mb-4"
+                                            >
+                                                ⚠️ Neural Integrity Compromised: {proctorStatus.replace(/_/g, ' ')}
+                                            </motion.div>
+                                        )}
+                                        <div className="flex items-center justify-center gap-4 flex-wrap">
+                                            <span className="px-4 py-1.5 rounded-xl bg-purple-500 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-purple-500/20">Skill: {interviewMap[orchestrator.skillIdx]?.skill || 'Initializing...'}</span>
+                                            <span className={`px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-[0.2em] ${orchestrator.phase === 'STRESS_TEST' ? 'text-red-400' : orchestrator.phase === 'DRILL_DOWN' ? 'text-amber-400' : 'text-teal-400'}`}>{orchestrator.phase}</span>
                                             <div className="h-[1px] w-12 bg-white/10"></div>
-
-                                            {!qAnalysis && !isTyping && (
-                                                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-500 ${timeLeft <= 10 ? 'border-red-500/40 bg-red-500/10 text-red-500' : 'border-white/10 bg-white/5 text-purple-400'}`}>
-                                                    <Timer size={12} className={timeLeft <= 10 ? 'animate-pulse' : ''} />
-                                                    <span className="text-[10px] font-black tracking-widest">{timeLeft}s</span>
-                                                </div>
-                                            )}
                                         </div>
                                         <h3 className="text-3xl font-black text-white leading-[1.1] tracking-tight min-h-[4rem]">
                                             {waitingForVoice ? (
-                                                <span className="animate-pulse text-purple-400">Establishing Neural Link...</span>
+                                                <span className="animate-pulse text-purple-400">Loading Question...</span>
                                             ) : (
-                                                `"${displayedQuestion || "Initializing Protocol..."}"`
+                                                `"${displayedQuestion || "Analyzing context..."}"`
                                             )}
                                         </h3>
                                     </div>
@@ -1683,7 +1733,7 @@ const ApplicationFlow = () => {
                                 <div className="flex flex-col gap-6">
                                     <div className="relative group">
                                         <textarea
-                                            placeholder={currentQuestionIdx < interviewQuestions.length - 1 ? "Capture your response... (Speak or Type)" : "Final Node. Finalize your response to commit results."}
+                                            placeholder={currentQuestionIdx < (interviewQuestions?.length || 5) - 1 ? "Capture your response... (Speak or Type)" : "Final Node. Finalize your response to commit results."}
                                             value={(interviewAnswers[currentQuestionIdx] || '') + (interimTranscript ? (interviewAnswers[currentQuestionIdx] ? ' ' : '') + interimTranscript : '')}
                                             onChange={(e) => setInterviewAnswers(prev => ({ ...prev, [currentQuestionIdx]: e.target.value }))}
                                             disabled={analyzingAnswer}
@@ -1711,10 +1761,10 @@ const ApplicationFlow = () => {
                                         {!analyzingAnswer ? (
                                             <button
                                                 onClick={() => handleAnalyzeAnswer()}
-                                                disabled={analyzingAnswer || isProcessingAudio || isListening}
-                                                className={`flex-1 py-5 rounded-[2rem] bg-white text-black font-black uppercase tracking-[0.2em] text-[9px] hover:bg-gray-200 transition-all shadow-2xl ${analyzingAnswer || isProcessingAudio || isListening ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+                                                disabled={analyzingAnswer || isProcessingAudio}
+                                                className={`flex-1 py-5 rounded-[2rem] bg-white text-black font-black uppercase tracking-[0.2em] text-[9px] hover:bg-gray-200 transition-all shadow-2xl ${analyzingAnswer || isProcessingAudio ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
                                             >
-                                                {currentQuestionIdx < interviewQuestions.length - 1 ? 'Capture Answer & Continue' : 'Capture Final Response'}
+                                                {currentQuestionIdx < (interviewQuestions?.length || 5) - 1 ? 'Capture Answer & Continue' : 'Capture Final Response'}
                                             </button>
                                         ) : (
                                             <div className="flex-1 py-5 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black uppercase tracking-[0.2em] text-[9px] flex items-center justify-center gap-2 animate-pulse">
@@ -1792,10 +1842,10 @@ const ApplicationFlow = () => {
                                 <div className="space-y-12">
                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                         {[
-                                            { l: 'Resume Match', v: `${analysis.matchPercentage}%`, c: 'text-purple-400' },
-                                            { l: 'Skills Test', v: `${analysis.assessmentScore}%`, c: 'text-indigo-400' },
-                                            { l: 'AI Interview', v: `${analysis.interviewScore || '0'}%`, c: 'text-teal-400' },
-                                            { l: 'Aggregate Rating', v: `${analysis.finalScore || '0'}%`, c: 'text-white' }
+                                            { l: 'Resume Match', v: `${analysis?.matchPercentage}%`, c: 'text-purple-400' },
+                                            { l: 'Skills Test', v: `${analysis?.assessmentScore}%`, c: 'text-indigo-400' },
+                                            { l: 'AI Interview', v: `${analysis?.interviewScore || '0'}%`, c: 'text-teal-400' },
+                                            { l: 'Aggregate Rating', v: `${analysis?.finalScore || '0'}%`, c: 'text-white' }
                                         ].map(stat => (
                                             <div key={stat.l} className="p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center space-y-2">
                                                 <p className="text-[7px] uppercase font-black text-gray-600 tracking-[0.2em]">{stat.l}</p>
@@ -1804,10 +1854,60 @@ const ApplicationFlow = () => {
                                         ))}
                                     </div>
 
+                                    {/* 📈 STEP 6: Multi-Metric Evaluation Breakdown */}
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        {[
+                                            { l: 'Trade-offs', v: analysis?.metrics?.tradeOffs || 0, c: 'text-orange-400' },
+                                            { l: 'Latency', v: analysis?.metrics?.thinkingLatency || 0, c: 'text-blue-400' },
+                                            { l: 'Resilience', v: analysis?.metrics?.bargeInResilience || 0, c: 'text-emerald-400' },
+                                            { l: 'Comm Delta', v: analysis?.metrics?.communicationDelta || 0, c: 'text-pink-400' },
+                                            { l: 'Ownership', v: analysis?.metrics?.ownershipMindset || 0, c: 'text-yellow-400' }
+                                        ].map(m => (
+                                            <div key={m.l} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                                                <p className="text-[6px] font-black uppercase text-gray-500 tracking-widest">{m.l}</p>
+                                                <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                                    <motion.div
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${m.v}%` }}
+                                                        className={`h-full bg-current ${m.c}`}
+                                                    />
+                                                </div>
+                                                <p className={`text-[10px] font-black ${m.c}`}>{Math.round(m.v)}%</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* 📝 Assessment Node Breakdown */}
+                                    {questions.length > 0 && (
+                                        <div className="space-y-6 text-left bg-white/[0.02] p-8 rounded-[3rem] border border-white/5">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-4 px-2">Skill Verification Ledger</h4>
+                                            <div className="grid grid-cols-5 md:grid-cols-10 gap-3">
+                                                {questions.map((q, idx) => {
+                                                    const isMcq = !!q.options;
+                                                    const isCorrect = isMcq ? (answers[idx] === q.correctAnswer) : (typeof answers[idx] === 'string' && answers[idx].trim().length > 20);
+                                                    return (
+                                                        <div key={idx} title={q.title || q.question} className={`aspect-square rounded-xl border flex items-center justify-center font-black text-[10px] transition-all hover:scale-110 cursor-help ${isCorrect ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-red-500/20 border-red-500/30 text-red-400'}`}>
+                                                            {idx + 1}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[8px] text-gray-500 uppercase font-bold tracking-widest px-2">Green nodes represent successful technical verification of skill clusters.</p>
+                                        </div>
+                                    )}
+
                                     {Object.keys(interviewAnalyses).length > 0 && (
                                         <div id="interview-report" className="space-y-6 text-left bg-black/40 p-10 rounded-[3rem] border border-white/5">
+                                            {/* Overall Feedback Section */}
+                                            {analysis.overallFeedback && (
+                                                <div className="mb-8 p-6 rounded-[2rem] bg-indigo-500/10 border border-indigo-500/20">
+                                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-3">Executive Summary</h4>
+                                                    <p className="text-sm font-medium text-white leading-relaxed">{analysis.overallFeedback}</p>
+                                                </div>
+                                            )}
+
                                             <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-[12px] font-black uppercase tracking-[0.3em] text-teal-400">📄 Interview Report (Auto-Generated)</h4>
+                                                <h4 className="text-[12px] font-black uppercase tracking-[0.3em] text-teal-400">📄 Architectural Audit Report</h4>
                                                 <button
                                                     onClick={() => window.print()}
                                                     className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[8px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 print:hidden"
@@ -1816,7 +1916,7 @@ const ApplicationFlow = () => {
                                                 </button>
                                             </div>
                                             <div className="space-y-6">
-                                                {interviewQuestions.map((q, idx) => {
+                                                {interviewQuestions?.map((q, idx) => {
                                                     const anal = interviewAnalyses[idx];
                                                     const qText = typeof q === 'string' ? q : q.question;
                                                     return (
@@ -1836,12 +1936,14 @@ const ApplicationFlow = () => {
                                                                         <p className="text-xs text-gray-300 leading-relaxed font-medium">{anal?.answer || interviewAnswers[idx] || "No response recorded."}</p>
                                                                     </div>
 
-                                                                    <div>
-                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-teal-500 mb-2">AI Audit Feedback</p>
-                                                                        <p className={`text-[11px] font-medium leading-relaxed ${anal?.score >= 75 ? 'text-gray-400' : 'text-amber-400/80'}`}>
-                                                                            {anal?.feedback || "System was unable to perform detailed audit for this node."}
-                                                                        </p>
-                                                                    </div>
+                                                                    {anal?.feedback && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black uppercase tracking-widest text-teal-500 mb-2">Technical Audit Feedback</p>
+                                                                            <p className={`text-[11px] font-medium leading-relaxed ${anal?.score >= 75 ? 'text-gray-400' : 'text-amber-400/80'}`}>
+                                                                                {anal.feedback}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1860,6 +1962,18 @@ const ApplicationFlow = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+            {/* Final Analysis Loading Overlay */}
+            {loading && step === 5 && (
+                <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8">
+                    <div className="relative w-32 h-32 mb-8">
+                        <div className="absolute inset-0 border-t-4 border-teal-500 rounded-full animate-spin"></div>
+                        <div className="absolute inset-2 border-r-4 border-purple-500 rounded-full animate-spin-reverse"></div>
+                        <BrainCircuit size={64} className="absolute inset-0 m-auto text-white animate-pulse" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Generating Final Audit</h2>
+                    <p className="text-gray-400 font-mono text-sm max-w-md animate-pulse">Running Neural analysis on {currentQuestionIdx}/5 responses...</p>
+                </div>
+            )}
         </div>
     );
 };
