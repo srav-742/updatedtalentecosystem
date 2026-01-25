@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
 
 const firebaseConfig = {
@@ -51,11 +51,20 @@ export const signInWithGoogle = async () => {
         return result.user;
     } catch (error) {
         console.error("Google Auth Error:", error);
-        if (error.code === 'auth/popup-blocked') {
-            throw new Error("Popup blocked. Please allow popups for this site.");
+        if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+            throw error; // Let the UI handle the switch to redirect
         }
         throw error;
     }
+};
+
+export const signInWithGoogleRedirect = async () => {
+    console.log(`[AUTH] Starting Google Redirect...`);
+    await signInWithRedirect(auth, googleProvider);
+};
+
+export const getGoogleRedirectResult = async () => {
+    return await getRedirectResult(auth);
 };
 
 export const signInWithGithub = async () => {
@@ -66,9 +75,6 @@ export const signInWithGithub = async () => {
         return result.user;
     } catch (error) {
         console.error("Github Auth Error:", error);
-        if (error.code === 'auth/popup-blocked') {
-            throw new Error("Popup blocked. Please allow popups for this site.");
-        }
         throw error;
     }
 };

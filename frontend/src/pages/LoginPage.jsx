@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, saveUserProfile, API_URL } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL } from '../firebase';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -11,6 +11,37 @@ const LoginPage = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Handle Redirect Result (for when Popup fails)
+    React.useEffect(() => {
+        const checkRedirect = async () => {
+            console.log("[AUTH-REDIRECT] Checking for redirect result...");
+            try {
+                const googleUserLink = await getGoogleRedirectResult();
+                if (googleUserLink && googleUserLink.user) {
+                    console.log("[AUTH-REDIRECT] Redirect Login Successful", googleUserLink.user);
+                    const savedRole = sessionStorage.getItem('pendingRole');
+                    console.log("[AUTH-REDIRECT] Recovered Role:", savedRole);
+
+                    if (savedRole) {
+                        setRole(savedRole); // Restore role
+                        await processGoogleUser(googleUserLink.user, savedRole);
+                        sessionStorage.removeItem('pendingRole');
+                    } else {
+                        setMessage({ type: 'warning', text: "Login verified, but role was lost. Please select Recruiter or Candidate." });
+                        // Don't auto-navigate, let them pick role, but maybe cache the user
+                        // For now just warn
+                    }
+                } else {
+                    console.log("[AUTH-REDIRECT] No redirect result found (normal load).");
+                }
+            } catch (err) {
+                console.error("[AUTH-REDIRECT] Error:", err);
+                setMessage({ type: 'error', text: `Login failed: ${err.message}` });
+            }
+        };
+        checkRedirect();
+    }, []);
 
     const handleRoleSelect = (selectedRole) => {
         setRole(selectedRole);
@@ -21,6 +52,7 @@ const LoginPage = () => {
         setRole(null);
         setFormData({ email: '', password: '' });
         setMessage({ type: '', text: '' });
+        sessionStorage.removeItem('pendingRole'); // Clean up
     };
 
     const handleChange = (e) => {
@@ -78,24 +110,18 @@ const LoginPage = () => {
         }
     };
 
-    const handleGoogleLogin = async () => {
-        if (!role) {
-            setMessage({ type: 'error', text: 'Please select a role first.' });
-            return;
-        }
+    // Shared logic for both Popup and Redirect flows
+    const processGoogleUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
-            // 1. Authenticate with Google (Immediate Auth)
-            const googleUser = await signInWithGoogle();
-
             // 2. Setup a basic profile immediately so the user doesn't wait
             const basicProfile = {
                 uid: googleUser.uid,
                 name: googleUser.displayName,
                 email: googleUser.email,
                 profilePic: googleUser.photoURL,
-                role: role,
-                isBasic: true // Flag to indicate full profile might still be loading
+                role: targetRole,
+                isBasic: true
             };
 
             // 3. Store and Navigate IMMEDIATELY for Instant UX
@@ -103,19 +129,16 @@ const LoginPage = () => {
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
             // Navigate right away
-            if (role === 'recruiter') navigate('/recruiter');
+            if (targetRole === 'recruiter') navigate('/recruiter');
             else navigate('/seeker');
 
-            // 4. Background Sync: Try to fetch/create full profile without blocking UI
-            // We use a detached promise chain here so it doesn't block the navigate flow
+            // 4. Background Sync
             getUserProfile(googleUser.uid).then(async (profile) => {
                 if (!profile) {
-                    // NEW: Call backend sync to create user in Mongo
                     await saveUserProfile(googleUser.uid, {
                         ...basicProfile,
                         createdAt: new Date().toISOString()
                     });
-                    // Also hit the explicit sync endpoint just in case
                     try {
                         await fetch(`${API_URL}/users/sync`, {
                             method: 'POST',
@@ -125,21 +148,56 @@ const LoginPage = () => {
                                 email: googleUser.email,
                                 name: googleUser.displayName,
                                 profilePic: googleUser.photoURL,
-                                role: role
+                                role: targetRole
                             })
                         });
                     } catch (e) { console.error("Backend sync error", e); }
                 } else {
-                    // Update cache with full profile data if it exists
                     localStorage.setItem('user', JSON.stringify({ ...basicProfile, ...profile }));
                 }
             }).catch(err => console.warn("Background profile sync delayed:", err.message));
 
-        } catch (error) {
-            console.error(error);
-            setMessage({ type: 'error', text: error.message || "Google login failed." });
+        } catch (err) {
+            console.error(err);
+            setMessage({ type: 'error', text: "Profile setup failed." });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        if (!role) {
+            setMessage({ type: 'error', text: 'Please select a role first.' });
+            return;
+        }
+        setLoading(true);
+        try {
+            // 1. Authenticate with Google (Try Popup First)
+            const googleUser = await signInWithGoogle();
+            await processGoogleUser(googleUser, role);
+
+        } catch (error) {
+            console.error("Popup Login Failed:", error);
+
+            if (error.code === 'auth/popup-blocked' || error.message?.toLowerCase().includes('popup')) {
+                console.warn("Popup blocked or closed. Switching to Redirect method...");
+                setMessage({ type: 'warning', text: "Popup blocked. Redirecting to Google..." });
+
+                // Save state for return
+                sessionStorage.setItem('pendingRole', role);
+
+                // Trigger Redirect
+                try {
+                    await signInWithGoogleRedirect();
+                } catch (redirErr) {
+                    console.error("Redirect failed:", redirErr);
+                    setMessage({ type: 'error', text: "Google Login failed completely." });
+                    setLoading(false);
+                }
+            } else {
+                setMessage({ type: 'error', text: error.message || "Google login failed." });
+                setLoading(false);
+            }
         }
     };
 
