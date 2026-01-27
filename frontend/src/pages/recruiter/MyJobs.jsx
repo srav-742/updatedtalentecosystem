@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter } from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -85,18 +85,54 @@ const MyJobs = () => {
                                     <Briefcase size={32} />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black mb-2 group-hover:text-blue-400 transition-colors uppercase tracking-tighter tracking-tight">{job.title}</h3>
-                                    <div className="flex flex-wrap items-center gap-6 text-xs text-gray-500 font-bold uppercase tracking-widest">
-                                        <span className="flex items-center gap-2"><MapPin size={14} className="text-blue-500" /> {job.location}</span>
-                                        <span className="flex items-center gap-2"><Briefcase size={14} className="text-teal-500" /> {job.type}</span>
-                                        <span className="text-blue-400 bg-blue-400/10 px-2 py-1 rounded-md">{job.minPercentage}% Score Threshold</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 mt-5">
-                                        {job.skills.map(skill => (
-                                            <span key={skill} className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] uppercase font-black tracking-widest text-gray-400 group-hover:border-blue-500/20 transition-all">
-                                                {skill}
-                                            </span>
-                                        ))}
+                                    <h3 className="text-2xl font-black mb-2 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{job.title}</h3>
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex flex-wrap items-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-loose">
+                                            <span className="flex items-center gap-2 pr-4 border-r border-white/10"><MapPin size={14} className="text-blue-500" /> {job.location}</span>
+                                            <span className="flex items-center gap-2 pr-4 border-r border-white/10"><Briefcase size={14} className="text-teal-500" /> {job.type}</span>
+                                            <span className="flex items-center gap-2 pr-4 border-r border-white/10"><Clock size={14} className="text-amber-500" /> {job.experienceLevel || `${job.minExperience || 0} Years`} Exp</span>
+                                        </div>
+
+                                        {/* Education Section */}
+                                        <div className="flex flex-wrap gap-3">
+                                            {job.education && job.education.length > 0 ? (
+                                                job.education.map((edu, idx) => (
+                                                    <span key={idx} className="flex items-center gap-2 px-3 py-1 bg-purple-500/5 border border-purple-500/10 rounded-lg text-[10px] font-bold uppercase text-purple-400 tracking-wider">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                        {edu.qualification} <span className="text-purple-500/50">|</span> {edu.specialization}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                (job.qualification || job.specialization) && (
+                                                    <span className="flex items-center gap-2 px-3 py-1 bg-purple-500/5 border border-purple-500/10 rounded-lg text-[10px] font-bold uppercase text-purple-400 tracking-wider">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                        {job.qualification || 'Any'} <span className="text-purple-500/50">|</span> {job.specialization || 'Any'}
+                                                    </span>
+                                                )
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20 text-[10px] font-bold uppercase">{job.minPercentage}% Resume</span>
+                                            {job.assessment?.enabled && (
+                                                <span className="text-orange-400 bg-orange-400/10 px-2 py-1 rounded-md border border-orange-400/20 text-[10px] font-bold uppercase">
+                                                    {job.assessment.passingScore || 70}% Assessment
+                                                </span>
+                                            )}
+                                            {job.mockInterview?.enabled && (
+                                                <span className="text-purple-400 bg-purple-400/10 px-2 py-1 rounded-md border border-purple-400/20 text-[10px] font-bold uppercase">
+                                                    {job.mockInterview.passingScore || 70}% Interview
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {job.skills.map(skill => (
+                                                <span key={skill} className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] uppercase font-black tracking-widest text-gray-400 group-hover:border-blue-500/20 transition-all">
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

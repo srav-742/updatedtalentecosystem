@@ -16,6 +16,7 @@ import SeekerDashboard from './pages/seeker/SeekerDashboard';
 import BrowseJobs from './pages/seeker/BrowseJobs';
 import JobDetails from './pages/seeker/JobDetails';
 import ApplicationFlow from './pages/seeker/ApplicationFlow';
+
 import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
 
@@ -43,6 +44,7 @@ function App() {
           <Route path="jobs" element={<BrowseJobs />} />
           <Route path="job/:id" element={<JobDetails />} />
           <Route path="apply/:jobId" element={<ApplicationFlow />} />
+
           <Route path="applications" element={<MyApplications />} />
           <Route path="profile" element={<SeekerProfile />} />
         </Route>

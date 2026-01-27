@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, ChevronLeft, Building2, Star, CheckCircle, FileUp, Sparkles, Wand2 } from 'lucide-react';
+import { MapPin, Briefcase, ChevronLeft, Building2, Star, CheckCircle, FileUp, Sparkles, Wand2, Clock } from 'lucide-react';
 import axios from 'axios';
 
 const JobDetails = () => {
@@ -46,14 +46,30 @@ const JobDetails = () => {
                     <div>
                         <h1 className="text-4xl font-black mb-1 uppercase tracking-tighter">{job.title}</h1>
                         <p className="text-teal-400 font-black flex items-center gap-2 text-lg uppercase">
-                            {job.recruiterId?.company?.name || 'Venture Startup'}
+                            {job.company || job.recruiterId?.company?.name || 'Venture Startup'}
                         </p>
                         <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-black uppercase tracking-widest text-gray-400">
                             <span className="flex items-center gap-1.5"><MapPin size={14} className="text-teal-500/50" /> {job.location}</span>
                             <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
                             <span className="flex items-center gap-1.5"><Briefcase size={14} className="text-teal-500/50" /> {job.type}</span>
                             <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
-                            <span className="flex items-center gap-1.5 text-teal-400"><CheckCircle size={14} /> {job.minPercentage}% match req.</span>
+                            <span className="flex items-center gap-1.5"><Clock size={14} className="text-amber-500" /> <span className="text-amber-500">Exp:</span> {job.experienceLevel || `${job.minExperience || 0} Years`}</span>
+                            {/* Education Display */}
+                            {job.education && job.education.length > 0 ? (
+                                job.education.map((edu, idx) => (
+                                    <span key={idx} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                                        {edu.qualification} | {edu.specialization}
+                                    </span>
+                                ))
+                            ) : (
+                                (job.qualification || job.specialization) && (
+                                    <span className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                                        {job.qualification || 'Any'} | {job.specialization || 'Any'}
+                                    </span>
+                                )
+                            )}
                         </div>
                     </div>
                 </div>

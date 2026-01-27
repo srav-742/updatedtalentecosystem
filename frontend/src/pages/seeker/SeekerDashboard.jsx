@@ -23,7 +23,8 @@ const SeekerDashboard = () => {
                     applied: apps.length,
                     eligible: apps.filter(a => a.status === 'ELIGIBLE' || a.status === 'SHORTLISTED').length,
                     shortlisted: apps.filter(a => a.status === 'SHORTLISTED').length,
-                    availableJobs: jobs.length
+                    availableJobs: jobs.length,
+                    pendingAssessments: apps.filter(a => a.status === 'APPLIED' && !a.assessmentScore && !a.interviewScore)
                 });
             } catch (error) {
                 console.error("Failed to fetch seeker stats:", error);
@@ -57,6 +58,9 @@ const SeekerDashboard = () => {
                     <StatCard label="Available Jobs" value={stats.availableJobs} icon={<Zap size={20} />} color="orange" />
                 </div>
             </header>
+
+            {/* Pending Assessments Alert */}
+
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {cards.map((card, idx) => (

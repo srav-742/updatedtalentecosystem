@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin, Briefcase, ChevronRight, Zap, Building2 } from 'lucide-react';
+import { Search, MapPin, Briefcase, ChevronRight, Zap, Building2, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -76,10 +76,38 @@ const BrowseJobs = () => {
                             </div>
 
                             <div className="flex-1">
-                                <h3 className="text-2xl font-black mb-1 group-hover:text-teal-400 transition-colors uppercase tracking-tight">{job.title}</h3>
-                                <p className="text-gray-400 font-bold text-sm mb-6 flex items-center gap-1.5 opacity-80">
-                                    {job.recruiterId?.company?.name || 'Top Startup'} <span className="text-white/20">•</span> {job.location}
+                                <h3 className="text-2xl font-black mb-2 group-hover:text-teal-400 transition-colors uppercase tracking-tight leading-none">{job.title}</h3>
+                                <p className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                                    {job.company || job.recruiterId?.company?.name || 'Talent Ecosystem Partner'}
                                 </p>
+
+                                <div className="flex flex-wrap items-center gap-4 text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6">
+                                    <div className="flex items-center gap-1.5">
+                                        <MapPin size={14} className="text-blue-500" />
+                                        {job.location}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-amber-500">Exp:</span>
+                                        {job.experienceLevel || `${job.minExperience || 0} Years`}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Briefcase size={14} className="text-purple-500" />
+                                        {job.type}
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">
+                                    {job.education && job.education.length > 0 ? (
+                                        job.education.map((edu, eIdx) => (
+                                            <span key={eIdx} className="px-2 py-1 bg-white/5 rounded-md border border-white/5">
+                                                {edu.qualification} - {edu.specialization}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="px-2 py-1 bg-white/5 rounded-md border border-white/5">
+                                            {job.qualification || 'Any'} - {job.specialization || 'Any'}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-6">
@@ -96,16 +124,22 @@ const BrowseJobs = () => {
                                     )}
                                 </div>
 
-                                <div className="flex items-center justify-between pt-6 border-t border-white/5">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600 mb-0.5">Eligibility</p>
-                                        <p className="text-teal-400 font-black text-sm">{job.minPercentage}% <span className="text-[10px] text-gray-500">Threshold</span></p>
+                                <div className="bg-teal-500/5 border border-teal-500/10 rounded-2xl p-4 relative overflow-hidden">
+                                    <div className="flex items-center gap-2 mb-2 relative z-10">
+                                        <Zap size={14} className="text-teal-400 fill-teal-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-400">Recruiter Protocol</span>
                                     </div>
+                                    <p className="text-xs text-gray-400 font-medium leading-relaxed relative z-10">
+                                        To qualify, applicants must satisfy the <span className="text-gray-200 font-bold">{job.minPercentage}% match criteria</span> set by the hiring team.
+                                    </p>
+                                </div>
+
+                                <div className="pt-2">
                                     <Link
                                         to={`/seeker/job/${job._id}`}
-                                        className="w-12 h-12 rounded-xl bg-white text-black flex items-center justify-center hover:bg-teal-400 hover:text-white transition-all transform active:scale-95 group-hover:rotate-45"
+                                        className="w-full py-4 rounded-xl bg-white text-black font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-teal-400 hover:text-white transition-all transform active:scale-95 shadow-xl"
                                     >
-                                        <ChevronRight size={24} strokeWidth={3} />
+                                        View Opportunity <ChevronRight size={16} />
                                     </Link>
                                 </div>
                             </div>
