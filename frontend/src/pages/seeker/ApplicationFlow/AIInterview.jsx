@@ -105,7 +105,66 @@ Return ONLY the question text, no other text.
         }
     };
 
-    // ... (toggleRecording omitted as it's unchanged) ...
+    // Handle recording toggle
+    const toggleRecording = async () => {
+        if (recording) {
+            // Stop recording
+            if (mediaRecorderRef.current) {
+                mediaRecorderRef.current.stop();
+            }
+            setRecording(false);
+            setProcessing(true);
+        } else {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorderRef.current = new MediaRecorder(stream);
+                audioChunksRef.current = [];
+
+                mediaRecorderRef.current.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunksRef.current.push(event.data);
+                    }
+                };
+
+                mediaRecorderRef.current.onstop = async () => {
+                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'answer.wav');
+
+                    try {
+                        // Transcribe audio
+                        const transcribeRes = await axios.post(`${API_BASE_URL}/api/upload-audio`, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                        const userAnswer = transcribeRes.data.text;
+                        setTranscript(userAnswer);
+
+                        // Add to conversation history
+                        const newHistory = [...conversationHistory, { role: 'candidate', content: userAnswer }];
+                        setConversationHistory(newHistory);
+
+                        // Generate next question or finish
+                        if (newHistory.length >= 7 || questionsCount >= 5) {
+                            await finishInterview(newHistory);
+                        } else {
+                            await generateNextQuestion(newHistory);
+                        }
+                    } catch (err) {
+                        console.error("Processing failed:", err);
+                        setTranscript("Sorry, I couldn't process your answer. Please try again.");
+                        setProcessing(false);
+                    }
+                };
+
+                mediaRecorderRef.current.start();
+                setRecording(true);
+            } catch (err) {
+                console.error("Microphone access denied:", err);
+                setError("Microphone access required. Please allow permissions.");
+            }
+        }
+    };
 
     // Generate next question
     const generateNextQuestion = async (history) => {
@@ -144,11 +203,10 @@ Return ONLY the question text, no other text.
             setConversationHistory(prev => [...prev, { role: 'interviewer', content: nextQ }]);
             setQuestionsCount(prev => prev + 1);
         } catch (err) {
-            console.error("Failed to generate next question:", err);
-            // In strict mode, we might show an error or retry, but for now we'll just log it.
-            // If completely failing, we could inform the user.
-            setError("AI Interviwer is taking a break. Please try again.");
+            console.error("OpenRouter failed:", err);
+            setError("AI Interviewer is unavailable. Please contact support.");
             setProcessing(false);
+            // Do NOT fall back to static questions - fail explicitly
         } finally {
             setProcessing(false);
         }

@@ -34,14 +34,12 @@ app.use((req, res, next) => {
     next();
 });
 const PORT = process.env.PORT || 5000;
-
 // MongoDB Connection with Optimized Settings
 mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/talent-ecosystem", {
     serverSelectionTimeoutMS: 15000,
     socketTimeoutMS: 45000
 }).then(() => console.log("Connected to MongoDB Cluster (IPv4)"))
     .catch(err => console.error("MongoDB Connection Error:", err));
-
 // --- GROQ INTEGRATION (REPLACES GEMINI) ---
 const callGroq = async (prompt) => {
     try {
@@ -67,7 +65,32 @@ const callGroq = async (prompt) => {
         return null;
     }
 };
-
+// --- OPENROUTER INTEGRATION (FOR INTERVIEW ONLY) ---
+const callOpenRouter = async (prompt) => {
+    try {
+        const response = await axios.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            {
+                model: "x-ai/grok-beta", // or "anthropic/claude-3.5-sonnet"
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7,
+                max_tokens: 500
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'http://localhost:5173', // Required by OpenRouter
+                    'X-Title': 'TalentEcoSystem' // Required by OpenRouter
+                }
+            }
+        );
+        return response.data?.choices?.[0]?.message?.content || null;
+    } catch (error) {
+        console.error("[OPENROUTER ERROR]:", error.response?.data || error.message);
+        return null;
+    }
+};
 // --- MODELS ---
 const jobSchema = new mongoose.Schema({
     title: String,
@@ -96,7 +119,6 @@ const jobSchema = new mongoose.Schema({
     },
     createdAt: { type: Date, default: Date.now }
 });
-
 const applicationSchema = new mongoose.Schema({
     jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job', index: true },
     userId: { type: String, index: true },
@@ -126,7 +148,6 @@ const applicationSchema = new mongoose.Schema({
     resultsVisibleAt: { type: Date },
     appliedAt: { type: Date, default: Date.now }
 });
-
 const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true, index: true },
@@ -165,7 +186,6 @@ const userSchema = new mongoose.Schema({
         date: { type: Date, default: Date.now }
     }]
 });
-
 const questionLogSchema = new mongoose.Schema({
     questionText: { type: String, required: true },
     skill: String,
@@ -175,7 +195,6 @@ const questionLogSchema = new mongoose.Schema({
     userId: String,
     createdAt: { type: Date, default: Date.now }
 });
-
 const resumeProfileSchema = new mongoose.Schema({
     userId: { type: String, unique: true, index: true },
     skills: {
@@ -194,10 +213,8 @@ const resumeProfileSchema = new mongoose.Schema({
     experienceYears: Number,
     lastUpdated: { type: Date, default: Date.now }
 });
-
 const QuestionLog = mongoose.model('QuestionLog', questionLogSchema);
 const ResumeProfile = mongoose.model('ResumeProfile', resumeProfileSchema);
-
 jobSchema.set('toJSON', { virtuals: true });
 jobSchema.set('toObject', { virtuals: true });
 jobSchema.virtual('recruiter', {
@@ -207,7 +224,6 @@ jobSchema.virtual('recruiter', {
     justOne: true
 });
 const Job = mongoose.model('Job', jobSchema);
-
 applicationSchema.set('toJSON', { virtuals: true });
 applicationSchema.set('toObject', { virtuals: true });
 applicationSchema.virtual('user', {
@@ -218,14 +234,12 @@ applicationSchema.virtual('user', {
 });
 const Application = mongoose.model('Application', applicationSchema);
 const User = mongoose.model('User', userSchema);
-
 // --- CRYPTO UTILS ---
 const crypto = require('crypto');
 const generateHash = (text) => {
     const normalized = text.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     return crypto.createHash('sha256').update(normalized).digest('hex');
 };
-
 // --- UTILS ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -239,7 +253,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 const memoryUpload = multer({ storage: multer.memoryStorage() });
-
 // --- COIN UTILS ---
 const deductCoins = async (userIdOrUid, amount, reason) => {
     try {
@@ -261,7 +274,6 @@ const deductCoins = async (userIdOrUid, amount, reason) => {
         return 0;
     }
 };
-
 const addCoins = async (userIdOrUid, amount, reason) => {
     try {
         const query = { $or: [{ uid: userIdOrUid }, { _id: mongoose.Types.ObjectId.isValid(userIdOrUid) ? userIdOrUid : null }, { email: userIdOrUid }] };
@@ -277,7 +289,6 @@ const addCoins = async (userIdOrUid, amount, reason) => {
         console.error("[REWARDS] Error adding coins:", error.message);
     }
 };
-
 // --- AUTH & USER ROUTES ---
 app.post('/api/users/sync', async (req, res) => {
     try {
@@ -297,7 +308,6 @@ app.post('/api/users/sync', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.post('/api/signup', async (req, res) => {
     const start = Date.now();
     try {
@@ -318,7 +328,6 @@ app.post('/api/signup', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.post('/api/login', async (req, res) => {
     const start = Date.now();
     try {
@@ -341,7 +350,6 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.post('/api/auth/google', async (req, res) => {
     try {
         const { email, name, profilePic, role } = req.body;
@@ -363,7 +371,6 @@ app.post('/api/auth/google', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/users', async (req, res) => {
     try {
         const users = await User.find({}, 'email role');
@@ -373,7 +380,6 @@ app.get('/api/users', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/profile/:userId', async (req, res) => {
     try {
         const user = await User.findOne({
@@ -385,7 +391,6 @@ app.get('/api/profile/:userId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/user/:userId/coins', async (req, res) => {
     try {
         const user = await User.findOne({
@@ -400,7 +405,6 @@ app.get('/api/user/:userId/coins', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.put('/api/profile/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -441,7 +445,6 @@ app.put('/api/profile/:userId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 // --- RECRUITER ROUTES ---
 app.post('/api/jobs', async (req, res) => {
     try {
@@ -461,7 +464,6 @@ app.post('/api/jobs', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/dashboard/:recruiterId', async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
@@ -478,7 +480,6 @@ app.get('/api/dashboard/:recruiterId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/applications/recruiter/:recruiterId', async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
@@ -494,7 +495,6 @@ app.get('/api/applications/recruiter/:recruiterId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/jobs/recruiter/:recruiterId', async (req, res) => {
     try {
         const id = req.params.recruiterId;
@@ -510,7 +510,6 @@ app.get('/api/jobs/recruiter/:recruiterId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/jobs/:jobId', async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) return res.status(400).json({ message: "Invalid Job ID" });
@@ -522,7 +521,6 @@ app.get('/api/jobs/:jobId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.put('/api/jobs/:jobId', async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
@@ -535,7 +533,6 @@ app.put('/api/jobs/:jobId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.delete('/api/jobs/:jobId', async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
@@ -548,7 +545,6 @@ app.delete('/api/jobs/:jobId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 // --- SEEKER & AI ROUTES ---
 app.get('/api/jobs', async (req, res) => {
     try {
@@ -559,7 +555,6 @@ app.get('/api/jobs', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 // ✅ UPDATED /api/generate-full-assessment — PURE GROQ, NO STATIC, FULL UNIQUENESS
 app.post('/api/generate-full-assessment', async (req, res) => {
     try {
@@ -567,24 +562,19 @@ app.post('/api/generate-full-assessment', async (req, res) => {
         if (!jobId || !userId) {
             return res.status(400).json({ message: "jobId and userId are required" });
         }
-
         // 🔒 Validation
         const job = await Job.findById(jobId).lean(); // 👈 Critical: use .lean()
         if (!job) {
             return res.status(404).json({ message: "Job not found" });
         }
-
         // Coerce to boolean to handle "true" strings if any, though lean() usually helps
         const isEnabled = job.assessment && (job.assessment.enabled === true || job.assessment.enabled === "true");
-
         if (!isEnabled) {
             console.log("[DEBUG] Assessment config:", job.assessment);
             return res.status(400).json({ message: "Assessment not enabled for this job" });
         }
-
         const user = await User.findOne({ uid: userId });
         // Removed unnecessary ResumeProfile check. Application record is the source of truth.
-
         const application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
         if (!application) {
             return res.status(400).json({ message: "You must apply to the job first" });
@@ -593,14 +583,12 @@ app.post('/api/generate-full-assessment', async (req, res) => {
             return res.status(400).json({ message: `Resume match below ${job.minPercentage || 60}%` });
         }
         await deductCoins(userId, 20, 'Skill Assessment');
-
         // 🎯 Config
         const totalQuestions = Math.min(job.assessment.totalQuestions || 5, 10);
         const assessmentType = (job.assessment.type || 'mixed').toLowerCase();
         const skills = job.skills || ['General'];
         const usedHashes = new Set((await QuestionLog.find({ userId }).select('hash')).map(q => q.hash));
         const seed = crypto.createHash('sha256').update(`${userId}${jobId}${Date.now()}`).digest('hex');
-
         // 🧠 Groq Prompt
         const prompt = `
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
@@ -609,25 +597,20 @@ Each question must have:
 - "type": "mcq" or "coding"
 - "skill": one of the given skills
 - "question": clear, original question text
-
 For "mcq":
 - "options": array of 4 strings
 - "correctAnswer": integer (0-3)
-
 For "coding":
 - "starterCode": string with function signature
-
 Example:
 {"questions":[{"type":"mcq","skill":"JavaScript","question":"What is closure?","options":["A","B","C","D"],"correctAnswer":1}]}
 NO extra text, explanations, or markdown.
 `;
-
         // 🔄 Call Groq
         const rawResponse = await callGroq(prompt);
         if (!rawResponse) {
             return res.status(503).json({ message: "AI service unavailable. Please try again." });
         }
-
         // ✅ Parse JSON
         let parsed;
         try {
@@ -636,18 +619,15 @@ NO extra text, explanations, or markdown.
             console.error("[GROQ JSON PARSE FAILED]:", rawResponse.substring(0, 300));
             return res.status(503).json({ message: "AI returned invalid JSON." });
         }
-
         if (!parsed?.questions || !Array.isArray(parsed.questions) || parsed.questions.length < 3) {
             return res.status(503).json({ message: "AI returned insufficient questions." });
         }
-
         // 🔐 Dedupe & Save
         const finalQuestions = [];
         for (const q of parsed.questions) {
             if (!q.question || typeof q.question !== 'string') continue;
             const hash = generateHash(q.question);
             if (usedHashes.has(hash)) continue;
-
             const type = (q.type || 'mcq').toLowerCase();
             if (type === 'mcq') {
                 if (!Array.isArray(q.options) || q.options.length < 2) continue;
@@ -657,7 +637,6 @@ NO extra text, explanations, or markdown.
             } else if (type === 'coding') {
                 if (!q.starterCode) q.starterCode = "// Write your solution here";
             }
-
             // Save to log
             try {
                 await QuestionLog.create({
@@ -671,60 +650,18 @@ NO extra text, explanations, or markdown.
             } catch (e) {
                 // Soft fail
             }
-
             finalQuestions.push(q);
             usedHashes.add(hash);
-
             if (finalQuestions.length >= totalQuestions) break;
         }
-
-        // 🛡️ Fallback Static Pool (Safety Net)
-        const STATIC_POOL = {
-            'General': [
-                { type: 'mcq', skill: 'General', question: "Which methodology focuses on iterative development?", options: ["Agile", "Waterfall", "V-Model", "Spiral"], correctAnswer: 0 },
-                { type: 'mcq', skill: 'General', question: "What is the primary purpose of version control?", options: ["Track changes", "Host website", "Compile code", "Run tests"], correctAnswer: 0 },
-                { type: 'mcq', skill: 'General', question: "Which is a 'soft skill'?", options: ["Adaptability", "Python", "SQL", "Excel"], correctAnswer: 0 }
-            ],
-            'JavaScript': [
-                { type: 'mcq', skill: 'JavaScript', question: "Which value is not falsy in JS?", options: ["'false'", "0", "null", "undefined"], correctAnswer: 0 },
-                { type: 'mcq', skill: 'JavaScript', question: "What is the use of `map`?", options: ["Transform array", "Filter array", "Find item", "Sort"], correctAnswer: 0 }
-            ]
-        };
-
-        // Ensure we have exactly totalQuestions (10) — pad with static if short
-        const requiredCount = totalQuestions;
-        if (finalQuestions.length < requiredCount) {
-            console.warn(`[ASSESSMENT] Only ${finalQuestions.length} questions generated. Padding to ${requiredCount}.`);
-            const missing = requiredCount - finalQuestions.length;
-            const allStatic = [];
-            for (const skill of [...skills, 'General']) {
-                if (STATIC_POOL[skill]) allStatic.push(...STATIC_POOL[skill]);
-                if (STATIC_POOL['General']) allStatic.push(...STATIC_POOL['General']);
-            }
-
-            // Dedupe static pool against existing
-            const uniqueStatic = allStatic.filter(sq => !usedHashes.has(generateHash(sq.question)));
-            const shuffled = [...uniqueStatic].sort(() => 0.5 - Math.random());
-
-            for (const q of shuffled) {
-                if (finalQuestions.length >= requiredCount) break;
-                const hash = generateHash(q.question);
-                if (!usedHashes.has(hash)) {
-                    finalQuestions.push({ ...q, skill: q.skill || 'General' });
-                    usedHashes.add(hash);
-                }
-            }
-        }
-
         // Final trim
-        const output = finalQuestions.slice(0, requiredCount);
+        const output = finalQuestions.slice(0, totalQuestions);
         if (output.length < 3) {
             return res.status(503).json({
                 message: "Elite assessment failed. Generated only " + output.length + " questions (< 3)."
             });
         }
-
-        console.log(`[ASSESSMENT] ✅ Generated ${output.length} questions (Requested: ${requiredCount}) for user ${userId}`);
+        console.log(`[ASSESSMENT] ✅ Generated ${output.length} questions (Requested: ${totalQuestions}) for user ${userId}`);
         res.json({
             sessionId: seed,
             questions: output,
@@ -734,62 +671,52 @@ NO extra text, explanations, or markdown.
                 assessment: {
                     type: assessmentType,
                     passingScore: job.assessment.passingScore || 70,
-                    totalQuestions: requiredCount
+                    totalQuestions: totalQuestions
                 }
             }
         });
-
     } catch (error) {
         console.error("[ASSESSMENT ERROR]", error);
         res.status(500).json({ message: "Assessment generation failed" });
     }
 });
-
 // --- RESUME INTELLIGENCE LAYER ---
-
 app.post('/api/analyze-resume', async (req, res) => {
     try {
         const { resumeText, jobSkills, jobExperience, jobEducation } = req.body;
         console.log("[RESUME-ANALYSIS] Starting Analysis...");
-
         const prompt = `
 You are an expert ATS (Applicant Tracking System) scanner.
 Analyze the provided resume text against the job requirements.
-
 Job Requirements:
 - Skills: ${Array.isArray(jobSkills) ? jobSkills.join(', ') : 'General'}
 - Experience Level: ${jobExperience || 'Any'}
 - Education: ${JSON.stringify(jobEducation || [])}
-
 Resume Text:
 ${resumeText ? resumeText.substring(0, 10000) : ''}
-
 TASK:
 1. Calculate a Skills Match Score (0-100) based strictly on the presence of required skills found in the resume.
-   - For each required skill, give +10 points if fully present, +5 if partial, 0 if missing.
-   - Max 100 points.
+- For each required skill, give +10 points if fully present, +5 if partial, 0 if missing.
+- Max 100 points.
 2. Calculate an Experience & Details Score (0-100) based on:
-   - Years of experience vs required (e.g., "0-1 Years" → 1 year max → 100% if ≥1 yr, else linear)
-   - Education match (degree/qualification match)
-   - Specialization match (e.g., "All Branches" → any degree OK)
+- Years of experience vs required (e.g., "0-1 Years" → 1 year max → 100% if ≥1 yr, else linear)
+- Education match (degree/qualification match)
+- Specialization match (e.g., "All Branches" → any degree OK)
 3. Total Match Percentage = (Skills Score * 0.5) + (Experience Score * 0.5)
-
 OUTPUT MUST BE A VALID JSON OBJECT EXACTLY LIKE THIS:
 {
-  "matchPercentage": 78,
-  "skillsScore": 85,
-  "experienceScore": 70,
-  "skillsFeedback": "Missing: TypeScript, Tailwind CSS. Strong in HTML, CSS, JavaScript.",
-  "experienceFeedback": "Experience level matches. Education: B.Tech in All Branches — acceptable.",
-  "explanation": "Candidate has strong frontend skills but lacks modern frameworks. Experience and education are sufficient."
+"matchPercentage": 78,
+"skillsScore": 85,
+"experienceScore": 70,
+"skillsFeedback": "Missing: TypeScript, Tailwind CSS. Strong in HTML, CSS, JavaScript.",
+"experienceFeedback": "Experience level matches. Education: B.Tech in All Branches — acceptable.",
+"explanation": "Candidate has strong frontend skills but lacks modern frameworks. Experience and education are sufficient."
 }
 `;
-
         const rawResponse = await callGroq(prompt);
         if (!rawResponse) {
             return res.status(503).json({ message: "AI Analysis Service Unavailable" });
         }
-
         let result;
         try {
             result = JSON.parse(rawResponse);
@@ -805,10 +732,8 @@ OUTPUT MUST BE A VALID JSON OBJECT EXACTLY LIKE THIS:
                 explanation: "Analysis inconclusive due to format error."
             };
         }
-
         console.log(`[RESUME-ANALYSIS] Success. Score: ${result.matchPercentage}%`);
         res.json(result);
-
     } catch (error) {
         console.error("[RESUME-ANALYSIS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -878,7 +803,6 @@ Return only JSON with keys: skills (with subkeys programming, frameworks, databa
         res.status(500).json({ message: "Failed to parse resume structure" });
     }
 });
-
 // NEW: Tool for the user to add coins
 app.post('/api/users/add-coins', async (req, res) => {
     try {
@@ -890,7 +814,6 @@ app.post('/api/users/add-coins', async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
-
 app.post('/api/analyze-interview', async (req, res) => {
     try {
         const { answers, skills, userId, questions, metrics: frontendMetrics } = req.body;
@@ -932,11 +855,9 @@ ${questions.map((q, i) => `[QUESTION ${i + 1}]: ${q}
             score: result.interviewScore,
             feedback: "Evaluation merged into executive summary."
         }));
-
         const avgLat = frontendMetrics?.averageLatency || 2000;
         const latencyScore = Math.max(10, Math.min(100, 100 - (avgLat / 1000) * 5));
         const communicationScore = result.interviewScore > 60 ? 85 : 50;
-
         const finalWeighted = Math.round(
             (result.metrics.tradeOffs * 0.40) +
             (latencyScore * 0.20) +
@@ -953,7 +874,6 @@ ${questions.map((q, i) => `[QUESTION ${i + 1}]: ${q}
         res.status(500).json({ message: "Interview audit service unavailable." });
     }
 });
-
 app.post('/api/applications/interview-answer', async (req, res) => {
     try {
         const { jobId, userId, question, answer } = req.body;
@@ -993,7 +913,6 @@ app.post('/api/applications/interview-answer', async (req, res) => {
         res.json({ message: "Answer save soft-fail", error: error.message });
     }
 });
-
 app.post('/api/applications', async (req, res) => {
     try {
         const { jobId, userId, applicantName, applicantEmail, applicantPic, ...updateData } = req.body;
@@ -1028,7 +947,6 @@ app.post('/api/applications', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.get('/api/applications/seeker/:userId', async (req, res) => {
     try {
         const apps = await Application.find({ userId: req.params.userId }).populate('jobId').sort({ createdAt: -1 });
@@ -1039,74 +957,35 @@ app.get('/api/applications/seeker/:userId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
-// ✅ NEW ROUTE: Generate dynamic interview question based on resume + conversation
+// ✅ NEW ROUTE: Generate dynamic interview question using OpenRouter
 app.post('/api/generate-interview-question', async (req, res) => {
     try {
         const { prompt, userId, jobId } = req.body;
         if (!prompt || !userId) {
             return res.status(400).json({ message: "prompt and userId are required" });
         }
-
-        // Optional: Validate job exists
-        if (jobId) {
-            const job = await Job.findById(jobId).select('title skills');
-            if (!job) {
-                console.warn(`[INTERVIEW] Job ${jobId} not found`);
-            }
-        }
-
-        // Use Groq (since you're using Groq for assessment)
-        const rawResponse = await callGroq(prompt);
+        // Use OpenRouter (for interview only)
+        const rawResponse = await callOpenRouter(prompt);
         if (!rawResponse) {
-            return res.status(503).json({ message: "AI service unavailable. Please try again." });
-        }
-
-        // Parse JSON safely
-        let parsed;
-        try {
-            parsed = JSON.parse(rawResponse);
-        } catch (e) {
-            // Fallback: treat raw text as question
-            return res.json({
-                question: rawResponse
-                    .trim()
-                    .split('\n')[0]
-                    .replace(/^["']|["']$/g, '')
-                    .substring(0, 300) || "Please answer the question."
+            return res.status(503).json({
+                message: "OpenRouter service unavailable. Please try again.",
+                error: "OpenRouter API returned no response"
             });
         }
-
-        // Extract question robustly
-        let question = "";
-        if (typeof parsed === 'string') {
-            question = parsed;
-        } else if (parsed.question) {
-            question = parsed.question;
-        } else if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-            question = parsed.questions[0].question || JSON.stringify(parsed.questions[0]);
-        } else if (Array.isArray(parsed) && parsed.length > 0) {
-            question = typeof parsed[0] === 'string' ? parsed[0] : JSON.stringify(parsed[0]);
-        } else {
-            question = rawResponse.trim().substring(0, 300);
-        }
-
-        // Sanitize
-        question = question.replace(/^[^a-zA-Z0-9]/, '').trim();
+        // Clean response
+        let question = rawResponse.trim().split('\n')[0].replace(/^["']|["']$/g, '');
         if (!question || question.length < 10) {
             question = "Tell me about a technical challenge you solved recently.";
         }
-
         res.json({ question });
     } catch (error) {
-        console.error("[INTERVIEW-QUESTION ERROR]", error);
-        res.status(500).json({
-            message: "Failed to generate interview question",
+        console.error("[OPENROUTER ERROR]", error.response?.data || error.message);
+        res.status(503).json({
+            message: "OpenRouter service unavailable. Please try again.",
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
-
 app.put('/api/applications/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
@@ -1121,7 +1000,6 @@ app.put('/api/applications/:id/status', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 app.post('/api/extract-pdf', memoryUpload.single('resume'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No file" });
@@ -1132,7 +1010,6 @@ app.post('/api/extract-pdf', memoryUpload.single('resume'), async (req, res) => 
         res.status(500).json({ message: "PDF Parsing Failed: " + error.message });
     }
 });
-
 // --- VOICE PROCESSING ROUTES ---
 app.post('/api/upload-audio', upload.single('audio'), async (req, res) => {
     try {
@@ -1148,7 +1025,6 @@ app.post('/api/upload-audio', upload.single('audio'), async (req, res) => {
         res.status(500).json({ message: "Transcription failed (JS)", details: error.message });
     }
 });
-
 app.post('/api/tts', async (req, res) => {
     try {
         const { text } = req.body;
@@ -1176,7 +1052,6 @@ app.post('/api/tts', async (req, res) => {
         res.json({ audioUrl: null, message: "Use Fallback" });
     }
 });
-
 app.get('/api/get-audio', (req, res) => {
     const filePath = path.join(__dirname, 'uploads', 'output.mp3');
     if (fs.existsSync(filePath)) {
@@ -1186,7 +1061,6 @@ app.get('/api/get-audio', (req, res) => {
         res.status(404).json({ message: "Audio file not found" });
     }
 });
-
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error(`[FATAL-SERVER-ERROR] ${req.method} ${req.url}:`, err);
@@ -1195,7 +1069,6 @@ app.use((err, req, res, next) => {
         error: err.message
     });
 });
-
 app.listen(PORT, () => {
     console.log(`[CORE] TalentEcoSystem Server V5 - RUNNING on Port: ${PORT}`);
 });
