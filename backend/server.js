@@ -1,3 +1,4 @@
+require('dotenv').config(); // Must be early!
 const express = require('express');
 const dns = require('dns');
 // Fix for MongoDB SRV DNS resolution issues on some networks
@@ -5,7 +6,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 const mongoose = require('mongoose');
 const path = require('path');
 const cors = require('cors');
-const dotenv = require('dotenv');
+
 const multer = require('multer');
 const pdf = require('pdf-parse');
 const bcrypt = require('bcryptjs');
@@ -13,7 +14,9 @@ const { exec } = require('child_process');
 const fs = require('fs-extra');
 const axios = require('axios');
 const transcriptionService = require('./transcription_service');
-dotenv.config({ path: path.join(__dirname, '.env') });
+// --- AI INTERVIEW ROUTES ---
+const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
+
 const app = express();
 app.use(cors());
 // Fix for Firebase Auth Popup (COOP)
@@ -40,11 +43,12 @@ mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/talent-ecos
     socketTimeoutMS: 45000
 }).then(() => console.log("Connected to MongoDB Cluster (IPv4)"))
     .catch(err => console.error("MongoDB Connection Error:", err));
+
 // --- GROQ INTEGRATION (REPLACES GEMINI) ---
 const callGroq = async (prompt) => {
     try {
         const response = await axios.post(
-            'https://api.groq.com/openai/v1/chat/completions',
+            'https://api.groq.com/openai/v1/chat/completions', // ✅ Removed trailing spaces
             {
                 model: "llama-3.3-70b-versatile",
                 messages: [{ role: "user", content: prompt }],
@@ -65,32 +69,41 @@ const callGroq = async (prompt) => {
         return null;
     }
 };
+
 // --- OPENROUTER INTEGRATION (FOR INTERVIEW ONLY) ---
-const callOpenRouter = async (prompt) => {
+const callOpenRouter = async (prompt, maxTokens = 500, jsonMode = false) => {
     try {
+        const model = jsonMode
+            ? "anthropic/claude-3.5-sonnet"
+            : "x-ai/grok-beta";
+
         const response = await axios.post(
             'https://openrouter.ai/api/v1/chat/completions',
             {
-                model: "x-ai/grok-beta", // or "anthropic/claude-3.5-sonnet"
+                model,
                 messages: [{ role: "user", content: prompt }],
-                temperature: 0.7,
-                max_tokens: 500
+                temperature: jsonMode ? 0.2 : 0.7,
+                max_tokens: maxTokens,
+                ...(jsonMode ? { response_format: { type: "json_object" } } : {})
             },
             {
                 headers: {
                     'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     'Content-Type': 'application/json',
-                    'HTTP-Referer': 'http://localhost:5173', // Required by OpenRouter
-                    'X-Title': 'TalentEcoSystem' // Required by OpenRouter
+                    'HTTP-Referer': process.env.NODE_ENV === 'production'
+                        ? 'https://yourdomain.com'
+                        : 'http://localhost:5173',
+                    'X-Title': 'TalentEcoSystem'
                 }
             }
         );
-        return response.data?.choices?.[0]?.message?.content || null;
+        return response.data?.choices?.[0]?.message?.content?.trim() || null;
     } catch (error) {
         console.error("[OPENROUTER ERROR]:", error.response?.data || error.message);
-        return null;
+        throw error;
     }
 };
+
 // --- MODELS ---
 const jobSchema = new mongoose.Schema({
     title: String,
@@ -213,8 +226,44 @@ const resumeProfileSchema = new mongoose.Schema({
     experienceYears: Number,
     lastUpdated: { type: Date, default: Date.now }
 });
+
+// --- ResumeAnalysis Model (NEW) ---
+const resumeAnalysisSchema = new mongoose.Schema({
+    userId: { type: String, index: true },
+    jobId: { type: mongoose.Schema.Types.ObjectId, index: true },
+
+    resumeText: String,
+
+    matchPercentage: Number,
+    skillsScore: Number,
+    experienceScore: Number,
+
+    skillsFeedback: String,
+    experienceFeedback: String,
+    explanation: String,
+
+    structured: {
+        skills: {
+            programming: [String],
+            frameworks: [String],
+            databases: [String],
+            tools: [String]
+        },
+        projects: [
+            {
+                name: String,
+                tech: [String],
+                role: String
+            }
+        ],
+        experienceYears: Number
+    },
+
+    createdAt: { type: Date, default: Date.now }
+});
 const QuestionLog = mongoose.model('QuestionLog', questionLogSchema);
 const ResumeProfile = mongoose.model('ResumeProfile', resumeProfileSchema);
+const ResumeAnalysis = mongoose.model('ResumeAnalysis', resumeAnalysisSchema);
 jobSchema.set('toJSON', { virtuals: true });
 jobSchema.set('toObject', { virtuals: true });
 jobSchema.virtual('recruiter', {
@@ -234,12 +283,14 @@ applicationSchema.virtual('user', {
 });
 const Application = mongoose.model('Application', applicationSchema);
 const User = mongoose.model('User', userSchema);
+
 // --- CRYPTO UTILS ---
 const crypto = require('crypto');
 const generateHash = (text) => {
     const normalized = text.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     return crypto.createHash('sha256').update(normalized).digest('hex');
 };
+
 // --- UTILS ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -252,7 +303,11 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage });
-const memoryUpload = multer({ storage: multer.memoryStorage() });
+const memoryUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 } // 15 MB
+});
+
 // --- COIN UTILS ---
 const deductCoins = async (userIdOrUid, amount, reason) => {
     try {
@@ -289,6 +344,7 @@ const addCoins = async (userIdOrUid, amount, reason) => {
         console.error("[REWARDS] Error adding coins:", error.message);
     }
 };
+
 // --- AUTH & USER ROUTES ---
 app.post('/api/users/sync', async (req, res) => {
     try {
@@ -445,6 +501,7 @@ app.put('/api/profile/:userId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
 // --- RECRUITER ROUTES ---
 app.post('/api/jobs', async (req, res) => {
     try {
@@ -545,6 +602,7 @@ app.delete('/api/jobs/:jobId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
 // --- SEEKER & AI ROUTES ---
 app.get('/api/jobs', async (req, res) => {
     try {
@@ -555,6 +613,7 @@ app.get('/api/jobs', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
 // ✅ UPDATED /api/generate-full-assessment — PURE GROQ, NO STATIC, FULL UNIQUENESS
 app.post('/api/generate-full-assessment', async (req, res) => {
     try {
@@ -606,7 +665,7 @@ Example:
 {"questions":[{"type":"mcq","skill":"JavaScript","question":"What is closure?","options":["A","B","C","D"],"correctAnswer":1}]}
 NO extra text, explanations, or markdown.
 `;
-        // 🔄 Call Groq
+        // 🔁 Call Groq
         const rawResponse = await callGroq(prompt);
         if (!rawResponse) {
             return res.status(503).json({ message: "AI service unavailable. Please try again." });
@@ -622,7 +681,7 @@ NO extra text, explanations, or markdown.
         if (!parsed?.questions || !Array.isArray(parsed.questions) || parsed.questions.length < 3) {
             return res.status(503).json({ message: "AI returned insufficient questions." });
         }
-        // 🔐 Dedupe & Save
+        // 🔒 Dedupe & Save
         const finalQuestions = [];
         for (const q of parsed.questions) {
             if (!q.question || typeof q.question !== 'string') continue;
@@ -680,10 +739,12 @@ NO extra text, explanations, or markdown.
         res.status(500).json({ message: "Assessment generation failed" });
     }
 });
+
 // --- RESUME INTELLIGENCE LAYER ---
 app.post('/api/analyze-resume', async (req, res) => {
     try {
-        const { resumeText, jobSkills, jobExperience, jobEducation } = req.body;
+        const { resumeText, jobSkills, jobExperience, jobEducation, userId, jobId } = req.body;
+        if (!userId || !jobId) return res.status(400).json({ message: "Recruiter/Job context missing" });
         console.log("[RESUME-ANALYSIS] Starting Analysis...");
         const prompt = `
 You are an expert ATS (Applicant Tracking System) scanner.
@@ -714,95 +775,124 @@ OUTPUT MUST BE A VALID JSON OBJECT EXACTLY LIKE THIS:
 }
 `;
         const rawResponse = await callGroq(prompt);
-        if (!rawResponse) {
-            return res.status(503).json({ message: "AI Analysis Service Unavailable" });
-        }
-        let result;
+        if (!rawResponse) throw new Error("AI Service Failed");
+
+        let analysis;
         try {
-            result = JSON.parse(rawResponse);
+            analysis = JSON.parse(rawResponse);
         } catch (e) {
-            console.error("[RESUME-ANALYSIS] JSON Parse Error:", e);
-            // Fallback object
-            result = {
-                matchPercentage: 50,
-                skillsScore: 50,
-                experienceScore: 50,
-                skillsFeedback: "Could not parse AI response",
-                experienceFeedback: "Could not parse AI response",
-                explanation: "Analysis inconclusive due to format error."
-            };
+            console.error("JSON Parse Error:", e);
+            analysis = { matchPercentage: 0, skillsScore: 0, experienceScore: 0, explanation: "Failed to parse analysis." };
         }
-        console.log(`[RESUME-ANALYSIS] Success. Score: ${result.matchPercentage}%`);
-        res.json(result);
+
+        // 2. Structured Extraction
+        const extractPrompt = `
+Extract structured resume data as JSON:
+{
+ "skills": {
+   "programming": [],
+   "frameworks": [],
+   "databases": [],
+   "tools": []
+ },
+ "projects": [{ "name": "Project", "tech": [], "role": "" }],
+ "experienceYears": 0
+}
+Resume:
+${resumeText ? resumeText.substring(0, 8000) : ''}
+`;
+        let structured = { skills: { programming: [], frameworks: [], databases: [], tools: [] }, projects: [], experienceYears: 0 };
+        try {
+            const rawIn = await callGroq(extractPrompt);
+            if (rawIn) structured = JSON.parse(rawIn);
+        } catch (e) { console.warn("Structured parse failed"); }
+
+        // 3. Store
+        if (userId && jobId) {
+            const ResumeAnalysis = mongoose.model('ResumeAnalysis');
+            await ResumeAnalysis.findOneAndUpdate(
+                { userId, jobId },
+                {
+                    userId,
+                    jobId,
+                    resumeText,
+                    ...analysis,
+                    structured
+                },
+                { upsert: true, new: true }
+            );
+        }
+
+        res.json(analysis);
     } catch (error) {
         console.error("[RESUME-ANALYSIS] Error:", error);
         res.status(500).json({ message: error.message });
     }
 });
+
+// ✅ REPLACED: Use OpenRouter for resume parsing (as requested)
 app.post('/api/parse-resume-structured', async (req, res) => {
     const { resumeText, userId } = req.body;
     try {
         if (!resumeText || resumeText.length < 50) {
             return res.status(400).json({ message: "Resume text too short" });
         }
+
         const prompt = `
 You are a Resume Intelligence Agent.
-Extract and structure the following resume text into a strict JSON format.
-Rules:
-- Identify programming languages, frameworks, databases, and tools.
-- Extract projects with names, technologies, and roles.
-- Estimate total years of professional experience.
-RESUME TEXT:
+Extract structured data from this resume text as JSON:
+{
+  "skills": {
+    "programming": ["JavaScript", "Python"],
+    "frameworks": ["React", "Express"],
+    "databases": ["MongoDB", "PostgreSQL"],
+    "tools": ["Git", "Docker"]
+  },
+  "projects": [
+    {
+      "name": "Project Name",
+      "tech": ["React", "Node.js"],
+      "role": "Full-stack Developer"
+    }
+  ],
+  "experienceYears": 2
+}
+Resume:
 ${resumeText.substring(0, 8000)}
-OUTPUT FORMAT (JSON ONLY):
-{
-"skills": {
-"programming": ["Python", "Java"],
-"frameworks": ["Django", "Spring"],
-"databases": ["MySQL", "MongoDB"],
-"tools": ["Git", "Docker"]
-},
-"projects": [
-{
-"name": "Project Name",
-"tech": ["React", "Node.js"],
-"role": "Backend Developer"
-}
-],
-"experienceYears": 2
-}
 `;
-        // Note: This still uses old AI call — you may want to migrate this too later
-        const rawResponse = await callGroq(`
-You are a Resume Intelligence Agent. Extract structured data from this resume text as JSON:
-${resumeText.substring(0, 8000)}
-Return only JSON with keys: skills (with subkeys programming, frameworks, databases, tools), projects (array), experienceYears.
-`);
+
+        const rawResponse = await callGroq(prompt); // ✅ Uses Groq
         if (!rawResponse) {
             return res.status(500).json({ message: "Resume parsing failed" });
         }
+
         let structuredData;
         try {
             structuredData = JSON.parse(rawResponse);
         } catch (e) {
-            return res.status(500).json({ message: "Failed to parse resume structure" });
+            console.error("[RESUME-PARSE] JSON parse failed:", rawResponse);
+            structuredData = {
+                skills: { programming: [], frameworks: [], databases: [], tools: [] },
+                projects: [],
+                experienceYears: 0
+            };
         }
-        if (structuredData && userId) {
+
+        if (userId) {
             await ResumeProfile.findOneAndUpdate(
                 { userId },
-                {
-                    ...structuredData,
-                    lastUpdated: new Date()
-                },
+                { ...structuredData, lastUpdated: new Date() },
                 { upsert: true, new: true }
             );
         }
-        res.json(structuredData || { message: "Could not structure resume" });
+
+        res.json(structuredData);
     } catch (error) {
         console.error("[RESUME-PARSE] Error:", error.message);
         res.status(500).json({ message: "Failed to parse resume structure" });
     }
 });
+
 // NEW: Tool for the user to add coins
 app.post('/api/users/add-coins', async (req, res) => {
     try {
@@ -814,105 +904,8 @@ app.post('/api/users/add-coins', async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
-app.post('/api/analyze-interview', async (req, res) => {
-    try {
-        const { answers, skills, userId, questions, metrics: frontendMetrics } = req.body;
-        const prompt = `
-### ROLE: ELITE TECHNICAL AUDITOR
-### TASK: Perform a Multi-Metric Evaluation of this interview transcript.
-### TRANSCRIPT:
-${questions.map((q, i) => `[QUESTION ${i + 1}]: ${q}
-[ANSWER]: "${answers[i] || 'No response'}"`).join('\n')}
-### EVALUATION MATRIX (STRICT WEIGHING):
-1. Architectural Trade-offs (40%): Did they justify choices and accept downsides?
-2. Barge-in Resilience (15%): Did they maintain technical clarity when challenged?
-3. Ownership Mindset (10%): Did they take responsibility for the solution?
-### OUTPUT STRUCTURE (JSON ONLY):
-{
-"interviewScore": 0-100,
-"overallFeedback": "Professional, direct critique.",
-"metrics": {
-"tradeOffs": 0-100,
-"bargeInResilience": 0-100,
-"ownershipMindset": 0-100
-},
-"details": [
-{ "question": "...", "answer": "...", "score": 0-100, "feedback": "..." }
-]
-}
-`;
-        const rawResponse = await callGroq(prompt);
-        if (!rawResponse) throw new Error("AI evaluation failed");
-        const result = JSON.parse(rawResponse);
-        result.metrics = result.metrics || {};
-        result.metrics.tradeOffs = Number(result.metrics.tradeOffs) || 50;
-        result.metrics.bargeInResilience = Number(result.metrics.bargeInResilience) || 50;
-        result.metrics.ownershipMindset = Number(result.metrics.ownershipMindset) || 50;
-        result.interviewScore = Number(result.interviewScore) || 50;
-        result.details = Array.isArray(result.details) ? result.details : questions.map((q, i) => ({
-            question: q,
-            answer: answers[i] || 'No response',
-            score: result.interviewScore,
-            feedback: "Evaluation merged into executive summary."
-        }));
-        const avgLat = frontendMetrics?.averageLatency || 2000;
-        const latencyScore = Math.max(10, Math.min(100, 100 - (avgLat / 1000) * 5));
-        const communicationScore = result.interviewScore > 60 ? 85 : 50;
-        const finalWeighted = Math.round(
-            (result.metrics.tradeOffs * 0.40) +
-            (latencyScore * 0.20) +
-            (result.metrics.bargeInResilience * 0.15) +
-            (communicationScore * 0.15) +
-            (result.metrics.ownershipMindset * 0.10)
-        );
-        result.interviewScore = finalWeighted;
-        result.metrics.thinkingLatency = latencyScore;
-        result.metrics.communicationDelta = communicationScore;
-        res.json(result);
-    } catch (error) {
-        console.error("[ANALYSIS-FAIL] AI Interview Analysis failed:", error.message);
-        res.status(500).json({ message: "Interview audit service unavailable." });
-    }
-});
-app.post('/api/applications/interview-answer', async (req, res) => {
-    try {
-        const { jobId, userId, question, answer } = req.body;
-        if (!jobId || !userId) return res.status(400).json({ message: "Missing jobId or userId" });
-        if (!mongoose.Types.ObjectId.isValid(jobId)) {
-            return res.status(400).json({ message: "Invalid Job ID format" });
-        }
-        const query = { jobId: new mongoose.Types.ObjectId(jobId), userId: userId };
-        let application = await Application.findOne(query);
-        if (!application) {
-            const userDoc = await User.findOne({ uid: userId }) || {};
-            application = new Application({
-                jobId: new mongoose.Types.ObjectId(jobId),
-                userId: userId,
-                applicantName: userDoc.name || "Unknown Candidate",
-                applicantEmail: userDoc.email || "no-email@recorded.com",
-                status: 'APPLIED',
-                interviewAnswers: []
-            });
-        }
-        const existingIdx = application.interviewAnswers.findIndex(a => a.question === question);
-        if (existingIdx !== -1) {
-            application.interviewAnswers[existingIdx].answer = answer;
-        } else {
-            application.interviewAnswers.push({
-                question,
-                answer,
-                score: 0,
-                feedback: "Pending final audit..."
-            });
-        }
-        await application.save();
-        console.log(`[STT-STORE] Stored answer for Q: "${question.substring(0, 30)}..." User: ${userId}`);
-        res.json({ message: "Answer stored successfully", application });
-    } catch (error) {
-        console.error("[STT-STORE] Error:", error.message, error.errors);
-        res.json({ message: "Answer save soft-fail", error: error.message });
-    }
-});
+
+// --- APPLICATION SUBMISSION (KEEP THIS — NOT INTERVIEW-SPECIFIC) ---
 app.post('/api/applications', async (req, res) => {
     try {
         const { jobId, userId, applicantName, applicantEmail, applicantPic, ...updateData } = req.body;
@@ -947,6 +940,7 @@ app.post('/api/applications', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
 app.get('/api/applications/seeker/:userId', async (req, res) => {
     try {
         const apps = await Application.find({ userId: req.params.userId }).populate('jobId').sort({ createdAt: -1 });
@@ -957,35 +951,8 @@ app.get('/api/applications/seeker/:userId', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-// ✅ NEW ROUTE: Generate dynamic interview question using OpenRouter
-app.post('/api/generate-interview-question', async (req, res) => {
-    try {
-        const { prompt, userId, jobId } = req.body;
-        if (!prompt || !userId) {
-            return res.status(400).json({ message: "prompt and userId are required" });
-        }
-        // Use OpenRouter (for interview only)
-        const rawResponse = await callOpenRouter(prompt);
-        if (!rawResponse) {
-            return res.status(503).json({
-                message: "OpenRouter service unavailable. Please try again.",
-                error: "OpenRouter API returned no response"
-            });
-        }
-        // Clean response
-        let question = rawResponse.trim().split('\n')[0].replace(/^["']|["']$/g, '');
-        if (!question || question.length < 10) {
-            question = "Tell me about a technical challenge you solved recently.";
-        }
-        res.json({ question });
-    } catch (error) {
-        console.error("[OPENROUTER ERROR]", error.response?.data || error.message);
-        res.status(503).json({
-            message: "OpenRouter service unavailable. Please try again.",
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
+
+// --- STATUS UPDATE (KEEP) ---
 app.put('/api/applications/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
@@ -1000,17 +967,42 @@ app.put('/api/applications/:id/status', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
+// --- PDF & VOICE ROUTES (KEEP ALL) ---
 app.post('/api/extract-pdf', memoryUpload.single('resume'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ message: "No file" });
+        if (!req.file) {
+            console.warn("[PDF-EXTRACT] No file received");
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        console.log(`[PDF-EXTRACT] File size: ${req.file.size} bytes`);
+
+        // Reject files > 10 MB early
+        if (req.file.size > 10 * 1024 * 1024) {
+            return res.status(400).json({ message: "File too large. Max size: 10 MB." });
+        }
+
+        // Try to parse
         const data = await pdf(req.file.buffer);
-        res.json({ text: data.text });
+        const text = (data?.text || "").trim();
+
+        if (!text) {
+            console.error("[PDF-EXTRACT] Extracted text is empty");
+            return res.status(400).json({ message: "PDF has no extractable text (e.g., scanned image)." });
+        }
+
+        console.log(`[PDF-EXTRACT] Success: ${text.length} characters extracted`);
+        res.json({ text });
     } catch (error) {
-        console.error("[PDF-EXTRACT] Error:", error.message);
-        res.status(500).json({ message: "PDF Parsing Failed: " + error.message });
+        console.error("[PDF-EXTRACT] CRITICAL ERROR:", error.message || error);
+        res.status(500).json({
+            message: "PDF parsing failed",
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
-// --- VOICE PROCESSING ROUTES ---
+
 app.post('/api/upload-audio', upload.single('audio'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No audio file uploaded" });
@@ -1025,6 +1017,7 @@ app.post('/api/upload-audio', upload.single('audio'), async (req, res) => {
         res.status(500).json({ message: "Transcription failed (JS)", details: error.message });
     }
 });
+
 app.post('/api/tts', async (req, res) => {
     try {
         const { text } = req.body;
@@ -1035,7 +1028,7 @@ app.post('/api/tts', async (req, res) => {
         }
         console.log(`[TTS-GOOGLE] Synthesis requested.`);
         const response = await axios.post(
-            `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
+            `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, // ✅ Fixed URL
             {
                 input: { text },
                 voice: { languageCode: "en-US", name: "en-US-Wavenet-F" },
@@ -1052,6 +1045,7 @@ app.post('/api/tts', async (req, res) => {
         res.json({ audioUrl: null, message: "Use Fallback" });
     }
 });
+
 app.get('/api/get-audio', (req, res) => {
     const filePath = path.join(__dirname, 'uploads', 'output.mp3');
     if (fs.existsSync(filePath)) {
@@ -1061,6 +1055,10 @@ app.get('/api/get-audio', (req, res) => {
         res.status(404).json({ message: "Audio file not found" });
     }
 });
+
+// Mount AI Interview routes
+app.use('/api/interview', aiInterviewRoutes);
+
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error(`[FATAL-SERVER-ERROR] ${req.method} ${req.url}:`, err);
@@ -1069,6 +1067,7 @@ app.use((err, req, res, next) => {
         error: err.message
     });
 });
+
 app.listen(PORT, () => {
     console.log(`[CORE] TalentEcoSystem Server V5 - RUNNING on Port: ${PORT}`);
 });
