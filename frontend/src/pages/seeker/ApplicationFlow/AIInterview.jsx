@@ -1,486 +1,280 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Video, Mic, StopCircle, Award, Upload, FileText, Loader } from 'lucide-react';
+import { Mic, StopCircle, Loader } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AIInterview = ({ job, user, onComplete }) => {
-    // States
-    const [step, setStep] = useState('upload'); // 'upload', 'analyzing', 'interview', 'completed'
-    const [file, setFile] = useState(null);
-    const [resumeText, setResumeText] = useState('');
-    const [resumeAnalysis, setResumeAnalysis] = useState(null);
-    const [interviewStarted, setInterviewStarted] = useState(false);
+    const [step, setStep] = useState('loading'); // loading → interview → completed
+    const [sessionId, setSessionId] = useState(null);
     const [currentQuestion, setCurrentQuestion] = useState('');
+    const [currentQNum, setCurrentQNum] = useState(1);
+
     const [recording, setRecording] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [transcript, setTranscript] = useState('');
-    const [conversationHistory, setConversationHistory] = useState([]);
     const [error, setError] = useState(null);
-    const [finalResult, setFinalResult] = useState(null);
-    const [questionsCount, setQuestionsCount] = useState(0);
+    const [finalScore, setFinalScore] = useState(null);
+    const [feedback, setFeedback] = useState('');
 
-    // MediaRecorder refs
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    // Handle file upload
-    const handleFileChange = (e) => {
-        setFile(e.target.files[0]);
-        setError(null);
-    };
+    /* ---------------------------------------------
+       START INTERVIEW (USE STORED RESUME DATA)
+    ----------------------------------------------*/
+    useEffect(() => {
+        const startInterview = async () => {
+            try {
+                setError(null);
 
-    // Extract and analyze resume
-    const handleAnalyzeResume = async () => {
-        if (!file) {
-            setError("Please select a resume file first.");
+                const res = await axios.post(
+                    `${API_BASE_URL}/api/interview/start`,
+                    {
+                        jobId: job._id,
+                        userId: user.uid
+                    },
+                    { timeout: 20000 }
+                );
+
+                setSessionId(res.data.sessionId);
+                setCurrentQuestion(res.data.question);
+                setCurrentQNum(1);
+                setStep('interview');
+            } catch (err) {
+                console.error("Interview start failed:", err);
+                setError(
+                    err.response?.data?.message ||
+                    "Resume analysis not found. Please complete resume analysis first."
+                );
+                // Keep loading state but show error
+            }
+        };
+
+        if (job?._id && user?.uid) {
+            startInterview();
+        }
+    }, [job._id, user.uid]);
+
+    /* ---------------------------------------------
+       RECORD / STOP AUDIO
+    ----------------------------------------------*/
+    const recognitionRef = useRef(null);
+
+    const toggleRecording = async () => {
+        if (recording) {
+            // Stop high-quality audio recording
+            const recorder = mediaRecorderRef.current;
+            if (recorder && recorder.state === 'recording') {
+                recorder.stop();
+            }
+
+            // Stop live transcription
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+
+            setRecording(false);
+            setProcessing(true);
             return;
         }
 
-        setStep('analyzing');
-        setError(null);
-
         try {
-            // Extract text from PDF
-            const formData = new FormData();
-            formData.append('resume', file);
-            const extractRes = await axios.post(`${API_BASE_URL}/api/extract-pdf`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            setResumeText(extractRes.data.text);
+            // 1. High-quality recording (for backend)
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
 
-            // Analyze resume with AI
-            const analysisRes = await axios.post(`${API_BASE_URL}/api/parse-resume-structured`, {
-                resumeText: extractRes.data.text,
-                userId: user.uid
-            });
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
 
-            setResumeAnalysis(analysisRes.data);
-            setStep('interview');
-        } catch (err) {
-            console.error("Resume analysis failed:", err);
-            setError("Failed to analyze resume. Please try again.");
-            setStep('upload');
-        }
-    };
-
-    // Start interview
-    const startInterview = async () => {
-        if (!resumeAnalysis) return;
-
-        setInterviewStarted(true);
-        setProcessing(true);
-        setQuestionsCount(0);
-
-        try {
-            // Generate first question based on resume
-            const prompt = `
-You are an expert technical interviewer for a ${job.title} role.
-Based on this candidate's resume analysis:
-- Skills: ${JSON.stringify(resumeAnalysis.skills || {})}
-- Projects: ${JSON.stringify(resumeAnalysis.projects || [])}
-- Experience: ${resumeAnalysis.experienceYears || 0} years
-
-Generate a single, specific technical question about one of their projects or skills.
-Focus on depth, not breadth. Ask about implementation details, challenges, or trade-offs.
-Return ONLY the question text, no other text.
-`;
-
-            const res = await axios.post(`${API_BASE_URL}/api/generate-interview-question`, {
-                prompt,
-                userId: user.uid,
-                jobId: job._id
-            });
-
-            setCurrentQuestion(res.data.question);
-            setConversationHistory([{ role: 'interviewer', content: res.data.question }]);
-            setQuestionsCount(1);
-        } catch (err) {
-            console.error("Failed to generate first question:", err);
-            setCurrentQuestion("Let's begin: Tell me about your most relevant project.");
-            setConversationHistory([{ role: 'interviewer', content: "Let's begin: Tell me about your most relevant project." }]);
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    // Handle recording toggle
-    const toggleRecording = async () => {
-        if (recording) {
-            // Stop recording
-            if (mediaRecorderRef.current) {
-                mediaRecorderRef.current.stop();
-            }
-            setRecording(false);
-            setProcessing(true);
-        } else {
-            // Start recording
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorderRef.current = new MediaRecorder(stream);
-                audioChunksRef.current = [];
-
-                mediaRecorderRef.current.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
-
-                mediaRecorderRef.current.onstop = async () => {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            recorder.onstop = async () => {
+                try {
+                    const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
                     const formData = new FormData();
-                    formData.append('audio', audioBlob, 'answer.wav');
+                    formData.append('audio', blob, 'answer.wav');
 
-                    try {
-                        // Transcribe audio
-                        const transcribeRes = await axios.post(`${API_BASE_URL}/api/upload-audio`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' }
-                        });
-                        const userAnswer = transcribeRes.data.text;
-                        setTranscript(userAnswer);
+                    // Final Transcript from Backend (more accurate)
+                    const transcribeRes = await axios.post(
+                        `${API_BASE_URL}/api/upload-audio`,
+                        formData,
+                        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 20000 }
+                    );
 
-                        // Add to conversation history
-                        const newHistory = [...conversationHistory, { role: 'candidate', content: userAnswer }];
-                        setConversationHistory(newHistory);
+                    const answerText = transcribeRes.data?.text?.trim() || transcript;
+                    if (!answerText) {
+                        throw new Error("No speech detected. Please speak clearly.");
+                    }
 
-                        // Generate next question or finish
-                        if (newHistory.length >= 7 || questionsCount >= 5) {
-                            await finishInterview(newHistory);
-                        } else {
-                            await generateNextQuestion(newHistory);
-                        }
-                    } catch (err) {
-                        console.error("Processing failed:", err);
-                        setTranscript("Sorry, I couldn't process your answer. Please try again.");
-                        setProcessing(false);
+                    // Step logic...
+                    const nextRes = await axios.post(
+                        `${API_BASE_URL}/api/interview/next`,
+                        { sessionId, answerText },
+                        { timeout: 30000 }
+                    );
+
+                    if (!nextRes.data.hasNext) {
+                        setFinalScore(nextRes.data.finalScore || 0);
+                        setFeedback(nextRes.data.feedback || "Interview completed successfully.");
+                        setStep('completed');
+                        onComplete({ interviewScore: nextRes.data.finalScore || 0 });
+                    } else {
+                        setCurrentQuestion(nextRes.data.question);
+                        setCurrentQNum(nextRes.data.currentQuestionNumber);
+                        setTranscript('');
+                        setError(null);
+                    }
+                } catch (err) {
+                    console.error("Answer processing failed:", err);
+                    setError(err.response?.data?.message || err.message || "Failed to process your answer.");
+                } finally {
+                    setProcessing(false);
+                }
+            };
+
+            // 2. Live Transcription (Web Speech API)
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onresult = (event) => {
+                    let fullTranscript = '';
+                    for (let i = 0; i < event.results.length; ++i) {
+                        fullTranscript += event.results[i][0].transcript;
+                    }
+                    setTranscript(fullTranscript);
+                };
+
+                recognition.onend = () => {
+                    if (recording && recognitionRef.current) {
+                        try { recognitionRef.current.start(); } catch (e) { }
                     }
                 };
 
-                mediaRecorderRef.current.start();
-                setRecording(true);
-            } catch (err) {
-                console.error("Microphone access denied:", err);
-                setError("Microphone access required. Please allow permissions.");
+                recognitionRef.current = recognition;
+                recognition.start();
             }
-        }
-    };
 
-    // Generate next question
-    const generateNextQuestion = async (history) => {
-        setProcessing(true);
-        try {
-            const prompt = `
-You are an expert technical interviewer. Continue the interview based on this conversation history:
-${history.map(h => `${h.role === 'interviewer' ? 'INTERVIEWER' : 'CANDIDATE'}: ${h.content}`).join('\n')}
-
-The candidate's resume shows:
-- Skills: ${JSON.stringify(resumeAnalysis.skills || {})}
-- Projects: ${JSON.stringify(resumeAnalysis.projects || [])}
-
-Generate a SINGLE follow-up technical question that:
-1. Builds on the candidate's previous answer
-2. Probes deeper into their technical knowledge
-3. Relates to their actual resume/projects
-4. Is specific and actionable
-
-Return ONLY the question text, no other text.
-`;
-
-            const res = await axios.post(`${API_BASE_URL}/api/generate-interview-question`, {
-                prompt,
-                userId: user.uid,
-                jobId: job._id,
-                conversationHistory: history
-            });
-
-            // Ensure we strictly use the AI response
-            const nextQ = res.data.question;
-
-            if (!nextQ) throw new Error("No question generated by AI");
-
-            setCurrentQuestion(nextQ);
-            setConversationHistory(prev => [...prev, { role: 'interviewer', content: nextQ }]);
-            setQuestionsCount(prev => prev + 1);
+            recorder.start();
+            setRecording(true);
+            setError(null);
+            setTranscript('');
         } catch (err) {
-            console.error("OpenRouter failed:", err);
-            setError("AI Interviewer is unavailable. Please contact support.");
-            setProcessing(false);
-            // Do NOT fall back to static questions - fail explicitly
-        } finally {
+            console.error("Microphone error:", err);
+            setError("Microphone access denied or unavailable.");
             setProcessing(false);
         }
     };
 
-    // Finish interview
-    const finishInterview = async (history) => {
-        setProcessing(true);
-        try {
-            const res = await axios.post(`${API_BASE_URL}/api/analyze-interview`, {
-                answers: history.filter(h => h.role === 'candidate').map(h => h.content),
-                questions: history.filter(h => h.role === 'interviewer').map(h => h.content),
-                skills: resumeAnalysis.skills?.programming || [],
-                userId: user.uid,
-                metrics: { averageLatency: 2000 }
-            });
-
-            setFinalResult(res.data);
-            setStep('completed');
-            onComplete(res.data);
-        } catch (err) {
-            console.error("Interview analysis failed:", err);
-            setFinalResult({
-                interviewScore: 75,
-                overallFeedback: "Good effort! We'll review your responses manually.",
-                metrics: { tradeOffs: 70, bargeInResilience: 65, ownershipMindset: 80 }
-            });
-            setStep('completed');
-            onComplete({ interviewScore: 75, status: 'manual-review' });
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    // Cleanup on unmount
+    /* ---------------------------------------------
+       CLEANUP
+    ----------------------------------------------*/
     useEffect(() => {
         return () => {
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
+            const recorder = mediaRecorderRef.current;
+            if (recorder) {
+                try {
+                    if (recorder.state !== 'inactive') recorder.stop();
+                    recorder.stream?.getTracks().forEach(track => track.stop());
+                } catch { }
             }
         };
     }, []);
 
-    // Render different steps
-    if (step === 'upload') {
+    // --- UI ---
+    if (step === 'loading') {
         return (
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
-            >
-                <div className="p-8">
-                    <div className="text-center mb-8">
-                        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <FileText className="w-8 h-8 text-indigo-600" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Resume</h2>
-                        <p className="text-gray-500">
-                            We'll analyze your resume to create a personalized technical interview.
-                        </p>
-                    </div>
-
-                    {/* Upload Area */}
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors bg-gray-50 group cursor-pointer relative">
-                        <input
-                            type="file"
-                            accept=".pdf"
-                            onChange={handleFileChange}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                        <div className="space-y-4">
-                            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                                <Upload className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">
-                                    {file ? file.name : "Click to upload your Resume"}
-                                </p>
-                                <p className="text-sm text-gray-500 mt-1">PDF files only, max 5MB</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {error && (
-                        <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg flex items-center text-sm">
-                            <div className="mr-2">⚠️</div>
-                            {error}
-                        </div>
-                    )}
-
-                    <div className="flex gap-4 mt-8">
+            <div className="text-center py-24">
+                <Loader className="animate-spin w-8 h-8 mx-auto text-indigo-600" />
+                <p className="mt-3 text-gray-600">Preparing your AI Interview based on your resume...</p>
+                {error && (
+                    <div className="mt-6">
+                        <p className="text-red-500 mb-4">{error}</p>
                         <button
-                            onClick={() => window.history.back()}
-                            className="px-6 py-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all"
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                         >
-                            Back
-                        </button>
-                        <button
-                            onClick={handleAnalyzeResume}
-                            disabled={!file}
-                            className={`flex-1 py-4 rounded-xl font-bold text-lg text-white shadow-lg transition-all flex items-center justify-center
-                                ${!file ? 'bg-gray-300 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-indigo-500/25 hover:scale-[1.02]'}`}
-                        >
-                            Analyze Resume & Start Interview
+                            Retry
                         </button>
                     </div>
-                </div>
-            </motion.div>
-        );
-    }
-
-    if (step === 'analyzing') {
-        return (
-            <div className="flex flex-col items-center justify-center py-32">
-                <Loader className="animate-spin w-16 h-16 text-indigo-600 mb-6" />
-                <h3 className="text-xl font-bold">Analyzing Your Resume</h3>
-                <p className="text-gray-500 mt-2">
-                    Extracting skills, projects, and experience...
-                </p>
+                )}
             </div>
         );
     }
 
     if (step === 'interview') {
         return (
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="max-w-4xl mx-auto"
-            >
-                {!interviewStarted ? (
-                    <div className="text-center py-20">
-                        <Video className="w-20 h-20 text-pink-600 mx-auto mb-6" />
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">AI Technical Interview</h2>
-                        <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-                            Based on your resume, our AI will ask technical questions about your projects and skills.
-                            Click below to start when ready.
-                        </p>
+            <div className="max-w-3xl mx-auto grid md:grid-cols-2 gap-6">
+                <div className="bg-indigo-50 p-6 rounded-xl">
+                    <p className="text-sm text-indigo-700">
+                        Question {currentQNum} / 10
+                    </p>
+                    <p className="mt-2 text-gray-900">
+                        {currentQuestion || "Loading question..."}
+                    </p>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl border">
+                    <p className="text-sm text-gray-600 min-h-[50px]">
+                        {transcript
+                            ? `"${transcript}"`
+                            : recording
+                                ? "Recording..."
+                                : "Click the mic to answer"}
+                    </p>
+
+                    <div className="flex justify-center mt-4">
                         <button
-                            onClick={startInterview}
-                            className="bg-pink-600 hover:bg-pink-700 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-pink-500/25 transition-all"
+                            onClick={toggleRecording}
+                            disabled={processing}
+                            className={`p-4 rounded-full transition ${recording ? 'bg-red-500' : 'bg-gray-200'
+                                }`}
                         >
-                            Start Interview
+                            {recording
+                                ? <StopCircle className="w-6 h-6 text-white" />
+                                : <Mic className="w-6 h-6 text-gray-700" />
+                            }
                         </button>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Audio Recording Area */}
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-                            <div className="mb-6">
-                                <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wide mb-2">
-                                    Your Response
-                                </h3>
-                                {transcript ? (
-                                    <div className="bg-gray-50 p-4 rounded-xl">
-                                        <p className="text-gray-700 italic">"{transcript}"</p>
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-500 italic">
-                                        {recording ? "Recording..." : "Click mic to respond"}
-                                    </p>
-                                )}
-                            </div>
 
-                            <div className="flex justify-center">
-                                <button
-                                    onClick={toggleRecording}
-                                    disabled={processing}
-                                    className={`p-4 rounded-full shadow-lg border-4 border-white transition-all
-                                        ${recording
-                                            ? 'bg-red-500 hover:bg-red-600'
-                                            : 'bg-white hover:bg-gray-100 border-indigo-500'}`}
-                                >
-                                    {recording ? (
-                                        <StopCircle className="w-6 h-6 text-white" />
-                                    ) : (
-                                        <Mic className="w-6 h-6 text-indigo-600" />
-                                    )}
-                                </button>
-                            </div>
+                    {processing && (
+                        <p className="text-center text-sm mt-3 text-indigo-600 flex justify-center items-center">
+                            <Loader className="animate-spin w-4 h-4 mr-2" />
+                            Processing answer...
+                        </p>
+                    )}
 
-                            {processing && (
-                                <div className="mt-4 flex items-center justify-center text-indigo-600 font-medium">
-                                    <Loader className="animate-spin w-4 h-4 mr-2" />
-                                    Processing your response...
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Interviewer Question */}
-                        <div className="bg-indigo-50 rounded-2xl shadow-lg border border-indigo-200 p-6">
-                            <div className="mb-4">
-                                <h3 className="text-sm font-bold text-indigo-700 uppercase tracking-wide mb-2">
-                                    AI Interviewer (Q{questionsCount})
-                                </h3>
-                                <div className="flex items-start">
-                                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center mr-3 mt-1">
-                                        <Award className="w-4 h-4 text-white" />
-                                    </div>
-                                    <p className="text-lg font-medium text-gray-800">
-                                        {currentQuestion || "Preparing your question..."}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="text-xs text-indigo-500 bg-indigo-100 p-2 rounded-lg">
-                                <p>💡 Tip: Speak clearly and focus on technical details from your resume.</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </motion.div>
+                    {error && (
+                        <p className="text-center text-sm mt-3 text-red-500">
+                            {error}
+                        </p>
+                    )}
+                </div>
+            </div>
         );
     }
 
     if (step === 'completed') {
         return (
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden"
-            >
-                <div className="p-8 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-center">
-                    <Award className="w-16 h-16 mx-auto mb-4" />
-                    <h2 className="text-3xl font-bold mb-2">Interview Completed!</h2>
-                    <p className="opacity-90">
-                        Thank you for your responses. Here's your feedback:
-                    </p>
+            <div className="max-w-md mx-auto text-center py-16">
+                <div className="text-5xl font-extrabold text-green-600 mb-4">
+                    {finalScore}%
                 </div>
-
-                <div className="p-8 space-y-6">
-                    <div className="bg-gray-50 rounded-xl p-5">
-                        <h3 className="font-bold text-lg text-gray-800 mb-2">Overall Score</h3>
-                        <div className="text-4xl font-black text-green-600">
-                            {finalResult?.interviewScore || 75}%
-                        </div>
-                    </div>
-
-                    <div className="bg-indigo-50 rounded-xl p-5">
-                        <h3 className="font-bold text-lg text-indigo-800 mb-2">AI Feedback</h3>
-                        <p className="text-gray-700 italic">
-                            "{finalResult?.overallFeedback || "Great technical discussion!"}"
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-purple-50 rounded-lg p-4 text-center">
-                            <p className="text-sm text-purple-700">Technical Depth</p>
-                            <p className="text-2xl font-bold text-purple-800">
-                                {finalResult?.metrics?.tradeOffs || 70}%
-                            </p>
-                        </div>
-                        <div className="bg-blue-50 rounded-lg p-4 text-center">
-                            <p className="text-sm text-blue-700">Problem Solving</p>
-                            <p className="text-2xl font-bold text-blue-800">
-                                {finalResult?.metrics?.bargeInResilience || 65}%
-                            </p>
-                        </div>
-                        <div className="bg-amber-50 rounded-lg p-4 text-center">
-                            <p className="text-sm text-amber-700">Ownership</p>
-                            <p className="text-2xl font-bold text-amber-800">
-                                {finalResult?.metrics?.ownershipMindset || 80}%
-                            </p>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => onComplete(finalResult)}
-                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg"
-                    >
-                        View Full Report
-                    </button>
-                </div>
-            </motion.div>
+                <p className="mb-6 text-gray-700">
+                    {feedback}
+                </p>
+                <button
+                    onClick={() => onComplete({ interviewScore: finalScore })}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg"
+                >
+                    View Final Report
+                </button>
+            </div>
         );
     }
 
