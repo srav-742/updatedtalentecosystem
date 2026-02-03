@@ -1,225 +1,166 @@
-// routes/aiInterviewRoutes.js
 const express = require('express');
 const router = express.Router();
-const { callOpenRouter } = require('../services/openRouterService');
-const axios = require('axios');
+const { callInterviewAI } = require('../utils/aiClients');
+const { generateSpeech } = require('../services/tts.service');
 const crypto = require('crypto');
-const mongoose = require('mongoose');
+const ResumeAnalysis = require('../models/ResumeAnalysis');
+const Application = require('../models/Application');
 
-// In-memory session store (use Redis in production)
+// In-memory session store
 const interviewSessions = new Map();
 
-// Start interview
+const INTERVIEW_SYSTEM_PROMPT = `
+You are a senior technical interviewer for a high-growth tech company. 
+Your goal is to evaluate the candidate's technical depth, problem-solving skills, and communication.
+- Be professional, encouraging, but rigorous.
+- Ask specific questions based on the resume and previous answers.
+- Avoid generic questions; dive into implementation details, trade-offs, and architecture.
+- Keep the conversation flow natural.
+- Respond ONLY with the next interview question or feedback, no conversational filler like 'Great answer!' unless it's part of the feedback.
+`;
+
 // Start interview
 router.post('/start', async (req, res) => {
     try {
         const { jobId, userId } = req.body;
+        if (!jobId || !userId) return res.status(400).json({ message: "jobId and userId are required" });
 
-        if (!jobId || !userId) {
-            return res.status(400).json({ message: "jobId and userId are required" });
-        }
-
-        const ResumeAnalysis = mongoose.model('ResumeAnalysis');
         const resume = await ResumeAnalysis.findOne({ userId, jobId });
-
-        if (!resume) {
-            return res.status(400).json({
-                message: "Resume not analyzed. Please complete resume analysis first."
-            });
-        }
+        if (!resume) return res.status(400).json({ message: "Resume analysis not found." });
 
         const structured = resume.structured || {};
 
-        const firstQPrompt = `
-You are an expert technical interviewer.
-Candidate Resume:
-- Skills: ${JSON.stringify(structured.skills || {})}
-- Projects: ${JSON.stringify(structured.projects || [])}
-- Experience: ${structured.experienceYears || 0} years
-- AI Context: ${resume.explanation}
-Job Role: Software Engineer
+        const firstQPrompt = `Based on this resume: ${JSON.stringify(structured)}, ask ONE specific technical question about their work. Return ONLY the question.`;
 
-Ask ONE deep, specific technical question about their strongest project or skill.
-Focus on implementation, trade-offs, or challenges.
-Return ONLY the question text. No intro.
-`;
-        console.log("[INTERVIEW-START] Prompting AI...");
-        let firstQuestion = null;
-        try {
-            firstQuestion = await callOpenRouter(firstQPrompt);
-        } catch (aiError) {
-            console.error("[INTERVIEW-START] AI Service Error:", aiError.message);
-        }
+        let firstQuestion = await callInterviewAI(firstQPrompt, 500, false, INTERVIEW_SYSTEM_PROMPT);
 
-        // Fallback if AI fails
         if (!firstQuestion) {
-            console.warn("[INTERVIEW-START] Using fallback question.");
-            const FALLBACK_QUESTIONS = [
-                "Could you walk me through the most technically challenging project you've worked on?",
-                "Describe a situation where you had to debug a complex issue. What was your approach?",
-                "What are your core technical strengths and how have you applied them in your recent work?",
-                "Explain a technical concept you've learned recently and why you found it interesting."
-            ];
-            firstQuestion = FALLBACK_QUESTIONS[Math.floor(Math.random() * FALLBACK_QUESTIONS.length)];
+            firstQuestion = "Could you walk me through the most technically challenging project you've worked on?";
         }
+
+        // Voice generation (TTS)
+        let audioBase64 = null;
+        try {
+            const buffer = await generateSpeech(firstQuestion);
+            if (buffer) audioBase64 = buffer.toString('base64');
+        } catch (e) { console.warn("TTS failed"); }
 
         const sessionId = crypto.randomBytes(16).toString('hex');
         interviewSessions.set(sessionId, {
-            userId,
-            jobId,
-            resumeProfile: structured,
+            userId, jobId, resumeProfile: structured,
             history: [{ role: 'interviewer', content: firstQuestion }]
         });
 
-        res.json({ success: true, sessionId, question: firstQuestion });
+        res.json({ success: true, sessionId, question: firstQuestion, audio: audioBase64 });
     } catch (error) {
-        console.error("[INTERVIEW-START] Critical Error:", error);
-        // Last resort fallback response to prevent 500
-        res.status(200).json({
-            success: true,
-            sessionId: crypto.randomBytes(16).toString('hex'),
-            question: "Tell me about your experience as a Software Engineer."
-        });
+        console.error("Start Error:", error);
+        res.status(500).json({ success: false, message: "Failed to start" });
     }
 });
 
-// Submit answer & get next question (up to 10)
+// Next question
 router.post('/next', async (req, res) => {
     try {
         const { sessionId, answerText } = req.body;
         const session = interviewSessions.get(sessionId);
-        if (!session) {
-            return res.status(404).json({ message: "Session not found" });
-        }
+        if (!session) return res.status(404).json({ message: "Session not found" });
 
         session.history.push({ role: 'candidate', content: answerText });
+        const interviewers = session.history.filter(h => h.role === 'interviewer');
 
-        const interviewerMessages = session.history.filter(h => h.role === 'interviewer');
-        if (interviewerMessages.length >= 10) {
-            console.log(`[INTERVIEW-END] Analyzing session for user: ${session.userId}`);
-
-            // 1. Gather Conversation
-            const conversation = session.history.map(h =>
-                `${h.role === 'interviewer' ? 'Q' : 'A'}: ${h.content}`
-            ).join('\n');
-
-            // 2. AI Evaluation
+        // End after 10 questions
+        if (interviewers.length >= 10) {
+            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId}`);
+            const conversation = session.history.map(h => `${h.role}: ${h.content}`).join('\n');
             const evalPrompt = `
-You are a Senior Technical Recruiter. Evaluate this interview conversation:
-${conversation}
-
-Job Context: ${JSON.stringify(session.resumeProfile || {})}
-
-Return ONLY a JSON object:
+Evaluate this technical interview and return ONLY a JSON object:
 {
   "score": 0-100,
-  "feedback": "...",
-  "metrics": {
-    "technicalDepth": 0-10,
-    "communication": 0-10,
-    "honesty": 0-10
-  }
+  "feedback": "Concise summary"
 }
+Conversation:
+${conversation}
 `;
-            let evaluation = { score: 50, feedback: "Interview completed." };
+
+            let evaluation = { score: 70, feedback: "Technical discussion completed." };
             try {
-                const rawEval = await callOpenRouter(evalPrompt, 500, true);
-                if (rawEval) evaluation = JSON.parse(rawEval);
+                const resText = await callInterviewAI(evalPrompt, 500, true, "You are a senior technical evaluator. Analyze the technical depth of this interview.");
+                console.log("[INTERVIEW-EVAL] Raw AI Response:", resText);
+                if (resText) {
+                    const match = resText.match(/\{[\s\S]*\}/);
+                    const parsed = JSON.parse(match ? match[0] : resText);
+                    if (parsed && typeof parsed.score !== 'undefined') {
+                        evaluation.score = Number(parsed.score);
+                        evaluation.feedback = parsed.feedback || evaluation.feedback;
+                    }
+                }
             } catch (e) {
-                console.error("[INTERVIEW-END] Eval failed, using default:", e.message);
+                console.error("[INTERVIEW-EVAL] Parsing failed:", e.message);
             }
 
-            // 3. Save to Database (Application Model)
-            const Application = mongoose.model('Application');
-            const interviewAnswers = [];
-            for (let i = 0; i < session.history.length; i += 2) {
-                if (session.history[i] && session.history[i + 1]) {
-                    interviewAnswers.push({
-                        question: session.history[i].content,
-                        answer: session.history[i + 1].content,
-                        score: evaluation.score // simplified per question score for now
-                    });
-                }
-            }
+            console.log("[INTERVIEW-EVAL] Final Score:", evaluation.score);
 
             await Application.findOneAndUpdate(
                 { userId: session.userId, jobId: session.jobId },
                 {
                     interviewScore: evaluation.score,
-                    interviewAnswers: interviewAnswers,
-                    $set: { "metrics.communicationDelta": evaluation.metrics?.communication || 5 }
+                    status: 'APPLIED',
+                    resultsVisibleAt: new Date(), // Set to now to ensure visibility
+                    interviewAnswers: session.history.filter((_, i) => i % 2 === 0).map((h, i) => ({
+                        question: h.content,
+                        answer: session.history[i * 2 + 1]?.content || "",
+                        score: evaluation.score,
+                        feedback: evaluation.feedback
+                    }))
                 },
                 { upsert: true }
             );
 
+            // Update final score
+            const app = await Application.findOne({ userId: session.userId, jobId: session.jobId });
+            if (app) {
+                const r = Number(app.resumeMatchPercent || 0);
+                const a = Number(app.assessmentScore || 0);
+                const i = Number(app.interviewScore || 0);
+                app.finalScore = Math.round((r + a + i) / 3);
+
+                if (app.finalScore >= 60) app.status = 'SHORTLISTED';
+
+                await app.save();
+                console.log(`[INTERVIEW-EVAL] Application Updated. Final Score: ${app.finalScore}`);
+            }
+
             interviewSessions.delete(sessionId);
-
-            return res.json({
-                hasNext: false,
-                finalScore: evaluation.score,
-                feedback: evaluation.feedback
-            });
+            return res.json({ hasNext: false, finalScore: evaluation.score, feedback: evaluation.feedback });
         }
 
-        const thread = session.history.map(h =>
-            `[${h.role === 'interviewer' ? 'INTERVIEWER' : 'CANDIDATE'}]: ${h.content}`
-        ).join('\n\n');
+        const thread = session.history.map(h => `${h.role}: ${h.content}`).join('\n');
+        const nextPrompt = `Continue the technical interview. Based on history:\n${thread}\n\nAsk ONE follow-up technical question. Return ONLY the question.`;
 
-        const nextPrompt = `
-Continue the technical interview based on:
-
-${thread}
-
-Candidate's resume:
-- Skills: ${JSON.stringify(session.resumeProfile.skills || {})}
-- Projects: ${JSON.stringify(session.resumeProfile.projects || [])}
-
-Ask ONE follow-up question that:
-- Builds directly on the last answer
-- Probes deeper into technical reasoning
-- Relates to their actual resume
-- Is specific and open-ended
-
-Return ONLY the question text.
-`;
-        let nextQuestion = null;
-        try {
-            nextQuestion = await callOpenRouter(nextPrompt);
-        } catch (aiError) {
-            console.error("[INTERVIEW-NEXT] AI Error:", aiError.message);
-        }
+        let nextQuestion = await callInterviewAI(nextPrompt, 500, false, INTERVIEW_SYSTEM_PROMPT);
 
         if (!nextQuestion) {
-            console.warn("[INTERVIEW-NEXT] Using fallback follow-up.");
-            const FALLBACK_FOLLOWUPS = [
-                "That sounds interesting. Can you elaborate more on the specific challenges you faced?",
-                "How did you ensure the scalability of that solution?",
-                "What alternatives did you consider before choosing that approach?",
-                "Could you dive deeper into the technical implementation details?"
-            ];
-            nextQuestion = FALLBACK_FOLLOWUPS[Math.floor(Math.random() * FALLBACK_FOLLOWUPS.length)];
+            nextQuestion = "Can you dive deeper into the technical implementation of that solution?";
         }
 
-        session.history.push({ role: 'interviewer', content: nextQuestion });
+        // Voice generation (TTS)
+        let audioBase64 = null;
+        try {
+            const buffer = await generateSpeech(nextQuestion);
+            if (buffer) audioBase64 = buffer.toString('base64');
+        } catch (e) { console.warn("TTS failed"); }
 
-        const currentCount = session.history.filter(h => h.role === 'interviewer').length;
+        session.history.push({ role: 'interviewer', content: nextQuestion });
 
         res.json({
             hasNext: true,
             question: nextQuestion,
-            currentQuestionNumber: currentCount
+            audio: audioBase64,
+            currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length
         });
     } catch (error) {
-        console.error("[INTERVIEW-NEXT] Critical Error:", error.message);
-
-        const session = interviewSessions.get(req.body.sessionId);
-        const currentCount = session ? session.history.filter(h => h.role === 'interviewer').length : 1;
-
-        res.json({
-            hasNext: true,
-            question: "Could you tell me more about your technical skills?",
-            currentQuestionNumber: currentCount
-        });
+        console.error("Next Error:", error);
+        res.status(500).json({ success: false, message: "Error" });
     }
 });
 

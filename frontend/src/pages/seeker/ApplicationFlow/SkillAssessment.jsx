@@ -192,37 +192,24 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
                 animate={{ opacity: 1 }}
                 className="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden text-center"
             >
-                <div className={`p-12 ${isPassed ? 'bg-green-600' : 'bg-red-600'} text-white`}>
-                    {isPassed ? (
-                        <CheckCircle className="w-20 h-20 mx-auto mb-4" />
-                    ) : (
-                        <XCircle className="w-20 h-20 mx-auto mb-4" />
-                    )}
+                <div className="p-12 bg-green-600 text-white">
+                    <CheckCircle className="w-20 h-20 mx-auto mb-4" />
 
                     <h2 className="text-3xl font-black mb-2">
-                        {isPassed ? 'Assessment Passed' : 'Assessment Failed'}
+                        Assessment Complete
                     </h2>
 
                     <div className="text-5xl font-black mt-4">{score}%</div>
-                    <div className="opacity-80 mt-1">Required: {PASS_THRESHOLD}%</div>
+                    <div className="opacity-80 mt-1">Score Captured</div>
                 </div>
 
                 <div className="p-8">
-                    {isPassed ? (
-                        <button
-                            onClick={() => onComplete(score)}
-                            className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold"
-                        >
-                            Proceed to Interview <ArrowRight className="inline ml-2" />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => window.location.href = '/seeker/jobs'}
-                            className="bg-gray-200 px-8 py-4 rounded-xl font-bold"
-                        >
-                            <ArrowLeft className="inline mr-2" /> Back to Jobs
-                        </button>
-                    )}
+                    <button
+                        onClick={() => onComplete(score)}
+                        className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold"
+                    >
+                        Proceed to Interview <ArrowRight className="inline ml-2" />
+                    </button>
                 </div>
             </motion.div>
         );
