@@ -25,8 +25,7 @@ const PostJob = () => {
         assessment: {
             enabled: false,
             type: 'MCQ',
-            totalQuestions: 10,
-            passingScore: 70
+            totalQuestions: 10
         },
         mockInterview: {
             enabled: false,
@@ -454,25 +453,6 @@ const PostJob = () => {
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-orange-500/50 outline-none text-sm"
                                 />
-                            </div>
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-widest">Passing Score</label>
-                                    <span className="text-orange-400 font-bold text-xs">{jobData.assessment.passingScore}%</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    name="assessment.passingScore"
-                                    min="10"
-                                    max="100"
-                                    step="5"
-                                    value={jobData.assessment.passingScore || 70}
-                                    onChange={handleChange}
-                                    className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-orange-500"
-                                />
-                                <p className="mt-2 text-[10px] text-orange-400/80 font-medium">
-                                    Job seeker should satisfy {jobData.assessment.passingScore}% in assessment to pass.
-                                </p>
                             </div>
                         </div>
                     </div>

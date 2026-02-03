@@ -76,16 +76,25 @@ const MyApplications = () => {
                                         </td>
                                         <td className="p-8 text-center">
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-black text-lg">
-                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.assessmentScore || '--')}
+                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.assessmentScore ?? '--')}
                                             </div>
                                         </td>
                                         <td className="p-8 text-center">
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-500/5 border border-purple-500/10 text-purple-400 font-black text-lg">
-                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.interviewScore || '--')}
+                                                {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.interviewScore ?? '--')}
                                             </div>
                                         </td>
                                         <td className="p-8 text-center font-black text-xl text-white">
-                                            {app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt) ? '--' : (app.finalScore || '--')}
+                                            {(() => {
+                                                if (app.resultsVisibleAt && new Date() < new Date(app.resultsVisibleAt)) return '--';
+                                                if (app.finalScore !== undefined && app.finalScore !== null) return app.finalScore;
+                                                // Fallback calculation for display
+                                                const r = parseFloat(app.resumeMatchPercent || 0);
+                                                const a = parseFloat(app.assessmentScore || 0);
+                                                const i = parseFloat(app.interviewScore || 0);
+                                                const calculated = Math.round((r + a + i) / 3);
+                                                return calculated > 0 ? calculated : '--';
+                                            })()}
                                         </td>
                                         <td className="p-8 text-right pr-10">
                                             <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-inner ${getStatusStyle(app.status)}`}>
