@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_URL } from '../../firebase';
 
 const MyJobs = () => {
     const navigate = useNavigate();
@@ -14,7 +15,7 @@ const MyJobs = () => {
     const fetchJobs = async () => {
         try {
             const userId = user.uid || user._id || user.id;
-            const res = await axios.get(`http://127.0.0.1:5000/api/jobs/recruiter/${userId}`);
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
             setJobs(res.data);
         } catch (error) {
             console.error('Error fetching jobs:', error);
@@ -30,7 +31,7 @@ const MyJobs = () => {
     const handleDelete = async (jobId) => {
         if (!window.confirm('Are you sure you want to delete this job posting?')) return;
         try {
-            await axios.delete(`http://127.0.0.1:5000/api/jobs/${jobId}`);
+            await axios.delete(`${API_URL}/jobs/${jobId}`);
             setJobs(jobs.filter(j => j._id !== jobId));
         } catch (error) {
             console.error('Error deleting job:', error);

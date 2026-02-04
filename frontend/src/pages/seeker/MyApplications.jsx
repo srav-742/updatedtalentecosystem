@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, CheckCircle2, XCircle, Building2, Search, ArrowUpRight } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../../firebase';
 
 const MyApplications = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -12,7 +13,7 @@ const MyApplications = () => {
         const fetchApps = async () => {
             try {
                 const userId = user.uid || user._id || user.id;
-                const res = await axios.get(`http://127.0.0.1:5000/api/applications/seeker/${userId}`);
+                const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
                 setApplications(res.data);
             } catch (error) {
                 console.error(error);

@@ -3,11 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../../../firebase';
 import ResumeAnalyzer from './ResumeAnalyzer';
 import SkillAssessment from './SkillAssessment';
 import AIInterview from './AIInterview';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const ApplicationFlow = () => {
     const { jobId } = useParams();
@@ -32,12 +31,12 @@ const ApplicationFlow = () => {
                 }
                 setUser(storedUser);
 
-                const jobRes = await axios.get(`${API_BASE_URL}/api/jobs/${jobId}`);
+                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}`);
                 setJob(jobRes.data);
 
                 // Check for existing application to resume state
                 try {
-                    const appsRes = await axios.get(`${API_BASE_URL}/api/applications/seeker/${storedUser.uid || storedUser._id || storedUser.id}`);
+                    const appsRes = await axios.get(`${API_URL}/applications/seeker/${storedUser.uid || storedUser._id || storedUser.id}`);
                     const existingApp = appsRes.data.find(app => app.jobId._id === jobId || app.jobId === jobId);
 
                     if (existingApp) {

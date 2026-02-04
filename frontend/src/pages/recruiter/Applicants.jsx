@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Users, Search, Filter, MoreVertical, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
+import { API_URL } from '../../firebase';
 
 const Applicants = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -20,7 +21,7 @@ const Applicants = () => {
             setLoading(true);
             try {
                 const userId = user.uid || user._id || user.id;
-                const res = await axios.get(`http://127.0.0.1:5000/api/applications/recruiter/${userId}`);
+                const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
                 let mapped = res.data.map(app => ({
                     id: app._id,
                     jobId: app.jobId?._id,
@@ -66,7 +67,7 @@ const Applicants = () => {
             // Optimistic update
             setApplicants(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
 
-            await axios.put(`http://127.0.0.1:5000/api/applications/${id}/status`, { status: newStatus });
+            await axios.put(`${API_URL}/applications/${id}/status`, { status: newStatus });
         } catch (error) {
             console.error("Failed to update status:", error);
             // Revert on error (could fetch again, but alert for now)

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MapPin, Briefcase, ChevronLeft, Building2, Star, CheckCircle, FileUp, Sparkles, Wand2, Clock } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../../firebase';
 
 const JobDetails = () => {
     const { id } = useParams();
@@ -13,8 +14,7 @@ const JobDetails = () => {
     useEffect(() => {
         const fetchJob = async () => {
             try {
-                // In a real app we'd have a specific endpoint, for now we filter all jobs
-                const res = await axios.get('http://127.0.0.1:5000/api/jobs');
+                const res = await axios.get(`${API_URL}/jobs`);
                 const found = res.data.find(j => j._id === id);
                 setJob(found);
             } catch (error) {

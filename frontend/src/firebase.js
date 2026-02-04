@@ -80,7 +80,7 @@ export const signInWithGithub = async () => {
 };
 
 // Database Helpers - Redirected to MongoDB Backend
-export const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://updatedtalent-backend.onrender.com/api';
 
 export const saveUserProfile = async (userId, data) => {
     console.log(`[Backend-Sync] Saving profile for ${userId}...`);

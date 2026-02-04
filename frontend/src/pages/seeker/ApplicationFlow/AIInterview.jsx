@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, StopCircle, Loader, ShieldCheck, Cpu, Volume2, CheckCircle2, ChevronRight, Sparkles, User, AudioLines } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL } from '../../../firebase';
 
 const AIInterview = ({ job, user, onComplete }) => {
     const [step, setStep] = useState('ready');
@@ -86,7 +85,7 @@ const AIInterview = ({ job, user, onComplete }) => {
     const startInterviewTrigger = async () => {
         setStep('loading');
         try {
-            const res = await axios.post(`${API_BASE_URL}/api/interview/start`, {
+            const res = await axios.post(`${API_URL}/interview/start`, {
                 jobId: job._id,
                 userId: user.uid
             });
@@ -126,13 +125,13 @@ const AIInterview = ({ job, user, onComplete }) => {
 
                     let answerText = transcript;
                     try {
-                        const trRes = await axios.post(`${API_BASE_URL}/api/upload-audio`, formData);
+                        const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
                         if (trRes.data?.text) answerText = trRes.data.text;
                     } catch (e) { }
 
                     if (!answerText || answerText.length < 2) throw new Error("Silence detected. Please try again.");
 
-                    const nextRes = await axios.post(`${API_BASE_URL}/api/interview/next`, {
+                    const nextRes = await axios.post(`${API_URL}/interview/next`, {
                         sessionId, answerText
                     });
 
