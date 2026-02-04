@@ -5,29 +5,29 @@ import { User, Target, Award, CheckCircle, Rocket } from 'lucide-react';
 const steps = [
     {
         icon: <User className="w-6 h-6" />,
-        title: "Create Profile / Upload Resume",
-        desc: "Upload your resume or build one using our AI resume builder."
+        title: "Ownership Mindset",
+        desc: "Engineers take full responsibility for their modules, just like any internal core team member."
     },
     {
         icon: <Target className="w-6 h-6" />,
-        title: "Skill Matching",
-        desc: "See how well your skills match job requirements."
+        title: "Silicon Valley Communication",
+        desc: "Fluent, proactive, and professional communication that bridges the gap between timezones."
     },
     {
         icon: <Award className="w-6 h-6" />,
-        title: "Assessments & Mock Interviews",
-        desc: "Prove your skills through tests and AI-driven interviews."
+        title: "Deep Integration",
+        desc: "We ensure our talent works within your tools, your slack, and your culture."
     },
     {
         icon: <CheckCircle className="w-6 h-6" />,
-        title: "Get Shortlisted",
-        desc: "Only qualified candidates move forward — no random rejections."
+        title: "Long-term Collaboration",
+        desc: "No freelancers or gig-workers. We focus on building stable, long-lasting engineering teams."
     }
 ];
 
 const JobSeekerSection = () => {
     return (
-        <section className="py-24 relative overflow-hidden">
+        <section id="team-culture" className="py-24 relative overflow-hidden">
             <div className="container mx-auto px-6">
                 <div className="flex flex-col lg:flex-row-reverse items-center gap-16">
                     <div className="lg:w-1/2">
@@ -40,10 +40,10 @@ const JobSeekerSection = () => {
                             <div className="w-12 h-12 bg-teal-500/20 rounded-2xl flex items-center justify-center text-teal-400">
                                 <Rocket className="w-6 h-6" />
                             </div>
-                            <h2 className="text-4xl font-bold text-white">For Candidates</h2>
+                            <h2 className="text-4xl font-bold text-white">Not Outsourcing. Integration.</h2>
                             <p className="text-xl text-gray-400 leading-relaxed">
-                                Build your profile, improve your skills, and get matched
-                                to jobs where you truly fit.
+                                Our engineers aren't outsiders. They are core team members who
+                                care about your product as much as you do.
                             </p>
 
                             <div className="space-y-4 pt-4">
@@ -69,39 +69,26 @@ const JobSeekerSection = () => {
                             viewport={{ once: true }}
                             className="relative z-10 p-2 bg-gradient-to-br from-teal-500/20 to-emerald-500/20 rounded-[2.5rem] border border-white/10"
                         >
-                            <div className="bg-[#0c0f16] rounded-[2rem] p-8 border border-white/10 overflow-hidden">
-                                {/* Mock UI for Job Seeker Dashboard */}
+                            <div className="bg-[#0c0f16] rounded-[2rem] p-8 border border-white/10 overflow-hidden text-center">
                                 <div className="space-y-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-full bg-teal-500/20 flex items-center justify-center">
-                                            <User className="w-8 h-8 text-teal-400" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div className="h-4 w-40 bg-white/20 rounded" />
-                                            <div className="h-3 w-24 bg-white/10 rounded" />
-                                        </div>
+                                    <div className="text-2xl font-bold text-white">Team Alignment</div>
+                                    <div className="flex justify-center -space-x-4">
+                                        {[1, 2, 3, 4].map((i) => (
+                                            <div key={i} className="w-16 h-16 rounded-full border-4 border-[#0c0f16] bg-teal-500/20 flex items-center justify-center overflow-hidden">
+                                                <div className="w-full h-full bg-gradient-to-br from-teal-500 to-blue-500 opacity-60" />
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                                            <div className="text-xs text-gray-500 mb-1">Resume Match</div>
-                                            <div className="text-2xl font-bold text-teal-400">92%</div>
-                                        </div>
-                                        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                                            <div className="text-xs text-gray-500 mb-1">Assessment</div>
-                                            <div className="text-2xl font-bold text-blue-400">8.5/10</div>
-                                        </div>
+                                    <div className="text-sm text-gray-400">
+                                        "They aren't just developers; they are partners in our vision."
                                     </div>
-                                    <div className="p-4 rounded-xl bg-gradient-to-r from-teal-500/10 to-blue-500/10 border border-teal-500/20">
-                                        <div className="text-sm font-semibold text-white mb-2">Ready for Interview?</div>
-                                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                                            <div className="h-full w-3/4 bg-teal-400" />
-                                        </div>
+                                    <div className="flex justify-center gap-4">
+                                        <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] text-teal-400 border border-teal-500/20">Slack Integrated</span>
+                                        <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] text-blue-400 border border-blue-500/20">Daily Syncs</span>
                                     </div>
                                 </div>
                             </div>
                         </motion.div>
-
-                        {/* Decorative circles */}
                         <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-teal-600/20 rounded-full blur-[80px] -z-10" />
                     </div>
                 </div>

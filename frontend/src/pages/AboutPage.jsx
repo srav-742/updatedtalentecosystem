@@ -16,7 +16,7 @@ const AboutPage = () => {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-center mb-20"
                     >
-                        <h1 className="text-5xl md:text-6xl font-bold mb-6">About Web3 Talent Eco System</h1>
+                        <h1 className="text-5xl md:text-6xl font-bold mb-6">About hire1percent</h1>
                         <p className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
                             We are redefining the future of recruitment by bridging the gap between talent and opportunity
                             through an intelligent, decentralized, and skill-driven ecosystem.
@@ -67,7 +67,7 @@ const AboutPage = () => {
                             </div>
                             <h2 className="text-3xl font-bold mb-6">For the Candidate</h2>
                             <p className="text-gray-400 mb-8 leading-relaxed">
-                                Empower your career with transparent scoring and skill validation. Stop wondering why your application was rejected.
+                                Empower your career with skill validation. Stop wondering why your application was rejected.
                                 Get real-time feedback and prove your worth through our automated testing suite.
                             </p>
                             <ul className="space-y-4">
@@ -76,7 +76,7 @@ const AboutPage = () => {
                                     "Real-time resume matching feedback",
                                     "Skill-based assessments to earn badges",
                                     "Practice with AI mock interviews",
-                                    "Direct matching with top Web3 companies"
+                                    "Direct matching with top companies"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-center gap-3 text-gray-300">
                                         <div className="w-1.5 h-1.5 rounded-full bg-teal-400" />
@@ -92,7 +92,7 @@ const AboutPage = () => {
                         {[
                             { icon: <Target className="text-purple-400" />, title: "Our Mission", desc: "To create a transparent and efficient hiring landscape where skills speak louder than credentials." },
                             { icon: <Zap className="text-yellow-400" />, title: "Our Vision", desc: "A world where every talent finds their perfect fit through fair and unbiased AI-driven matching." },
-                            { icon: <Heart className="text-red-400" />, title: "Our Values", desc: "Transparency, skill-first approach, and empowering the Web3 community to thrive." }
+                            { icon: <Heart className="text-red-400" />, title: "Our Values", desc: "Transparency, skill-first approach, and empowering the community to thrive." }
                         ].map((item, i) => (
                             <motion.div
                                 key={i}

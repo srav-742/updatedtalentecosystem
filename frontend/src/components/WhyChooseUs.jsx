@@ -5,26 +5,20 @@ import { Zap, ShieldCheck, BarChart3, TrendingUp } from 'lucide-react';
 const reasons = [
     {
         icon: <Zap className="w-8 h-8 text-yellow-400" />,
-        title: "Unified Platform",
-        desc: "Recruiters and candidates use the same trusted system.",
-        link: "how-it-works"
+        title: "AI & ML Specialists",
+        desc: "Our engineers are experts in LLMs, RAG systems, and vector databases. They don't just write code; they build intelligent systems.",
+        link: "problem-solution"
     },
     {
         icon: <ShieldCheck className="w-8 h-8 text-green-400" />,
-        title: "AI-Driven Decisions",
-        desc: "Hiring based on skills, not guesswork.",
-        link: "recruiter-features"
+        title: "IIT-Vetted Quality",
+        desc: "We only source from the top 1% of Indian engineering talent, primarily from IITs, ensuring a world-class technical foundation.",
+        link: "how-it-works"
     },
     {
         icon: <BarChart3 className="w-8 h-8 text-blue-400" />,
-        title: "Transparent Scoring",
-        desc: "Resume match, assessment, and interview scores are visible.",
-        link: "seeker-features"
-    },
-    {
-        icon: <TrendingUp className="w-8 h-8 text-purple-400" />,
-        title: "Career Growth Focused",
-        desc: "Not just hiring — we help candidates improve.",
+        title: "Rigorous Technical Vetting",
+        desc: "Every candidate undergoes real-world project testing and deep technical interviews by our team of expert AI architects.",
         link: "cta"
     }
 ];
@@ -38,7 +32,7 @@ const WhyChooseUs = () => {
     };
 
     return (
-        <section className="py-24 bg-white/5" id="features">
+        <section className="py-24 bg-white/5" id="elite-talent">
             <div className="container mx-auto px-6 text-center">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -46,14 +40,14 @@ const WhyChooseUs = () => {
                     viewport={{ once: true }}
                     className="mb-16"
                 >
-                    <h2 className="text-4xl font-bold mb-4">Why Web3 Talent Eco System?</h2>
+                    <h2 className="text-4xl font-bold mb-4">The Elite Talent Standard</h2>
                     <p className="text-gray-400 max-w-2xl mx-auto">
-                        Our platform bridges the gap between talent and opportunity with
-                        cutting-edge AI technology.
+                        We don't just find developers. We provide AI specialists who function
+                        as a core part of your engineering team.
                     </p>
                 </motion.div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div className="grid md:grid-cols-3 gap-8">
                     {reasons.map((reason, idx) => (
                         <motion.div
                             key={idx}

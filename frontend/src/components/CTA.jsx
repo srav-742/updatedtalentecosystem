@@ -16,17 +16,14 @@ const FinalCTA = () => {
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                     >
-                        <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">Ready to Hire or Get Hired?</h2>
+                        <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">Stop Spending. Start Shipping.</h2>
                         <p className="text-xl text-gray-400 mb-12">
-                            Join Web3 Talent Eco System and experience smart, skill-based hiring.
+                            Get 3 verified AI engineer profiles in 14 days.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                             <Link to="/signup" className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/20 text-center">
-                                Sign Up as Recruiter
-                            </Link>
-                            <Link to="/signup" className="w-full sm:w-auto px-10 py-5 bg-white text-black font-bold rounded-2xl hover:bg-gray-100 transition-all shadow-xl text-center">
-                                Sign Up as Candidate
+                                Request Candidate Deck
                             </Link>
                         </div>
                     </motion.div>

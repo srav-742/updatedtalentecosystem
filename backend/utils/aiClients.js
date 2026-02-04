@@ -5,20 +5,15 @@ const openai = require('../config/openai');
 // Initialize Gemini (Fallback)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-/**
- * AI Client for Interview Question Generation.
- * Prioritizes Gemini 2.5 Flash.
- * Fallbacks to OpenRouter, OpenAI, and Groq.
- */
-const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null) => {
-    // 🎯 Primary Attempt: Gemini
+const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
         if (process.env.GEMINI_API_KEY) {
-            console.log("[AI-INTERVIEW] Using Primary Provider: Gemini (gemini-2.5-flash)");
+            console.log("[AI-CLIENT] Using Gemini (gemini-1.5-flash)");
             const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
+                model: "gemini-1.5-flash",
                 generationConfig: {
                     responseMimeType: isJsonMode ? "application/json" : "text/plain",
+                    maxOutputTokens: maxTokens,
                 }
             });
 
@@ -27,9 +22,21 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             const text = (await result.response).text().trim();
             if (text) return text;
         }
-    } catch (geminiErr) {
-        console.warn("[AI-CLIENT] Gemini failed, falling back to OpenRouter:", geminiErr.message);
+    } catch (err) {
+        console.warn("[AI-CLIENT] Gemini Error:", err.message);
     }
+    return null;
+};
+
+/**
+ * AI Client for Interview Question Generation.
+ * Prioritizes Gemini 1.5 Flash.
+ * Fallbacks to OpenRouter, OpenAI, and Groq.
+ */
+const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null) => {
+    // 🎯 Primary Attempt: Gemini
+    const geminiText = await callGemini(prompt, maxTokens, isJsonMode, systemPrompt);
+    if (geminiText) return geminiText;
 
     // 🎯 Secondary Attempt: OpenRouter
     try {
@@ -118,15 +125,19 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
 };
 
 /**
- * Direct call to Groq API.
- * Preferred for high-speed MCQs and Resume Parsing.
+ * Direct call for Skill Assessments.
+ * Prioritizes Gemini, Fallbacks to Groq.
  */
-const callGroq = async (prompt, maxTokens = 2000) => {
+const callSkillAI = async (prompt, maxTokens = 2000) => {
+    // Try Gemini First
+    const isJson = prompt.toLowerCase().includes("json");
+    const geminiText = await callGemini(prompt, maxTokens, isJson);
+    if (geminiText) return geminiText;
+
+    // Fallback to Groq
     try {
         if (process.env.GROQ_API_KEY) {
-            console.log("[SKILL-ASSESSMENT] Using Provider: Groq (llama-3.3-70b)");
-            const isJson = prompt.toLowerCase().includes("json");
-
+            console.log("[SKILL-ASSESSMENT] Using Fallback Provider: Groq (llama-3.3-70b)");
             const response = await axios.post(
                 'https://api.groq.com/openai/v1/chat/completions',
                 {
@@ -153,4 +164,5 @@ const callGroq = async (prompt, maxTokens = 2000) => {
     return null;
 };
 
-module.exports = { callInterviewAI, callGroq };
+module.exports = { callInterviewAI, callSkillAI, callGemini };
+

@@ -146,7 +146,7 @@ const SignupPage = () => {
                         <Briefcase className="w-8 h-8" />
                     </div>
                     <h3 className="text-2xl font-bold mb-4">I am a Recruiter</h3>
-                    <p className="text-gray-400 text-sm mb-6">Find, assess, and hire the best Web3 talent using our AI-driven system.</p>
+                    <p className="text-gray-400 text-sm mb-6">Find, assess, and hire the best talent using our AI-driven system.</p>
                     <button className="px-6 py-2 rounded-full border border-blue-500/30 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all text-sm font-bold">
                         Get Started
                     </button>
@@ -166,7 +166,7 @@ const SignupPage = () => {
                         <Users className="w-8 h-8" />
                     </div>
                     <h3 className="text-2xl font-bold mb-4">I am a Candidate</h3>
-                    <p className="text-gray-400 text-sm mb-6">Verify your skills, build your AI resume, and land top roles in Web3.</p>
+                    <p className="text-gray-400 text-sm mb-6">Verify your skills, build your AI resume, and land top roles.</p>
                     <button className="px-6 py-2 rounded-full border border-teal-500/30 text-teal-400 group-hover:bg-teal-500 group-hover:text-white transition-all text-sm font-bold">
                         Get Started
                     </button>
@@ -207,12 +207,12 @@ const SignupPage = () => {
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
                         <h2 className="text-3xl font-bold mb-4">
-                            {isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Web3 Potential'}
+                            {isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Potential'}
                         </h2>
                         <p className="text-gray-400 mb-6 text-sm max-w-md">
                             {isRecruiter
-                                ? 'Join thousands of employers using our AI matching system to find the top 1% of talent.'
-                                : 'Build your decentralized career identity and get matched with the most innovative projects in the space.'
+                                ? 'Join thousands of employers using our AI matching system to find the world\'s most exceptional technical talent.'
+                                : 'Build your career identity and get matched with the most innovative projects in the space.'
                             }
                         </p>
 
@@ -345,9 +345,9 @@ const SignupPage = () => {
             <nav className="container mx-auto px-6 py-4 flex-none">
                 <Link to="/" className="flex items-center space-x-2 group w-fit">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-400 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">W</span>
+                        <span className="text-white font-bold text-sm">H</span>
                     </div>
-                    <span className="font-bold text-lg tracking-tight">Web3 Talent</span>
+                    <span className="font-bold text-lg tracking-tight">hire1percent</span>
                 </Link>
             </nav>
 

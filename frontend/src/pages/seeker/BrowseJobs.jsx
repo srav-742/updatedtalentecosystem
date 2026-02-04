@@ -78,7 +78,7 @@ const BrowseJobs = () => {
                             <div className="flex-1">
                                 <h3 className="text-2xl font-black mb-2 group-hover:text-teal-400 transition-colors uppercase tracking-tight leading-none">{job.title}</h3>
                                 <p className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                                    {job.company || job.recruiterId?.company?.name || 'Talent Ecosystem Partner'}
+                                    {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
                                 </p>
 
                                 <div className="flex flex-wrap items-center gap-4 text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6">
