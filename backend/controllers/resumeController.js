@@ -1,6 +1,6 @@
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 const ResumeProfile = require('../models/ResumeProfile');
-const { callGroq } = require('../utils/aiClients');
+const { callSkillAI } = require('../utils/aiClients');
 const pdf = require('pdf-parse');
 
 const analyzeResume = async (req, res) => {
@@ -36,7 +36,7 @@ OUTPUT MUST BE A VALID JSON OBJECT EXACTLY LIKE THIS:
 "explanation": "Candidate has strong frontend skills but lacks modern frameworks. Experience and education are sufficient."
 }
 `;
-        const rawResponse = await callGroq(prompt);
+        const rawResponse = await callSkillAI(prompt);
         if (!rawResponse) throw new Error("AI Service Failed");
 
         let analysis;
@@ -65,7 +65,7 @@ ${resumeText ? resumeText.substring(0, 8000) : ''}
 `;
         let structured = { skills: { programming: [], frameworks: [], databases: [], tools: [] }, projects: [], experienceYears: 0 };
         try {
-            const rawIn = await callGroq(extractPrompt);
+            const rawIn = await callSkillAI(extractPrompt);
             if (rawIn) structured = JSON.parse(rawIn);
         } catch (e) { console.warn("Structured parse failed"); }
 
@@ -121,7 +121,7 @@ Resume:
 ${resumeText.substring(0, 8000)}
 `;
 
-        const rawResponse = await callGroq(prompt);
+        const rawResponse = await callSkillAI(prompt);
         if (!rawResponse) {
             return res.status(500).json({ message: "Resume parsing failed" });
         }

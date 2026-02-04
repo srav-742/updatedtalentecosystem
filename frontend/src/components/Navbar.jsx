@@ -12,16 +12,17 @@ const Navbar = () => {
             <div className="container mx-auto px-6 py-4 flex items-center justify-between">
                 <Link to="/" className="flex items-center space-x-2 group">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-                        <span className="text-white font-bold text-xl">W</span>
+                        <span className="text-white font-bold text-xl">H</span>
                     </div>
                     <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 group-hover:from-blue-400 group-hover:to-teal-400 transition-all">
-                        Web3 Talent Eco System
+                        hire1percent
                     </span>
                 </Link>
 
                 <div className="hidden md:flex items-center space-x-8">
-                    <Link to="/about" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">About</Link>
-                    <a href="/#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">How it works</a>
+                    <a href="/#elite-talent" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Elite Talent</a>
+                    <a href="/#operations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Operations</a>
+                    <a href="/#safety" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Safety</a>
                     <div className="flex items-center space-x-4">
                         <Link to="/login" className="px-5 py-2 text-sm font-medium text-white hover:text-blue-400 transition-colors">
                             Login

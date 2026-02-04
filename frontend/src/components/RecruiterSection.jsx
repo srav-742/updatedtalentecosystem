@@ -1,33 +1,28 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Search, FileText, UserCheck, Briefcase } from 'lucide-react';
+import { CheckCircle2, Search, FileText, UserCheck, Briefcase, TrendingUp, Zap } from 'lucide-react';
 
 const steps = [
     {
-        icon: <FileText className="w-6 h-6" />,
-        title: "Post Job Requirement",
-        desc: "Add required skills and minimum selection percentage."
+        icon: <Zap className="w-6 h-6" />,
+        title: "The Problem",
+        desc: "AI engineers in the US cost $250k–$300k/year. High burn rate kills startups before they find PMF."
     },
     {
         icon: <Search className="w-6 h-6" />,
-        title: "AI Filters Candidates",
-        desc: "Only candidates with matching skills and scores are evaluated."
-    },
-    {
-        icon: <UserCheck className="w-6 h-6" />,
-        title: "Get Vetted Profiles",
-        desc: "View resume match %, assessment score, and interview score."
+        title: "The Solution",
+        desc: "Hire1percent provides the same elite quality for a fraction of the cost, extending your runway indefinitely."
     },
     {
         icon: <CheckCircle2 className="w-6 h-6" />,
-        title: "Shortlist with Confidence",
-        desc: "Hire candidates who cross your selection threshold."
+        title: "The Outcome",
+        desc: "Startups save money, scale their engineering team faster, and focus entirely on building product."
     }
 ];
 
 const RecruiterSection = () => {
     return (
-        <section className="py-24 bg-white/5 relative overflow-hidden">
+        <section id="problem-solution" className="py-24 bg-white/5 relative overflow-hidden">
             <div className="container mx-auto px-6">
                 <div className="flex flex-col lg:flex-row items-center gap-16">
                     <div className="lg:w-1/2">
@@ -37,13 +32,13 @@ const RecruiterSection = () => {
                             viewport={{ once: true }}
                             className="space-y-6"
                         >
-                            <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
-                                <Briefcase className="w-6 h-6" />
+                            <div className="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-400">
+                                <TrendingUp className="w-6 h-6" />
                             </div>
-                            <h2 className="text-4xl font-bold text-white">For Recruiters</h2>
+                            <h2 className="text-4xl font-bold text-white">Why Founders Care</h2>
                             <p className="text-xl text-gray-400 leading-relaxed">
-                                Hire only the most suitable candidates using AI-based resume
-                                matching, assessments, and interviews — all in one place.
+                                Recruitment shouldn't be a death sentence for your runway.
+                                We solve the talent-cost paradox for AI startups.
                             </p>
 
                             <div className="space-y-4 pt-4">
@@ -70,25 +65,30 @@ const RecruiterSection = () => {
                             className="relative z-10 p-2 bg-gradient-to-br from-blue-500/20 to-teal-500/20 rounded-[2.5rem] border border-white/10"
                         >
                             <div className="bg-[#0c0f16] rounded-[2rem] p-8 border border-white/10 overflow-hidden">
-                                {/* Mock UI for Recruiter Dashboard */}
                                 <div className="space-y-6">
                                     <div className="flex items-center justify-between">
-                                        <div className="h-4 w-32 bg-white/10 rounded" />
-                                        <div className="h-8 w-24 bg-blue-600 rounded-lg" />
+                                        <div className="text-white font-semibold">Elite Talent Match</div>
+                                        <div className="h-8 w-24 bg-blue-600 rounded-lg flex items-center justify-center text-[10px] font-bold">CALIBRATED</div>
                                     </div>
                                     <div className="space-y-3">
-                                        {[1, 2, 3].map((i) => (
+                                        {[
+                                            { name: "Senior AI Engineer", match: "98%", score: "94" },
+                                            { name: "MLOps Specialist", match: "95%", score: "91" },
+                                            { name: "Fullstack (AI Focus)", match: "92%", score: "88" }
+                                        ].map((candidate, i) => (
                                             <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-white/10" />
-                                                    <div className="space-y-2">
-                                                        <div className="h-3 w-24 bg-white/20 rounded" />
-                                                        <div className="h-2 w-16 bg-white/10 rounded" />
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center text-[10px] font-bold">IIT</div>
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium text-white">{candidate.name}</div>
+                                                        <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-blue-400 w-[80%]" />
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 text-[10px] items-center">
-                                                    <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">Match: 95%</span>
-                                                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Score: 88</span>
+                                                <div className="flex flex-col items-end gap-1 text-[10px]">
+                                                    <span className="text-green-400">Match: {candidate.match}</span>
+                                                    <span className="text-blue-400">Technical: {candidate.score}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -96,8 +96,6 @@ const RecruiterSection = () => {
                                 </div>
                             </div>
                         </motion.div>
-
-                        {/* Decorative circles */}
                         <div className="absolute -top-10 -right-10 w-64 h-64 bg-blue-600/20 rounded-full blur-[80px] -z-10" />
                     </div>
                 </div>

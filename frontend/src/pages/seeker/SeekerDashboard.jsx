@@ -46,7 +46,7 @@ const SeekerDashboard = () => {
                     <Zap size={200} className="text-teal-400" />
                 </div>
                 <div className="relative z-10">
-                    <h2 className="text-teal-400 font-black uppercase tracking-widest text-xs mb-4">Web3 Talent Eco System</h2>
+                    <h2 className="text-teal-400 font-black uppercase tracking-widest text-xs mb-4">hire1percent</h2>
                     <h1 className="text-5xl font-black tracking-tight mb-2">Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">{user.name}</span></h1>
                     <p className="text-gray-500 text-lg max-w-xl font-medium">Your journey to a decentralized career starts here. Explore AI-vetted opportunities specifically matched to your unique skills.</p>
                 </div>

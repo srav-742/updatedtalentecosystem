@@ -416,9 +416,9 @@ const LoginPage = () => {
             <nav className="container mx-auto px-6 py-4 flex-none">
                 <Link to="/" className="flex items-center space-x-2 group w-fit">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-400 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <span className="text-white font-bold text-sm">W</span>
+                        <span className="text-white font-bold text-sm">H</span>
                     </div>
-                    <span className="font-bold text-lg tracking-tight">Web3 Talent</span>
+                    <span className="font-bold text-lg tracking-tight">hire1percent</span>
                 </Link>
             </nav>
 

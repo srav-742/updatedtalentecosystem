@@ -3,18 +3,23 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
 const flowSteps = [
-    "Job Posted",
-    "Resume Matching",
-    "Assessment",
-    "Interview",
-    "Shortlist"
+    "Payroll & Taxes",
+    "Legal Contracts",
+    "Compliance",
+    "Equipment & IP",
+    "PF / Benefits",
+    "Local Laws"
 ];
 
 const FlowDiagram = () => {
     return (
-        <section id="how-it-works" className="py-24 overflow-hidden">
+        <section id="operations" className="py-24 overflow-hidden">
             <div className="container mx-auto px-6 text-center">
-                <h2 className="text-3xl font-bold mb-16 text-white/80 uppercase tracking-[0.2em]">The System Logic</h2>
+                <h2 className="text-3xl font-bold mb-16 text-white uppercase tracking-[0.2em]">Fullstack Operations Support</h2>
+                <p className="text-gray-400 mb-12 max-w-2xl mx-auto">
+                    You focus on the product. We handle the people management and
+                    administrative burden across the globe.
+                </p>
 
                 <div className="flex flex-col md:flex-row items-center justify-center gap-4">
                     {flowSteps.map((step, idx) => (

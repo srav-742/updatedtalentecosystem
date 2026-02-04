@@ -4,7 +4,7 @@ const Application = require('../models/Application');
 const QuestionLog = require('../models/QuestionLog');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { callGroq } = require('../utils/aiClients');
+const { callSkillAI } = require('../utils/aiClients');
 const { generateHash } = require('../utils/helpers');
 const { deductCoins } = require('../services/coinService');
 
@@ -58,8 +58,8 @@ Example:
 {"questions":[{"type":"mcq","skill":"JavaScript","question":"What is closure?","options":["A","B","C","D"],"correctAnswer":1}]}
 NO extra text, explanations, or markdown.
 `;
-        // 🔁 Call Groq
-        const rawResponse = await callGroq(prompt);
+        // 🔁 Call AI
+        const rawResponse = await callSkillAI(prompt);
         if (!rawResponse) {
             return res.status(503).json({ message: "AI service unavailable. Please try again." });
         }
