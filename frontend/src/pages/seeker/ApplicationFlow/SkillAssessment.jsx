@@ -13,8 +13,7 @@ import {
     List
 } from 'lucide-react';
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL } from '../../../firebase';
 
 const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [started, setStarted] = useState(false);
@@ -34,7 +33,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
 
         try {
             const res = await axios.post(
-                `${API_BASE_URL}/api/generate-full-assessment`,
+                `${API_URL}/generate-full-assessment`,
                 {
                     jobId: job._id,
                     userId: user.uid
@@ -101,7 +100,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
         setScore(finalScore);
 
         try {
-            await axios.post(`${API_BASE_URL}/api/applications`, {
+            await axios.post(`${API_URL}/applications`, {
                 jobId: job._id,
                 userId: user.uid,
                 assessmentScore: finalScore

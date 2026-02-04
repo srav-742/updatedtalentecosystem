@@ -3,8 +3,7 @@ import { motion } from 'framer-motion';
 import { Upload, FileText, CheckCircle, AlertCircle, Loader, XCircle, ArrowLeft, ArrowRight, BookOpen, Clock } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_URL } from '../../../firebase';
 
 const ResumeAnalyzer = ({ job, user, onComplete }) => {
     const navigate = useNavigate();
@@ -34,7 +33,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             if (method === 'upload') {
                 const formData = new FormData();
                 formData.append('resume', file);
-                const extractRes = await axios.post(`${API_BASE_URL}/api/extract-pdf`, formData, {
+                const extractRes = await axios.post(`${API_URL}/extract-pdf`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 resumeText = extractRes.data.text;
@@ -43,7 +42,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             }
 
             // ✅ Use /api/analyze-resume (AI-powered, not structured parse)
-            const analysisRes = await axios.post(`${API_BASE_URL}/api/analyze-resume`, {
+            const analysisRes = await axios.post(`${API_URL}/analyze-resume`, {
                 resumeText,
                 jobSkills: job.skills,
                 jobExperience: job.experienceLevel,
@@ -171,7 +170,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            await axios.post(`${API_BASE_URL}/api/applications`, {
+                                            await axios.post(`${API_URL}/applications`, {
                                                 jobId: job._id,
                                                 userId: user.uid || user._id,
                                                 status: 'APPLIED',

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, MapPin, Briefcase, ChevronRight, Zap, Building2, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../../firebase';
 
 const BrowseJobs = () => {
     const [jobs, setJobs] = useState([]);
@@ -12,7 +13,7 @@ const BrowseJobs = () => {
     useEffect(() => {
         const fetchJobs = async () => {
             try {
-                const res = await axios.get('http://127.0.0.1:5000/api/jobs');
+                const res = await axios.get(`${API_URL}/jobs`);
                 setJobs(res.data);
             } catch (error) {
                 console.error("Failed to fetch jobs:", error);
