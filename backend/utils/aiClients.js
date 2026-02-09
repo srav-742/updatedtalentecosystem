@@ -8,9 +8,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
         if (process.env.GEMINI_API_KEY) {
-            console.log("[AI-CLIENT] Using Gemini (gemini-1.5-flash)");
+            console.log("[AI-CLIENT] Using Gemini (gemini-2.5-flash)");
             const model = genAI.getGenerativeModel({
-                model: "gemini-1.5-flash",
+                model: "gemini-2.5-flash",
                 generationConfig: {
                     responseMimeType: isJsonMode ? "application/json" : "text/plain",
                     maxOutputTokens: maxTokens,
@@ -30,7 +30,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
 
 /**
  * AI Client for Interview Question Generation.
- * Prioritizes Gemini 1.5 Flash.
+ * Prioritizes Gemini 2.5 Flash.
  * Fallbacks to OpenRouter, OpenAI, and Groq.
  */
 const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null) => {

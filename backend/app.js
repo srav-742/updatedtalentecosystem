@@ -34,6 +34,7 @@ const voiceRoutes = require('./routes/voiceRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
 const voiceRoutesNew = require('./routes/voice.routes'); // The new OpenAI routes
+const calibrationRoutes = require('./routes/calibrationRoutes');
 
 // Mount Routes
 app.use('/api', authRoutes);
@@ -46,6 +47,7 @@ app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/interview', aiInterviewRoutes);
 app.use('/api/v2/voice', voiceRoutesNew); // Mounting the new routes at v2/voice
+app.use('/api', calibrationRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
