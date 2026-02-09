@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, Users, Briefcase, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import CalibrationModal from './CalibrationModal';
 
 const Hero = () => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
     return (
         <section className="relative pt-32 pb-20 overflow-hidden">
             {/* Background Glows */}
@@ -36,14 +39,14 @@ const Hero = () => {
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                        <Link
-                            to="/signup"
+                        <button
+                            onClick={() => setIsModalOpen(true)}
                             className="group flex items-center px-8 py-4 bg-white text-black font-semibold rounded-2xl hover:bg-gray-100 transition-all shadow-xl"
                         >
                             <Zap className="w-5 h-5 mr-3 text-blue-600" />
                             Book a Technical Calibration Call
                             <ChevronRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                        </Link>
+                        </button>
 
                         <button
                             onClick={() => document.getElementById('elite-talent')?.scrollIntoView({ behavior: 'smooth' })}
@@ -56,6 +59,8 @@ const Hero = () => {
                     </div>
                 </motion.div>
             </div>
+
+            <CalibrationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
         </section>
     );
 };
