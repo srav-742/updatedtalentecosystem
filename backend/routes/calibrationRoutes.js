@@ -27,6 +27,7 @@ router.post("/save-calibration-lead", async (req, res) => {
 // Webhook Route (After Booking)
 router.post("/cal-webhook", async (req, res) => {
     try {
+        const secret = process.env.CAL_WEBHOOK_SECRET;
         const event = req.body;
 
         if (event.type === "BOOKING_CREATED") {

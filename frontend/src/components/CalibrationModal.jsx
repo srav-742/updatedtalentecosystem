@@ -25,7 +25,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
             });
 
             // Redirect to Cal.com with prefilled data
-            window.location.href = `https://cal.com/sravya-dhadi-ccq7oo/30min?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}`;
+            window.location.href = `https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}`;
         } catch (error) {
             console.error("Error saving lead:", error);
             alert("Something went wrong. Please try again.");
