@@ -164,17 +164,15 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[850px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
-                                    <iframe
-                                        src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
-                                        className="absolute inset-x-0 -top-1 w-full h-[910px] border-none"
-                                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                                        title="Booking Calendar"
-                                    />
-                                    <style dangerouslySetInnerHTML={{
-                                        __html: `
-                                        iframe::-webkit-scrollbar { display: none; }
-                                    `}} />
+                                <div className="relative w-full h-[85vh] max-h-[850px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
+                                    <div className="absolute inset-0" style={{ width: 'calc(100% + 40px)', overflow: 'hidden' }}>
+                                        <iframe
+                                            src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
+                                            className="w-full h-[calc(100%+80px)] border-none"
+                                            scrolling="no"
+                                            title="Booking Calendar"
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
