@@ -37,7 +37,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -50,7 +50,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                         initial={{ opacity: 0, scale: 0.9, y: 40 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 40 }}
-                        className={`relative w-full ${isSubmitted ? 'max-w-4xl' : 'max-w-lg'} bg-[#0c0f16] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.15)] transition-all duration-700`}
+                        className={`relative w-full ${isSubmitted ? 'max-w-5xl' : 'max-w-lg'} bg-[#0c0f16] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.15)] transition-all duration-700`}
                     >
                         <div className={isSubmitted ? "p-4" : "p-10 md:p-12"}>
                             <button
@@ -164,12 +164,17 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[85vh] max-h-[750px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16]">
+                                <div className="relative w-full h-[850px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
                                     <iframe
                                         src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
-                                        className="absolute inset-x-0 -top-1 w-full h-[calc(100%+60px)] border-none"
+                                        className="absolute inset-x-0 -top-1 w-full h-[910px] border-none"
+                                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                         title="Booking Calendar"
                                     />
+                                    <style dangerouslySetInnerHTML={{
+                                        __html: `
+                                        iframe::-webkit-scrollbar { display: none; }
+                                    `}} />
                                 </div>
                             )}
                         </div>
