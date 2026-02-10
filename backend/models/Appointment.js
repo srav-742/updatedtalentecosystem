@@ -7,6 +7,7 @@ const appointmentSchema = new mongoose.Schema({
     eventType: String,
     startTime: Date,
     endTime: Date,
+    meetingLink: String,
     calEventId: String,
     status: { type: String, default: "Confirmed" },
     createdAt: { type: Date, default: Date.now }

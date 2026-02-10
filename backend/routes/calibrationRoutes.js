@@ -27,10 +27,43 @@ router.post("/save-calibration-lead", async (req, res) => {
 // Webhook Route (After Booking)
 router.post("/cal-webhook", async (req, res) => {
     try {
-        console.log("===== WEBHOOK RECEIVED =====");
-        console.log(JSON.stringify(req.body, null, 2));
+        const event = req.body;
 
-        res.status(200).send("Webhook received");
+        console.log("==== WEBHOOK RECEIVED ====");
+        console.log("Trigger Event:", event.triggerEvent);
+
+        // 🔥 Correct check
+        if (event.triggerEvent === "BOOKING_CREATED") {
+            const booking = event.payload;
+            const attendee = booking.attendees[0];
+
+            console.log("Booking for:", attendee.email);
+
+            // 1️⃣ Update lead
+            await LeadModel.findOneAndUpdate(
+                { email: attendee.email },
+                { bookingStatus: "Confirmed" }
+            );
+
+            // 2️⃣ Save appointment
+            await AppointmentModel.create({
+                name: attendee.name,
+                email: attendee.email,
+                eventType: booking.eventTitle,
+                startTime: booking.startTime,
+                endTime: booking.endTime,
+                meetingLink: booking.location,
+                calEventId: booking.uid,
+                status: booking.status,
+                createdAt: new Date()
+            });
+
+            console.log("✅ Appointment saved successfully");
+        } else {
+            console.log("Skipping event type:", event.triggerEvent);
+        }
+
+        res.status(200).send("OK");
     } catch (err) {
         console.error("Webhook error:", err);
         res.status(500).send("Error");
