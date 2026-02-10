@@ -164,8 +164,8 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[850px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
-                                    <div className="absolute inset-x-0 top-0 bottom-[-180px] overflow-hidden">
+                                <div className="relative w-full h-[720px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
+                                    <div className="absolute inset-x-0 top-0 bottom-[-120px] overflow-hidden">
                                         <iframe
                                             src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
                                             className="w-full h-full border-none"
@@ -173,12 +173,6 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                             title="Booking Calendar"
                                         />
                                     </div>
-                                    {/* Scrollbar Hide Logic */}
-                                    <style dangerouslySetInnerHTML={{
-                                        __html: `
-                                        iframe::-webkit-scrollbar { display: none; }
-                                        * { scrollbar-width: none !important; }
-                                    `}} />
                                 </div>
                             )}
                         </div>
