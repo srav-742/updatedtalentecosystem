@@ -5,6 +5,11 @@ const leadSchema = new mongoose.Schema({
     email: String,
     phone: String,
     company: String,
+    role: String,
+    hiringVolume: String,
+    rolesHiringFor: String,
+    primaryChallenge: String,
+    calibrationGoal: String,
     source: String,
     bookingStatus: { type: String, default: "Pending" },
     createdAt: { type: Date, default: Date.now }
