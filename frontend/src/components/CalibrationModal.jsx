@@ -164,13 +164,14 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[750px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
-                                    <div className="absolute inset-0" style={{ width: 'calc(100% + 40px)', height: '100%', overflow: 'hidden' }}>
+                                <div className="relative w-full h-[820px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
+                                    <div className="absolute inset-x-0 top-0" style={{ width: '100%', height: '1000px', overflow: 'hidden' }}>
                                         <iframe
                                             src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
-                                            className="w-full h-[calc(100%+60px)] border-none"
+                                            className="w-full h-full border-none"
                                             scrolling="no"
                                             title="Booking Calendar"
+                                            style={{ marginBottom: '-180px' }}
                                         />
                                     </div>
                                 </div>
