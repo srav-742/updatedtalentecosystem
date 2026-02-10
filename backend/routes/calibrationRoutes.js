@@ -27,47 +27,12 @@ router.post("/save-calibration-lead", async (req, res) => {
 // Webhook Route (After Booking)
 router.post("/cal-webhook", async (req, res) => {
     try {
-        console.log("Cal.com Webhook Received at:", new Date().toISOString());
-        console.log("Payload Type:", req.body.type);
-        console.log("Full Payload:", JSON.stringify(req.body, null, 2));
+        console.log("===== WEBHOOK RECEIVED =====");
+        console.log(JSON.stringify(req.body, null, 2));
 
-        const event = req.body;
-
-        if (event.type === "BOOKING_CREATED") {
-            console.log("Processing BOOKING_CREATED event...");
-            const booking = event.payload;
-
-            const email = booking.attendees[0].email;
-            console.log("Attendee Email:", email);
-
-            // Update existing lead to confirmed
-            const updatedLead = await LeadModel.findOneAndUpdate(
-                { email },
-                { bookingStatus: "Confirmed" },
-                { new: true }
-            );
-            console.log("Updated Lead Result:", updatedLead ? "Success" : "Lead Not Found");
-
-            // Store appointment
-            const newAppointment = await AppointmentModel.create({
-                name: booking.attendees[0].name,
-                email: booking.attendees[0].email,
-                phone: booking.attendees[0].phone || "",
-                eventType: booking.eventType.title,
-                startTime: booking.startTime,
-                endTime: booking.endTime,
-                calEventId: booking.uid,
-                status: "Confirmed",
-                createdAt: new Date()
-            });
-            console.log("Created Appointment ID:", newAppointment._id);
-        } else {
-            console.log("Skipping event type:", event.type);
-        }
-
-        res.status(200).send("OK");
-    } catch (error) {
-        console.error("WEBHOOK ERROR:", error);
+        res.status(200).send("Webhook received");
+    } catch (err) {
+        console.error("Webhook error:", err);
         res.status(500).send("Error");
     }
 });
