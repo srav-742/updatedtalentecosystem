@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, User, Mail, Phone, ArrowRight } from 'lucide-react';
+import { X, Calendar, User, Mail, Phone, ArrowRight, Building } from 'lucide-react';
 
 const CalibrationModal = ({ isOpen, onClose }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        phone: ''
+        phone: '',
+        company: ''
     });
     const [loading, setLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
@@ -73,7 +74,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                         <p className="text-gray-400">Fill in your details to continue to booking.</p>
                                     </div>
 
-                                    <form onSubmit={handleSubmit} className="space-y-6">
+                                    <form onSubmit={handleSubmit} className="space-y-4">
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium text-gray-400 ml-1">Full Name</label>
                                             <div className="relative">
@@ -85,6 +86,21 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                                     className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                                                     value={formData.name}
                                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-gray-400 ml-1">Company Name</label>
+                                            <div className="relative">
+                                                <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Your Company"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                                                    value={formData.company}
+                                                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                                                 />
                                             </div>
                                         </div>
@@ -111,10 +127,22 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                                 <input
                                                     type="tel"
                                                     required
-                                                    placeholder="+1 (555) 000-0000"
+                                                    placeholder="+91-00000 00000"
                                                     className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                                                     value={formData.phone}
-                                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                                    onChange={(e) => {
+                                                        let val = e.target.value;
+                                                        if (!val.startsWith('+91-') && val.length > 0) {
+                                                            if (val.startsWith('+91')) {
+                                                                val = '+91-' + val.slice(3);
+                                                            } else if (val.startsWith('91')) {
+                                                                val = '+91-' + val.slice(2);
+                                                            } else {
+                                                                val = '+91-' + val;
+                                                            }
+                                                        }
+                                                        setFormData({ ...formData, phone: val });
+                                                    }}
                                                 />
                                             </div>
                                         </div>
