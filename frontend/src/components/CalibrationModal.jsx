@@ -50,7 +50,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                         initial={{ opacity: 0, scale: 0.9, y: 40 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 40 }}
-                        className={`relative w-full ${isSubmitted ? 'max-w-5xl' : 'max-w-lg'} bg-[#0c0f16] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.15)] transition-all duration-700`}
+                        className={`relative w-full ${isSubmitted ? 'max-w-6xl' : 'max-w-lg'} bg-[#0c0f16] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.15)] transition-all duration-700`}
                     >
                         <div className={isSubmitted ? "p-4" : "p-10 md:p-12"}>
                             <button
@@ -164,13 +164,14 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[85vh] max-h-[850px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
-                                    <div className="absolute inset-0" style={{ width: 'calc(100% + 40px)', overflow: 'hidden' }}>
+                                <div className="relative w-full h-[880px] overflow-hidden rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl">
+                                    <div className="absolute inset-0" style={{ width: 'calc(100% + 40px)', height: '1000px', overflow: 'hidden' }}>
                                         <iframe
                                             src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
-                                            className="w-full h-[calc(100%+80px)] border-none"
+                                            className="w-full h-full border-none"
                                             scrolling="no"
                                             title="Booking Calendar"
+                                            style={{ marginTop: '-5px' }}
                                         />
                                     </div>
                                 </div>
