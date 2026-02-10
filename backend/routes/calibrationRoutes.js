@@ -6,21 +6,14 @@ const AppointmentModel = require('../models/Appointment');
 // Route to Save Lead (Before Booking)
 router.post("/save-calibration-lead", async (req, res) => {
     try {
-        const {
-            name, email, phone, company,
-            role, hiringVolume, rolesHiringFor, primaryChallenge, calibrationGoal
-        } = req.body;
+        const { name, email, phone, company, roleForHiring } = req.body;
 
         await LeadModel.create({
             name,
             email,
             phone,
             company,
-            role,
-            hiringVolume,
-            rolesHiringFor,
-            primaryChallenge,
-            calibrationGoal,
+            roleForHiring,
             source: "Calibration Call",
             bookingStatus: "Pending",
             createdAt: new Date()
