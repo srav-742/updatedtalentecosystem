@@ -273,7 +273,7 @@ const SeekerProfile = () => {
                                 <label className="block text-[10px] font-black text-gray-500 mb-3 uppercase tracking-[0.3em]">Frequency Port (Phone)</label>
                                 <div className="relative">
                                     <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                    <input type="text" name="phone" value={profileData.phone} onChange={handleChange} placeholder="+91 00000 00000" className="w-full pl-16 pr-6 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-teal-500/50 outline-none text-xs font-bold text-white transition-all" />
+                                    <input type="text" name="phone" value={profileData.phone} onChange={handleChange} placeholder="+1 123 456 7890" className="w-full pl-16 pr-6 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-teal-500/50 outline-none text-xs font-bold text-white transition-all" />
                                 </div>
                             </div>
                         </div>

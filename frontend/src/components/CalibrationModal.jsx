@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, User, Mail, Phone, ArrowRight, Building, Briefcase, BarChart, Target, Rocket } from 'lucide-react';
+import { X, Calendar, User, Mail, Phone, ArrowRight, Building, Target } from 'lucide-react';
 import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 
@@ -14,6 +14,33 @@ const CalibrationModal = ({ isOpen, onClose }) => {
     });
     const [loading, setLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [detectedCountry, setDetectedCountry] = useState('us'); // Primary default: USA
+    const [hasRequestedLocation, setHasRequestedLocation] = useState(false);
+
+    const requestLocationAccess = () => {
+        if (navigator.geolocation && !hasRequestedLocation) {
+            setHasRequestedLocation(true);
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        const { latitude, longitude } = position.coords;
+                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                        const data = await res.json();
+                        if (data.address && data.address.country_code) {
+                            const country = data.address.country_code.toLowerCase();
+                            console.log("Country Detected:", country);
+                            setDetectedCountry(country);
+                        }
+                    } catch (error) {
+                        console.error("Location-based country refinement failed:", error);
+                    }
+                },
+                (error) => {
+                    console.warn("Location access denied or unavailable. Falling back to US (+1).");
+                }
+            );
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -105,16 +132,19 @@ const CalibrationModal = ({ isOpen, onClose }) => {
 
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium text-gray-400 ml-1">Phone Number</label>
-                                            <PhoneInput
-                                                defaultCountry="in"
-                                                value={formData.phone}
-                                                onChange={(phone) => setFormData({ ...formData, phone })}
-                                                className="w-full"
-                                                inputClassName="!w-full !bg-white/5 !border-white/10 !rounded-xl !py-7 !pl-12 !text-white !placeholder:text-gray-600 !focus:outline-none !focus:ring-2 !focus:ring-blue-500/50 !transition-all !h-auto !text-base"
-                                                countrySelectorStyleProps={{
-                                                    buttonClassName: "!bg-transparent !border-none !left-2 !absolute !top-1/2 !-translate-y-1/2 !flex !items-center !justify-center !z-20",
-                                                }}
-                                            />
+                                            <div onFocus={requestLocationAccess} onClick={requestLocationAccess}>
+                                                <PhoneInput
+                                                    key={detectedCountry}
+                                                    defaultCountry={detectedCountry}
+                                                    value={formData.phone}
+                                                    onChange={(phone) => setFormData({ ...formData, phone })}
+                                                    className="w-full"
+                                                    inputClassName="!w-full !bg-white/5 !border-white/10 !rounded-xl !py-7 !pl-12 !text-white !placeholder:text-gray-600 !focus:outline-none !focus:ring-2 !focus:ring-blue-500/50 !transition-all !h-auto !text-base"
+                                                    countrySelectorStyleProps={{
+                                                        buttonClassName: "!bg-transparent !border-none !left-2 !absolute !top-1/2 !-translate-y-1/2 !flex !items-center !justify-center !z-20",
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">

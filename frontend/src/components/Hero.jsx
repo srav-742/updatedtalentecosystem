@@ -3,9 +3,11 @@ import { motion } from 'framer-motion';
 import { ChevronRight, Users, Briefcase, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CalibrationModal from './CalibrationModal';
+import SampleProfilesModal from './SampleProfilesModal';
 
 const Hero = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
     return (
         <section className="relative pt-32 pb-20 overflow-hidden">
@@ -49,7 +51,7 @@ const Hero = () => {
                         </button>
 
                         <button
-                            onClick={() => document.getElementById('elite-talent')?.scrollIntoView({ behavior: 'smooth' })}
+                            onClick={() => setIsProfileModalOpen(true)}
                             className="group flex items-center px-8 py-4 bg-white/5 border border-white/10 text-white font-semibold rounded-2xl hover:bg-white/10 transition-all backdrop-blur-sm"
                         >
                             <Users className="w-5 h-5 mr-3" />
@@ -61,6 +63,7 @@ const Hero = () => {
             </div>
 
             <CalibrationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            <SampleProfilesModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
         </section>
     );
 };
