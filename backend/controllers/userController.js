@@ -91,4 +91,15 @@ const addCoinsManual = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, getUserProfile, getUserCoins, updateUserProfile, addCoinsManual };
+const getSampleSeekers = async (req, res) => {
+    try {
+        const seekers = await User.find({ role: 'seeker' }, 'name skills experience bio profilePic education designation')
+            .limit(6);
+        res.json(seekers);
+    } catch (error) {
+        console.error("[GET-SAMPLE-SEEKERS] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { getAllUsers, getUserProfile, getUserCoins, updateUserProfile, addCoinsManual, getSampleSeekers };
