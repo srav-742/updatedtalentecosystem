@@ -51,11 +51,20 @@ Return EXACTLY this structure with ALL 6 fields:
 
         let analysis;
         try {
-            // Remove any markdown formatting if it slipped through
-            const cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            // 1. Initial cleaning (remove markdown)
+            let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            // 2. Strong extraction: Find first '{' and last '}' to isolate the JSON object
+            const firstBrace = cleanedResponse.indexOf('{');
+            const lastBrace = cleanedResponse.lastIndexOf('}');
+
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            }
+
             analysis = JSON.parse(cleanedResponse);
 
-            // Ensure all required fields exist and are the correct type
+            // 3. Ensure all required fields exist and are the correct type
             analysis.matchPercentage = Number(analysis.matchPercentage) || 0;
             analysis.skillsScore = Number(analysis.skillsScore) || 0;
             analysis.experienceScore = Number(analysis.experienceScore) || 0;
@@ -65,8 +74,7 @@ Return EXACTLY this structure with ALL 6 fields:
             analysis.explanation = String(analysis.explanation || "Analysis completed based on the provided text.");
 
         } catch (e) {
-            console.error("[RESUME-ANALYSIS] JSON Parse Error:", e);
-            console.error("[RESUME-ANALYSIS] Raw AI Response:", rawResponse);
+            console.error("[RESUME-ANALYSIS] JSON Parse Error. Raw response was:", rawResponse);
 
             // ✅ Full fallback with ALL required fields
             analysis = {
@@ -75,7 +83,7 @@ Return EXACTLY this structure with ALL 6 fields:
                 experienceScore: 0,
                 skillsFeedback: "Unable to analyze skills. Please try again.",
                 experienceFeedback: "Unable to analyze experience. Please try again.",
-                explanation: "Failed to parse AI analysis. Please try uploading your resume again."
+                explanation: "The AI response was not in the correct format. This usually happens if the resume is too complex or the AI service is overloaded."
             };
         }
 

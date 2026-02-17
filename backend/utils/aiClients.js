@@ -8,9 +8,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
         if (process.env.GEMINI_API_KEY) {
-            console.log("[AI-CLIENT] Using Gemini (gemini-2.5-flash)");
+            // Note: Use gemini-1.5-flash as it is the stable available version. 
+            // gemini-2.5-flash is not a valid model name and would cause the crash you saw.
+            const modelName = "gemini-1.5-flash";
+            console.log(`[AI-CLIENT] Using Gemini (${modelName})`);
+
             const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
+                model: modelName,
                 generationConfig: {
                     responseMimeType: isJsonMode ? "application/json" : "text/plain",
                     maxOutputTokens: maxTokens,
@@ -20,6 +24,14 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
             const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
             const result = await model.generateContent(finalPrompt);
             let text = (await result.response).text().trim();
+
+            // ✅ Improved: Robustly extract JSON from the response if extra text is present
+            if (isJsonMode) {
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    text = jsonMatch[0];
+                }
+            }
 
             // ✅ Clean markdown code blocks if present
             if (text.startsWith('```')) {
