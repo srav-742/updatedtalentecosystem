@@ -19,7 +19,13 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
 
             const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
             const result = await model.generateContent(finalPrompt);
-            const text = (await result.response).text().trim();
+            let text = (await result.response).text().trim();
+
+            // ✅ Clean markdown code blocks if present
+            if (text.startsWith('```')) {
+                text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+            }
+
             if (text) return text;
         }
     } catch (err) {
@@ -155,7 +161,14 @@ const callSkillAI = async (prompt, maxTokens = 2000) => {
                 }
             );
 
-            return response.data?.choices?.[0]?.message?.content || null;
+            let text = response.data?.choices?.[0]?.message?.content || null;
+
+            // ✅ Clean markdown code blocks if present
+            if (text && text.startsWith('```')) {
+                text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+            }
+
+            return text;
         }
     } catch (error) {
         console.error("[GROQ-DIRECT-ERROR]:", error.message);
