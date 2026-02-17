@@ -40,39 +40,58 @@ const generateFullAssessment = async (req, res) => {
         const assessmentType = (job.assessment.type || 'mixed').toLowerCase();
         const skills = job.skills || ['General'];
         const usedHashes = new Set((await QuestionLog.find({ userId }).select('hash')).map(q => q.hash));
-        const seed = crypto.createHash('sha256').update(`${userId}${jobId}${Date.now()}`).digest('hex');
+        const seed = crypto.randomBytes(8).toString('hex');
         // 🧠 Groq Prompt
         const prompt = `
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
-Return ONLY a JSON object with key "questions" containing an array.
+Session Seed: ${seed}
+
+Return ONLY a JSON object with key "questions" containing an array. 
+Each question must be original and different from common examples.
+
 Each question must have:
 - "type": "mcq" or "coding"
 - "skill": one of the given skills
 - "question": clear, original question text
+- "difficulty": "medium"
+
 For "mcq":
-- "options": array of 4 strings
+- "options": array of 4 unique strings
 - "correctAnswer": integer (0-3)
+
 For "coding":
 - "starterCode": string with function signature
+
 Example:
-{"questions":[{"type":"mcq","skill":"JavaScript","question":"What is closure?","options":["A","B","C","D"],"correctAnswer":1}]}
+{"questions":[{"type":"mcq","skill":"JavaScript","question":"What is the result of 1 + '1' in JS?","options":["11","2","NaN","Error"],"correctAnswer":0}]}
+
 NO extra text, explanations, or markdown.
 `;
         // 🔁 Call AI
         const rawResponse = await callSkillAI(prompt);
         if (!rawResponse) {
+            console.error("[ASSESSMENT] AI response was null");
             return res.status(503).json({ message: "AI service unavailable. Please try again." });
         }
-        // ✅ Parse JSON
+
+        // ✅ Robust JSON Extraction
         let parsed;
         try {
-            parsed = JSON.parse(rawResponse);
+            let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            const firstBrace = cleanedResponse.indexOf('{');
+            const lastBrace = cleanedResponse.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            }
+            parsed = JSON.parse(cleanedResponse);
         } catch (e) {
-            console.error("[GROQ JSON PARSE FAILED]:", rawResponse.substring(0, 300));
-            return res.status(503).json({ message: "AI returned invalid JSON." });
+            console.error("[ASSESSMENT JSON PARSE FAILED]:", rawResponse.substring(0, 500));
+            return res.status(503).json({ message: "AI returned invalid JSON formatting." });
         }
-        if (!parsed?.questions || !Array.isArray(parsed.questions) || parsed.questions.length < 3) {
-            return res.status(503).json({ message: "AI returned insufficient questions." });
+
+        if (!parsed?.questions || !Array.isArray(parsed.questions)) {
+            console.error("[ASSESSMENT] Invalid structure:", parsed);
+            return res.status(503).json({ message: "AI returned incorrect question structure." });
         }
         // 🔒 Dedupe & Save
         const finalQuestions = [];
