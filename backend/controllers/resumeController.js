@@ -11,40 +11,72 @@ const analyzeResume = async (req, res) => {
         const prompt = `
 You are an expert ATS (Applicant Tracking System) scanner.
 Analyze the provided resume text against the job requirements.
+
 Job Requirements:
 - Skills: ${Array.isArray(jobSkills) ? jobSkills.join(', ') : 'General'}
 - Experience Level: ${jobExperience || 'Any'}
 - Education: ${JSON.stringify(jobEducation || [])}
+
 Resume Text:
 ${resumeText ? resumeText.substring(0, 10000) : ''}
+
 TASK:
 1. Calculate a Skills Match Score (0-100) based strictly on the presence of required skills found in the resume.
-- For each required skill, give +10 points if fully present, +5 if partial, 0 if missing.
-- Max 100 points.
+   - For each required skill, give +10 points if fully present, +5 if partial, 0 if missing.
+   - Max 100 points.
 2. Calculate an Experience & Details Score (0-100) based on:
-- Years of experience vs required (e.g., "0-1 Years" → 1 year max → 100% if ≥1 yr, else linear)
-- Education match (degree/qualification match)
-- Specialization match (e.g., "All Branches" → any degree OK)
+   - Years of experience vs required (e.g., "0-1 Years" → 1 year max → 100% if ≥1 yr, else linear)
+   - Education match (degree/qualification match)
+   - Specialization match (e.g., "All Branches" → any degree OK)
 3. Total Match Percentage = (Skills Score * 0.5) + (Experience Score * 0.5)
-OUTPUT MUST BE A VALID JSON OBJECT EXACTLY LIKE THIS:
+
+CRITICAL: Return ONLY a valid JSON object. Do NOT include any markdown formatting, code blocks, or explanatory text.
+Return EXACTLY this structure with ALL 6 fields:
+
 {
-"matchPercentage": 78,
-"skillsScore": 85,
-"experienceScore": 70,
-"skillsFeedback": "Missing: TypeScript, Tailwind CSS. Strong in HTML, CSS, JavaScript.",
-"experienceFeedback": "Experience level matches. Education: B.Tech in All Branches — acceptable.",
-"explanation": "Candidate has strong frontend skills but lacks modern frameworks. Experience and education are sufficient."
+  "matchPercentage": 78,
+  "skillsScore": 85,
+  "experienceScore": 70,
+  "skillsFeedback": "Missing: TypeScript, Tailwind CSS. Strong in HTML, CSS, JavaScript.",
+  "experienceFeedback": "Experience level matches. Education: B.Tech in All Branches — acceptable.",
+  "explanation": "Candidate has strong frontend skills but lacks modern frameworks. Experience and education are sufficient."
 }
 `;
         const rawResponse = await callSkillAI(prompt);
         if (!rawResponse) throw new Error("AI Service Failed");
 
+        console.log("[RESUME-ANALYSIS] AI Response received, length:", rawResponse.length);
+        console.log("[RESUME-ANALYSIS] First 200 chars:", rawResponse.substring(0, 200));
+
+
         let analysis;
         try {
-            analysis = JSON.parse(rawResponse);
+            // Remove any markdown formatting if it slipped through
+            const cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            analysis = JSON.parse(cleanedResponse);
+
+            // Ensure all required fields exist and are the correct type
+            analysis.matchPercentage = Number(analysis.matchPercentage) || 0;
+            analysis.skillsScore = Number(analysis.skillsScore) || 0;
+            analysis.experienceScore = Number(analysis.experienceScore) || 0;
+
+            analysis.skillsFeedback = String(analysis.skillsFeedback || "Unable to analyze skills.");
+            analysis.experienceFeedback = String(analysis.experienceFeedback || "Unable to analyze experience.");
+            analysis.explanation = String(analysis.explanation || "Analysis completed based on the provided text.");
+
         } catch (e) {
-            console.error("JSON Parse Error:", e);
-            analysis = { matchPercentage: 0, skillsScore: 0, experienceScore: 0, explanation: "Failed to parse analysis." };
+            console.error("[RESUME-ANALYSIS] JSON Parse Error:", e);
+            console.error("[RESUME-ANALYSIS] Raw AI Response:", rawResponse);
+
+            // ✅ Full fallback with ALL required fields
+            analysis = {
+                matchPercentage: 0,
+                skillsScore: 0,
+                experienceScore: 0,
+                skillsFeedback: "Unable to analyze skills. Please try again.",
+                experienceFeedback: "Unable to analyze experience. Please try again.",
+                explanation: "Failed to parse AI analysis. Please try uploading your resume again."
+            };
         }
 
         // 2. Structured Extraction

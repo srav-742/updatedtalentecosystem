@@ -52,22 +52,21 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             });
 
             const { data } = analysisRes;
+            console.log("[RESUME-ANALYSIS] Received data:", data);
 
-            // ✅ Validate required fields
-            if (
-                typeof data.matchPercentage !== 'number' ||
-                typeof data.skillsScore !== 'number' ||
-                typeof data.experienceScore !== 'number' ||
-                typeof data.skillsFeedback !== 'string' ||
-                typeof data.experienceFeedback !== 'string' ||
-                typeof data.explanation !== 'string'
-            ) {
-                throw new Error("Invalid AI response format");
-            }
+            // ✅ Normalize and Validate required fields
+            const normalizedData = {
+                matchPercentage: typeof data.matchPercentage === 'number' ? data.matchPercentage : parseInt(data.matchPercentage) || 0,
+                skillsScore: typeof data.skillsScore === 'number' ? data.skillsScore : parseInt(data.skillsScore) || 0,
+                experienceScore: typeof data.experienceScore === 'number' ? data.experienceScore : parseInt(data.experienceScore) || 0,
+                skillsFeedback: data.skillsFeedback || "No skills feedback provided.",
+                experienceFeedback: data.experienceFeedback || "No experience feedback provided.",
+                explanation: data.explanation || "No detailed explanation provided."
+            };
 
             setAnalysisResult({
                 text: resumeText,
-                data
+                data: normalizedData
             });
 
         } catch (err) {
