@@ -1,14 +1,13 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Coins } from 'lucide-react';
-import axios from 'axios';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap } from 'lucide-react';
 import { getUserProfile, API_URL } from '../../firebase';
 
 const RecruiterLayout = () => {
     const navigate = useNavigate();
     const [user] = React.useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = React.useState(user);
-    const [coins, setCoins] = React.useState(0);
+
 
     React.useEffect(() => {
         if (user.role && user.role !== 'recruiter') {
@@ -29,9 +28,7 @@ const RecruiterLayout = () => {
                     localStorage.setItem('user', JSON.stringify({ ...user, ...profileData }));
                 }
 
-                // Fetch Coins
-                const coinRes = await axios.get(`${API_URL}/user/${uid}/coins`);
-                if (coinRes.data) setCoins(coinRes.data.coins);
+
 
             } catch (error) {
                 console.error("Layout profile fetch failed from Firebase:", error);
@@ -96,13 +93,7 @@ const RecruiterLayout = () => {
                         <span className="font-medium">Logout</span>
                     </button>
 
-                    <div className="mb-4 px-4 py-3 bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-between group hover:bg-blue-500/20 transition-all cursor-pointer">
-                        <div className="flex items-center gap-2">
-                            <Coins className="w-5 h-5 text-blue-400" />
-                            <span className="text-blue-400 font-bold text-sm">Balance</span>
-                        </div>
-                        <span className="text-white font-black text-lg">{coins}</span>
-                    </div>
+
 
                     <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-teal-500/10 border border-white/5">
                         <div className="flex items-center space-x-3">
