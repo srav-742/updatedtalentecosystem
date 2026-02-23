@@ -3,6 +3,7 @@ import { Mic, StopCircle, Loader, ShieldCheck, Cpu, Volume2, CheckCircle2, Chevr
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
+import InterviewFeedbackForm from './InterviewFeedbackForm';
 
 const AIInterview = ({ job, user, onComplete }) => {
     const [step, setStep] = useState('ready');
@@ -139,7 +140,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                         setFinalScore(nextRes.data.finalScore);
                         setFeedback(nextRes.data.feedback);
                         setStep('completed');
-                        onComplete({ interviewScore: nextRes.data.finalScore });
+                        // NOTE: onComplete is called AFTER feedback form (in InterviewFeedbackForm's onDone)
                     } else {
                         setCurrentQuestion(nextRes.data.question);
                         setCurrentQNum(nextRes.data.currentQuestionNumber);
@@ -325,12 +326,23 @@ const AIInterview = ({ job, user, onComplete }) => {
                     "{feedback}"
                 </p>
                 <button
-                    onClick={() => onComplete({ interviewScore: finalScore })}
+                    onClick={() => setStep('feedback')}
                     className="w-full py-4 bg-gray-900 text-white font-medium rounded-xl hover:bg-black transition-all shadow-lg"
                 >
-                    Finalize Application
+                    Give Feedback &amp; Finalize
                 </button>
             </div>
+        );
+    }
+
+    if (step === 'feedback') {
+        return (
+            <InterviewFeedbackForm
+                userId={user.uid}
+                jobId={job._id}
+                interviewScore={finalScore}
+                onDone={() => onComplete({ interviewScore: finalScore })}
+            />
         );
     }
 

@@ -58,31 +58,38 @@ body {
     background: white !important;
     color: black !important;
   }
+
   .print\:hidden {
     display: none !important;
   }
+
   #interview-report {
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
     color: black !important;
   }
+
   #interview-report * {
     color: black !important;
     border-color: #eee !important;
   }
 }
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.1);
     border-radius: 10px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.2);
   }

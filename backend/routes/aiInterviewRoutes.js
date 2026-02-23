@@ -84,13 +84,17 @@ ${conversation}
 
             let evaluation = { score: 70, feedback: "Technical discussion completed." };
             try {
-                const resText = await callInterviewAI(evalPrompt, 500, true, "You are a senior technical evaluator. Analyze the technical depth of this interview.");
+                // FIX: Use 1500 tokens (not 500) — eval prompt includes full conversation history
+                const resText = await callInterviewAI(evalPrompt, 1500, true, "You are a senior technical evaluator. Analyze the technical depth of this interview.");
                 console.log("[INTERVIEW-EVAL] Raw AI Response:", resText);
                 if (resText) {
                     const match = resText.match(/\{[\s\S]*\}/);
                     const parsed = JSON.parse(match ? match[0] : resText);
-                    if (parsed && typeof parsed.score !== 'undefined') {
-                        evaluation.score = Number(parsed.score);
+                    const rawScore = Number(parsed?.score);
+                    // FIX: Guard against NaN, truncated values, or absurd AI outputs
+                    if (parsed && !isNaN(rawScore) && rawScore >= 1 && rawScore <= 100) {
+                        // FIX: Clamp to realistic range — prevents AI giving 0–5 for decent answers
+                        evaluation.score = Math.max(25, Math.min(95, rawScore));
                         evaluation.feedback = parsed.feedback || evaluation.feedback;
                     }
                 }
