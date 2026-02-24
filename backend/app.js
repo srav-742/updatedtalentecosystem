@@ -47,9 +47,18 @@ app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/interview', aiInterviewRoutes);
-app.use('/api/v2/voice', voiceRoutesNew); // Mounting the new routes at v2/voice
+app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
+
+// Root route for health check / status
+app.get('/', (req, res) => {
+    res.json({
+        status: "Active",
+        message: "Updated Talent Ecosystem Backend is running successfully.",
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {
