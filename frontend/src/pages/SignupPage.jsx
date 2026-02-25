@@ -4,6 +4,7 @@ import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Load
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
+import Navbar from '../components/Navbar';
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -343,16 +344,9 @@ const SignupPage = () => {
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
 
-            <nav className="container mx-auto px-6 py-4 flex-none">
-                <Link to="/" className="flex items-center space-x-2 group w-fit">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-400 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">H</span>
-                    </div>
-                    <span className="font-bold text-lg tracking-tight">hire1percent</span>
-                </Link>
-            </nav>
+            <Navbar />
 
-            <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden">
+            <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden pt-24">
                 <div className="w-full max-w-6xl h-full max-h-[800px] flex items-center justify-center">
                     <AnimatePresence mode="wait">
                         {!role ? renderRoleSelection() : renderSignupForm()}
