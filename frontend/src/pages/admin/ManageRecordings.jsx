@@ -29,7 +29,7 @@ const ManageRecordings = () => {
     const audioRef = React.useRef(null);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.uid || user._id;
+    const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
         fetchInterviews();
@@ -167,8 +167,8 @@ const ManageRecordings = () => {
                                 whileTap={{ scale: 0.99 }}
                                 onClick={() => fetchFiles(id)}
                                 className={`p-5 rounded-3xl border cursor-pointer transition-all flex items-center justify-between group ${selectedInterview === id
-                                        ? 'bg-blue-600 border-blue-400 shadow-[0_0_30px_rgba(37,99,235,0.2)]'
-                                        : 'bg-white/5 border-white/10 hover:border-white/20'
+                                    ? 'bg-blue-600 border-blue-400 shadow-[0_0_30px_rgba(37,99,235,0.2)]'
+                                    : 'bg-white/5 border-white/10 hover:border-white/20'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
@@ -248,8 +248,8 @@ const ManageRecordings = () => {
                                                 <button
                                                     onClick={() => togglePlay(file)}
                                                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${currentPlaying === file
-                                                            ? 'bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]'
-                                                            : 'bg-white/10 text-gray-400 hover:text-white hover:bg-white/20'
+                                                        ? 'bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                                                        : 'bg-white/10 text-gray-400 hover:text-white hover:bg-white/20'
                                                         }`}
                                                 >
                                                     {currentPlaying === file ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
