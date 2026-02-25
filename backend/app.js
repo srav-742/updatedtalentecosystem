@@ -36,6 +36,7 @@ const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
 const voiceRoutesNew = require('./routes/voice.routes'); // The new OpenAI routes
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Mount Routes
 app.use('/api', authRoutes);
@@ -50,6 +51,7 @@ app.use('/api/interview', aiInterviewRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
+app.use('/api', adminRoutes);
 
 // Root route for health check / status
 app.get('/', (req, res) => {

@@ -9,6 +9,7 @@ import PostJob from './pages/recruiter/PostJob';
 import MyJobs from './pages/recruiter/MyJobs';
 import Applicants from './pages/recruiter/Applicants';
 import RecruiterProfile from './pages/recruiter/RecruiterProfile';
+import ManageRecordings from './pages/admin/ManageRecordings';
 
 // Seeker Pages
 import SeekerLayout from './pages/seeker/SeekerLayout';
@@ -48,6 +49,9 @@ function App() {
           <Route path="applications" element={<MyApplications />} />
           <Route path="profile" element={<SeekerProfile />} />
         </Route>
+
+        {/* Admin Routes */}
+        <Route path="/admin/recordings" element={<ManageRecordings />} />
       </Routes>
     </BrowserRouter>
   );

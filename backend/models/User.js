@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
     email: { type: String, unique: true, index: true },
     password: { type: String },
     uid: { type: String, unique: true, index: true },
-    role: { type: String, enum: ['seeker', 'recruiter'], default: 'seeker', index: true },
+    role: { type: String, enum: ['seeker', 'recruiter', 'admin'], default: 'seeker', index: true },
     profilePic: String,
     designation: String,
     phone: String,
