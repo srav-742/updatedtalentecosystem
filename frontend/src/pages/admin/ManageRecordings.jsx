@@ -179,30 +179,35 @@ const ManageRecordings = () => {
                                 <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-4" />
                                 <p className="text-red-400 text-sm font-medium">{error}</p>
                             </div>
-                        ) : interviews.filter(id => id.toLowerCase().includes(searchQuery.toLowerCase())).map((id) => (
+                        ) : interviews.filter(intv => intv.id.toLowerCase().includes(searchQuery.toLowerCase())).map((interview) => (
                             <motion.div
-                                key={id}
+                                key={interview.id}
                                 whileHover={{ scale: 1.01 }}
                                 whileTap={{ scale: 0.99 }}
-                                onClick={() => fetchFiles(id)}
-                                className={`p-5 rounded-3xl border cursor-pointer transition-all flex items-center justify-between group ${selectedInterview === id
+                                onClick={() => fetchFiles(interview.id)}
+                                className={`p-5 rounded-3xl border cursor-pointer transition-all flex items-center justify-between group ${selectedInterview === interview.id
                                     ? 'bg-blue-600 border-blue-400 shadow-[0_0_30px_rgba(37,99,235,0.2)]'
                                     : 'bg-white/5 border-white/10 hover:border-white/20'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedInterview === id ? 'bg-white/20' : 'bg-blue-500/10 text-blue-400'
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedInterview === interview.id ? 'bg-white/20' : 'bg-blue-500/10 text-blue-400'
                                         }`}>
                                         <AudioLines className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <p className="font-bold text-sm tracking-tight">{id}</p>
-                                        <p className={`text-[10px] ${selectedInterview === id ? 'text-blue-100' : 'text-gray-500'}`}>
-                                            Private Session Data
-                                        </p>
+                                        <p className="font-bold text-sm tracking-tight">{interview.id}</p>
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <p className={`text-[10px] ${selectedInterview === interview.id ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                {interview.fileCount} Recordings
+                                            </p>
+                                            <p className={`text-[10px] ${selectedInterview === interview.id ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                {new Date(interview.lastModified).toLocaleDateString()}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                <ChevronRight className={`w-5 h-5 transition-transform ${selectedInterview === id ? 'translate-x-1' : 'text-gray-700 group-hover:text-gray-400'
+                                <ChevronRight className={`w-5 h-5 transition-transform ${selectedInterview === interview.id ? 'translate-x-1' : 'text-gray-700 group-hover:text-gray-400'
                                     }`} />
                             </motion.div>
                         ))}
