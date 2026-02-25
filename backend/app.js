@@ -9,7 +9,10 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: '*', // For development, allow all origins. You can restrict this later.
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id']
+}));
 app.use((req, res, next) => {
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     next();
