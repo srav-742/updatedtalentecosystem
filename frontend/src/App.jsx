@@ -52,6 +52,7 @@ function App() {
 
         {/* Admin Routes */}
         <Route path="/admin/recordings" element={<ManageRecordings />} />
+        <Route path="/admin" element={<ManageRecordings />} />
       </Routes>
     </BrowserRouter>
   );
