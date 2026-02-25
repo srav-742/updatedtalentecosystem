@@ -36,6 +36,10 @@ const ManageRecordings = () => {
     }, []);
 
     const fetchInterviews = async () => {
+        if (!userId) {
+            setError("Authentication required. Please log in as an administrator.");
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
