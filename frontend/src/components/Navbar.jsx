@@ -24,6 +24,11 @@ const Navbar = () => {
                     <a href="/#operations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Operations</a>
                     <a href="/#safety" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Safety</a>
                     <div className="flex items-center space-x-4">
+                        {JSON.parse(localStorage.getItem('user') || '{}').role === 'admin' && (
+                            <Link to="/admin/recordings" className="text-xs font-black uppercase tracking-widest text-blue-400 hover:text-white transition-all">
+                                Admin Portal
+                            </Link>
+                        )}
                         <Link to="/login" className="px-5 py-2 text-sm font-medium text-white hover:text-blue-400 transition-colors">
                             Login
                         </Link>

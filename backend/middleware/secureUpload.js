@@ -8,6 +8,9 @@ const storage = multer.diskStorage({
         const interviewId = req.body.interviewId || 'unknown';
         const folderPath = path.join(__dirname, "../private_storage/interviews", interviewId);
 
+        console.log(`[SECURE-UPLOAD] Received interviewId: ${interviewId}`);
+        console.log(`[SECURE-UPLOAD] Storing in: ${folderPath}`);
+
         if (!fs.existsSync(folderPath)) {
             fs.mkdirSync(folderPath, { recursive: true });
         }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldCheck,
@@ -13,7 +14,8 @@ import {
     AlertCircle,
     Loader2,
     Database,
-    Lock
+    Lock,
+    ArrowLeft
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -25,11 +27,16 @@ const ManageRecordings = () => {
     const [loading, setLoading] = useState(false);
     const [filesLoading, setFilesLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
     const [currentPlaying, setCurrentPlaying] = useState(null);
     const audioRef = React.useRef(null);
+    const navigate = useNavigate();
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = user.uid || user._id || user.id;
+
+    console.log("[ADMIN-PAGE] Current User:", user);
+    console.log("[ADMIN-PAGE] userId for headers:", userId);
 
     useEffect(() => {
         fetchInterviews();
@@ -120,6 +127,12 @@ const ManageRecordings = () => {
                     <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
                         Manage <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Recordings</span>
                     </h1>
+                    <button
+                        onClick={() => navigate(user.role === 'recruiter' ? '/recruiter' : '/')}
+                        className="mt-4 text-xs text-blue-400 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                        <ArrowLeft size={14} /> Back to Dashboard
+                    </button>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -149,6 +162,8 @@ const ManageRecordings = () => {
                         <input
                             type="text"
                             placeholder="Filter by Interview ID..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-blue-500/50 transition-all text-sm"
                         />
                     </div>
@@ -164,7 +179,7 @@ const ManageRecordings = () => {
                                 <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-4" />
                                 <p className="text-red-400 text-sm font-medium">{error}</p>
                             </div>
-                        ) : interviews.map((id) => (
+                        ) : interviews.filter(id => id.toLowerCase().includes(searchQuery.toLowerCase())).map((id) => (
                             <motion.div
                                 key={id}
                                 whileHover={{ scale: 1.01 }}
