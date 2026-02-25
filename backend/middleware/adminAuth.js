@@ -5,8 +5,10 @@ const verifyAdmin = async (req, res, next) => {
         // For simplicity, we expect the user ID to be passed in a header.
         // In a production app, this would be a JWT token.
         const userId = req.headers['x-user-id'];
+        console.log(`[ADMIN-AUTH] Header x-user-id: ${userId}`);
 
         if (!userId) {
+            console.warn(`[ADMIN-AUTH] Rejecting request: No x-user-id header`);
             return res.status(401).json({ message: "No user ID provided" });
         }
 

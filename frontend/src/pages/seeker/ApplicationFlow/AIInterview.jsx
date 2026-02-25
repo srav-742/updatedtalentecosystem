@@ -122,11 +122,11 @@ const AIInterview = ({ job, user, onComplete }) => {
                 try {
                     const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
                     const formData = new FormData();
+                    formData.append('interviewId', sessionId); // Append BEFORE audio
                     formData.append('audio', blob, 'answer.wav');
 
                     let answerText = transcript;
                     try {
-                        formData.append('interviewId', sessionId);
                         const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
                         if (trRes.data?.text) answerText = trRes.data.text;
                     } catch (e) { }
