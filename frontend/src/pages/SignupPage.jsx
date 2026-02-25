@@ -7,6 +7,7 @@ import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } fr
 
 const SignupPage = () => {
     const navigate = useNavigate();
+
     const [role, setRole] = useState(null); // 'recruiter' or 'seeker'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);

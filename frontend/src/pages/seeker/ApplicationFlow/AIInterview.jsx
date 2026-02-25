@@ -126,6 +126,7 @@ const AIInterview = ({ job, user, onComplete }) => {
 
                     let answerText = transcript;
                     try {
+                        formData.append('interviewId', sessionId);
                         const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
                         if (trRes.data?.text) answerText = trRes.data.text;
                     } catch (e) { }

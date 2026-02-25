@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
+const { addCoins } = require('../services/coinService');
 
 const syncUser = async (req, res) => {
     try {
@@ -33,6 +34,7 @@ const signup = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = new User({ name, email, password: hashedPassword, role });
         await user.save();
+
         console.log(`[AUTH-SIGNUP] Success for ${email} in ${Date.now() - start}ms`);
         res.status(201).json({ message: "User created successfully", userId: user._id });
     } catch (error) {
@@ -78,6 +80,7 @@ const googleAuth = async (req, res) => {
             if (!role) return res.status(400).json({ message: "Role is required for first-time signup" });
             user = new User({ name, email, profilePic, role });
             await user.save();
+
             return res.json({ message: "Signup successful", user });
         }
     } catch (error) {

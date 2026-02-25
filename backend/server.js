@@ -6,6 +6,9 @@ const app = require('./app');
 connectDB();
 
 const PORT = process.env.PORT || 5000;
+const { startCleanupJob } = require('./services/cleanupService');
+
 app.listen(PORT, () => {
     console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);
+    startCleanupJob();
 });

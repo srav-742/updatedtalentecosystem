@@ -64,6 +64,7 @@ const updateUserProfile = async (req, res) => {
             }
         }
         const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
+
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
         if ((isSeekerComplete || isRecruiterComplete) && !(user.coinHistory || []).some(h => h.reason === 'Profile Completion Bonus')) {

@@ -12,8 +12,12 @@ const uploadAudio = async (req, res) => {
         const transcript = await transcriptionService.transcribeAudio(audioPath);
         console.log(`[STT] Result: ${transcript}`);
 
-        // Cleanup file after transcription
-        await fs.remove(audioPath).catch(err => console.error("Cleanup error:", err));
+        // Cleanup only if NOT in private_storage (regular uploads)
+        if (!audioPath.includes('private_storage')) {
+            await fs.remove(audioPath).catch(err => console.error("Cleanup error:", err));
+        } else {
+            console.log(`[STT] Preserving secure recording at: ${audioPath}`);
+        }
 
         res.json({ text: transcript });
     } catch (error) {
