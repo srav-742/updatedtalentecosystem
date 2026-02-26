@@ -10,7 +10,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: '*', // For development, allow all origins. You can restrict this later.
+    origin: '*',
     allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id']
 }));
 app.use((req, res, next) => {
@@ -26,7 +26,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Import Routes
+// ✅ Import Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const recruiterRoutes = require('./routes/recruiterRoutes');
@@ -36,13 +36,13 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
-const voiceRoutesNew = require('./routes/voice.routes'); // The new OpenAI routes
+const aiInterviewUploadRoutes = require('./routes/interview.routes'); // Rename to distinguish from aiInterviewRoutes
+const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const interviewRoutes = require('./routes/interview');
 
-// Mount Routes
+// ✅ Mount Routes
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', recruiterRoutes);
@@ -52,7 +52,7 @@ app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/interview', aiInterviewRoutes);
-app.use('/api/interview', interviewRoutes);
+app.use('/api/interview', aiInterviewUploadRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
