@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import InterviewFeedbackForm from './InterviewFeedbackForm';
+import AIInterviewReport from './AIInterviewReport';
 
 const AIInterview = ({ job, user, onComplete }) => {
     const [step, setStep] = useState('ready');
@@ -349,24 +350,13 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     if (step === 'completed') {
         return (
-            <div className="max-w-xl mx-auto py-20 px-12 bg-white rounded-[2.5rem] border border-gray-100 text-center shadow-sm">
-                <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600">
-                    <CheckCircle2 size={40} />
-                </div>
-                <h2 className="text-3xl font-light text-gray-900 mb-2">Audit Concluded</h2>
-                <div className="text-5xl font-light text-indigo-600 my-8 italic">
-                    {finalScore}%
-                </div>
-                <p className="text-gray-500 font-light mb-12 italic leading-relaxed">
-                    "{feedback}"
-                </p>
-                <button
-                    onClick={() => setStep('feedback')}
-                    className="w-full py-4 bg-gray-900 text-white font-medium rounded-xl hover:bg-black transition-all shadow-lg"
-                >
-                    Give Feedback &amp; Finalize
-                </button>
-            </div>
+            <AIInterviewReport
+                score={finalScore}
+                feedback={feedback}
+                totalQuestions={10}
+                attemptedQuestions={currentQNum}
+                onDone={() => setStep('feedback')}
+            />
         );
     }
 
