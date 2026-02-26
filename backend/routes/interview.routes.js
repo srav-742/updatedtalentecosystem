@@ -3,7 +3,6 @@ const router = express.Router();
 const upload = require("../config/multer");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
-const isAdmin = require("../middleware/adminAuth");
 const Application = require("../models/Application");
 
 // ✅ STEP 6 — Create Upload API
@@ -52,34 +51,6 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
     } catch (error) {
         console.error("Cloudinary Upload Error:", error);
         res.status(500).json({ error: "Upload failed" });
-    }
-});
-
-// ✅ STEP 8 — Admin Secure Access
-router.get("/admin/applicants", isAdmin, async (req, res) => {
-    try {
-        const apps = await Application.find({ recordingPublicId: { $exists: true, $ne: null } })
-            .sort({ appliedAt: -1 });
-        res.json(apps);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to fetch applicants" });
-    }
-});
-
-router.get("/admin/recording/:publicId", isAdmin, async (req, res) => {
-    try {
-        const publicId = req.params.publicId;
-
-        const url = cloudinary.url(publicId, {
-            resource_type: "video",
-            type: "private",
-            sign_url: true,
-            expires_at: Math.floor(Date.now() / 1000) + 60 * 5
-        });
-
-        res.json({ url });
-    } catch (error) {
-        res.status(500).json({ error: "Failed to generate signed URL" });
     }
 });
 
