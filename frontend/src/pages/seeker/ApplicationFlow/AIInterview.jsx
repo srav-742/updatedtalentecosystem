@@ -24,6 +24,8 @@ const AIInterview = ({ job, user, onComplete }) => {
     const audioPlayerRef = useRef(new Audio());
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
+    const fullSessionRecorderRef = useRef(null);
+    const fullSessionChunksRef = useRef([]);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -95,6 +97,19 @@ const AIInterview = ({ job, user, onComplete }) => {
             setCurrentQNum(1);
             setStep('interview');
             playAudio(res.data.audio, res.data.question);
+
+            // ✅ Start Full Session Recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const fullSessionRecorder = new MediaRecorder(stream);
+                fullSessionRecorderRef.current = fullSessionRecorder;
+                fullSessionChunksRef.current = [];
+                fullSessionRecorder.ondataavailable = e => fullSessionChunksRef.current.push(e.data);
+                fullSessionRecorder.start();
+                console.log("[RECORDER] Full session recording started");
+            } catch (err) {
+                console.error("[RECORDER] Failed to start full session recording:", err);
+            }
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -141,7 +156,26 @@ const AIInterview = ({ job, user, onComplete }) => {
                         setFinalScore(nextRes.data.finalScore);
                         setFeedback(nextRes.data.feedback);
                         setStep('completed');
-                        // NOTE: onComplete is called AFTER feedback form (in InterviewFeedbackForm's onDone)
+
+                        // ✅ Stop and Upload Full Session Recording
+                        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+                            fullSessionRecorderRef.current.stop();
+                            fullSessionRecorderRef.current.onstop = async () => {
+                                const blob = new Blob(fullSessionChunksRef.current, { type: "audio/webm" });
+                                const formData = new FormData();
+                                formData.append("audio", blob);
+                                formData.append("userId", user.uid);
+                                formData.append("jobId", job._id);
+
+                                try {
+                                    console.log("[RECORDER] Uploading full session recording to Cloudinary...");
+                                    await axios.post(`${API_URL}/interview/upload-recording`, formData);
+                                    console.log("[RECORDER] Upload successful");
+                                } catch (uploadErr) {
+                                    console.error("[RECORDER] Upload failed:", uploadErr);
+                                }
+                            };
+                        }
                     } else {
                         setCurrentQuestion(nextRes.data.question);
                         setCurrentQNum(nextRes.data.currentQuestionNumber);
