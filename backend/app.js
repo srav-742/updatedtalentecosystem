@@ -36,11 +36,10 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
-const aiInterviewUploadRoutes = require('./routes/interview.routes'); // Rename to distinguish from aiInterviewRoutes
+const aiInterviewUploadRoutes = require('./routes/interview.routes');
 const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
-const adminRoutes = require('./routes/adminRoutes');
 
 // ✅ Mount Routes
 app.use('/api', authRoutes);
@@ -56,7 +55,6 @@ app.use('/api/interview', aiInterviewUploadRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
-app.use('/api', adminRoutes);
 
 // Root route for health check / status
 app.get('/', (req, res) => {
