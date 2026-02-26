@@ -1,34 +1,10 @@
-const User = require('../models/User');
+module.exports = (req, res, next) => {
+    const adminKey = req.headers['x-admin-key'];
+    const MASTER_ADMIN_KEY = process.env.ADMIN_SECRET || "talent_admin_2026";
 
-const verifyAdmin = async (req, res, next) => {
-    try {
-        // For simplicity, we expect the user ID to be passed in a header.
-        // In a production app, this would be a JWT token.
-        const userId = req.headers['x-user-id'];
-        console.log(`[ADMIN-AUTH] Header x-user-id: ${userId}`);
-
-        if (!userId) {
-            console.warn(`[ADMIN-AUTH] Rejecting request: No x-user-id header`);
-            return res.status(401).json({ message: "No user ID provided" });
-        }
-
-        const user = await User.findOne({
-            $or: [
-                { uid: userId },
-                { _id: userId.length === 24 ? userId : null }
-            ]
-        });
-
-        if (!user || user.role !== 'admin') {
-            return res.status(403).json({ message: "Access denied. Admin only." });
-        }
-
-        req.user = user;
+    if (adminKey === MASTER_ADMIN_KEY) {
         next();
-    } catch (error) {
-        console.error("Admin verification error:", error);
-        res.status(500).json({ message: "Internal server error during verification" });
+    } else {
+        res.status(401).json({ error: "Unauthorized: Admin access required" });
     }
 };
-
-module.exports = verifyAdmin;

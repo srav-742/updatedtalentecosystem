@@ -9,6 +9,7 @@ const applicationSchema = new mongoose.Schema({
     resumeMatchPercent: Number,
     assessmentScore: Number,
     interviewScore: Number,
+    recordingPublicId: String,
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },

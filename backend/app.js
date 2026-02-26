@@ -35,11 +35,9 @@ const assessmentRoutes = require('./routes/assessmentRoutes');
 const resumeRoutes = require('./routes/resumeRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
-const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
-const voiceRoutesNew = require('./routes/voice.routes'); // The new OpenAI routes
-const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const interviewRoutes = require('./routes/interview');
 
 // Mount Routes
 app.use('/api', authRoutes);
@@ -51,6 +49,7 @@ app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/interview', aiInterviewRoutes);
+app.use('/api/interview', interviewRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
