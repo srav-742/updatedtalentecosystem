@@ -58,11 +58,6 @@ const Navbar = () => {
                     <div className="flex items-center space-x-4">
                         {user ? (
                             <>
-                                {user.role === 'admin' && (
-                                    <Link to="/admin/recordings" className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-lg shadow-blue-500/10">
-                                        Admin Portal
-                                    </Link>
-                                )}
                                 <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                                     Dashboard
                                 </Link>
