@@ -355,17 +355,8 @@ const AIInterview = ({ job, user, onComplete }) => {
                 feedback={feedback}
                 totalQuestions={10}
                 attemptedQuestions={currentQNum}
-                onDone={() => setStep('feedback')}
-            />
-        );
-    }
-
-    if (step === 'feedback') {
-        return (
-            <InterviewFeedbackForm
                 userId={user.uid}
-                jobId={job._id}
-                interviewScore={finalScore}
+                interviewId={sessionId}
                 onDone={() => onComplete({ interviewScore: finalScore })}
             />
         );
