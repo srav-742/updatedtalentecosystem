@@ -16,6 +16,7 @@ import SeekerDashboard from './pages/seeker/SeekerDashboard';
 import BrowseJobs from './pages/seeker/BrowseJobs';
 import JobDetails from './pages/seeker/JobDetails';
 import ApplicationFlow from './pages/seeker/ApplicationFlow';
+import InterviewFeedbackForm from './pages/seeker/ApplicationFlow/InterviewFeedbackForm';
 
 import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
@@ -28,6 +29,7 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<RecruiterLayout />}>
