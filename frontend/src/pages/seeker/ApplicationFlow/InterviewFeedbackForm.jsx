@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Star, ChevronRight, CheckCircle2, Loader, Send, MessageSquare, Monitor, Cpu, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 
 // API Configuration
-const FEEDBACK_API = `${import.meta.env.VITE_API_URL}/api` || 'https://api.hire1percent.com/api';
+const FEEDBACK_API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.hire1percent.com/api';
 
 const StarRating = ({ value, onChange, label, max = 5 }) => {
     const [hover, setHover] = useState(0);

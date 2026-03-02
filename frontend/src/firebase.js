@@ -80,7 +80,7 @@ export const signInWithGithub = async () => {
 };
 
 // Database Helpers - Redirected to MongoDB Backend
-export const API_URL = `${import.meta.env.VITE_API_URL}/api` || 'https://api.hire1percent.com/api';
+export const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://api.hire1percent.com/api';
 
 export const saveUserProfile = async (userId, data) => {
     console.log(`[Backend-Sync] Saving profile for ${userId}...`);
