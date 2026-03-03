@@ -1,7 +1,8 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap } from 'lucide-react';
-import { getUserProfile, API_URL } from '../../firebase';
+import { getUserProfile, API_URL, auth } from '../../firebase';
+import { signOut } from 'firebase/auth';
 
 const RecruiterLayout = () => {
     const navigate = useNavigate();
@@ -39,7 +40,12 @@ const RecruiterLayout = () => {
         fetchProfile();
     }, [user.uid, user._id, user.id]);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+        } catch (e) {
+            console.error('Firebase signOut error:', e);
+        }
         localStorage.removeItem('user');
         navigate('/login');
     };
