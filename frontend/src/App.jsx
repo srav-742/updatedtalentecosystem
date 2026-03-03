@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
 import SignupPage from './pages/SignupPage';
@@ -32,7 +33,7 @@ function App() {
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
 
         {/* Recruiter Routes */}
-        <Route path="/recruiter" element={<RecruiterLayout />}>
+        <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
           <Route index element={<RecruiterDashboard />} />
           <Route path="post-job" element={<PostJob />} />
           <Route path="my-jobs" element={<MyJobs />} />
@@ -41,7 +42,7 @@ function App() {
         </Route>
 
         {/* Seeker Routes */}
-        <Route path="/seeker" element={<SeekerLayout />}>
+        <Route path="/seeker" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
           <Route index element={<SeekerDashboard />} />
           <Route path="jobs" element={<BrowseJobs />} />
           <Route path="job/:id" element={<JobDetails />} />
