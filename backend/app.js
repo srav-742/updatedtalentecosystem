@@ -10,11 +10,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: [
-        "https://hire1percent.com",
-        "https://www.hire1percent.com",
-        "http://localhost:5173" // For local development
-    ],
+    origin: '*',
     allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id']
 }));
 app.use((req, res, next) => {

@@ -47,7 +47,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
         setLoading(true);
 
         try {
-            await fetch(`${import.meta.env.VITE_API_URL}/api/save-calibration-lead`, {
+            await fetch("https://updatedtalent-backend.onrender.com/api/save-calibration-lead", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)
