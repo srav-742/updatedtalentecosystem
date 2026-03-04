@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
-import { signOut } from 'firebase/auth';
 
 const Navbar = () => {
     const [user, setUser] = useState(null);
@@ -30,16 +28,7 @@ const Navbar = () => {
         return () => window.removeEventListener('storage', updateAuth);
     }, []);
 
-    const handleLogout = async () => {
-        try {
-            await signOut(auth);
-        } catch (e) {
-            console.error('Firebase signOut error:', e);
-        }
-        localStorage.removeItem('user');
-        setUser(null);
-        navigate('/login');
-    };
+
 
     return (
         <motion.nav
@@ -53,7 +42,7 @@ const Navbar = () => {
                         <span className="text-white font-bold text-xl">H</span>
                     </div>
                     <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 group-hover:from-blue-400 group-hover:to-teal-400 transition-all">
-                        hire1percent
+                        hire1percent-FIXED
                     </span>
                 </Link>
 
