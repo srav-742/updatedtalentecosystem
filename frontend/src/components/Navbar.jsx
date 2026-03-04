@@ -64,17 +64,9 @@ const Navbar = () => {
 
                     <div className="flex items-center space-x-4">
                         {user ? (
-                            <>
-                                <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
-                                    Dashboard
-                                </Link>
-                                <button
-                                    onClick={handleLogout}
-                                    className="px-5 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
-                                >
-                                    Logout
-                                </button>
-                            </>
+                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                                Dashboard
+                            </Link>
                         ) : (
                             <>
                                 <Link to="/login" className="px-5 py-2 text-sm font-medium text-white hover:text-blue-400 transition-colors">
