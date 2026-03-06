@@ -5,17 +5,20 @@ const pdf = require('pdf-parse');
 
 const analyzeResume = async (req, res) => {
     try {
-        const { resumeText, jobSkills, jobExperience, jobEducation, userId, jobId } = req.body;
+        const { resumeText, jobSkills, jobExperience, jobEducation, userId, jobId, specialInstructions } = req.body;
         if (!userId || !jobId) return res.status(400).json({ message: "Recruiter/Job context missing" });
         console.log("[RESUME-ANALYSIS] Starting Analysis...");
         const prompt = `
 You are an expert ATS (Applicant Tracking System) scanner.
-Analyze the provided resume text against the job requirements.
+Analyze the provided resume text against the job requirements and any hidden instructions provided by the recruiter.
 
 Job Requirements:
 - Skills: ${Array.isArray(jobSkills) ? jobSkills.join(', ') : 'General'}
 - Experience Level: ${jobExperience || 'Any'}
 - Education: ${JSON.stringify(jobEducation || [])}
+
+Recruiter's Special Instructions (Follow these strictly):
+${specialInstructions || 'None'}
 
 Resume Text:
 ${resumeText ? resumeText.substring(0, 10000) : ''}

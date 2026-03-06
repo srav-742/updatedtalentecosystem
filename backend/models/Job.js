@@ -25,6 +25,7 @@ const jobSchema = new mongoose.Schema({
         enabled: { type: Boolean, default: true },
         passingScore: { type: Number, default: 70 }
     },
+    specialInstructions: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now }
 });
 

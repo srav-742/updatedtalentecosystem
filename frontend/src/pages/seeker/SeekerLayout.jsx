@@ -10,6 +10,7 @@ const SeekerLayout = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = useState(user);
     const [coins, setCoins] = useState(0);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
         if (user.role && user.role !== 'seeker') {
@@ -56,9 +57,20 @@ const SeekerLayout = () => {
     ];
 
     return (
-        <div className="flex h-screen bg-[#080a0f] text-white overflow-hidden">
+        <div className="flex h-screen bg-[#080a0f] text-white overflow-hidden relative">
+            {/* Hamburger for Mobile */}
+            <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="md:hidden fixed top-6 left-6 z-50 p-2 bg-white/5 border border-white/10 rounded-xl"
+            >
+                {isSidebarOpen ? <LogOut className="rotate-90" size={24} /> : <Zap size={24} />}
+            </button>
+
             {/* Sidebar */}
-            <aside className="w-64 border-r border-white/5 flex flex-col bg-[#080a0f] z-20">
+            <aside className={`
+                fixed inset-y-0 left-0 z-40 w-64 border-r border-white/5 bg-[#080a0f] flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="p-8">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-400 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-500/20">
@@ -74,6 +86,7 @@ const SeekerLayout = () => {
                             key={item.path}
                             to={item.path}
                             end={item.path === '/seeker'}
+                            onClick={() => setIsSidebarOpen(false)}
                             className={({ isActive }) => `
                                 flex items-center space-x-3 px-5 py-4 rounded-2xl transition-all duration-300 group
                                 ${isActive
@@ -122,13 +135,21 @@ const SeekerLayout = () => {
                 </div>
             </aside>
 
+            {/* Overlay for mobile */}
+            {isSidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] relative scroll-smooth">
+            <main className="flex-1 overflow-y-auto bg-[#0a0c12] relative scroll-smooth pt-20 md:pt-0">
                 {/* Background Glows */}
                 <div className="fixed top-[-10%] right-[-5%] w-[600px] h-[600px] bg-teal-600/10 blur-[150px] rounded-full pointer-events-none -z-10" />
                 <div className="fixed bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-emerald-500/5 blur-[150px] rounded-full pointer-events-none -z-10" />
 
-                <div className="p-10 max-w-7xl mx-auto">
+                <div className="p-4 md:p-10 max-w-7xl mx-auto">
                     <Outlet />
                 </div>
             </main>

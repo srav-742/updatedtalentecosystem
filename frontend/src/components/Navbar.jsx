@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
     const [user, setUser] = useState(null);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -68,7 +69,57 @@ const Navbar = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Hamburger for Mobile */}
+                <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="md:hidden p-2 text-gray-400 hover:text-white"
+                >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {isMenuOpen ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        )}
+                    </svg>
+                </button>
             </div>
+
+            {/* Mobile Menu */}
+            <AnimatePresence>
+                {isMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="md:hidden border-t border-white/10 bg-[#0c0f16]"
+                    >
+                        <div className="flex flex-col p-6 space-y-4">
+                            <a href="/#elite-talent" onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-white">Elite Talent</a>
+                            <a href="/#operations" onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-white">Operations</a>
+                            <a href="/#safety" onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-white">Safety</a>
+                            <div className="pt-4 flex flex-col space-y-4">
+                                {user ? (
+                                    <Link
+                                        to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                ) : (
+                                    <>
+                                        <Link to="/login" onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-white">Login</Link>
+                                        <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="w-full py-3 text-center bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-full">
+                                            Sign Up
+                                        </Link>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.nav>
     );
 };
