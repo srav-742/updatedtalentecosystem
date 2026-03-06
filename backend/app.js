@@ -71,7 +71,7 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // ✅ Catch-all route for SPA
 // Directs all non-API requests to index.html so React Router can take over
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
     // Only handle GET requests that aren't for the API
     if (!req.url.startsWith('/api')) {
         res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
