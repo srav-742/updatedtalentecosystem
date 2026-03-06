@@ -22,6 +22,9 @@ const PostJob = () => {
         experienceLevel: 'Fresher',
         education: [{ qualification: '', specialization: '' }],
         minPercentage: 60,
+        resumeAnalysis: {
+            enabled: true
+        },
         assessment: {
             enabled: false,
             type: 'MCQ',
@@ -402,14 +405,23 @@ const PostJob = () => {
 
                 {/* D. Resume Selection Logic */}
                 <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">
-                            E
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">
+                                E
+                            </div>
+                            <h2 className="text-xl font-bold">Resume Selection Logic</h2>
                         </div>
-                        <h2 className="text-xl font-bold">Resume Selection Logic</h2>
+                        <button
+                            type="button"
+                            onClick={() => handleToggle('resumeAnalysis.enabled')}
+                            className={`w-12 h-6 rounded-full transition-all relative ${jobData.resumeAnalysis?.enabled !== false ? 'bg-emerald-500' : 'bg-gray-700'}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${jobData.resumeAnalysis?.enabled !== false ? 'left-7' : 'left-1'}`} />
+                        </button>
                     </div>
 
-                    <div>
+                    <div className={`transition-all ${jobData.resumeAnalysis?.enabled !== false ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none'}`}>
                         <div className="flex items-center justify-between mb-2">
                             <label className="text-sm font-medium text-gray-500">Resume Match Threshold</label>
                             <span className="text-emerald-400 font-bold text-lg">{jobData.minPercentage}/100</span>
@@ -530,8 +542,8 @@ const PostJob = () => {
                     {loading ? <Loader2 className="animate-spin" /> : <FilePlus />}
                     {loading ? 'Posting Job...' : 'Post Job Now'}
                 </button>
-            </form>
-        </div>
+            </form >
+        </div >
     );
 };
 

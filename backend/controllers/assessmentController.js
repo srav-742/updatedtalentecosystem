@@ -28,12 +28,18 @@ const generateFullAssessment = async (req, res) => {
         const user = await User.findOne({ uid: userId });
         // Removed unnecessary ResumeProfile check. Application record is the source of truth.
         const application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
-        if (!application) {
-            return res.status(400).json({ message: "You must apply to the job first" });
+
+        // Only enforce resume match if resume analysis is enabled
+        const isResumeEnabled = job.resumeAnalysis?.enabled !== false;
+        if (isResumeEnabled) {
+            if (!application) {
+                return res.status(400).json({ message: "You must apply (upload resume) first" });
+            }
+            if (application.resumeMatchPercent < (job.minPercentage || 60)) {
+                return res.status(400).json({ message: `Resume match below ${job.minPercentage || 60}%` });
+            }
         }
-        if (application.resumeMatchPercent < (job.minPercentage || 60)) {
-            return res.status(400).json({ message: `Resume match below ${job.minPercentage || 60}%` });
-        }
+
         await deductCoins(userId, 20, 'Skill Assessment');
         // 🎯 Config
         const totalQuestions = Math.min(job.assessment.totalQuestions || 5, 10);
