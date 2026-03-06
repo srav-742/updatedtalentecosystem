@@ -43,7 +43,7 @@ const Navbar = () => {
                         <span className="text-white font-bold text-xl">H</span>
                     </div>
                     <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 group-hover:from-blue-400 group-hover:to-teal-400 transition-all">
-                        hire1percent-FIXED
+                        hire1percent
                     </span>
                 </Link>
 
