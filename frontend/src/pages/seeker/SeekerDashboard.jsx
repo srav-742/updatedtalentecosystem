@@ -41,17 +41,17 @@ const SeekerDashboard = () => {
 
     return (
         <div className="space-y-12">
-            <header className="relative py-12 px-10 rounded-[3rem] bg-gradient-to-br from-white/[0.03] to-transparent border border-white/5 overflow-hidden shadow-2xl">
+            <header className="relative py-8 md:py-12 px-6 md:px-10 rounded-[2rem] md:rounded-[3rem] bg-gradient-to-br from-white/[0.03] to-transparent border border-white/5 overflow-hidden shadow-2xl">
                 <div className="absolute top-0 right-0 p-12 opacity-5">
                     <Zap size={200} className="text-teal-400" />
                 </div>
                 <div className="relative z-10">
-                    <h2 className="text-teal-400 font-black uppercase tracking-widest text-xs mb-4">hire1percent</h2>
-                    <h1 className="text-5xl font-black tracking-tight mb-2">Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">{user.name}</span></h1>
-                    <p className="text-gray-500 text-lg max-w-xl font-medium">Your journey to a decentralized career starts here. Explore AI-vetted opportunities specifically matched to your unique skills.</p>
+                    <h2 className="text-teal-400 font-black uppercase tracking-widest text-[10px] md:text-xs mb-4">hire1percent</h2>
+                    <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-2">Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">{user.name}</span></h1>
+                    <p className="text-gray-500 text-sm md:text-lg max-w-xl font-medium">Your journey to a decentralized career starts here. Explore AI-vetted opportunities specifically matched to your unique skills.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-12">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-8 md:mt-12">
                     <StatCard label="Applied Jobs" value={stats.applied} icon={<Briefcase size={20} />} color="blue" />
                     <StatCard label="Eligible Roles" value={stats.eligible} icon={<Star size={20} />} color="teal" />
                     <StatCard label="Shortlisted" value={stats.shortlisted} icon={<CheckCircle size={20} />} color="emerald" />

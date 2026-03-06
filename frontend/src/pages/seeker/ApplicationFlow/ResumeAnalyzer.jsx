@@ -48,7 +48,8 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                 jobExperience: job.experienceLevel,
                 jobEducation: job.education,
                 userId: user.uid,
-                jobId: job._id
+                jobId: job._id,
+                specialInstructions: job.specialInstructions
             });
 
             const { data } = analysisRes;

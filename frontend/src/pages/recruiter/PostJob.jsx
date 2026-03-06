@@ -30,7 +30,8 @@ const PostJob = () => {
         mockInterview: {
             enabled: false,
             passingScore: 70
-        }
+        },
+        specialInstructions: ''
     });
 
     const [currentSkill, setCurrentSkill] = useState('');
@@ -177,11 +178,30 @@ const PostJob = () => {
                                 name="description"
                                 value={jobData.description}
                                 onChange={handleChange}
-                                rows="4"
+                                rows="6"
                                 placeholder="Describe the role, responsibilities, and requirements..."
                                 required
                                 className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none"
                             ></textarea>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-blue-400 mb-2 flex items-center gap-2">
+                                <Zap size={16} /> Special Instructions for AI Agent
+                            </label>
+                            <textarea
+                                name="specialInstructions"
+                                value={jobData.specialInstructions}
+                                onChange={handleChange}
+                                rows="3"
+                                placeholder="Example:
+• Prefer candidates with startup experience
+• Avoid candidates who frequently change jobs
+• Prioritize candidates with system design knowledge"
+                                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none text-sm"
+                            ></textarea>
+                            <p className="mt-2 text-[10px] text-gray-500 italic">
+                                This information will only be used by our AI to better filter candidates. It will NOT appear in the public job description.
+                            </p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-500 mb-2">Location</label>

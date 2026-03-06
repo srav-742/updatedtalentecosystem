@@ -8,6 +8,7 @@ const RecruiterLayout = () => {
     const navigate = useNavigate();
     const [user] = React.useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = React.useState(user);
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
 
     React.useEffect(() => {
@@ -59,9 +60,20 @@ const RecruiterLayout = () => {
     ];
 
     return (
-        <div className="flex h-screen bg-[#0c0f16] text-white overflow-hidden">
+        <div className="flex h-screen bg-[#0c0f16] text-white overflow-hidden relative">
+            {/* Hamburger for Mobile */}
+            <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="md:hidden fixed top-6 left-6 z-50 p-2 bg-white/5 border border-white/10 rounded-xl"
+            >
+                {isSidebarOpen ? <LogOut className="rotate-90" size={24} /> : <Zap size={24} />}
+            </button>
+
             {/* Sidebar */}
-            <aside className="w-64 border-r border-white/10 flex flex-col bg-[#0c0f16] z-20">
+            <aside className={`
+                fixed inset-y-0 left-0 z-40 w-64 border-r border-white/10 bg-[#0c0f16] flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="p-6">
                     <div className="flex items-center space-x-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-400 rounded-lg flex items-center justify-center">
@@ -77,6 +89,7 @@ const RecruiterLayout = () => {
                             key={item.path}
                             to={item.path}
                             end={item.path === '/recruiter'}
+                            onClick={() => setIsSidebarOpen(false)}
                             className={({ isActive }) => `
                                 flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200
                                 ${isActive
@@ -119,13 +132,21 @@ const RecruiterLayout = () => {
                 </div>
             </aside>
 
+            {/* Overlay for mobile */}
+            {isSidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto bg-[#0a0c10] relative">
+            <main className="flex-1 overflow-y-auto bg-[#0a0c10] relative pt-20 md:pt-0">
                 {/* Global Background Accents */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none -z-10" />
                 <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-                <div className="p-8 max-w-7xl mx-auto">
+                <div className="p-4 md:p-8 max-w-7xl mx-auto">
                     <Outlet />
                 </div>
             </main>
