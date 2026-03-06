@@ -5,6 +5,7 @@ const { generateSpeech } = require('../services/tts.service');
 const crypto = require('crypto');
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
+const Job = require('../models/Job');
 
 // In-memory session store
 const interviewSessions = new Map();
@@ -28,9 +29,23 @@ router.post('/start', async (req, res) => {
         const resume = await ResumeAnalysis.findOne({ userId, jobId });
         if (!resume) return res.status(400).json({ message: "Resume analysis not found." });
 
+        const job = await Job.findById(jobId);
+        const specialInstructions = job?.specialInstructions || "";
+
         const structured = resume.structured || {};
 
-        const firstQPrompt = `Based on this resume: ${JSON.stringify(structured)}, ask ONE specific technical question about their work. Return ONLY the question.`;
+        const firstQPrompt = `
+Job Context:
+${job ? `Title: ${job.title}\nDescription: ${job.description}` : "General technical role"}
+
+Recruiter's Special Instructions:
+${specialInstructions || "None"}
+
+Candidate Resume:
+${JSON.stringify(structured)}
+
+TASK: Based on the resume and the recruiter's special instructions, ask ONE specific technical question. Return ONLY the question.
+`;
 
         let firstQuestion = await callInterviewAI(firstQPrompt, 500, false, INTERVIEW_SYSTEM_PROMPT);
 
@@ -48,6 +63,7 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         interviewSessions.set(sessionId, {
             userId, jobId, resumeProfile: structured,
+            specialInstructions,
             history: [{ role: 'interviewer', content: firstQuestion }]
         });
 
@@ -139,7 +155,17 @@ ${conversation}
         }
 
         const thread = session.history.map(h => `${h.role}: ${h.content}`).join('\n');
-        const nextPrompt = `Continue the technical interview. Based on history:\n${thread}\n\nAsk ONE follow-up technical question. Return ONLY the question.`;
+        const nextPrompt = `
+Continue the technical interview. 
+
+Recruiter's Special Instructions:
+${session.specialInstructions || "None"}
+
+Interview History:
+${thread}
+
+Ask ONE follow-up technical question based on their previous answer and the recruiter's instructions. Return ONLY the question.
+`;
 
         let nextQuestion = await callInterviewAI(nextPrompt, 500, false, INTERVIEW_SYSTEM_PROMPT);
 
