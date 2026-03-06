@@ -57,27 +57,12 @@ app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
 
 // Root route for health check / status
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
     res.json({
         status: "Active",
         message: "Updated Talent Ecosystem Backend is running successfully.",
         timestamp: new Date().toISOString()
     });
-});
-
-// ✅ Serve Static Files (Frontend Build)
-// This pointed to the frontend/dist folder. Ensure you've run 'npm run build' in the frontend.
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
-
-// ✅ Catch-all route for SPA
-// Directs all non-API requests to index.html so React Router can take over
-app.get('/*', (req, res) => {
-    // Only handle GET requests that aren't for the API
-    if (!req.url.startsWith('/api')) {
-        res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
-    } else {
-        res.status(404).json({ message: "API route not found" });
-    }
 });
 
 // Global Error Handler
