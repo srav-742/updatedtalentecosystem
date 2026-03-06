@@ -15,6 +15,9 @@ const jobSchema = new mongoose.Schema({
     }],
     recruiterId: { type: String, index: true },
     minPercentage: { type: Number, default: 60 },
+    resumeAnalysis: {
+        enabled: { type: Boolean, default: true }
+    },
     assessment: {
         enabled: { type: Boolean, default: false },
         totalQuestions: { type: Number, default: 5 },

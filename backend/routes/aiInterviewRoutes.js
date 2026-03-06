@@ -26,13 +26,27 @@ router.post('/start', async (req, res) => {
         const { jobId, userId } = req.body;
         if (!jobId || !userId) return res.status(400).json({ message: "jobId and userId are required" });
 
-        const resume = await ResumeAnalysis.findOne({ userId, jobId });
-        if (!resume) return res.status(400).json({ message: "Resume analysis not found." });
+        let resume = await ResumeAnalysis.findOne({ userId, jobId });
+        let structured = resume?.structured;
+
+        if (!structured) {
+            const ResumeProfile = require('../models/ResumeProfile');
+            const profile = await ResumeProfile.findOne({ userId });
+            if (profile) {
+                structured = {
+                    skills: profile.skills,
+                    projects: profile.projects,
+                    experienceYears: profile.experienceYears
+                };
+            }
+        }
+
+        // Final fallback
+        if (!structured) structured = { message: "No resume provided. Conduct a general technical interview." };
 
         const job = await Job.findById(jobId);
         const specialInstructions = job?.specialInstructions || "";
 
-        const structured = resume.structured || {};
 
         const firstQPrompt = `
 Job Context:
