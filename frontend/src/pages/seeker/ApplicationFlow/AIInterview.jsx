@@ -160,13 +160,14 @@ const AIInterview = ({ job, user, onComplete }) => {
 
                         // ✅ Stop and Upload Full Session Recording
                         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-                            fullSessionRecorderRef.current.stop();
+                            // FIX: Attach onstop BEFORE calling stop() to avoid race condition
                             fullSessionRecorderRef.current.onstop = async () => {
                                 const blob = new Blob(fullSessionChunksRef.current, { type: "audio/webm" });
                                 const formData = new FormData();
-                                formData.append("audio", blob);
+                                // FIX: Append userId and jobId BEFORE the blob so multer parses them into req.body
                                 formData.append("userId", user.uid);
                                 formData.append("jobId", job._id);
+                                formData.append("audio", blob);
 
                                 try {
                                     console.log("[RECORDER] Uploading full session recording to Cloudinary...");
@@ -176,6 +177,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                     console.error("[RECORDER] Upload failed:", uploadErr);
                                 }
                             };
+                            fullSessionRecorderRef.current.stop();
                         }
                     } else {
                         setCurrentQuestion(nextRes.data.question);
