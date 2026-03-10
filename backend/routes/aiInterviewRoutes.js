@@ -115,6 +115,7 @@ INTERVIEW CONDUCT:
 - If the candidate gives a strong answer, go deeper. If they struggle, gracefully pivot to a related but different topic from the job description.
 - Ask ONE question at a time. Never bundle multiple questions.
 - Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Nothing else.
 `;
     }
@@ -199,6 +200,7 @@ INTERVIEW CONDUCT:
 - Ask ONE question at a time. Never bundle multiple questions.
 - Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
 - Use a mix of situational, behavioral, and competency-based questions appropriate for the role.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Nothing else.
 `;
 }
@@ -257,6 +259,11 @@ function buildNextQuestionPrompt(session, questionNumber) {
     const resumeQuestionSlots = isTech ? [4, 8] : [7];
     const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
 
+    const askedQuestions = session.history
+        .filter(h => h.role === 'interviewer')
+        .map((h, i) => `${i + 1}. ${h.content}`)
+        .join('\n');
+
     const thread = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
 
     let questionDirective;
@@ -301,8 +308,12 @@ ${thread}
 === QUESTION DIRECTIVE ===
 ${questionDirective}
 
+=== PREVIOUSLY ASKED QUESTIONS (CRITICAL: DO NOT REPEAT THESE) ===
+${askedQuestions}
+
 === TASK ===
 Based on the interview flow above, ask the NEXT interview question (Question ${questionNumber}).
+- CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
 - Make it flow naturally from the candidate's last answer.
 - If the candidate gave a strong answer, go deeper. If they were weak, gracefully shift to another relevant topic from the JD.
 - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
