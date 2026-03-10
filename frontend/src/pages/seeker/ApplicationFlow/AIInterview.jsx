@@ -235,7 +235,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                 </div>
                 <h2 className="text-3xl font-medium text-gray-900 mb-4 tracking-tight">AI Interview Session</h2>
                 <p className="text-gray-500 mb-12 font-light leading-relaxed">
-                    This session will evaluate your technical proficiency through adaptive questioning.
+                    This session will evaluate your professional capabilities through adaptive, role-specific questioning tailored to the job requirements.
                 </p>
                 <button
                     onClick={startInterviewTrigger}
@@ -251,7 +251,7 @@ const AIInterview = ({ job, user, onComplete }) => {
         return (
             <div className="py-32 text-center">
                 <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400 font-light tracking-wide italic">Connecting to assessment engine...</p>
+                <p className="text-gray-400 font-light tracking-wide italic">Preparing your personalized interview session...</p>
             </div>
         );
     }
