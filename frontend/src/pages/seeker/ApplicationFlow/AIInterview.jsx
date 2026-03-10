@@ -229,12 +229,12 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     if (step === 'ready') {
         return (
-            <div className="max-w-xl mx-auto py-20 px-10 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] text-center">
-                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-8 text-indigo-600">
+            <div className="max-w-xl mx-auto py-20 px-10 bg-[#0f1117] border border-white/10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] text-center">
+                <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-8 text-indigo-400">
                     <User size={32} />
                 </div>
-                <h2 className="text-3xl font-medium text-gray-900 mb-4 tracking-tight">AI Interview Session</h2>
-                <p className="text-gray-500 mb-12 font-light leading-relaxed">
+                <h2 className="text-3xl font-medium text-white mb-4 tracking-tight">AI Interview Session</h2>
+                <p className="text-gray-300 mb-12 font-light leading-relaxed">
                     This session will evaluate your professional capabilities through adaptive, role-specific questioning tailored to the job requirements.
                 </p>
                 <button
@@ -251,7 +251,7 @@ const AIInterview = ({ job, user, onComplete }) => {
         return (
             <div className="py-32 text-center">
                 <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400 font-light tracking-wide italic">Preparing your personalized interview session...</p>
+                <p className="text-gray-300 font-light tracking-wide italic">Preparing your personalized interview session...</p>
             </div>
         );
     }
@@ -260,14 +260,14 @@ const AIInterview = ({ job, user, onComplete }) => {
         return (
             <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700">
                 {/* Minimal Header */}
-                <div className="flex justify-between items-center mb-12 border-b border-gray-50 pb-6">
+                <div className="flex justify-between items-center mb-12 border-b border-white/10 pb-6">
                     <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full ${coreState === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
                         <span className="text-xs font-light text-gray-400 uppercase tracking-[0.2em]">
                             {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
                         </span>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">Question {currentQNum} of 10</span>
+                    <span className="text-sm font-medium text-white">Question {currentQNum} of 10</span>
                 </div>
 
                 {/* Question Section - Elegant and Clean (No Bold) */}
@@ -277,7 +277,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                             <motion.p
                                 key={currentQuestion}
                                 animate={{ opacity: 1 }}
-                                className="text-lg md:text-xl text-gray-800 leading-relaxed font-light tracking-tight text-center"
+                                className="text-lg md:text-xl text-white leading-relaxed font-light tracking-tight text-center"
                             >
                                 {displayText}
                             </motion.p>
@@ -313,8 +313,8 @@ const AIInterview = ({ job, user, onComplete }) => {
                             onClick={toggleRecording}
                             disabled={processing || !displayText}
                             className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
-                                ? 'bg-red-500 text-white shadow-red-200'
-                                : !displayText ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white text-indigo-600 border border-indigo-50 hover:bg-indigo-50'
+                                ? 'bg-red-500 text-white shadow-red-500/30'
+                                : !displayText ? 'bg-white/10 text-gray-500 cursor-not-allowed' : 'bg-white text-indigo-600 border border-white/20 hover:bg-indigo-50'
                                 }`}
                         >
                             {recording ? <StopCircle size={32} /> : <Mic size={32} />}
@@ -322,7 +322,7 @@ const AIInterview = ({ job, user, onComplete }) => {
 
                         <div className="flex flex-col">
                             <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest mb-1">Current State</span>
-                            <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
+                            <span className={`text-sm font-medium ${recording ? 'text-red-400' : 'text-white'}`}>
                                 {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
                             </span>
                         </div>
@@ -333,7 +333,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                         {transcript && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                className="w-full max-w-2xl p-6 bg-gray-50 rounded-2xl border border-gray-100 italic font-light text-gray-500 text-center"
+                                className="w-full max-w-2xl p-6 bg-white/5 rounded-2xl border border-white/10 italic font-light text-gray-300 text-center"
                             >
                                 "{transcript}"
                             </motion.div>
