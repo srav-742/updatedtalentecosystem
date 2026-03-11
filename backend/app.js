@@ -69,8 +69,8 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// ✅ Catch-all route to serve index.html for SPA routing
-app.get('*', (req, res) => {
+// ✅ Catch-all route to serve index.html for SPA routing (Express 5 syntax)
+app.get('(.*)', (req, res) => {
     // If it's an API request that wasn't caught, return 404
     if (req.url.startsWith('/api/')) {
         return res.status(404).json({ message: "API route not found" });
