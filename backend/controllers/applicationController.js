@@ -21,13 +21,37 @@ const submitApplication = async (req, res) => {
         }
         const application = await Application.findOneAndUpdate(query, update, { new: true, upsert: true }).populate('jobId');
 
-        // Calculate Final Score
+        // Calculate Final Score dynamically based on Job settings
         const r = application.resumeMatchPercent || 0;
         const a = application.assessmentScore || 0;
         const i = application.interviewScore || 0;
 
-        // Equal weighting: (Resume + Assessment + Interview) / 3
-        const finalScore = Math.round((r + a + i) / 3);
+        let totalScore = 0;
+        let numModules = 0;
+        const job = application.jobId;
+
+        if (job) {
+            if (job.resumeAnalysis && job.resumeAnalysis.enabled) {
+                totalScore += r;
+                numModules++;
+            }
+            if (job.assessment && job.assessment.enabled) {
+                totalScore += a;
+                numModules++;
+            }
+            if (job.mockInterview && job.mockInterview.enabled) {
+                totalScore += i;
+                numModules++;
+            }
+        }
+
+        // Fallback if no modules enabled logically
+        if (numModules === 0) {
+            totalScore = r + a + i;
+            numModules = 3;
+        }
+
+        const finalScore = Math.round(totalScore / numModules);
         application.finalScore = finalScore;
         await application.save();
 
