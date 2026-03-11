@@ -29,6 +29,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
                 ],
                 generationConfig: {
                     maxOutputTokens: maxTokens,
+                    responseMimeType: isJsonMode ? "application/json" : "text/plain"
                 }
             },
             {
