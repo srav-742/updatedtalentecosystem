@@ -271,11 +271,12 @@ const AIInterview = ({ job, user, onComplete }) => {
                 </div>
 
                 {/* Question Section - Elegant and Clean (No Bold) */}
-                <div className="min-h-[220px] flex flex-col justify-center mb-16 px-4">
-                    <AnimatePresence mode="wait">
+                <div className="min-h-[220px] max-h-[400px] overflow-y-auto flex flex-col justify-center mb-16 px-6 custom-scrollbar">
+                    <AnimatePresence>
                         {displayText ? (
                             <motion.p
                                 key={currentQuestion}
+                                initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 className="text-lg md:text-xl text-white leading-relaxed font-light tracking-tight text-center"
                             >
@@ -284,7 +285,9 @@ const AIInterview = ({ job, user, onComplete }) => {
                         ) : (
                             <motion.div
                                 key="loading-voice"
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
                                 className="flex flex-col items-center gap-6"
                             >
                                 <div className="flex items-end gap-1.5 h-12">
@@ -298,7 +301,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                     ))}
                                 </div>
                                 <span className="text-xs font-medium text-indigo-400 uppercase tracking-[0.3em] animate-pulse">
-                                    Audio Feed Processing...
+                                    Interviewer is thinking...
                                 </span>
                             </motion.div>
                         )}

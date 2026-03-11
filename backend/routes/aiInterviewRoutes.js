@@ -116,7 +116,8 @@ INTERVIEW CONDUCT:
 - Ask ONE question at a time. Never bundle multiple questions.
 - Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
-- Respond with ONLY the next interview question. Nothing else.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
 `;
     }
 
@@ -201,7 +202,8 @@ INTERVIEW CONDUCT:
 - Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
 - Use a mix of situational, behavioral, and competency-based questions appropriate for the role.
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
-- Respond with ONLY the next interview question. Nothing else.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
 `;
 }
 
@@ -239,7 +241,7 @@ RULES:
 - Start with a strong, role-specific opening question that assesses the candidate's understanding of the core responsibilities described in the JD.
 - For ${isTech ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.' : 'non-technical roles: ask about a core responsibility, business scenario, or domain-specific challenge mentioned in the JD.'}
 - Do NOT ask generic questions like "Tell me about yourself" — dive directly into the role.
-- Return ONLY the question. Nothing else.
+- Return ONLY the question. Nothing else. Ensure the question is a complete sentence and fully addresses the role requirements.
 `;
 }
 
@@ -317,7 +319,7 @@ Based on the interview flow above, ask the NEXT interview question (Question ${q
 - Make it flow naturally from the candidate's last answer.
 - If the candidate gave a strong answer, go deeper. If they were weak, gracefully shift to another relevant topic from the JD.
 - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
-- Return ONLY the question. Nothing else.
+- Return ONLY the question. Nothing else. Ensure the question flows from the previous answer and is complete.
 `;
 }
 
@@ -405,7 +407,7 @@ router.post('/start', async (req, res) => {
         // Build first question prompt (JD-focused)
         const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
 
-        let firstQuestion = await callInterviewAI(firstQPrompt, 500, false, systemPrompt);
+        let firstQuestion = await callInterviewAI(firstQPrompt, 1000, false, systemPrompt);
 
         if (!firstQuestion) {
             // Fallback: role-appropriate generic question
@@ -546,7 +548,7 @@ router.post('/next', async (req, res) => {
         // Build role-aware follow-up prompt
         const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
 
-        let nextQuestion = await callInterviewAI(nextPrompt, 500, false, session.systemPrompt);
+        let nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
 
         if (!nextQuestion) {
             nextQuestion = session.roleInfo.isTech
