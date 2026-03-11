@@ -498,12 +498,37 @@ router.post('/next', async (req, res) => {
             );
 
             // Update final score
-            const app = await Application.findOne({ userId: session.userId, jobId: session.jobId });
+            const app = await Application.findOne({ userId: session.userId, jobId: session.jobId }).populate('jobId');
             if (app) {
                 const r = Number(app.resumeMatchPercent || 0);
                 const a = Number(app.assessmentScore || 0);
                 const i = Number(app.interviewScore || 0);
-                app.finalScore = Math.round((r + a + i) / 3);
+
+                let totalScore = 0;
+                let numModules = 0;
+                const job = app.jobId;
+
+                if (job) {
+                    if (job.resumeAnalysis && job.resumeAnalysis.enabled) {
+                        totalScore += r;
+                        numModules++;
+                    }
+                    if (job.assessment && job.assessment.enabled) {
+                        totalScore += a;
+                        numModules++;
+                    }
+                    if (job.mockInterview && job.mockInterview.enabled) {
+                        totalScore += i;
+                        numModules++;
+                    }
+                }
+
+                if (numModules === 0) {
+                    totalScore = r + a + i;
+                    numModules = 3;
+                }
+
+                app.finalScore = Math.round(totalScore / numModules);
 
                 if (app.finalScore >= 60) app.status = 'SHORTLISTED';
 
