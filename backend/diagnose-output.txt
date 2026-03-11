@@ -1,8 +1,0 @@
-﻿[dotenv@17.2.3] injecting env (10) from .env -- tip: ≡ƒæÑ sync secrets across teammates & machines: https://dotenvx.com/ops
-Checking API Key: AIzaSyBD...
-
---- Trying model: gemini-1.5-flash ---
-
---- Trying model: gemini-1.5-pro ---
-
---- Trying model: gemini-pro ---

@@ -56,13 +56,27 @@ app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
 
-// Root route for health check / status
-app.get('/', (req, res) => {
+// ✅ Serve Static Files from Frontend
+const distPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(distPath));
+
+// Root route for health check / status (handled by catch-all now for frontend, but kept for /api test)
+app.get('/api/status', (req, res) => {
     res.json({
         status: "Active",
         message: "Updated Talent Ecosystem Backend is running successfully.",
         timestamp: new Date().toISOString()
     });
+});
+
+// ✅ Catch-all route to serve index.html for SPA routing
+app.get('*', (req, res) => {
+    // If it's an API request that wasn't caught, return 404
+    if (req.url.startsWith('/api/')) {
+        return res.status(404).json({ message: "API route not found" });
+    }
+    // Otherwise serve the frontend
+    res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Global Error Handler
