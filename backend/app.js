@@ -69,13 +69,14 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// ✅ Catch-all route to serve index.html for SPA routing (Express 5 syntax)
-app.get('(.*)', (req, res) => {
+// ✅ Catch-all route to serve index.html for SPA routing
+// This must be the LAST route to handle page refreshes correctly
+app.get('*', (req, res) => {
     // If it's an API request that wasn't caught, return 404
     if (req.url.startsWith('/api/')) {
         return res.status(404).json({ message: "API route not found" });
     }
-    // Otherwise serve the frontend
+    // Otherwise serve the frontend index.html
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
