@@ -70,14 +70,12 @@ app.get('/api/status', (req, res) => {
 });
 
 // ✅ Catch-all route to serve index.html for SPA routing
-// This must be the LAST route to handle page refreshes correctly
-app.get('*', (req, res) => {
-    // If it's an API request that wasn't caught, return 404
-    if (req.url.startsWith('/api/')) {
-        return res.status(404).json({ message: "API route not found" });
+// Using middleware without path string to completely bypass Express 5 path-to-regexp errors
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.url.startsWith('/api/')) {
+        return res.sendFile(path.join(distPath, 'index.html'));
     }
-    // Otherwise serve the frontend index.html
-    res.sendFile(path.join(distPath, 'index.html'));
+    next();
 });
 
 // Global Error Handler
