@@ -1,0 +1,10 @@
+﻿[dotenv@17.2.3] injecting env (10) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ΓÜÖ∩╕Å  enable debug logging with { debug: true }
+--- Testing callSkillAI (with Fallbacks) ---
+[SKILL-AI] Initializing analysis...
+[AI-CLIENT] Attempting Gemini (gemini-1.5-flash)...
+[AI-CLIENT] Tweak: Gemini model identification failed. Check API key permissions.
+[SKILL-AI] Falling back to Groq (llama-3.3-70b)...
+Final Result: {
+  "message": "hello"
+}
