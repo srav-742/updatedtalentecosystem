@@ -5,61 +5,61 @@ const openai = require('../config/openai');
 // Initialize Gemini (Fallback)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Direct API implementation as requested
 const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
-        if (process.env.GEMINI_API_KEY) {
-            // Try different models in order of stability/availability for the key
-            const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
-            let lastError = null;
+        if (!process.env.GEMINI_API_KEY) return null;
 
-            for (const modelName of modelsToTry) {
-                try {
-                    console.log(`[AI-CLIENT] Attempting Gemini (${modelName})...`);
-                    const model = genAI.getGenerativeModel({
-                        model: modelName,
-                        generationConfig: {
-                            responseMimeType: isJsonMode ? "application/json" : "text/plain",
-                            maxOutputTokens: maxTokens,
-                        },
-                        safetySettings: [
-                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        const MODEL = "gemini-flash-latest";
+        console.log(`[AI-CLIENT] Attempting Gemini (${MODEL})...`);
+
+        const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
+
+        const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            {
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: finalPrompt
+                            }
                         ]
-                    });
-
-                    const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
-                    const result = await model.generateContent(finalPrompt);
-                    const response = await result.response;
-
-                    let text = response.text().trim();
-                    if (isJsonMode) {
-                        const jsonMatch = text.match(/\{[\s\S]*\}/);
-                        if (jsonMatch) text = jsonMatch[0];
                     }
-                    if (text.startsWith('```')) {
-                        text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
-                    }
-
-                    if (text) {
-                        console.log(`[AI-CLIENT] Gemini (${modelName}) Success.`);
-                        return text;
-                    }
-                } catch (modelErr) {
-                    lastError = modelErr.message;
-                    // If error is 404 (model not found), try next model. Otherwise break.
-                    if (!modelErr.message.includes("404") && !modelErr.message.includes("not found")) {
-                        console.warn(`[AI-CLIENT] Gemini (${modelName}) Error:`, modelErr.message);
-                        break;
-                    }
-                    console.log(`[AI-CLIENT] Gemini (${modelName}) not available for this key, trying next...`);
+                ],
+                generationConfig: {
+                    maxOutputTokens: maxTokens,
+                }
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json"
                 }
             }
-            if (lastError) console.warn("[AI-CLIENT] Gemini exhausted all models. Last Error:", lastError);
+        );
+
+        // Safely extract and combine all parts to prevent halving questions
+        const aiText = response.data.candidates[0].content.parts
+            .map(p => p.text)
+            .join("");
+
+        let text = aiText.trim();
+
+        if (isJsonMode) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) text = jsonMatch[0];
         }
+        if (text.startsWith('```')) {
+            text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+        }
+
+        if (text) {
+            console.log(`[AI-CLIENT] Gemini (${MODEL}) Success.`);
+            return text;
+        }
+
     } catch (err) {
-        console.warn("[AI-CLIENT] Gemini Critical Error:", err.message);
+        console.warn("[AI-CLIENT] Gemini Error:", err.response?.data || err.message);
     }
     return null;
 };
