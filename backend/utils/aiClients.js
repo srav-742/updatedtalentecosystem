@@ -8,43 +8,58 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
         if (process.env.GEMINI_API_KEY) {
-            const modelName = "gemini-1.5-flash";
-            console.log(`[AI-CLIENT] Attempting Gemini (${modelName})...`);
+            // Try different models in order of stability/availability for the key
+            const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
+            let lastError = null;
 
-            const model = genAI.getGenerativeModel({
-                model: modelName,
-                generationConfig: {
-                    responseMimeType: isJsonMode ? "application/json" : "text/plain",
-                    maxOutputTokens: maxTokens,
-                },
-                // Skip safety filters to prevent "blocked" responses for resume analysis
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                ]
-            });
+            for (const modelName of modelsToTry) {
+                try {
+                    console.log(`[AI-CLIENT] Attempting Gemini (${modelName})...`);
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        generationConfig: {
+                            responseMimeType: isJsonMode ? "application/json" : "text/plain",
+                            maxOutputTokens: maxTokens,
+                        },
+                        safetySettings: [
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                        ]
+                    });
 
-            const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
-            const result = await model.generateContent(finalPrompt);
-            const response = await result.response;
+                    const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
+                    const result = await model.generateContent(finalPrompt);
+                    const response = await result.response;
 
-            let text = response.text().trim();
+                    let text = response.text().trim();
+                    if (isJsonMode) {
+                        const jsonMatch = text.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) text = jsonMatch[0];
+                    }
+                    if (text.startsWith('```')) {
+                        text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+                    }
 
-            if (isJsonMode) {
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                if (jsonMatch) text = jsonMatch[0];
+                    if (text) {
+                        console.log(`[AI-CLIENT] Gemini (${modelName}) Success.`);
+                        return text;
+                    }
+                } catch (modelErr) {
+                    lastError = modelErr.message;
+                    // If error is 404 (model not found), try next model. Otherwise break.
+                    if (!modelErr.message.includes("404") && !modelErr.message.includes("not found")) {
+                        console.warn(`[AI-CLIENT] Gemini (${modelName}) Error:`, modelErr.message);
+                        break;
+                    }
+                    console.log(`[AI-CLIENT] Gemini (${modelName}) not available for this key, trying next...`);
+                }
             }
-
-            if (text.startsWith('```')) {
-                text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
-            }
-
-            if (text) return text;
+            if (lastError) console.warn("[AI-CLIENT] Gemini exhausted all models. Last Error:", lastError);
         }
     } catch (err) {
-        console.warn("[AI-CLIENT] Gemini Error:", err.message);
+        console.warn("[AI-CLIENT] Gemini Critical Error:", err.message);
     }
     return null;
 };
