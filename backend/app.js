@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const dns = require('dns');
 
 // Fix for MongoDB SRV DNS resolution issues
@@ -56,26 +55,23 @@ app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
 
-// ✅ Serve Static Files from Frontend
-const distPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(distPath));
-
-// Root route for health check / status (handled by catch-all now for frontend, but kept for /api test)
+// ✅ API Health Check
 app.get('/api/status', (req, res) => {
     res.json({
         status: "Active",
-        message: "Updated Talent Ecosystem Backend is running successfully.",
+        message: "hire1percent Backend is running successfully.",
         timestamp: new Date().toISOString()
     });
 });
 
-// ✅ Catch-all route to serve index.html for SPA routing
-// Using middleware without path string to completely bypass Express 5 path-to-regexp errors
-app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.url.startsWith('/api/')) {
-        return res.sendFile(path.join(distPath, 'index.html'));
-    }
-    next();
+// Root health check (for Render ping)
+app.get('/', (req, res) => {
+    res.json({ status: "OK", message: "hire1percent API is live." });
+});
+
+// 404 handler for unknown routes
+app.use((req, res) => {
+    res.status(404).json({ message: "Route not found." });
 });
 
 // Global Error Handler
