@@ -61,16 +61,8 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
     const communicationScore = Math.min(100, Math.max(0, safeScore + (Math.random() * 10 - 5)));
 
     useEffect(() => {
-        console.log('[AI-REPORT] Component mounted:', {
-            userId,
-            interviewId,
-            score: safeScore,
-            status: 'Waiting 2s for feedback modal'
-        });
-
         const timer = setTimeout(() => {
             if (!hasTriggered) {
-                console.log('[AI-REPORT] Attempting to show feedback modal...');
                 setShowFeedback(true);
                 setHasTriggered(true);
             }

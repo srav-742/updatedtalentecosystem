@@ -30,7 +30,6 @@ const RecruiterDashboard = () => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    console.log("[Dashboard] Current user ID:", user._id || user.id);
 
     useEffect(() => {
         const fetchDashboardData = async () => {

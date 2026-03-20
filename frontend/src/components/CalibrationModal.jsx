@@ -28,7 +28,6 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                         const data = await res.json();
                         if (data.address && data.address.country_code) {
                             const country = data.address.country_code.toLowerCase();
-                            console.log("Country Detected:", country);
                             setDetectedCountry(country);
                         }
                     } catch (error) {

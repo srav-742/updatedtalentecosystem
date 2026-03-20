@@ -16,13 +16,10 @@ const LoginPage = () => {
     // Handle Redirect Result (for when Popup fails)
     React.useEffect(() => {
         const checkRedirect = async () => {
-            console.log("[AUTH-REDIRECT] Checking for redirect result...");
             try {
                 const googleUserLink = await getGoogleRedirectResult();
                 if (googleUserLink && googleUserLink.user) {
-                    console.log("[AUTH-REDIRECT] Redirect Login Successful", googleUserLink.user);
                     const savedRole = sessionStorage.getItem('pendingRole');
-                    console.log("[AUTH-REDIRECT] Recovered Role:", savedRole);
 
                     if (savedRole) {
                         setRole(savedRole); // Restore role
@@ -33,8 +30,6 @@ const LoginPage = () => {
                         // Don't auto-navigate, let them pick role, but maybe cache the user
                         // For now just warn
                     }
-                } else {
-                    console.log("[AUTH-REDIRECT] No redirect result found (normal load).");
                 }
             } catch (err) {
                 console.error("[AUTH-REDIRECT] Error:", err);
@@ -66,15 +61,12 @@ const LoginPage = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            console.log("[Login] Starting login for:", formData.email);
             // 1. Firebase Auth Login
             const userCredential = await loginWithEmail(formData.email, formData.password);
             const user = userCredential.user;
-            console.log("[Login] Firebase Auth Success. Fetching profile...");
 
             // 2. Fetch Profile Data from Firebase Database
             const profile = await getUserProfile(user.uid);
-            console.log("[Login] Profile fetch complete.");
 
             if (!profile) {
                 throw new Error("User profile not found in Firebase. Please signup first.");
@@ -89,11 +81,9 @@ const LoginPage = () => {
             // Store in local storage
             localStorage.setItem('user', JSON.stringify(profile));
 
-            // Immediate navigation for better performance
-            console.log("[Login] Navigating to dashboard...");
+            // Navigate to dashboard
             navigate(role === 'recruiter' ? '/recruiter' : '/seeker');
         } catch (error) {
-            console.error("[Login] Error encountered:", error);
             let userFriendlyMessage = "Invalid credentials. Please check your email/password.";
 
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {

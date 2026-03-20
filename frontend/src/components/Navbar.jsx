@@ -22,7 +22,6 @@ const Navbar = () => {
         };
 
         updateAuth();
-        console.log("[NAVBAR] Checked Auth. User:", localStorage.getItem('user'));
 
         // Listen for storage changes (for multiple tabs or manual logout)
         window.addEventListener('storage', updateAuth);

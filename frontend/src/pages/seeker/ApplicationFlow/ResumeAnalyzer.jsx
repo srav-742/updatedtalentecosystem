@@ -53,7 +53,6 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             });
 
             const { data } = analysisRes;
-            console.log("[RESUME-ANALYSIS] Received data:", data);
 
             // ✅ Normalize and Validate required fields
             const normalizedData = {
