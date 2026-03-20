@@ -29,28 +29,21 @@ const withTimeout = (promise, ms = 30000) => {
 
 // Auth Helpers
 export const signupWithEmail = async (email, password) => {
-    console.log(`[AUTH] Starting signup for ${email}`);
     const res = await withTimeout(createUserWithEmailAndPassword(auth, email, password));
-    console.log(`[AUTH] Signup complete for ${email}`);
     return res;
 };
 
 export const loginWithEmail = async (email, password) => {
-    console.log(`[AUTH] Starting login for ${email}`);
     const res = await withTimeout(signInWithEmailAndPassword(auth, email, password));
-    console.log(`[AUTH] Login complete for ${email}`);
     return res;
 };
 
 export const signInWithGoogle = async () => {
-    console.log(`[AUTH] Starting Google Popup...`);
     try {
         // Direct call to preserve user interaction context for browsers
         const result = await signInWithPopup(auth, googleProvider);
-        console.log(`[AUTH] Google Auth Success.`);
         return result.user;
     } catch (error) {
-        console.error("Google Auth Error:", error);
         if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
             throw error; // Let the UI handle the switch to redirect
         }
@@ -59,7 +52,6 @@ export const signInWithGoogle = async () => {
 };
 
 export const signInWithGoogleRedirect = async () => {
-    console.log(`[AUTH] Starting Google Redirect...`);
     await signInWithRedirect(auth, googleProvider);
 };
 
@@ -68,13 +60,10 @@ export const getGoogleRedirectResult = async () => {
 };
 
 export const signInWithGithub = async () => {
-    console.log(`[AUTH] Starting GitHub Popup...`);
     try {
         const result = await signInWithPopup(auth, githubProvider);
-        console.log(`[AUTH] GitHub Auth Success.`);
         return result.user;
     } catch (error) {
-        console.error("Github Auth Error:", error);
         throw error;
     }
 };
@@ -83,7 +72,6 @@ export const signInWithGithub = async () => {
 export const API_URL = import.meta.env.VITE_API_URL || 'https://api.hire1percent.com';
 
 export const saveUserProfile = async (userId, data) => {
-    console.log(`[Backend-Sync] Saving profile for ${userId}...`);
     try {
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
@@ -100,7 +88,6 @@ export const saveUserProfile = async (userId, data) => {
 };
 
 export const getUserProfile = async (userId) => {
-    console.log(`[Backend-Sync] Fetching profile for ${userId}...`);
     try {
         const response = await fetch(`${API_URL}/profile/${userId}`);
         if (!response.ok) {

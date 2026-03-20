@@ -107,7 +107,6 @@ const AIInterview = ({ job, user, onComplete }) => {
                 fullSessionChunksRef.current = [];
                 fullSessionRecorder.ondataavailable = e => fullSessionChunksRef.current.push(e.data);
                 fullSessionRecorder.start();
-                console.log("[RECORDER] Full session recording started");
             } catch (err) {
                 console.error("[RECORDER] Failed to start full session recording:", err);
             }
@@ -170,9 +169,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                 formData.append("audio", blob);
 
                                 try {
-                                    console.log("[RECORDER] Uploading full session recording to Cloudinary...");
                                     await axios.post(`${API_URL}/interview/upload-recording`, formData);
-                                    console.log("[RECORDER] Upload successful");
                                 } catch (uploadErr) {
                                     console.error("[RECORDER] Upload failed:", uploadErr);
                                 }

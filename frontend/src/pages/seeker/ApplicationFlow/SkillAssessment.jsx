@@ -40,7 +40,6 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
                 }
             );
 
-            console.log("[FRONTEND] Received:", res.data);
 
             if (!Array.isArray(res.data?.questions) || res.data.questions.length === 0) {
                 throw new Error('No questions in response');

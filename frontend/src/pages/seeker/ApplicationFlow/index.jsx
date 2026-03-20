@@ -68,7 +68,7 @@ const ApplicationFlow = () => {
                         setStepIndex(targetIndex);
                     }
                 } catch (e) {
-                    console.log("No existing application found or error checking:", e);
+                    // No existing application found or minor error - continue normally
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);
