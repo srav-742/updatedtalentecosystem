@@ -67,6 +67,7 @@ const updateUserProfile = async (req, res) => {
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
+        /*
         if ((isSeekerComplete || isRecruiterComplete) && !(user.coinHistory || []).some(h => h.reason === 'Profile Completion Bonus')) {
             await addCoins(user.uid, 50, 'Profile Completion Bonus');
             try {
@@ -74,6 +75,7 @@ const updateUserProfile = async (req, res) => {
                 if (refreshedUser) user.coins = refreshedUser.coins;
             } catch (e) { }
         }
+        */
         res.json(user);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
