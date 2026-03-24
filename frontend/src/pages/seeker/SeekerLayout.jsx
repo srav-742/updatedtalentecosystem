@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, FileText, UserCircle, LogOut, Zap, Clock, Coins } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileText, UserCircle, LogOut, Zap, Clock } from 'lucide-react';
 import axios from 'axios';
 import { getUserProfile, API_URL, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
@@ -9,7 +9,6 @@ const SeekerLayout = () => {
     const navigate = useNavigate();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = useState(user);
-    const [coins, setCoins] = useState(0);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
@@ -28,12 +27,8 @@ const SeekerLayout = () => {
                     localStorage.setItem('user', JSON.stringify({ ...user, ...profileData }));
                 }
 
-                // Fetch Coins
-                const coinRes = await axios.get(`${API_URL}/user/${uid}/coins`);
-                if (coinRes.data) setCoins(coinRes.data.coins);
-
             } catch (error) {
-                console.error("Layout profile/coin fetch failed:", error);
+                console.error("Layout profile fetch failed:", error);
             }
         };
         fetchProfile();
@@ -109,13 +104,6 @@ const SeekerLayout = () => {
                         <span className="font-bold text-sm tracking-tight">Logout</span>
                     </button>
 
-                    <div className="mb-4 px-4 py-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 flex items-center justify-between group hover:bg-yellow-500/20 transition-all cursor-pointer">
-                        <div className="flex items-center gap-2">
-                            <Coins className="w-5 h-5 text-yellow-400" />
-                            <span className="text-yellow-400 font-bold text-sm">Balance</span>
-                        </div>
-                        <span className="text-white font-black text-lg">{coins}</span>
-                    </div>
 
                     <div className="p-4 rounded-[2rem] bg-gradient-to-br from-teal-500/5 to-emerald-500/5 border border-white/5 shadow-inner">
                         <div className="flex items-center space-x-3">
