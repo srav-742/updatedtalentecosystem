@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const { addCoins } = require('../services/coinService');
+
 
 const getAllUsers = async (req, res) => {
     try {
@@ -83,16 +83,7 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
-const addCoinsManual = async (req, res) => {
-    try {
-        const { userId, amount } = req.body;
-        if (!userId) return res.status(400).json({ message: "Missing userId" });
-        await addCoins(userId, amount || 100, 'Manual Top-up');
-        res.json({ message: `Success. Added ${amount || 100} coins.` });
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
+
 
 const getSampleSeekers = async (req, res) => {
     try {
@@ -105,4 +96,4 @@ const getSampleSeekers = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, getUserProfile, getUserCoins, updateUserProfile, addCoinsManual, getSampleSeekers };
+module.exports = { getAllUsers, getUserProfile, getUserCoins, updateUserProfile, getSampleSeekers };

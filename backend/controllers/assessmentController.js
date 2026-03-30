@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { callSkillAI } = require('../utils/aiClients');
 const { generateHash } = require('../utils/helpers');
-const { deductCoins } = require('../services/coinService');
+
 
 const generateFullAssessment = async (req, res) => {
     try {
@@ -52,7 +52,7 @@ const generateFullAssessment = async (req, res) => {
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
 Session Seed: ${seed}
 
-Return ONLY a JSON object with key "questions" containing an array. 
+Return ONLY a JSON object with key "questions" containing an array.
 Each question must be original and different from common examples.
 
 Each question must have:
@@ -74,10 +74,19 @@ Example:
 NO extra text, explanations, or markdown.
 `;
         // 🔁 Call AI
+        console.log("[ASSESSMENT] Calling AI service...");
         const rawResponse = await callSkillAI(prompt);
+
         if (!rawResponse) {
-            console.error("[ASSESSMENT] AI response was null");
-            return res.status(503).json({ message: "AI service unavailable. Please try again." });
+            console.error("[ASSESSMENT] AI response was null - Check API keys and connectivity");
+            return res.status(503).json({
+                message: "AI service unavailable. Please ensure API keys are configured and try again.",
+                debug: process.env.NODE_ENV === 'development' ? {
+                    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+                    hasGroqKey: !!process.env.GROQ_API_KEY,
+                    hasOpenAIKey: !!process.env.OPENAI_API_KEY
+                } : undefined
+            });
         }
 
         // ✅ Robust JSON Extraction
@@ -154,7 +163,7 @@ NO extra text, explanations, or markdown.
         });
     } catch (error) {
         console.error("[ASSESSMENT ERROR]", error);
-        res.status(500).json({ message: "Assessment generation failed" });
+        res.status(500).json({ message: "Assessment generation failed", error: error.message });
     }
 };
 

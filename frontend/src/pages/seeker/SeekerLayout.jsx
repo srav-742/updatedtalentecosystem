@@ -93,6 +93,19 @@ const SeekerLayout = () => {
                             <span className="font-bold text-sm tracking-tight">{item.label}</span>
                         </NavLink>
                     ))}
+                    <NavLink
+                        to="/seeker/mock-interview"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={({ isActive }) => `
+                            flex items-center space-x-3 px-5 py-4 rounded-2xl transition-all duration-300 group
+                            ${isActive
+                                ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[0_0_25px_rgba(20,184,166,0.1)]'
+                                : 'text-gray-500 hover:text-white hover:bg-white/[0.03] border border-transparent'}
+                        `}
+                    >
+                        <Zap size={20} className="transition-transform group-hover:scale-110" />
+                        <span className="font-bold text-sm tracking-tight">Mock Interview</span>
+                    </NavLink>
                 </nav>
 
                 <div className="p-4 mt-auto border-t border-white/5">

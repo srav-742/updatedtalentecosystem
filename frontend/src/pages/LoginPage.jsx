@@ -346,6 +346,7 @@ const LoginPage = () => {
                                         onChange={handleChange}
                                         placeholder="Password"
                                         required
+                                        autoComplete="current-password"
                                         className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
                                     />
                                 </div>

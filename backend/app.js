@@ -13,7 +13,10 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id']
 }));
 app.use((req, res, next) => {
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    // Only set COOP for routes that need popup windows
+    if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
+        res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    }
     next();
 });
 app.use(express.json({ limit: '50mb' }));
@@ -39,6 +42,8 @@ const aiInterviewUploadRoutes = require('./routes/interview.routes');
 const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
+const agentRoutes = require("./routes/agentRoutes");
+
 
 // ✅ Mount Routes
 app.use('/api', authRoutes);
@@ -54,6 +59,7 @@ app.use('/api/interview', aiInterviewUploadRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
+app.use("/api/agent", agentRoutes);
 
 // ✅ API Health Check
 app.get('/api/status', (req, res) => {
