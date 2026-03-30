@@ -1,10 +1,13 @@
 // frontend/src/pages/seeker/ApplicationFlow/AgentInterview.jsx
 
 import { useState, useRef, useEffect } from "react";
-import { Mic, StopCircle, Volume2, Sparkles, Cpu, Send, Loader2, ChevronLeft, User, MessageCircle, Target } from "lucide-react";
+import { Mic, StopCircle, Volume2, Sparkles, Cpu, Send, Loader2, ChevronLeft, User, MessageCircle, Target, AlertTriangle, VideoOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import AgentSelector from "../../../components/AgentSelector";
+import Webcam from "react-webcam";
+import * as tf from "@tensorflow/tfjs";
+import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
 // --- Radar Chart Component ---
 function RadarChart({ categories }) {
@@ -129,8 +132,9 @@ function RadarChart({ categories }) {
 }
 
 export default function AgentInterview() {
-  const [phase, setPhase] = useState("select");   // select | interview | complete
+  const [phase, setPhase] = useState("select");   // select | resume | interview | complete
   const [sessionId, setSessionId] = useState(null);
+  const [roleKey, setRoleKey] = useState("");
   const [roleName, setRoleName] = useState("");
   const [messages, setMessages] = useState([]);   // { role: "agent"|"user", text }
   const [input, setInput] = useState("");
@@ -140,6 +144,17 @@ export default function AgentInterview() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [resumeText, setResumeText] = useState("");
+  const [resumeFile, setResumeFile] = useState(null);
+
+  // --- AI Webcam Detection State ---
+  const [model, setModel] = useState(null);
+  const [warnings, setWarnings] = useState(0);
+  const [isKickedOut, setIsKickedOut] = useState(false);
+  const [personCount, setPersonCount] = useState(1);
+  const webcamRef = useRef(null);
+  const detectionIntervalRef = useRef(null);
+  const MAX_WARNINGS = 5;
 
   const bottomRef = useRef(null);
   const audioPlayerRef = useRef(new Audio());
@@ -151,11 +166,48 @@ export default function AgentInterview() {
   }, [messages, displayText]);
 
   useEffect(() => {
+    // Preload COCO-SSD mode for person detection
+    cocoSsd.load().then(loadedModel => setModel(loadedModel)).catch(err => console.error("Model load error", err));
+
     return () => {
       if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
+      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
       audioPlayerRef.current.pause();
     };
   }, []);
+
+  // Webcam Detection Loop
+  useEffect(() => {
+    if (phase === "interview" && !isKickedOut) {
+      detectionIntervalRef.current = setInterval(async () => {
+        if (webcamRef.current && webcamRef.current.video?.readyState === 4 && model) {
+          try {
+            const predictions = await model.detect(webcamRef.current.video);
+            const persons = predictions.filter(p => p.class === "person");
+            setPersonCount(persons.length);
+
+            if (persons.length !== 1) {
+              setWarnings(prev => {
+                const next = prev + 1;
+                if (next >= MAX_WARNINGS) {
+                  setIsKickedOut(true);
+                  if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+                }
+                return next;
+              });
+            }
+          } catch (error) {
+            console.error("Detection error:", error);
+          }
+        }
+      }, 3000); // Check every 3 seconds
+    } else {
+      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+    }
+    return () => {
+      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+    };
+  }, [phase, model, isKickedOut]);
 
   const typeText = (text, onFinish) => {
     if (!text) return;
@@ -238,10 +290,33 @@ export default function AgentInterview() {
   };
 
 
-  async function handleSelectRole(roleKey) {
+  async function handleSelectRole(selectedKey) {
+    setRoleKey(selectedKey);
+    setPhase("resume");
+  }
+
+  async function handleStartSession() {
     setLoading(true);
+    let base64 = null;
+    if (resumeFile) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+         base64 = reader.result;
+         await startApiCall(base64, resumeText);
+      };
+      reader.readAsDataURL(resumeFile);
+    } else {
+      await startApiCall(null, resumeText);
+    }
+  }
+
+  async function startApiCall(base64, text) {
     try {
-      const res = await axios.post("/api/agent/start", { agentRole: roleKey });
+      const res = await axios.post("/api/agent/start", { 
+        agentRole: roleKey, 
+        resumeBase64: base64, 
+        resumeText: text 
+      });
       setSessionId(res.data.sessionId);
       setRoleName(res.data.roleName);
       setPhase("interview");
@@ -307,8 +382,81 @@ export default function AgentInterview() {
     setRecording(true);
   };
 
+  if (isKickedOut) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-[32px] p-10 shadow-2xl shadow-red-100 border border-red-50"
+        >
+          <div className="w-20 h-20 bg-red-100 text-red-600 rounded-[28px] mx-auto flex items-center justify-center mb-6 shadow-sm border border-red-200">
+            <AlertTriangle size={40} />
+          </div>
+          <h2 className="text-3xl font-black text-gray-800 mb-4">Interview Terminated</h2>
+          <p className="text-gray-500 mb-8 max-w-sm mx-auto leading-relaxed">
+            We repeatedly detected multiple people or no one in the camera frame. To ensure integrity, this interview session has been automatically closed.
+          </p>
+          <button
+            onClick={() => { setPhase("select"); setWarnings(0); setIsKickedOut(false); setMessages([]); setSessionId(null); }}
+            className="w-full py-5 bg-gray-900 text-white rounded-[24px] font-bold hover:bg-black transition-all shadow-xl active:scale-95 text-lg"
+          >
+            Return to Dashboard
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (phase === "select") {
     return <AgentSelector onSelectRole={handleSelectRole} />;
+  }
+
+  if (phase === "resume") {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <div className="w-16 h-16 bg-violet-100 text-violet-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-sm border border-violet-200">
+           <User size={32} />
+        </div>
+        <h2 className="text-3xl font-black text-gray-800 mb-4">Provide Your Resume</h2>
+        <p className="text-gray-500 mb-8 max-w-md mx-auto">
+           To make this mock interview truly adaptive, our AI will parse your resume and generate strategic, personalized questions.
+        </p>
+        
+        <div className="bg-white rounded-[32px] shadow-xl shadow-gray-100 border border-gray-100 p-8 mb-8 text-left">
+           <label className="block text-sm font-bold text-gray-700 mb-2">Upload Resume (PDF)</label>
+           <input 
+             type="file" 
+             accept=".pdf"
+             onChange={(e) => setResumeFile(e.target.files[0])}
+             className="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 mb-6 cursor-pointer"
+           />
+           
+           <div className="flex items-center gap-4 mb-6">
+             <div className="h-px bg-gray-200 flex-1"></div>
+             <span className="text-xs font-bold text-gray-400 uppercase">OR</span>
+             <div className="h-px bg-gray-200 flex-1"></div>
+           </div>
+
+           <label className="block text-sm font-bold text-gray-700 mb-2">Paste Resume Text</label>
+           <textarea
+             className="w-full h-40 border border-gray-200 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-violet-50 focus:border-violet-400 transition-all resize-none bg-gray-50"
+             placeholder="Paste your skills, experience, and projects here..."
+             value={resumeText}
+             onChange={(e) => setResumeText(e.target.value)}
+           ></textarea>
+        </div>
+
+        <button
+          onClick={handleStartSession}
+          disabled={loading || (!resumeFile && !resumeText.trim())}
+          className="w-full py-5 bg-violet-600 text-white rounded-[24px] font-bold hover:bg-violet-700 transition-all shadow-xl shadow-violet-200 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
+        >
+          {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
+          {loading ? "Analyzing Profile..." : "Start Adaptive Interview"}
+        </button>
+      </div>
+    );
   }
 
   if (phase === "complete") {
@@ -466,6 +614,30 @@ export default function AgentInterview() {
                 </div>
               </motion.div>
             </div>
+
+            {/* Suggested Learning Path */}
+            {parsedEval.suggested_learning_path && parsedEval.suggested_learning_path.length > 0 && (
+               <motion.div 
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ delay: 0.4 }}
+                 className="mt-8 bg-[#111] rounded-[32px] p-8 shadow-2xl shadow-gray-200/50"
+               >
+                 <div className="flex items-center gap-3 mb-6">
+                   <div className="p-2 bg-violet-500/20 text-violet-400 rounded-xl"><Target size={20} /></div>
+                   <h4 className="font-bold text-white text-lg">Suggested Learning Path</h4>
+                 </div>
+                 <div className="space-y-4">
+                   {parsedEval.suggested_learning_path.map((path, i) => (
+                     <div key={i} className="flex gap-4 items-center">
+                       <span className="text-violet-400 font-bold text-lg">→</span>
+                       <span className="text-sm font-medium text-gray-300 leading-relaxed">{path}</span>
+                     </div>
+                   ))}
+                 </div>
+               </motion.div>
+            )}
+
           </div>
 
           {/* Sidebar Area - Visualization */}
@@ -534,12 +706,47 @@ export default function AgentInterview() {
             </div>
           </div>
         </div>
-        <button 
-          onClick={() => setPhase("select")}
-          className="text-gray-400 hover:text-gray-600 transition p-2"
-        >
-          <ChevronLeft size={20} />
-        </button>
+        <div className="flex items-center gap-6">
+          {phase === "interview" && (
+            <div className="flex items-center gap-4">
+              <AnimatePresence>
+                {warnings > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-100 rounded-full animate-pulse shadow-sm"
+                  >
+                    <AlertTriangle size={14} className="text-red-500" />
+                    <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">
+                      {personCount === 0 ? "No Face Detected" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="w-28 h-20 rounded-[16px] overflow-hidden bg-black shadow-inner relative border-2 border-gray-100">
+                <Webcam
+                  ref={webcamRef}
+                  audio={false}
+                  className="w-full h-full object-cover"
+                  mirrored={true}
+                />
+                {!model && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm z-10">
+                    <Loader2 className="w-5 h-5 text-violet-400 animate-spin mb-1" />
+                    <span className="text-[8px] text-violet-200 font-bold uppercase tracking-widest">Loading TFJS</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <button 
+            onClick={() => setPhase("select")}
+            className="text-gray-400 hover:text-gray-600 transition p-3 bg-gray-50 rounded-full border border-gray-100 hover:bg-gray-100"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Chat Display */}

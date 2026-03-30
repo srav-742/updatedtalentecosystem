@@ -5,10 +5,20 @@ const openai = require('../config/openai');
 // Initialize Gemini (Fallback)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Log API key status on module load
+console.log('[AI-CLIENT] API Keys loaded:', {
+    hasGemini: !!process.env.GEMINI_API_KEY,
+    hasGroq: !!process.env.GROQ_API_KEY,
+    hasOpenAI: !!process.env.OPENAI_API_KEY
+});
+
 // Direct API implementation as requested
 const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
     try {
-        if (!process.env.GEMINI_API_KEY) return null;
+        if (!process.env.GEMINI_API_KEY) {
+            console.warn("[AI-CLIENT] Gemini API key not configured");
+            return null;
+        }
 
         const MODEL = "gemini-flash-latest";
         console.log(`[AI-CLIENT] Attempting Gemini (${MODEL})...`);
@@ -76,7 +86,9 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
 
     // 2. Fallback to Groq
     try {
-        if (process.env.GROQ_API_KEY) {
+        if (!process.env.GROQ_API_KEY) {
+            console.warn("[AI-CLIENT] Groq API key not configured, skipping fallback");
+        } else {
             console.log("[AI-CLIENT] Falling back to Groq (llama-3.3-70b)...");
             const messages = [];
             if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
@@ -102,16 +114,20 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             if (text && text.startsWith('```')) {
                 text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
             }
-            return text;
+            if (text) {
+                console.log("[AI-CLIENT] Groq Success.");
+                return text;
+            }
         }
     } catch (groqErr) {
-        console.error("[AI-CLIENT] All providers failed:", groqErr.message);
+        console.error("[AI-CLIENT] Groq Error:", groqErr.response?.data || groqErr.message);
     }
 
+    console.error("[AI-CLIENT] All AI providers failed");
     return null;
 };
 
-const callSkillAI = async (prompt, maxTokens = 2000) => {
+const callSkillAI = async (prompt, maxTokens = 8192) => {
     return await callInterviewAI(prompt, maxTokens, prompt.toLowerCase().includes("json"));
 };
 

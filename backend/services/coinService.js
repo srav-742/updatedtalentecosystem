@@ -1,41 +1,20 @@
-const mongoose = require('mongoose');
-const User = require('../models/User');
+// backend/services/coinService.js
 
-const deductCoins = async (userIdOrUid, amount, reason) => {
-    try {
-        const query = { $or: [{ uid: userIdOrUid }, { _id: mongoose.Types.ObjectId.isValid(userIdOrUid) ? userIdOrUid : null }, { email: userIdOrUid }] };
-        const user = await User.findOne(query);
-        if (!user) throw new Error("User not found for coin deduction");
-        if (user.coins === undefined) user.coins = 50;
-        if (!user.coinHistory) user.coinHistory = [];
-        if (user.coins < amount) {
-            console.warn(`[ECONOMY] Insufficient coins for ${userIdOrUid} (${user.coins}/${amount}). Demo Mode: Proceeding...`);
-            return user.coins;
-        }
-        user.coins -= amount;
-        user.coinHistory.push({ amount, type: 'DEBIT', reason });
-        await user.save();
-        return user.coins;
-    } catch (error) {
-        console.warn("[ECONOMY] Soft-fail:", error.message);
-        return 0;
-    }
-};
+// Placeholder coinService — add your actual logic here if needed
 
-const addCoins = async (userIdOrUid, amount, reason) => {
-    try {
-        const query = { $or: [{ uid: userIdOrUid }, { _id: mongoose.Types.ObjectId.isValid(userIdOrUid) ? userIdOrUid : null }, { email: userIdOrUid }] };
-        const user = await User.findOne(query);
-        if (!user) return;
-        if (user.coins === undefined) user.coins = 50;
-        if (!user.coinHistory) user.coinHistory = [];
-        user.coins += amount;
-        user.coinHistory.push({ amount, type: 'CREDIT', reason });
-        await user.save();
-        console.log(`[REWARDS] Added ${amount} coins to ${user.email} for ${reason}`);
-    } catch (error) {
-        console.error("[REWARDS] Error adding coins:", error.message);
-    }
-};
+async function awardCoins(userId, amount) {
+  // TODO: implement coin awarding logic
+  return { userId, amount, success: true };
+}
 
-module.exports = { deductCoins, addCoins };
+async function deductCoins(userId, amount) {
+  // TODO: implement coin deduction logic
+  return { userId, amount, success: true };
+}
+
+async function getBalance(userId) {
+  // TODO: implement balance check
+  return { userId, balance: 0 };
+}
+
+module.exports = { awardCoins, deductCoins, getBalance };

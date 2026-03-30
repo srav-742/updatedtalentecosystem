@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ShieldCheck, Cpu, Volume2, CheckCircle2, ChevronRight, Sparkles, User, AudioLines } from 'lucide-react';
+import { Mic, StopCircle, Loader, ShieldCheck, Cpu, Volume2, CheckCircle2, ChevronRight, Sparkles, User, AudioLines, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import InterviewFeedbackForm from './InterviewFeedbackForm';
 import AIInterviewReport from './AIInterviewReport';
+import Webcam from "react-webcam";
+import * as tf from "@tensorflow/tfjs";
+import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
 const AIInterview = ({ job, user, onComplete }) => {
     const [step, setStep] = useState('ready');
@@ -30,6 +33,59 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
+
+    // --- AI Webcam Detection State ---
+    const [model, setModel] = useState(null);
+    const [warnings, setWarnings] = useState(0);
+    const [isKickedOut, setIsKickedOut] = useState(false);
+    const [personCount, setPersonCount] = useState(1);
+    const webcamRef = useRef(null);
+    const detectionIntervalRef = useRef(null);
+    const MAX_WARNINGS = 5;
+
+    useEffect(() => {
+        // Preload COCO-SSD mode for person detection
+        cocoSsd.load()
+            .then(loadedModel => setModel(loadedModel))
+            .catch(err => console.error("Model load error", err));
+
+        return () => {
+            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+        };
+    }, []);
+
+    // Webcam Detection Loop
+    useEffect(() => {
+        if (step === "interview" && !isKickedOut) {
+            detectionIntervalRef.current = setInterval(async () => {
+                if (webcamRef.current && webcamRef.current.video?.readyState === 4 && model) {
+                    try {
+                        const predictions = await model.detect(webcamRef.current.video);
+                        const persons = predictions.filter(p => p.class === "person");
+                        setPersonCount(persons.length);
+
+                        if (persons.length !== 1) {
+                            setWarnings(prev => {
+                                const next = prev + 1;
+                                if (next >= MAX_WARNINGS) {
+                                    setIsKickedOut(true);
+                                    if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+                                }
+                                return next;
+                            });
+                        }
+                    } catch (error) {
+                        console.error("Detection error:", error);
+                    }
+                }
+            }, 3000); // Check every 3 seconds
+        } else {
+            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+        }
+        return () => {
+            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+        };
+    }, [step, model, isKickedOut]);
 
     // Clean Typewriter Effect (Removed Bold)
     const typeText = (text) => {
@@ -101,12 +157,12 @@ const AIInterview = ({ job, user, onComplete }) => {
 
             // ✅ Start Full Session Recording
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
                 const fullSessionRecorder = new MediaRecorder(stream);
                 fullSessionRecorderRef.current = fullSessionRecorder;
                 fullSessionChunksRef.current = [];
                 fullSessionRecorder.ondataavailable = e => fullSessionChunksRef.current.push(e.data);
-                fullSessionRecorder.start();
+                fullSessionRecorder.start(1000); // Record in 1s chunks
             } catch (err) {
                 console.error("[RECORDER] Failed to start full session recording:", err);
             }
@@ -161,12 +217,12 @@ const AIInterview = ({ job, user, onComplete }) => {
                         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
                             // FIX: Attach onstop BEFORE calling stop() to avoid race condition
                             fullSessionRecorderRef.current.onstop = async () => {
-                                const blob = new Blob(fullSessionChunksRef.current, { type: "audio/webm" });
+                                const blob = new Blob(fullSessionChunksRef.current, { type: "video/webm" });
                                 const formData = new FormData();
                                 // FIX: Append userId and jobId BEFORE the blob so multer parses them into req.body
                                 formData.append("userId", user.uid);
                                 formData.append("jobId", job._id);
-                                formData.append("audio", blob);
+                                formData.append("audio", blob, "interview_session.webm");
 
                                 try {
                                     await axios.post(`${API_URL}/interview/upload-recording`, formData);
@@ -224,6 +280,37 @@ const AIInterview = ({ job, user, onComplete }) => {
         };
     }, []);
 
+    if (isKickedOut) {
+        return (
+            <div className="max-w-2xl mx-auto px-6 py-20 text-center animate-in zoom-in duration-300">
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-[#0f1117] rounded-[32px] p-10 shadow-2xl shadow-red-500/10 border border-red-500/20"
+                >
+                    <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-[28px] mx-auto flex items-center justify-center mb-6 shadow-sm border border-red-500/30">
+                        <AlertTriangle size={40} />
+                    </div>
+                    <h2 className="text-3xl font-black text-white mb-4 tracking-tight">Interview Terminated</h2>
+                    <p className="text-gray-400 mb-8 max-w-sm mx-auto leading-relaxed">
+                        We repeatedly detected multiple people or no one in the camera frame. To ensure integrity, this interview session has been automatically closed.
+                    </p>
+                    <button
+                        onClick={() => { 
+                            setStep('ready'); 
+                            setWarnings(0); 
+                            setIsKickedOut(false); 
+                            setSessionId(null); 
+                        }}
+                        className="w-full py-5 bg-red-600 text-white rounded-[24px] font-bold hover:bg-red-700 transition-all shadow-xl active:scale-95 text-lg"
+                    >
+                        Return to Start
+                    </button>
+                </motion.div>
+            </div>
+        );
+    }
+
     if (step === 'ready') {
         return (
             <div className="max-w-xl mx-auto py-20 px-10 bg-[#0f1117] border border-white/10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] text-center">
@@ -258,11 +345,42 @@ const AIInterview = ({ job, user, onComplete }) => {
             <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700">
                 {/* Minimal Header */}
                 <div className="flex justify-between items-center mb-12 border-b border-white/10 pb-6">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${coreState === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-                        <span className="text-xs font-light text-gray-400 uppercase tracking-[0.2em]">
-                            {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
-                        </span>
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full ${coreState === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
+                            <span className="text-xs font-light text-gray-400 uppercase tracking-[0.2em]">
+                                {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
+                            </span>
+                        </div>
+                        {/* Webcam Mini View */}
+                        <div className="flex items-center gap-4">
+                            <AnimatePresence>
+                                {warnings > 0 && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
+                                        className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full animate-pulse"
+                                    >
+                                        <AlertTriangle size={12} className="text-red-500" />
+                                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
+                                            {personCount === 0 ? "No Face" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
+                                        </span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <div className="w-24 h-16 rounded-[12px] bg-black overflow-hidden relative border border-white/10 shadow-lg shadow-black/50">
+                                <Webcam
+                                    ref={webcamRef}
+                                    audio={false}
+                                    className="w-full h-full object-cover"
+                                    mirrored={true}
+                                />
+                                {!model && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                                        <Loader size={14} className="text-indigo-400 animate-spin" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                     <span className="text-sm font-medium text-white">Question {currentQNum} of 10</span>
                 </div>

@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { addCoins } = require('../services/coinService');
+
 
 const syncUser = async (req, res) => {
     try {

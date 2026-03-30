@@ -1,6 +1,6 @@
 const Application = require('../models/Application');
 const mongoose = require('mongoose');
-const { addCoins } = require('../services/coinService');
+
 
 const submitApplication = async (req, res) => {
     try {

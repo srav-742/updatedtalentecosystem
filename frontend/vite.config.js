@@ -9,9 +9,13 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-    headers: {
-      "Cross-Origin-Opener-Policy": "unsafe-none",
-      "Cross-Origin-Embedder-Policy": "unsafe-none"
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000', // change port if yours is different
+        changeOrigin: true,
+        secure: false,
+      }
     }
+
   }
 })

@@ -21,6 +21,7 @@ import InterviewFeedbackForm from './pages/seeker/ApplicationFlow/InterviewFeedb
 
 import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
+import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
 
 function App() {
   return (
@@ -50,6 +51,10 @@ function App() {
 
           <Route path="applications" element={<MyApplications />} />
           <Route path="profile" element={<SeekerProfile />} />
+          <Route path="mock-interview" element={<AgentInterview />} />
+          <Route path="agent-interview" element={<AgentInterview />} />
+          <Route path="agentInterview" element={<AgentInterview />} />
+          <Route path="agentInterview.jsx" element={<AgentInterview />} />
         </Route>
       </Routes>
     </BrowserRouter>
