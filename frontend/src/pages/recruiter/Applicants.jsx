@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2 } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
+import AssessmentDetail from './AssessmentDetail';
 
 const Applicants = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -15,6 +16,10 @@ const Applicants = () => {
 
     // Menu State
     const [activeMenuId, setActiveMenuId] = useState(null);
+
+    // Assessment Detail Modal
+    const [showAssessmentDetail, setShowAssessmentDetail] = useState(false);
+    const [selectedApplicationId, setSelectedApplicationId] = useState(null);
 
     useEffect(() => {
         const fetchApplicants = async () => {
@@ -73,6 +78,12 @@ const Applicants = () => {
             // Revert on error (could fetch again, but alert for now)
             alert("Failed to update status. Please try again.");
         }
+    };
+
+    // Handle View Assessment
+    const handleViewAssessment = (applicationId) => {
+        setSelectedApplicationId(applicationId);
+        setShowAssessmentDetail(true);
     };
 
     return (
@@ -153,8 +164,22 @@ const Applicants = () => {
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
-                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
-                                                {app.assessmentScore || '-'}%
+                                            <div className="flex items-center justify-center gap-2">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
+                                                    {app.assessmentScore || '-'}%
+                                                </div>
+                                                {app.assessmentScore !== null && app.assessmentScore !== undefined && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleViewAssessment(app.id);
+                                                        }}
+                                                        className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors"
+                                                        title="View Assessment Details"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
@@ -236,6 +261,17 @@ const Applicants = () => {
                 <CheckCircle2 size={16} className="text-emerald-500 flex-none" />
                 <p>Status logic is automatically handled by the system based on matching score, but you can manually override decisions using the action menu.</p>
             </div>
+
+            {/* Assessment Detail Modal */}
+            {showAssessmentDetail && (
+                <AssessmentDetail
+                    applicationId={selectedApplicationId}
+                    onClose={() => {
+                        setShowAssessmentDetail(false);
+                        setSelectedApplicationId(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

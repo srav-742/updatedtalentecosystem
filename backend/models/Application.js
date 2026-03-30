@@ -8,6 +8,7 @@ const applicationSchema = new mongoose.Schema({
     applicantPic: String,
     resumeMatchPercent: Number,
     assessmentScore: Number,
+    assessmentSubmissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSubmission' },
     interviewScore: Number,
     recordingPublicId: String,
     finalScore: Number,

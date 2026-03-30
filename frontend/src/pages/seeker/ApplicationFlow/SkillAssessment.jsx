@@ -19,10 +19,12 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [started, setStarted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [questions, setQuestions] = useState([]);
+    const [sessionId, setSessionId] = useState(null);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState({});
     const [score, setScore] = useState(null);
     const [error, setError] = useState(null);
+    const [submissionId, setSubmissionId] = useState(null);
 
     /* ===========================
        START ASSESSMENT
@@ -46,6 +48,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
             }
 
             setQuestions(res.data.questions);
+            setSessionId(res.data.sessionId);
             setStarted(true);
         } catch (err) {
             console.error("Start Assessment Failed:", err);
@@ -79,33 +82,53 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
        =========================== */
     const finishAssessment = async () => {
         let correct = 0;
+        const formattedAnswers = [];
 
         questions.forEach((q, idx) => {
             const userAns = answers[idx];
+            let isCorrect = false;
 
             if (q.type === 'mcq') {
                 if (q.options[q.correctAnswer] === userAns) {
                     correct++;
+                    isCorrect = true;
                 }
             } else if (q.type === 'coding') {
-                // Simple heuristic
                 if (userAns && userAns.trim().length > 20) {
                     correct++;
+                    isCorrect = true;
                 }
             }
+
+            formattedAnswers.push({
+                userAnswer: userAns,
+                isCorrect
+            });
         });
 
         const finalScore = Math.round((correct / questions.length) * 100);
-        setScore(finalScore);
 
         try {
+            const submitRes = await axios.post(`${API_URL}/submit-assessment`, {
+                jobId: job._id,
+                userId: user.uid,
+                sessionId: sessionId,
+                questions: questions,
+                answers: formattedAnswers
+            });
+
+            setSubmissionId(submitRes.data.submissionId);
+            setScore(finalScore);
+
             await axios.post(`${API_URL}/applications`, {
                 jobId: job._id,
                 userId: user.uid,
-                assessmentScore: finalScore
+                assessmentScore: finalScore,
+                assessmentSubmissionId: submitRes.data.submissionId
             });
         } catch (e) {
-            console.warn('Score save failed (soft-fail)');
+            console.warn('Score save failed:', e);
+            setScore(finalScore);
         }
     };
 

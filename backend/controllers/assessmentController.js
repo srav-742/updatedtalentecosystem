@@ -2,6 +2,7 @@ const Job = require('../models/Job');
 const User = require('../models/User');
 const Application = require('../models/Application');
 const QuestionLog = require('../models/QuestionLog');
+const AssessmentSubmission = require('../models/AssessmentSubmission');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { callSkillAI } = require('../utils/aiClients');
@@ -167,4 +168,128 @@ NO extra text, explanations, or markdown.
     }
 };
 
-module.exports = { generateFullAssessment };
+/* ===========================
+   SUBMIT ASSESSMENT
+   =========================== */
+const submitAssessment = async (req, res) => {
+    try {
+        const { jobId, userId, sessionId, questions, answers } = req.body;
+
+        if (!jobId || !userId || !sessionId || !Array.isArray(questions) || !Array.isArray(answers)) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        let correctCount = 0;
+        const processedAnswers = answers.map((ans, idx) => {
+            const question = questions[idx];
+            let isCorrect = false;
+            let score = 0;
+
+            if (question.type === 'mcq') {
+                const correctOption = question.options[question.correctAnswer];
+                isCorrect = ans.userAnswer === correctOption;
+                score = isCorrect ? 1 : 0;
+                if (isCorrect) correctCount++;
+            } else if (question.type === 'coding') {
+                if (ans.userAnswer && ans.userAnswer.trim().length > 20) {
+                    isCorrect = true;
+                    score = 1;
+                    correctCount++;
+                }
+            }
+
+            return {
+                questionId: question._id || null,
+                question: question.question,
+                questionType: question.type,
+                skill: question.skill || 'General',
+                userAnswer: ans.userAnswer,
+                correctAnswer: question.type === 'mcq' ? question.options[question.correctAnswer] : question.starterCode,
+                isCorrect,
+                score
+            };
+        });
+
+        const finalScore = Math.round((correctCount / questions.length) * 100);
+
+        const submission = await AssessmentSubmission.create({
+            jobId,
+            userId,
+            sessionId,
+            questions,
+            answers: processedAnswers,
+            totalQuestions: questions.length,
+            correctAnswers: correctCount,
+            score: finalScore
+        });
+
+        console.log(`[ASSESSMENT] ✅ Submission saved for user ${userId} - Score: ${finalScore}%`);
+
+        res.json({
+            success: true,
+            submissionId: submission._id,
+            score: finalScore,
+            totalQuestions: questions.length,
+            correctAnswers: correctCount
+        });
+    } catch (error) {
+        console.error("[SUBMIT ASSESSMENT ERROR]", error);
+        res.status(500).json({ message: "Failed to submit assessment", error: error.message });
+    }
+};
+
+/* ===========================
+   GET ASSESSMENT DETAILS (RECRUITER)
+   =========================== */
+const getAssessmentDetails = async (req, res) => {
+    try {
+        const { applicationId } = req.params;
+
+        if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ message: "Invalid application ID" });
+        }
+
+        const application = await Application.findById(applicationId).populate('jobId');
+        if (!application) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+
+        const submission = await AssessmentSubmission.findOne({
+            jobId: application.jobId._id,
+            userId: application.userId
+        }).sort({ submittedAt: -1 });
+
+        if (!submission) {
+            return res.status(404).json({ message: "No assessment submission found for this application" });
+        }
+
+        res.json({
+            application: {
+                id: application._id,
+                applicantName: application.applicantName,
+                applicantEmail: application.applicantEmail
+            },
+            job: {
+                title: application.jobId?.title,
+                skills: application.jobId?.skills
+            },
+            assessment: {
+                score: submission.score,
+                totalQuestions: submission.totalQuestions,
+                correctAnswers: submission.correctAnswers,
+                submittedAt: submission.submittedAt,
+                questions: submission.questions.map((q, idx) => ({
+                    ...q.toObject(),
+                    userAnswer: submission.answers[idx]?.userAnswer,
+                    isCorrect: submission.answers[idx]?.isCorrect,
+                    answerScore: submission.answers[idx]?.score
+                }))
+            }
+        });
+    } catch (error) {
+        console.error("[GET ASSESSMENT DETAILS ERROR]", error);
+        res.status(500).json({ message: "Failed to fetch assessment details", error: error.message });
+    }
+};
+
+module.exports = { generateFullAssessment, submitAssessment, getAssessmentDetails };
