@@ -1,10 +1,11 @@
 const Application = require('../models/Application');
+const AssessmentSubmission = require('../models/AssessmentSubmission');
 const mongoose = require('mongoose');
 
 
 const submitApplication = async (req, res) => {
     try {
-        const { jobId, userId, applicantName, applicantEmail, applicantPic, ...updateData } = req.body;
+        const { jobId, userId, applicantName, applicantEmail, applicantPic, assessmentSubmissionId, ...updateData } = req.body;
         if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ message: "Invalid or Missing Job ID" });
         }
@@ -18,6 +19,9 @@ const submitApplication = async (req, res) => {
         };
         if (!updateData.interviewAnswers || updateData.interviewAnswers.length === 0) {
             delete update.interviewAnswers;
+        }
+        if (assessmentSubmissionId) {
+            update.assessmentSubmissionId = assessmentSubmissionId;
         }
         const application = await Application.findOneAndUpdate(query, update, { new: true, upsert: true }).populate('jobId');
 
