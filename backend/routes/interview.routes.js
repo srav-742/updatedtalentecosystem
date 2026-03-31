@@ -6,15 +6,13 @@ const streamifier = require("streamifier");
 const Application = require("../models/Application");
 const { getInterviewDetails } = require("../controllers/interviewController");
 
-// ✅ GET Interview Details for Recruiter Page
+// ✅ GET Interview Details for Recruiter Page (mounted at /api/interview-details)
 router.get("/interview-details/:applicationId", getInterviewDetails);
 
-// ✅ STEP 6 — Create Upload API for Video/Audio Recording
+// ✅ Upload Recording (mounted at /api/interview/upload-recording)
 router.post("/upload-recording", upload.single("audio"), async (req, res) => {
     try {
         const { userId, jobId } = req.body;
-
-        console.log("[UPLOAD-RECORDING] Received upload request:", { userId, jobId, fileSize: req.file?.size, mimeType: req.file?.mimetype });
 
         if (!req.file) {
             return res.status(400).json({ error: "No audio/video file provided" });
@@ -31,15 +29,13 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
                         resource_type: "video",
                         folder: "ai-interviews",
                         type: "private",
-                        chunk_size: 6 * 1024 * 1024, // 6MB chunks for large files
+                        chunk_size: 6 * 1024 * 1024,
                         eager_async: true
                     },
                     (error, result) => {
                         if (result) {
-                            console.log("[CLOUDINARY] Upload successful:", result.public_id);
                             resolve(result);
                         } else {
-                            console.error("[CLOUDINARY] Upload error:", error);
                             reject(error);
                         }
                     }
@@ -51,7 +47,6 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
 
         const result = await streamUpload();
 
-        // ✅ STEP 7 — Store Metadata in MongoDB
         const updateResult = await Application.findOneAndUpdate(
             { userId, jobId },
             {
@@ -60,8 +55,6 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
             },
             { upsert: true, new: true }
         );
-
-        console.log("[MONGODB] Updated application with recording:", updateResult?._id);
 
         res.status(200).json({
             success: true,
