@@ -11,6 +11,20 @@ const { getInterviewDetails } = require('../controllers/interviewController');
 // In-memory session store
 const interviewSessions = new Map();
 
+function sanitizeRecordingSegment(value) {
+    return String(value || 'unknown')
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .slice(0, 40) || 'unknown';
+}
+
+function buildRecordingSessionId(userId, jobId) {
+    const userSegment = sanitizeRecordingSegment(userId);
+    const jobSegment = sanitizeRecordingSegment(jobId);
+    const timestamp = Date.now();
+    const suffix = crypto.randomBytes(4).toString('hex');
+    return `rec_${userSegment}_${jobSegment}_${timestamp}_${suffix}`;
+}
+
 // ─── Role Classification ─────────────────────────────────────────────────────
 // Keywords used to determine if a role is "tech" (development, engineering, data, etc.)
 const TECH_KEYWORDS = [
@@ -425,8 +439,22 @@ router.post('/start', async (req, res) => {
         } catch (e) { console.warn("TTS failed"); }
 
         const sessionId = crypto.randomBytes(16).toString('hex');
+        const recordingSessionId = buildRecordingSessionId(userId, jobId);
+
+        await Application.findOneAndUpdate(
+            { userId, jobId },
+            {
+                $set: {
+                    recordingSessionId,
+                    recordingStatus: 'recording'
+                }
+            },
+            { upsert: true }
+        );
+
         interviewSessions.set(sessionId, {
             userId, jobId,
+            recordingSessionId,
             resumeProfile: structured,
             specialInstructions,
             roleInfo,
@@ -438,7 +466,13 @@ router.post('/start', async (req, res) => {
             history: [{ role: 'interviewer', content: firstQuestion }]
         });
 
-        res.json({ success: true, sessionId, question: firstQuestion, audio: audioBase64 });
+        res.json({
+            success: true,
+            sessionId,
+            recordingSessionId,
+            question: firstQuestion,
+            audio: audioBase64
+        });
     } catch (error) {
         console.error("Start Error:", error);
         res.status(500).json({ success: false, message: "Failed to start" });

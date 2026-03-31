@@ -1,12 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ShieldCheck, Cpu, Volume2, CheckCircle2, ChevronRight, Sparkles, User, AudioLines, AlertTriangle } from 'lucide-react';
+import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
-import InterviewFeedbackForm from './InterviewFeedbackForm';
 import AIInterviewReport from './AIInterviewReport';
 import Webcam from "react-webcam";
-import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
 const AIInterview = ({ job, user, onComplete }) => {
@@ -22,6 +20,8 @@ const AIInterview = ({ job, user, onComplete }) => {
     const [error, setError] = useState(null);
     const [finalScore, setFinalScore] = useState(null);
     const [feedback, setFeedback] = useState('');
+    const [recordingSessionId, setRecordingSessionId] = useState(null);
+    const [recordingNotice, setRecordingNotice] = useState('');
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -30,6 +30,7 @@ const AIInterview = ({ job, user, onComplete }) => {
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
     const fullSessionChunksRef = useRef([]);
+    const fullSessionStreamRef = useRef(null);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -47,7 +48,7 @@ const AIInterview = ({ job, user, onComplete }) => {
         // Preload COCO-SSD mode for person detection
         cocoSsd.load()
             .then(loadedModel => setModel(loadedModel))
-            .catch(err => console.error("Model load error", err));
+            .catch(() => null);
 
         return () => {
             if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
@@ -75,7 +76,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                             });
                         }
                     } catch (error) {
-                        console.error("Detection error:", error);
+                        return;
                     }
                 }
             }, 3000); // Check every 3 seconds
@@ -86,6 +87,16 @@ const AIInterview = ({ job, user, onComplete }) => {
             if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
         };
     }, [step, model, isKickedOut]);
+
+    useEffect(() => {
+        if (!isKickedOut) {
+            return;
+        }
+
+        stopAndUploadFullSessionRecording().catch(() => {
+            setRecordingNotice('Interview ended early, and the partial recording could not be uploaded.');
+        });
+    }, [isKickedOut]);
 
     // Clean Typewriter Effect (Removed Bold)
     const typeText = (text) => {
@@ -142,6 +153,131 @@ const AIInterview = ({ job, user, onComplete }) => {
         }
     };
 
+    const stopStreamTracks = (stream) => {
+        stream?.getTracks?.().forEach(track => track.stop());
+    };
+
+    const getRecordingMimeType = () => {
+        const candidates = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm'
+        ];
+
+        return candidates.find(type => window.MediaRecorder?.isTypeSupported?.(type)) || '';
+    };
+
+    const startFullSessionRecording = async () => {
+        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true
+                },
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 20, max: 24 }
+                }
+            });
+
+            const mimeType = getRecordingMimeType();
+            const recorderOptions = mimeType
+                ? { mimeType, videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 }
+                : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
+
+            const fullSessionRecorder = new MediaRecorder(stream, recorderOptions);
+
+            fullSessionStreamRef.current = stream;
+            fullSessionRecorderRef.current = fullSessionRecorder;
+            fullSessionChunksRef.current = [];
+
+            fullSessionRecorder.ondataavailable = (event) => {
+                if (event.data?.size) {
+                    fullSessionChunksRef.current.push(event.data);
+                }
+            };
+
+            fullSessionRecorder.start(1000);
+            setRecordingNotice('');
+        } catch (err) {
+            setRecordingNotice('Interview continued, but full video recording could not start on this device.');
+        }
+    };
+
+    const uploadFullSessionRecording = async (blob, activeRecordingSessionId) => {
+        if (!blob?.size) {
+            return null;
+        }
+
+        const formData = new FormData();
+        formData.append('userId', user.uid);
+        formData.append('jobId', job._id);
+        formData.append('recordingSessionId', activeRecordingSessionId || '');
+        formData.append(
+            'recording',
+            blob,
+            `${activeRecordingSessionId || `interview-${Date.now()}`}.webm`
+        );
+
+        const response = await axios.post(`${API_URL}/interview/upload-recording`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 300000
+        });
+
+        return response.data;
+    };
+
+    const stopAndUploadFullSessionRecording = async () => {
+        const recorder = fullSessionRecorderRef.current;
+        const recordingId = recordingSessionId;
+
+        if (!recorder) {
+            return null;
+        }
+
+        if (recorder.state === 'inactive') {
+            stopStreamTracks(fullSessionStreamRef.current);
+            fullSessionStreamRef.current = null;
+            fullSessionRecorderRef.current = null;
+            fullSessionChunksRef.current = [];
+            return null;
+        }
+
+        return new Promise((resolve, reject) => {
+            recorder.onstop = async () => {
+                const mimeType = recorder.mimeType || 'video/webm';
+                const blob = new Blob(fullSessionChunksRef.current, { type: mimeType });
+
+                stopStreamTracks(fullSessionStreamRef.current);
+                fullSessionStreamRef.current = null;
+                fullSessionRecorderRef.current = null;
+                fullSessionChunksRef.current = [];
+
+                try {
+                    const uploadResponse = await uploadFullSessionRecording(blob, recordingId);
+                    resolve(uploadResponse);
+                } catch (uploadError) {
+                    reject(uploadError);
+                }
+            };
+
+            recorder.onerror = (event) => {
+                stopStreamTracks(fullSessionStreamRef.current);
+                fullSessionStreamRef.current = null;
+                fullSessionRecorderRef.current = null;
+                fullSessionChunksRef.current = [];
+                reject(event?.error || new Error('Failed to stop session recording.'));
+            };
+
+            recorder.stop();
+        });
+    };
+
     const startInterviewTrigger = async () => {
         setStep('loading');
         try {
@@ -150,22 +286,12 @@ const AIInterview = ({ job, user, onComplete }) => {
                 userId: user.uid
             });
             setSessionId(res.data.sessionId);
+            setRecordingSessionId(res.data.recordingSessionId || null);
             setCurrentQuestion(res.data.question);
             setCurrentQNum(1);
+            await startFullSessionRecording();
             setStep('interview');
             playAudio(res.data.audio, res.data.question);
-
-            // ✅ Start Full Session Recording
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                const fullSessionRecorder = new MediaRecorder(stream);
-                fullSessionRecorderRef.current = fullSessionRecorder;
-                fullSessionChunksRef.current = [];
-                fullSessionRecorder.ondataavailable = e => fullSessionChunksRef.current.push(e.data);
-                fullSessionRecorder.start(1000); // Record in 1s chunks
-            } catch (err) {
-                console.error("[RECORDER] Failed to start full session recording:", err);
-            }
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -209,29 +335,24 @@ const AIInterview = ({ job, user, onComplete }) => {
                     });
 
                     if (!nextRes.data.hasNext) {
+                        setStep('finalizing');
+                        setRecording(false);
+                        setProcessing(true);
+
+                        // ✅ Stop and Upload Full Session Recording
+                        try {
+                            const uploadResponse = await stopAndUploadFullSessionRecording();
+                            if (uploadResponse?.recordingSessionId) {
+                                setRecordingSessionId(uploadResponse.recordingSessionId);
+                                setRecordingNotice('Interview recording saved successfully.');
+                            }
+                        } catch (uploadErr) {
+                            setRecordingNotice('Interview completed, but the session recording could not be uploaded.');
+                        }
+
                         setFinalScore(nextRes.data.finalScore);
                         setFeedback(nextRes.data.feedback);
                         setStep('completed');
-
-                        // ✅ Stop and Upload Full Session Recording
-                        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-                            // FIX: Attach onstop BEFORE calling stop() to avoid race condition
-                            fullSessionRecorderRef.current.onstop = async () => {
-                                const blob = new Blob(fullSessionChunksRef.current, { type: "video/webm" });
-                                const formData = new FormData();
-                                // FIX: Append userId and jobId BEFORE the blob so multer parses them into req.body
-                                formData.append("userId", user.uid);
-                                formData.append("jobId", job._id);
-                                formData.append("audio", blob, "interview_session.webm");
-
-                                try {
-                                    await axios.post(`${API_URL}/interview/upload-recording`, formData);
-                                } catch (uploadErr) {
-                                    console.error("[RECORDER] Upload failed:", uploadErr);
-                                }
-                            };
-                            fullSessionRecorderRef.current.stop();
-                        }
                     } else {
                         setCurrentQuestion(nextRes.data.question);
                         setCurrentQNum(nextRes.data.currentQuestionNumber);
@@ -244,6 +365,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                     setError(err.message || "Response processing error.");
                     setCoreState('idle');
                 } finally {
+                    stopStreamTracks(stream);
                     setProcessing(false);
                 }
             };
@@ -273,7 +395,9 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     useEffect(() => {
         return () => {
-            if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop();
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
+            stopStreamTracks(fullSessionStreamRef.current);
             audioPlayerRef.current.pause();
             if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
             window.speechSynthesis.cancel();
@@ -336,6 +460,15 @@ const AIInterview = ({ job, user, onComplete }) => {
             <div className="py-32 text-center">
                 <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
                 <p className="text-gray-300 font-light tracking-wide italic">Preparing your personalized interview session...</p>
+            </div>
+        );
+    }
+
+    if (step === 'finalizing') {
+        return (
+            <div className="py-32 text-center">
+                <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+                <p className="text-gray-300 font-light tracking-wide italic">Finalizing your interview and saving the full session recording...</p>
             </div>
         );
     }
@@ -477,6 +610,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                 attemptedQuestions={currentQNum}
                 userId={user.uid}
                 interviewId={sessionId}
+                recordingNotice={recordingNotice}
                 onDone={() => onComplete({ interviewScore: finalScore })}
             />
         );

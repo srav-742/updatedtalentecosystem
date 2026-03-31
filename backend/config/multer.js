@@ -4,7 +4,8 @@ const storage = multer.memoryStorage();
 
 const upload = multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    // Full interview recordings can be significantly larger than single-answer uploads.
+    limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
 });
 
 module.exports = upload;

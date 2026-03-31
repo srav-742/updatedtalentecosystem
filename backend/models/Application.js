@@ -10,8 +10,20 @@ const applicationSchema = new mongoose.Schema({
     assessmentScore: Number,
     assessmentSubmissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSubmission' },
     interviewScore: Number,
+    recordingSessionId: { type: String, index: true },
     recordingPublicId: String,
+    recordingAssetId: String,
     recordingUrl: String,
+    recordingPlaybackUrl: String,
+    recordingFormat: String,
+    recordingDuration: Number,
+    recordingBytes: Number,
+    recordingUploadedAt: Date,
+    recordingStatus: {
+        type: String,
+        enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
+        default: 'pending'
+    },
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },
