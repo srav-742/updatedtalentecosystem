@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import AssessmentDetail from './AssessmentDetail';
+import InterviewDetail from './InterviewDetail';
 
 const Applicants = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -20,6 +21,10 @@ const Applicants = () => {
     // Assessment Detail Modal
     const [showAssessmentDetail, setShowAssessmentDetail] = useState(false);
     const [selectedApplicationId, setSelectedApplicationId] = useState(null);
+
+    // Interview Detail Modal
+    const [showInterviewDetail, setShowInterviewDetail] = useState(false);
+    const [selectedInterviewApplicationId, setSelectedInterviewApplicationId] = useState(null);
 
     useEffect(() => {
         const fetchApplicants = async () => {
@@ -84,6 +89,12 @@ const Applicants = () => {
     const handleViewAssessment = (applicationId) => {
         setSelectedApplicationId(applicationId);
         setShowAssessmentDetail(true);
+    };
+
+    // Handle View Interview
+    const handleViewInterview = (applicationId) => {
+        setSelectedInterviewApplicationId(applicationId);
+        setShowInterviewDetail(true);
     };
 
     return (
@@ -183,8 +194,22 @@ const Applicants = () => {
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
-                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-purple-500/5 border border-purple-500/10 text-purple-400 font-bold text-sm">
-                                                {app.interviewScore || '-'}%
+                                            <div className="flex items-center justify-center gap-2">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-purple-500/5 border border-purple-500/10 text-purple-400 font-bold text-sm">
+                                                    {app.interviewScore || '-'}%
+                                                </div>
+                                                {app.interviewScore !== null && app.interviewScore !== undefined && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleViewInterview(app.id);
+                                                        }}
+                                                        className="p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-colors"
+                                                        title="View Interview Details"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
@@ -269,6 +294,17 @@ const Applicants = () => {
                     onClose={() => {
                         setShowAssessmentDetail(false);
                         setSelectedApplicationId(null);
+                    }}
+                />
+            )}
+
+            {/* Interview Detail Modal */}
+            {showInterviewDetail && (
+                <InterviewDetail
+                    applicationId={selectedInterviewApplicationId}
+                    onClose={() => {
+                        setShowInterviewDetail(false);
+                        setSelectedInterviewApplicationId(null);
                     }}
                 />
             )}
