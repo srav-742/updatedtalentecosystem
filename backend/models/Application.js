@@ -11,6 +11,7 @@ const applicationSchema = new mongoose.Schema({
     assessmentSubmissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSubmission' },
     interviewScore: Number,
     recordingPublicId: String,
+    recordingUrl: String,
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },
