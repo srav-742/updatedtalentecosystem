@@ -43,6 +43,7 @@ const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
 const agentRoutes = require("./routes/agentRoutes");
+const cloudinaryTestRoutes = require('./routes/cloudinaryTest.routes');
 
 
 // ✅ Mount Routes
@@ -60,6 +61,7 @@ app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);
 app.use('/api/interview', interviewFeedbackRoutes);
 app.use("/api/agent", agentRoutes);
+app.use("/api/cloudinary-test", cloudinaryTestRoutes);
 
 // ✅ API Health Check
 app.get('/api/status', (req, res) => {

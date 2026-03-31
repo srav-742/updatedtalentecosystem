@@ -27,7 +27,9 @@ const getInterviewDetails = async (req, res) => {
                 id: application._id,
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
-                interviewScore: application.interviewScore
+                interviewScore: application.interviewScore,
+                recordingPublicId: application.recordingPublicId,
+                recordingUrl: application.recordingUrl
             },
             job: {
                 title: application.jobId?.title,

@@ -28,9 +28,18 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
                     {
                         resource_type: "video",
                         folder: "ai-interviews",
-                        type: "private",
-                        chunk_size: 6 * 1024 * 1024,
-                        eager_async: true
+                        type: "upload",
+                        public_access: "public",
+                        transformation: [
+                            { quality: "auto", fetch_format: "mp4" },
+                            { width: 1280, height: 720, crop: "limit" }
+                        ],
+                        eager: [
+                            { width: 1280, height: 720, video_codec: "h264", audio_codec: "aac" },
+                            { width: 854, height: 480, video_codec: "h264", audio_codec: "aac" }
+                        ],
+                        eager_async: true,
+                        chunk_size: 6 * 1024 * 1024
                     },
                     (error, result) => {
                         if (result) {
@@ -47,6 +56,8 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
 
         const result = await streamUpload();
 
+        console.log(`[CLOUDINARY-UPLOAD] Success: ${result.public_id} | URL: ${result.secure_url} | Type: ${result.type}`);
+
         const updateResult = await Application.findOneAndUpdate(
             { userId, jobId },
             {
@@ -56,11 +67,15 @@ router.post("/upload-recording", upload.single("audio"), async (req, res) => {
             { upsert: true, new: true }
         );
 
+        console.log(`[DATABASE-UPDATE] Application updated for userId: ${userId}, jobId: ${jobId}`);
+
         res.status(200).json({
             success: true,
             public_id: result.public_id,
             secure_url: result.secure_url,
-            message: "Recording uploaded successfully"
+            message: "Recording uploaded successfully",
+            cloudinary_folder: "ai-interviews",
+            resource_type: result.resource_type
         });
 
     } catch (error) {

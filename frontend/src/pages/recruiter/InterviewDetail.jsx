@@ -8,7 +8,9 @@ import {
     User,
     Mail,
     Briefcase,
-    MessageSquare
+    MessageSquare,
+    Video,
+    PlayCircle
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -148,6 +150,30 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* Video Recording Section */}
+                {application.recordingUrl && (
+                    <div className="p-8 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Video className="w-5 h-5 text-purple-600" />
+                            Interview Recording
+                        </h3>
+                        <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
+                            <video
+                                controls
+                                className="w-full max-h-[500px]"
+                                poster=""
+                            >
+                                <source src={application.recordingUrl} type="video/mp4" />
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        <div className="mt-4 flex items-center gap-3 text-sm text-gray-600">
+                            <PlayCircle className="w-4 h-4 text-purple-600" />
+                            <span className="font-medium">Click play to watch the candidate's interview recording</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Questions & Answers */}
                 <div className="p-8">
