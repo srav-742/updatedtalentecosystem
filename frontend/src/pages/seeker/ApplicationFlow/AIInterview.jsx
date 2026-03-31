@@ -283,7 +283,7 @@ const AIInterview = ({ job, user, onComplete }) => {
     if (isKickedOut) {
         return (
             <div className="max-w-2xl mx-auto px-6 py-20 text-center animate-in zoom-in duration-300">
-                <motion.div 
+                <motion.div
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     className="bg-[#0f1117] rounded-[32px] p-10 shadow-2xl shadow-red-500/10 border border-red-500/20"
@@ -296,11 +296,11 @@ const AIInterview = ({ job, user, onComplete }) => {
                         We repeatedly detected multiple people or no one in the camera frame. To ensure integrity, this interview session has been automatically closed.
                     </p>
                     <button
-                        onClick={() => { 
-                            setStep('ready'); 
-                            setWarnings(0); 
-                            setIsKickedOut(false); 
-                            setSessionId(null); 
+                        onClick={() => {
+                            setStep('ready');
+                            setWarnings(0);
+                            setIsKickedOut(false);
+                            setSessionId(null);
                         }}
                         className="w-full py-5 bg-red-600 text-white rounded-[24px] font-bold hover:bg-red-700 transition-all shadow-xl active:scale-95 text-lg"
                     >
@@ -352,11 +352,11 @@ const AIInterview = ({ job, user, onComplete }) => {
                                 {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
                             </span>
                         </div>
-                        {/* Webcam Mini View */}
+                        {/* Webcam Mini View - INCREASED SIZE */}
                         <div className="flex items-center gap-4">
                             <AnimatePresence>
                                 {warnings > 0 && (
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
                                         className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full animate-pulse"
                                     >
@@ -367,7 +367,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                            <div className="w-24 h-16 rounded-[12px] bg-black overflow-hidden relative border border-white/10 shadow-lg shadow-black/50">
+                            <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-white/20 shadow-xl shadow-black/50">
                                 <Webcam
                                     ref={webcamRef}
                                     audio={false}
@@ -376,7 +376,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                 />
                                 {!model && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
-                                        <Loader size={14} className="text-indigo-400 animate-spin" />
+                                        <Loader size={18} className="text-indigo-400 animate-spin" />
                                     </div>
                                 )}
                             </div>
