@@ -52,7 +52,7 @@ const CircularProgress = ({ percentage, label, color, delay }) => {
     );
 };
 
-const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions, userId, interviewId, onDone }) => {
+const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions, userId, interviewId, recordingNotice, onDone }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
 
@@ -164,6 +164,12 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                             {feedback || "Calculating detailed evaluation based on your responses..."}
                         </div>
                     </div>
+
+                    {recordingNotice && (
+                        <div className="bg-white/5 border border-white/10 rounded-[2rem] p-5 mb-12 text-sm text-gray-300">
+                            {recordingNotice}
+                        </div>
+                    )}
 
                     {/* Footer Action */}
                     <div className="flex justify-center">

@@ -22,12 +22,6 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-});
-
 // ✅ Import Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -38,7 +32,7 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
-const aiInterviewUploadRoutes = require('./routes/interview.routes');
+const aiInterviewUploadRoutes = require('./routes/interviewRecordingRoutes');
 const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
@@ -84,6 +78,13 @@ app.use((req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+    if (err?.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+            message: "Uploaded recording is too large",
+            error: err.message
+        });
+    }
+
     console.error(`[FATAL-SERVER-ERROR] ${req.method} ${req.url}:`, err);
     res.status(500).json({
         message: "Internal Server Error",

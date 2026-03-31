@@ -9,6 +9,12 @@ function detectSentiment(overallRating) {
     return "negative";
 }
 
+function sanitizeRatings(ratings = {}) {
+    return Object.fromEntries(
+        Object.entries(ratings).filter(([, value]) => Number(value) > 0)
+    );
+}
+
 // POST /api/interview/feedback
 // Submit post-interview feedback
 router.post('/feedback', async (req, res) => {
@@ -32,6 +38,7 @@ router.post('/feedback', async (req, res) => {
         }
 
         const sentiment = detectSentiment(overallRating);
+        const safeRatings = sanitizeRatings(ratings);
 
         // Upsert: update if already submitted (one feedback per interview)
         const feedback = await InterviewFeedback.findOneAndUpdate(
@@ -41,7 +48,7 @@ router.post('/feedback', async (req, res) => {
                 interviewId,
                 overallRating,
                 recommendationScore,
-                ratings,
+                ratings: safeRatings,
                 likedMost,
                 improvements,
                 issuesFaced,
@@ -51,7 +58,6 @@ router.post('/feedback', async (req, res) => {
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        console.log(`[INTERVIEW-FEEDBACK] Saved feedback for user: ${userId}, interview: ${interviewId}`);
         res.json({
             success: true,
             message: 'Feedback submitted successfully. Thank you!',

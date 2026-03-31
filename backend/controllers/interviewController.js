@@ -28,8 +28,11 @@ const getInterviewDetails = async (req, res) => {
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
                 interviewScore: application.interviewScore,
+                recordingSessionId: application.recordingSessionId,
+                recordingStatus: application.recordingStatus,
                 recordingPublicId: application.recordingPublicId,
-                recordingUrl: application.recordingUrl
+                recordingUrl: application.recordingUrl,
+                recordingPlaybackUrl: application.recordingPlaybackUrl
             },
             job: {
                 title: application.jobId?.title,

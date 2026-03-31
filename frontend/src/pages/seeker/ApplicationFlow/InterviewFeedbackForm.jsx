@@ -66,12 +66,16 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
         setError('');
         setSubmitting(true);
         try {
+            const safeRatings = Object.fromEntries(
+                Object.entries(ratings).filter(([, value]) => Number(value) > 0)
+            );
+
             const payload = {
                 userId,
                 interviewId,
                 overallRating,
                 recommendationScore,
-                ratings,
+                ratings: safeRatings,
                 likedMost,
                 improvements,
                 issuesFaced
@@ -80,7 +84,6 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
             setSubmitted(true);
             setTimeout(() => onDone(), 2000);
         } catch (err) {
-            console.error('[FEEDBACK_ERROR]', err);
             setError('Failed to submit feedback. Please try again.');
         } finally {
             setSubmitting(false);
