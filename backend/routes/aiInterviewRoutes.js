@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
 const Job = require('../models/Job');
+const { getInterviewDetails } = require('../controllers/interviewController');
 
 // In-memory session store
 const interviewSessions = new Map();
@@ -576,5 +577,8 @@ router.post('/next', async (req, res) => {
         res.status(500).json({ success: false, message: "Error" });
     }
 });
+
+// Get interview details for recruiter
+router.get('/interview-details/:applicationId', getInterviewDetails);
 
 module.exports = router;
