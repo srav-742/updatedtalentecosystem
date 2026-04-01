@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X, Shield, Eye, MousePointerClick } from 'lucide-react';
+import useTabLock from '../hooks/useTabLock';
 
 const TabLockGuard = ({
     maxWarnings = 3,
@@ -14,7 +15,7 @@ const TabLockGuard = ({
         lastViolationType,
         isTerminated,
         dismissWarning
-    } = require('../hooks/useTabLock').default({
+    } = useTabLock({
         maxWarnings,
         onMaxWarningsExceeded,
         isActive
@@ -101,11 +102,10 @@ const TabLockGuard = ({
                                         {Array.from({ length: maxWarnings }).map((_, i) => (
                                             <div
                                                 key={i}
-                                                className={`w-3 h-3 rounded-full ${
-                                                    i < warnings
+                                                className={`w-3 h-3 rounded-full ${i < warnings
                                                         ? 'bg-red-500'
                                                         : 'bg-amber-200'
-                                                }`}
+                                                    }`}
                                             />
                                         ))}
                                     </div>
