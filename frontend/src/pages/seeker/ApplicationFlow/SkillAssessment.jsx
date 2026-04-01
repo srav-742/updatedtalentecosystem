@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
+import TabLockGuard from '../../../components/TabLockGuard';
 
 const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [started, setStarted] = useState(false);
@@ -25,6 +26,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [score, setScore] = useState(null);
     const [error, setError] = useState(null);
     const [submissionId, setSubmissionId] = useState(null);
+    const [assessmentTerminated, setAssessmentTerminated] = useState(false);
 
     /* ===========================
        START ASSESSMENT
@@ -134,6 +136,26 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
 
     const PASS_THRESHOLD = job.minPercentage || 60;
     const isPassed = score !== null && score >= PASS_THRESHOLD;
+
+    const handleAssessmentTermination = async (violation) => {
+        console.warn('Assessment terminated due to violation:', violation);
+        setAssessmentTerminated(true);
+
+        // Submit with zero score due to cheating
+        try {
+            await axios.post(`${API_URL}/submit-assessment`, {
+                jobId: job._id,
+                userId: user.uid,
+                sessionId: sessionId,
+                questions: questions,
+                answers: [],
+                terminated: true,
+                terminationReason: 'Tab-switching violation detected'
+            });
+        } catch (e) {
+            console.warn('Failed to submit terminated assessment:', e);
+        }
+    };
 
     /* ===========================
        LOADING UI
@@ -277,72 +299,78 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     }
 
     return (
-        <motion.div
-            key={currentQIndex} // ✅ Critical: key prevents React from reusing old DOM nodes
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="max-w-4xl mx-auto"
+        <TabLockGuard
+            maxWarnings={3}
+            onMaxWarningsExceeded={handleAssessmentTermination}
+            isActive={started && !assessmentTerminated}
         >
-            <div className="bg-white rounded-3xl shadow-lg p-8">
-                <div className="mb-6 flex justify-between">
-                    <span className="text-sm font-bold text-indigo-600 uppercase">
-                        {q.type === 'mcq' ? 'MCQ' : 'Coding'}
-                    </span>
-                    <span className="text-gray-400 font-bold">
-                        {currentQIndex + 1}/{questions.length}
-                    </span>
-                </div>
-
-                <h3 className="text-xl font-bold mb-6 text-gray-800">
-                    {q.question || "Loading question..."}
-                </h3>
-
-                {q.type === 'mcq' ? (
-                    <div className="space-y-3">
-                        {q.options.map((opt, i) => (
-                            <button
-                                key={i}
-                                onClick={() => handleAnswer(opt)}
-                                className={`w-full p-4 rounded-xl border text-left
-                          ${answers[currentQIndex] === opt
-                                        ? 'border-indigo-600 bg-indigo-50 text-gray-900'
-                                        : 'border-gray-200 text-gray-800 hover:bg-gray-50'}
-                        `}
-                            >
-                                {opt}
-                            </button>
-                        ))}
+            <motion.div
+                key={currentQIndex}
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="max-w-4xl mx-auto"
+            >
+                <div className="bg-white rounded-3xl shadow-lg p-8">
+                    <div className="mb-6 flex justify-between">
+                        <span className="text-sm font-bold text-indigo-600 uppercase">
+                            {q.type === 'mcq' ? 'MCQ' : 'Coding'}
+                        </span>
+                        <span className="text-gray-400 font-bold">
+                            {currentQIndex + 1}/{questions.length}
+                        </span>
                     </div>
-                ) : (
-                    <>
-                        <pre className="bg-gray-900 text-gray-200 p-4 rounded-xl mb-4 font-mono text-sm">
-                            {q.starterCode || '// Write your solution here'}
-                        </pre>
-                        <textarea
-                            className="w-full h-48 border rounded-xl p-4 font-mono text-gray-800"
-                            value={answers[currentQIndex] || ''}
-                            onChange={e => handleAnswer(e.target.value)}
-                            placeholder="Write your code here..."
-                        />
-                    </>
-                )}
 
-                <div className="mt-8 text-right">
-                    <button
-                        onClick={nextQuestion}
-                        disabled={!answers[currentQIndex]}
-                        className={`px-8 py-4 rounded-xl font-bold
+                    <h3 className="text-xl font-bold mb-6 text-gray-800">
+                        {q.question || "Loading question..."}
+                    </h3>
+
+                    {q.type === 'mcq' ? (
+                        <div className="space-y-3">
+                            {q.options.map((opt, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => handleAnswer(opt)}
+                                    className={`w-full p-4 rounded-xl border text-left
+                          ${answers[currentQIndex] === opt
+                                            ? 'border-indigo-600 bg-indigo-50 text-gray-900'
+                                            : 'border-gray-200 text-gray-800 hover:bg-gray-50'}
+                        `}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <>
+                            <pre className="bg-gray-900 text-gray-200 p-4 rounded-xl mb-4 font-mono text-sm">
+                                {q.starterCode || '// Write your solution here'}
+                            </pre>
+                            <textarea
+                                className="w-full h-48 border rounded-xl p-4 font-mono text-gray-800"
+                                value={answers[currentQIndex] || ''}
+                                onChange={e => handleAnswer(e.target.value)}
+                                placeholder="Write your code here..."
+                            />
+                        </>
+                    )}
+
+                    <div className="mt-8 text-right">
+                        <button
+                            onClick={nextQuestion}
+                            disabled={!answers[currentQIndex]}
+                            className={`px-8 py-4 rounded-xl font-bold
               ${answers[currentQIndex]
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-gray-200 text-gray-400'
-                            }`}
-                    >
-                        {currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}
-                        <ArrowRight className="inline ml-2" />
-                    </button>
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-gray-200 text-gray-400'
+                                }`}
+                        >
+                            {currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}
+                            <ArrowRight className="inline ml-2" />
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </motion.div>
+            </motion.div>
+        </TabLockGuard>
     );
 };
 
