@@ -5,9 +5,10 @@ import { Link } from 'react-router-dom';
 import CalibrationModal from './CalibrationModal';
 import SampleProfilesModal from './SampleProfilesModal';
 
-const Hero = () => {
+const Hero = ({ theme = 'light' }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const isLight = theme === 'light';
 
     return (
         <section className="relative pt-32 pb-20 overflow-hidden">
@@ -35,8 +36,8 @@ const Hero = () => {
                         </span>
                     </h1>
 
-                    <p className="max-w-3xl mx-auto text-lg md:text-xl text-gray-400 mb-12 leading-relaxed">
-                        Access the <span className="text-gray-900 font-semibold">top 1% of IIT-vetted AI engineers.</span><br />
+                    <p className={`max-w-3xl mx-auto text-lg md:text-xl mb-12 leading-relaxed ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                        Access the <span className={isLight ? 'text-gray-900 font-semibold' : 'text-white font-semibold'}>top 1% of IIT-vetted AI engineers.</span><br />
                         We help AI startups save money by managing payroll, legal, and compliance work.
                     </p>
 
@@ -52,7 +53,7 @@ const Hero = () => {
 
                         <button
                             onClick={() => setIsProfileModalOpen(true)}
-                            className="group flex items-center px-8 py-4 bg-white border border-gray-200 text-gray-900 font-semibold rounded-2xl hover:bg-gray-50 transition-all shadow-sm"
+                            className={`group flex items-center px-8 py-4 font-semibold rounded-2xl transition-all ${isLight ? 'bg-white border border-gray-200 text-gray-900 hover:bg-gray-50 shadow-sm' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10 backdrop-blur-sm'}`}
                         >
                             <Users className="w-5 h-5 mr-3" />
                             View Sample Profiles
