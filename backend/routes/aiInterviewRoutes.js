@@ -339,9 +339,58 @@ Based on the interview flow above, ask the NEXT interview question (Question ${q
 }
 
 /**
- * Build the evaluation prompt for final scoring.
+ * Build the evaluation prompt for a single answer.
  */
-function buildEvalPrompt(session) {
+function buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber) {
+    const { roleInfo } = session;
+    const { isTech, roleCategory } = roleInfo;
+
+    return `
+You are a senior ${isTech ? 'technical' : 'professional'} interview evaluator scoring ONE interview answer.
+
+=== JOB CONTEXT ===
+Title: ${session.jobTitle || 'Not specified'}
+Description: ${session.jobDescription || 'Not specified'}
+Required Skills: ${(session.jobSkills || []).join(', ') || 'Not specified'}
+Role Type: ${isTech ? 'Technical' : 'Non-Technical'} (${roleCategory})
+
+=== QUESTION NUMBER ===
+${questionNumber}
+
+=== INTERVIEW QUESTION ===
+${questionText || 'Not specified'}
+
+=== CANDIDATE ANSWER ===
+${answerText || 'No answer provided'}
+
+=== SCORE THIS ANSWER ONLY ===
+${isTech ? `
+- Technical depth and accuracy of answers
+- Problem-solving approach and analytical thinking
+- Implementation detail and architecture understanding when relevant
+- Knowledge of required technologies from the JD
+- Communication clarity when explaining technical concepts
+` : `
+- Domain knowledge relevant to the job description
+- Problem-solving and situational judgement
+- Communication and interpersonal skills
+- Strategic thinking and business acumen
+- Practical experience alignment with the JD requirements
+`}
+
+=== TASK ===
+Evaluate ONLY this single answer and return ONLY a JSON object:
+{
+  "score": <number 0-100>,
+  "feedback": "<one concise sentence about this answer only, mentioning at least one strength or weakness>"
+}
+`;
+}
+
+/**
+ * Build the evaluation prompt for final interview summary.
+ */
+function buildEvalPrompt(session, answerEvaluations, overallScore) {
     const { roleInfo } = session;
     const { isTech, roleCategory } = roleInfo;
     const conversation = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
@@ -354,31 +403,157 @@ Title: ${session.jobTitle || 'Not specified'}
 Description: ${session.jobDescription || 'Not specified'}
 Role Type: ${isTech ? 'Technical' : 'Non-Technical'} (${roleCategory})
 
-=== EVALUATION CRITERIA ===
-${isTech ? `
-- Technical depth and accuracy of answers
-- Problem-solving approach and analytical thinking
-- System design and architecture understanding
-- Knowledge of required technologies from the JD
-- Communication clarity when explaining technical concepts
-` : `
-- Domain knowledge relevant to the job description
-- Problem-solving and situational judgement
-- Communication and interpersonal skills
-- Strategic thinking and business acumen
-- Practical experience alignment with the JD requirements
-`}
+=== QUESTION-BY-QUESTION SCORES ===
+${JSON.stringify(answerEvaluations)}
+
+=== CALCULATED OVERALL SCORE ===
+${overallScore}
 
 === INTERVIEW TRANSCRIPT ===
 ${conversation}
 
 === TASK ===
-Evaluate this interview and return ONLY a JSON object:
+Write a concise final summary of the candidate's interview performance. Do not change the overall score.
+Return ONLY a JSON object:
 {
-  "score": <number 0-100>,
   "feedback": "<concise 2-3 sentence professional summary of the candidate's performance, highlighting strengths and areas for improvement>"
 }
 `;
+}
+
+function stripMarkdownJson(rawText = '') {
+    return String(rawText || '')
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+}
+
+function parseJsonObject(rawText = '') {
+    const cleaned = stripMarkdownJson(rawText);
+    if (!cleaned) return null;
+
+    try {
+        return JSON.parse(cleaned);
+    } catch (_) {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (!match) return null;
+        try {
+            return JSON.parse(match[0]);
+        } catch (_) {
+            return null;
+        }
+    }
+}
+
+function clampScore(score, min = 0, max = 100) {
+    return Math.max(min, Math.min(max, score));
+}
+
+function buildFallbackAnswerEvaluation(session, questionText, answerText) {
+    const normalizedAnswer = String(answerText || '').trim();
+    const normalizedQuestion = String(questionText || '').trim();
+
+    if (!normalizedAnswer) {
+        return {
+            score: 20,
+            feedback: "The answer was missing or too short to demonstrate the required knowledge."
+        };
+    }
+
+    const answerLower = normalizedAnswer.toLowerCase();
+    const words = normalizedAnswer.split(/\s+/).filter(Boolean);
+    const uniqueWords = new Set(words.map(word => word.toLowerCase().replace(/[^a-z0-9+#.]/g, '')));
+    const jobSkills = Array.isArray(session.jobSkills) ? session.jobSkills : [];
+    const questionKeywords = normalizedQuestion
+        .toLowerCase()
+        .split(/[^a-z0-9+#.]+/)
+        .filter(token => token.length > 4);
+    const trackedKeywords = [...jobSkills, ...questionKeywords]
+        .map(keyword => String(keyword || '').toLowerCase().trim())
+        .filter(keyword => keyword.length > 2);
+
+    const keywordMatches = trackedKeywords.filter(keyword => answerLower.includes(keyword));
+    const detailSignals = ['because', 'for example', 'for instance', 'trade-off', 'tradeoff', 'approach', 'optimize', 'improve', 'debug', 'measure', 'metric', 'scalable', 'performance', 'security', 'customer', 'stakeholder', 'team'];
+    const detailMatchCount = detailSignals.filter(signal => answerLower.includes(signal)).length;
+
+    let score = 35;
+
+    if (words.length >= 8) score += 8;
+    if (words.length >= 20) score += 10;
+    if (words.length >= 40) score += 8;
+    if (words.length >= 70) score += 4;
+
+    score += Math.min(25, uniqueWords.size * 0.6);
+    score += Math.min(18, keywordMatches.length * 4);
+    score += Math.min(10, detailMatchCount * 2);
+
+    if (words.length < 6) score -= 12;
+    if (keywordMatches.length === 0 && trackedKeywords.length > 0) score -= 8;
+
+    const finalScore = Math.round(clampScore(score, 20, 95));
+
+    if (finalScore >= 80) {
+        return {
+            score: finalScore,
+            feedback: "The answer was detailed, relevant to the role, and showed strong understanding with practical context."
+        };
+    }
+
+    if (finalScore >= 60) {
+        return {
+            score: finalScore,
+            feedback: "The answer addressed the question reasonably well, but it could have used more depth or clearer role-specific examples."
+        };
+    }
+
+    return {
+        score: finalScore,
+        feedback: "The answer showed limited depth or relevance, and it needed clearer examples tied to the job requirements."
+    };
+}
+
+async function evaluateAnswer(session, questionText, answerText, questionNumber) {
+    const fallback = buildFallbackAnswerEvaluation(session, questionText, answerText);
+    const prompt = buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber);
+
+    try {
+        const rawResponse = await callInterviewAI(
+            prompt,
+            500,
+            true,
+            `You are a strict ${session.roleInfo.isTech ? 'technical' : 'professional'} interviewer. Score only the candidate's latest answer and respond with valid JSON.`
+        );
+        const parsed = parseJsonObject(rawResponse);
+        const rawScore = Number(parsed?.score);
+
+        if (!parsed || Number.isNaN(rawScore)) {
+            return fallback;
+        }
+
+        return {
+            score: Math.round(clampScore(rawScore, 20, 95)),
+            feedback: String(parsed.feedback || fallback.feedback).trim() || fallback.feedback
+        };
+    } catch (error) {
+        console.warn("[INTERVIEW-EVAL] Answer scoring fallback triggered:", error.message);
+        return fallback;
+    }
+}
+
+function summarizeInterviewFallback(answerEvaluations, overallScore) {
+    if (!answerEvaluations.length) {
+        return "The interview was completed successfully, but a detailed evaluation summary could not be generated.";
+    }
+
+    const strongest = [...answerEvaluations].sort((a, b) => b.score - a.score)[0];
+    const weakest = [...answerEvaluations].sort((a, b) => a.score - b.score)[0];
+    const band =
+        overallScore >= 80 ? "strong" :
+        overallScore >= 60 ? "solid" :
+        "developing";
+
+    return `The candidate delivered a ${band} interview overall with a final score of ${overallScore}%. Stronger moments appeared in "${strongest.question}", while weaker depth was visible in "${weakest.question}". Overall, the candidate should keep improving consistency, clarity, and role-specific detail across answers.`;
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -463,7 +638,8 @@ router.post('/start', async (req, res) => {
             jobSkills: job?.skills || [],
             experienceLevel: job?.experienceLevel || '',
             systemPrompt,
-            history: [{ role: 'interviewer', content: firstQuestion }]
+            history: [{ role: 'interviewer', content: firstQuestion }],
+            answerEvaluations: []
         });
 
         res.json({
@@ -486,31 +662,57 @@ router.post('/next', async (req, res) => {
         const session = interviewSessions.get(sessionId);
         if (!session) return res.status(404).json({ message: "Session not found" });
 
-        session.history.push({ role: 'candidate', content: answerText });
+        const normalizedAnswer = String(answerText || '').trim();
+        if (!normalizedAnswer) {
+            return res.status(400).json({ message: "Answer text is required" });
+        }
+
         const interviewers = session.history.filter(h => h.role === 'interviewer');
+        const currentQuestionNumber = interviewers.length;
+        const currentQuestion = interviewers[interviewers.length - 1]?.content || "";
+
+        session.history.push({ role: 'candidate', content: normalizedAnswer });
+        const answerEvaluation = await evaluateAnswer(
+            session,
+            currentQuestion,
+            normalizedAnswer,
+            currentQuestionNumber
+        );
+
+        session.answerEvaluations.push({
+            questionNumber: currentQuestionNumber,
+            question: currentQuestion,
+            answer: normalizedAnswer,
+            score: answerEvaluation.score,
+            feedback: answerEvaluation.feedback
+        });
 
         // End after 10 questions
         if (interviewers.length >= 10) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId}`);
-            const evalPrompt = buildEvalPrompt(session);
+            const scores = session.answerEvaluations
+                .map(entry => Number(entry.score))
+                .filter(score => !Number.isNaN(score));
+            const calculatedOverallScore = scores.length
+                ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+                : 70;
+            const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
 
-            let evaluation = { score: 70, feedback: "Interview completed. Performance was satisfactory." };
+            let evaluation = {
+                score: calculatedOverallScore,
+                feedback: summarizeInterviewFallback(session.answerEvaluations, calculatedOverallScore)
+            };
             try {
                 const resText = await callInterviewAI(
                     evalPrompt,
-                    1500,
+                    900,
                     true,
-                    `You are a senior ${session.roleInfo.isTech ? 'technical' : 'professional'} evaluator. Analyze this interview objectively.`
+                    `You are a senior ${session.roleInfo.isTech ? 'technical' : 'professional'} evaluator. Summarize this interview objectively in valid JSON.`
                 );
                 console.log("[INTERVIEW-EVAL] Raw AI Response:", resText);
-                if (resText) {
-                    const match = resText.match(/\{[\s\S]*\}/);
-                    const parsed = JSON.parse(match ? match[0] : resText);
-                    const rawScore = Number(parsed?.score);
-                    if (parsed && !isNaN(rawScore) && rawScore >= 1 && rawScore <= 100) {
-                        evaluation.score = Math.max(25, Math.min(95, rawScore));
-                        evaluation.feedback = parsed.feedback || evaluation.feedback;
-                    }
+                const parsed = parseJsonObject(resText);
+                if (parsed?.feedback) {
+                    evaluation.feedback = parsed.feedback;
                 }
             } catch (e) {
                 console.error("[INTERVIEW-EVAL] Parsing failed:", e.message);
@@ -524,11 +726,11 @@ router.post('/next', async (req, res) => {
                     interviewScore: evaluation.score,
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
-                    interviewAnswers: session.history.filter((_, i) => i % 2 === 0).map((h, i) => ({
-                        question: h.content,
-                        answer: session.history[i * 2 + 1]?.content || "",
-                        score: evaluation.score,
-                        feedback: evaluation.feedback
+                    interviewAnswers: session.answerEvaluations.map((entry) => ({
+                        question: entry.question,
+                        answer: entry.answer,
+                        score: entry.score,
+                        feedback: entry.feedback
                     }))
                 },
                 { upsert: true }
@@ -574,7 +776,12 @@ router.post('/next', async (req, res) => {
             }
 
             interviewSessions.delete(sessionId);
-            return res.json({ hasNext: false, finalScore: evaluation.score, feedback: evaluation.feedback });
+            return res.json({
+                hasNext: false,
+                finalScore: evaluation.score,
+                feedback: evaluation.feedback,
+                answerEvaluation
+            });
         }
 
         // Determine next question number
@@ -604,7 +811,8 @@ router.post('/next', async (req, res) => {
             hasNext: true,
             question: nextQuestion,
             audio: audioBase64,
-            currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length
+            currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
+            answerEvaluation
         });
     } catch (error) {
         console.error("Next Error:", error);
