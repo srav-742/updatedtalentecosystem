@@ -13,8 +13,8 @@ import Footer from '../components/Footer';
 
 const LandingPage = () => {
     return (
-        <div className="min-h-screen bg-[#0c0f16] text-white selection:bg-blue-500/30">
-            <Navbar />
+        <div className="min-h-screen bg-white text-gray-900 selection:bg-blue-500/20">
+            <Navbar theme="light" />
             <Hero />
             <RecruiterSection />
             <WhyChooseUs />
@@ -24,7 +24,7 @@ const LandingPage = () => {
             <ScalingModels />
             <FounderFAQs />
             <CTA />
-            <Footer />
+            <Footer theme="light" />
         </div>
     );
 };

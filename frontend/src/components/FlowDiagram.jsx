@@ -13,10 +13,10 @@ const flowSteps = [
 
 const FlowDiagram = () => {
     return (
-        <section id="operations" className="py-24 overflow-hidden">
+        <section id="operations" className="py-24 overflow-hidden bg-white">
             <div className="container mx-auto px-6 text-center">
-                <h2 className="text-3xl font-bold mb-16 text-white uppercase tracking-[0.2em]">Fullstack Operations Support</h2>
-                <p className="text-gray-400 mb-12 max-w-2xl mx-auto">
+                <h2 className="text-3xl font-bold mb-16 text-gray-900 uppercase tracking-[0.2em]">Fullstack Operations Support</h2>
+                <p className="text-gray-600 mb-12 max-w-2xl mx-auto">
                     You focus on the product. We handle the people management and
                     administrative burden across the globe.
                 </p>
@@ -29,7 +29,7 @@ const FlowDiagram = () => {
                                 whileInView={{ opacity: 1, scale: 1 }}
                                 viewport={{ once: true }}
                                 transition={{ delay: idx * 0.1 }}
-                                className="px-6 py-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm text-sm font-semibold text-white/90 hover:bg-white/10 transition-colors shadow-lg"
+                                className="px-6 py-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-900 hover:bg-slate-50 transition-colors shadow-sm"
                             >
                                 {step}
                             </motion.div>
