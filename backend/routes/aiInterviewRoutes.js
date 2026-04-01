@@ -7,6 +7,12 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
 const Job = require('../models/Job');
 const { getInterviewDetails } = require('../controllers/interviewController');
+const {
+    averageInterviewScore,
+    clamp,
+    roundToTenth,
+    scoreInterviewAnswer
+} = require('../utils/interviewScoring');
 
 // In-memory session store
 const interviewSessions = new Map();
@@ -381,7 +387,8 @@ ${isTech ? `
 === TASK ===
 Evaluate ONLY this single answer and return ONLY a JSON object:
 {
-  "score": <number 0-100>,
+  "marks": <number 0-10>,
+  "percentage": <number 0-100>,
   "feedback": "<one concise sentence about this answer only, mentioning at least one strength or weakness>"
 }
 `;
@@ -446,75 +453,42 @@ function parseJsonObject(rawText = '') {
     }
 }
 
-function clampScore(score, min = 0, max = 100) {
-    return Math.max(min, Math.min(max, score));
-}
+function normalizeAiEvaluation(parsed, heuristic) {
+    const aiMarksCandidate = Number(parsed?.marks);
+    const aiPercentageCandidate = Number(parsed?.percentage);
+    const aiScoreCandidate = Number(parsed?.score);
 
-function buildFallbackAnswerEvaluation(session, questionText, answerText) {
-    const normalizedAnswer = String(answerText || '').trim();
-    const normalizedQuestion = String(questionText || '').trim();
-
-    if (!normalizedAnswer) {
-        return {
-            score: 20,
-            feedback: "The answer was missing or too short to demonstrate the required knowledge."
-        };
+    let aiMarks = Number.NaN;
+    if (!Number.isNaN(aiMarksCandidate)) {
+        aiMarks = clamp(aiMarksCandidate, 0, 10);
+    } else if (!Number.isNaN(aiPercentageCandidate)) {
+        aiMarks = clamp(aiPercentageCandidate / 10, 0, 10);
+    } else if (!Number.isNaN(aiScoreCandidate)) {
+        aiMarks = clamp(aiScoreCandidate / 10, 0, 10);
     }
 
-    const answerLower = normalizedAnswer.toLowerCase();
-    const words = normalizedAnswer.split(/\s+/).filter(Boolean);
-    const uniqueWords = new Set(words.map(word => word.toLowerCase().replace(/[^a-z0-9+#.]/g, '')));
-    const jobSkills = Array.isArray(session.jobSkills) ? session.jobSkills : [];
-    const questionKeywords = normalizedQuestion
-        .toLowerCase()
-        .split(/[^a-z0-9+#.]+/)
-        .filter(token => token.length > 4);
-    const trackedKeywords = [...jobSkills, ...questionKeywords]
-        .map(keyword => String(keyword || '').toLowerCase().trim())
-        .filter(keyword => keyword.length > 2);
-
-    const keywordMatches = trackedKeywords.filter(keyword => answerLower.includes(keyword));
-    const detailSignals = ['because', 'for example', 'for instance', 'trade-off', 'tradeoff', 'approach', 'optimize', 'improve', 'debug', 'measure', 'metric', 'scalable', 'performance', 'security', 'customer', 'stakeholder', 'team'];
-    const detailMatchCount = detailSignals.filter(signal => answerLower.includes(signal)).length;
-
-    let score = 35;
-
-    if (words.length >= 8) score += 8;
-    if (words.length >= 20) score += 10;
-    if (words.length >= 40) score += 8;
-    if (words.length >= 70) score += 4;
-
-    score += Math.min(25, uniqueWords.size * 0.6);
-    score += Math.min(18, keywordMatches.length * 4);
-    score += Math.min(10, detailMatchCount * 2);
-
-    if (words.length < 6) score -= 12;
-    if (keywordMatches.length === 0 && trackedKeywords.length > 0) score -= 8;
-
-    const finalScore = Math.round(clampScore(score, 20, 95));
-
-    if (finalScore >= 80) {
-        return {
-            score: finalScore,
-            feedback: "The answer was detailed, relevant to the role, and showed strong understanding with practical context."
-        };
+    if (Number.isNaN(aiMarks)) {
+        return heuristic;
     }
 
-    if (finalScore >= 60) {
-        return {
-            score: finalScore,
-            feedback: "The answer addressed the question reasonably well, but it could have used more depth or clearer role-specific examples."
-        };
-    }
+    const finalMarks = roundToTenth(clamp((aiMarks * 0.7) + (heuristic.marks * 0.3), 2, 9.8));
+    const score = clamp(Math.round(finalMarks * 10), 20, 98);
 
     return {
-        score: finalScore,
-        feedback: "The answer showed limited depth or relevance, and it needed clearer examples tied to the job requirements."
+        ...heuristic,
+        score,
+        marks: finalMarks,
+        feedback: String(parsed.feedback || heuristic.feedback).trim() || heuristic.feedback
     };
 }
 
 async function evaluateAnswer(session, questionText, answerText, questionNumber) {
-    const fallback = buildFallbackAnswerEvaluation(session, questionText, answerText);
+    const heuristic = scoreInterviewAnswer({
+        questionText,
+        answerText,
+        jobSkills: session.jobSkills,
+        jobDescription: session.jobDescription
+    });
     const prompt = buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber);
 
     try {
@@ -525,19 +499,14 @@ async function evaluateAnswer(session, questionText, answerText, questionNumber)
             `You are a strict ${session.roleInfo.isTech ? 'technical' : 'professional'} interviewer. Score only the candidate's latest answer and respond with valid JSON.`
         );
         const parsed = parseJsonObject(rawResponse);
-        const rawScore = Number(parsed?.score);
-
-        if (!parsed || Number.isNaN(rawScore)) {
-            return fallback;
+        if (!parsed) {
+            return heuristic;
         }
 
-        return {
-            score: Math.round(clampScore(rawScore, 20, 95)),
-            feedback: String(parsed.feedback || fallback.feedback).trim() || fallback.feedback
-        };
+        return normalizeAiEvaluation(parsed, heuristic);
     } catch (error) {
         console.warn("[INTERVIEW-EVAL] Answer scoring fallback triggered:", error.message);
-        return fallback;
+        return heuristic;
     }
 }
 
@@ -684,18 +653,14 @@ router.post('/next', async (req, res) => {
             question: currentQuestion,
             answer: normalizedAnswer,
             score: answerEvaluation.score,
+            marks: answerEvaluation.marks,
             feedback: answerEvaluation.feedback
         });
 
         // End after 10 questions
         if (interviewers.length >= 10) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId}`);
-            const scores = session.answerEvaluations
-                .map(entry => Number(entry.score))
-                .filter(score => !Number.isNaN(score));
-            const calculatedOverallScore = scores.length
-                ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
-                : 70;
+            const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
 
             let evaluation = {
@@ -730,6 +695,7 @@ router.post('/next', async (req, res) => {
                         question: entry.question,
                         answer: entry.answer,
                         score: entry.score,
+                        marks: entry.marks,
                         feedback: entry.feedback
                     }))
                 },

@@ -70,6 +70,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     }
 
     const { application, job, interview } = data;
+    const formatMarks = (marks) => (typeof marks === 'number' ? marks.toFixed(1) : '0.0');
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -87,10 +88,14 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                 <Award className="w-8 h-8" />
                                 <h2 className="text-3xl font-black">Interview Details</h2>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                                     <div className="text-3xl font-black">{interview.score}%</div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Score</div>
+                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Overall Score</div>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                                    <div className="text-3xl font-black">{formatMarks(interview.marks)}/10</div>
+                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Average Marks</div>
                                 </div>
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                                     <div className="text-3xl font-black">{interview.totalQuestions}</div>
@@ -203,8 +208,9 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="px-4 py-2 rounded-full bg-purple-500 text-white font-bold text-sm">
-                                            Score: {q.score}%
+                                        <div className="px-4 py-2 rounded-2xl bg-purple-500 text-white font-bold text-sm text-right leading-tight min-w-[110px]">
+                                            <div>{formatMarks(q.marks)}/10</div>
+                                            <div className="text-[10px] font-semibold text-purple-100">{q.score}%</div>
                                         </div>
                                     </div>
                                 </div>

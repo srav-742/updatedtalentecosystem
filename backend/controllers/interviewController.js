@@ -1,6 +1,12 @@
 const Application = require('../models/Application');
 const Job = require('../models/Job');
 const mongoose = require('mongoose');
+const {
+    averageInterviewScore,
+    hasLegacyUniformQuestionScores,
+    roundToTenth,
+    scoreInterviewAnswer
+} = require('../utils/interviewScoring');
 
 /* ===========================
    GET INTERVIEW DETAILS (RECRUITER)
@@ -22,12 +28,37 @@ const getInterviewDetails = async (req, res) => {
             return res.status(404).json({ message: "No interview answers found for this application" });
         }
 
+        if (hasLegacyUniformQuestionScores(application.interviewAnswers)) {
+            application.interviewAnswers = application.interviewAnswers.map((ans) => {
+                const rescored = scoreInterviewAnswer({
+                    questionText: ans.question,
+                    answerText: ans.answer,
+                    jobSkills: application.jobId?.skills || [],
+                    jobDescription: application.jobId?.description || ''
+                });
+
+                return {
+                    question: ans.question,
+                    answer: ans.answer,
+                    score: rescored.score,
+                    marks: rescored.marks,
+                    feedback: rescored.feedback
+                };
+            });
+
+            application.interviewScore = averageInterviewScore(application.interviewAnswers);
+            await application.save();
+        }
+
+        const overallInterviewScore = Number(application.interviewScore || averageInterviewScore(application.interviewAnswers) || 0);
+        const overallInterviewMarks = roundToTenth(overallInterviewScore / 10);
+
         res.json({
             application: {
                 id: application._id,
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
-                interviewScore: application.interviewScore,
+                interviewScore: overallInterviewScore,
                 recordingSessionId: application.recordingSessionId,
                 recordingStatus: application.recordingStatus,
                 recordingPublicId: application.recordingPublicId,
@@ -40,14 +71,18 @@ const getInterviewDetails = async (req, res) => {
                 skills: application.jobId?.skills
             },
             interview: {
-                score: application.interviewScore,
+                score: overallInterviewScore,
+                marks: overallInterviewMarks,
                 totalQuestions: application.interviewAnswers.length,
                 completedAt: application.appliedAt,
                 questions: application.interviewAnswers.map((ans, idx) => ({
                     questionNumber: idx + 1,
                     question: ans.question,
                     answer: ans.answer,
-                    score: ans.score,
+                    score: Number(ans.score || 0),
+                    marks: typeof ans.marks === 'number'
+                        ? roundToTenth(ans.marks)
+                        : roundToTenth(Number(ans.score || 0) / 10),
                     feedback: ans.feedback
                 }))
             }
