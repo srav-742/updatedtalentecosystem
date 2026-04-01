@@ -37,6 +37,7 @@ const applicationSchema = new mongoose.Schema({
             question: String,
             answer: String,
             score: Number,
+            marks: Number,
             feedback: String
         }
     ],
