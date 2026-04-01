@@ -6,6 +6,7 @@ import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import Webcam from "react-webcam";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
+import TabLockGuard from '../../../components/TabLockGuard';
 
 const AIInterview = ({ job, user, onComplete }) => {
     const [step, setStep] = useState('ready');
@@ -22,6 +23,9 @@ const AIInterview = ({ job, user, onComplete }) => {
     const [feedback, setFeedback] = useState('');
     const [recordingSessionId, setRecordingSessionId] = useState(null);
     const [recordingNotice, setRecordingNotice] = useState('');
+
+    // Tab lock state
+    const [interviewTerminated, setInterviewTerminated] = useState(false);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -425,6 +429,31 @@ const AIInterview = ({ job, user, onComplete }) => {
         };
     }, []);
 
+    const handleInterviewTermination = async (violation) => {
+        console.warn('Interview terminated due to tab-switching violation:', violation);
+        setInterviewTerminated(true);
+
+        // Stop all recordings
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state === 'recording') {
+            fullSessionRecorderRef.current.stop();
+        }
+
+        // Save termination record
+        try {
+            await axios.post(`${API_URL}/interview/terminate`, {
+                sessionId,
+                userId: user.uid,
+                reason: 'Tab-switching violation detected',
+                violation
+            });
+        } catch (e) {
+            console.warn('Failed to save termination record:', e);
+        }
+    };
+
     if (isKickedOut) {
         return (
             <div className="max-w-2xl mx-auto px-6 py-20 text-center animate-in zoom-in duration-300">
@@ -496,129 +525,135 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     if (step === 'interview') {
         return (
-            <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
-                {/* Minimal Header */}
-                <div className="flex justify-between items-center mb-12 border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-2 h-2 rounded-full ${coreState === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-                            <span className="text-xs font-light text-gray-500 uppercase tracking-[0.2em]">
-                                {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
-                            </span>
-                        </div>
-                        {/* Webcam Mini View - INCREASED SIZE */}
-                        <div className="flex items-center gap-4">
-                            <AnimatePresence>
-                                {warnings > 0 && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
-                                        className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"
-                                    >
-                                        <AlertTriangle size={12} className="text-red-500" />
-                                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
-                                            {personCount === 0 ? "No Face" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
-                                        </span>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                            <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-gray-200 shadow-md">
-                                <Webcam
-                                    ref={webcamRef}
-                                    audio={false}
-                                    className="w-full h-full object-cover"
-                                    mirrored={true}
-                                />
-                                {!model && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
-                                        <Loader size={18} className="text-indigo-400 animate-spin" />
-                                    </div>
-                                )}
+            <TabLockGuard
+                maxWarnings={3}
+                onMaxWarningsExceeded={handleInterviewTermination}
+                isActive={!interviewTerminated}
+            >
+                <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
+                    {/* Minimal Header */}
+                    <div className="flex justify-between items-center mb-12 border-b border-gray-200 pb-6">
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-2 h-2 rounded-full ${coreState === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
+                                <span className="text-xs font-light text-gray-500 uppercase tracking-[0.2em]">
+                                    {coreState === 'speaking' ? 'Interviewer Speaking' : coreState === 'listening' ? 'Recording Active' : 'System Ready'}
+                                </span>
+                            </div>
+                            {/* Webcam Mini View - INCREASED SIZE */}
+                            <div className="flex items-center gap-4">
+                                <AnimatePresence>
+                                    {warnings > 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
+                                            className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"
+                                        >
+                                            <AlertTriangle size={12} className="text-red-500" />
+                                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
+                                                {personCount === 0 ? "No Face" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
+                                            </span>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                                <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-gray-200 shadow-md">
+                                    <Webcam
+                                        ref={webcamRef}
+                                        audio={false}
+                                        className="w-full h-full object-cover"
+                                        mirrored={true}
+                                    />
+                                    {!model && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                                            <Loader size={18} className="text-indigo-400 animate-spin" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
+                        <span className="text-sm font-medium text-gray-900">Question {currentQNum} of 10</span>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">Question {currentQNum} of 10</span>
-                </div>
 
-                {/* Question Section - Elegant and Clean (No Bold) */}
-                <div className="min-h-[220px] max-h-[400px] overflow-y-auto flex flex-col justify-center mb-16 px-6 custom-scrollbar">
-                    <AnimatePresence>
-                        {displayText ? (
-                            <motion.p
-                                key={currentQuestion}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center whitespace-pre-wrap break-words"
+                    {/* Question Section - Elegant and Clean (No Bold) */}
+                    <div className="min-h-[220px] max-h-[400px] overflow-y-auto flex flex-col justify-center mb-16 px-6 custom-scrollbar">
+                        <AnimatePresence>
+                            {displayText ? (
+                                <motion.p
+                                    key={currentQuestion}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center whitespace-pre-wrap break-words"
+                                >
+                                    {displayText}
+                                </motion.p>
+                            ) : (
+                                <motion.div
+                                    key="loading-voice"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex flex-col items-center gap-6"
+                                >
+                                    <div className="flex items-end gap-1.5 h-12">
+                                        {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                            <motion.div
+                                                key={i}
+                                                animate={{ height: ['20%', '100%', '20%'] }}
+                                                transition={{ repeat: Infinity, duration: 1, delay: i * 0.1 }}
+                                                className="w-1.5 bg-indigo-100 rounded-full"
+                                            />
+                                        ))}
+                                    </div>
+                                    <span className="text-xs font-medium text-indigo-600 uppercase tracking-[0.3em] animate-pulse">
+                                        Interviewer is thinking...
+                                    </span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Interaction Section */}
+                    <div className="flex flex-col items-center gap-10">
+                        <div className="flex items-center gap-8">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                onClick={toggleRecording}
+                                disabled={processing || !displayText}
+                                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
+                                    ? 'bg-red-500 text-white shadow-red-500/30'
+                                    : !displayText ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-white text-indigo-600 border border-gray-200 hover:bg-indigo-50'
+                                    }`}
                             >
-                                {displayText}
-                            </motion.p>
-                        ) : (
-                            <motion.div
-                                key="loading-voice"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="flex flex-col items-center gap-6"
-                            >
-                                <div className="flex items-end gap-1.5 h-12">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                        <motion.div
-                                            key={i}
-                                            animate={{ height: ['20%', '100%', '20%'] }}
-                                            transition={{ repeat: Infinity, duration: 1, delay: i * 0.1 }}
-                                            className="w-1.5 bg-indigo-100 rounded-full"
-                                        />
-                                    ))}
-                                </div>
-                                <span className="text-xs font-medium text-indigo-600 uppercase tracking-[0.3em] animate-pulse">
-                                    Interviewer is thinking...
+                                {recording ? <StopCircle size={32} /> : <Mic size={32} />}
+                            </motion.button>
+
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Current State</span>
+                                <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
+                                    {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
                                 </span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                {/* Interaction Section */}
-                <div className="flex flex-col items-center gap-10">
-                    <div className="flex items-center gap-8">
-                        <motion.button
-                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                            onClick={toggleRecording}
-                            disabled={processing || !displayText}
-                            className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
-                                ? 'bg-red-500 text-white shadow-red-500/30'
-                                : !displayText ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-white text-indigo-600 border border-gray-200 hover:bg-indigo-50'
-                                }`}
-                        >
-                            {recording ? <StopCircle size={32} /> : <Mic size={32} />}
-                        </motion.button>
-
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Current State</span>
-                            <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
-                                {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
-                            </span>
+                            </div>
                         </div>
+
+                        {/* Transcript Preview */}
+                        <AnimatePresence>
+                            {transcript && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                    className="w-full max-w-2xl p-6 bg-gray-50 rounded-2xl border border-gray-200 italic font-light text-gray-700 text-center"
+                                >
+                                    "{transcript}"
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
-                    {/* Transcript Preview */}
-                    <AnimatePresence>
-                        {transcript && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                className="w-full max-w-2xl p-6 bg-gray-50 rounded-2xl border border-gray-200 italic font-light text-gray-700 text-center"
-                            >
-                                "{transcript}"
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {error && (
+                        <div className="mt-8 text-center text-red-600 text-xs font-medium uppercase tracking-widest">
+                            {error}
+                        </div>
+                    )}
                 </div>
-
-                {error && (
-                    <div className="mt-8 text-center text-red-600 text-xs font-medium uppercase tracking-widest">
-                        {error}
-                    </div>
-                )}
-            </div>
+            </TabLockGuard>
         );
     }
 
