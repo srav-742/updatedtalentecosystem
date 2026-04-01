@@ -43,6 +43,12 @@ const AIInterview = ({ job, user, onComplete }) => {
     const webcamRef = useRef(null);
     const detectionIntervalRef = useRef(null);
     const MAX_WARNINGS = 20;
+    const normalizeQuestionText = (text = '') =>
+        String(text)
+            .replace(/\r\n/g, '\n')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
 
     useEffect(() => {
         // Preload COCO-SSD mode for person detection
@@ -100,11 +106,10 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     // Clean Typewriter Effect (Removed Bold)
     const typeText = (text) => {
-        if (!text) return;
-        const cleanText = text.trim();
+        const cleanText = normalizeQuestionText(text);
+        if (!cleanText) return;
         let i = 0;
         setDisplayText('');
-        setCoreState('idle');
 
         if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
 
@@ -114,6 +119,8 @@ const AIInterview = ({ job, user, onComplete }) => {
                 setDisplayText(cleanText.substring(0, i));
             } else {
                 clearInterval(typewriterIntervalRef.current);
+                typewriterIntervalRef.current = null;
+                setDisplayText(cleanText);
             }
         }, 22);
     };
@@ -121,12 +128,24 @@ const AIInterview = ({ job, user, onComplete }) => {
     const playAudio = (base64, textToDisplay) => {
         setDisplayText('');
         setCoreState('speaking');
-        const textToSpeak = textToDisplay || currentQuestion;
+        const textToSpeak = normalizeQuestionText(textToDisplay || currentQuestion);
         if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
 
+        const finishQuestionPlayback = () => {
+            if (typewriterIntervalRef.current) {
+                clearInterval(typewriterIntervalRef.current);
+                typewriterIntervalRef.current = null;
+            }
+            setDisplayText(textToSpeak);
+            setCoreState('idle');
+        };
+
         const speakInBrowser = () => {
+            window.speechSynthesis.cancel();
+            typeText(textToSpeak);
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            utterance.onend = () => typeText(textToSpeak);
+            utterance.onend = finishQuestionPlayback;
+            utterance.onerror = finishQuestionPlayback;
             window.speechSynthesis.speak(utterance);
         };
 
@@ -141,11 +160,11 @@ const AIInterview = ({ job, user, onComplete }) => {
                 { type: 'audio/mpeg' }
             );
             const url = URL.createObjectURL(audioBlob);
+            audioPlayerRef.current.pause();
+            audioPlayerRef.current.currentTime = 0;
             audioPlayerRef.current.src = url;
-            audioPlayerRef.current.onended = () => {
-                setCoreState('idle');
-                typeText(textToSpeak);
-            };
+            audioPlayerRef.current.onplay = () => typeText(textToSpeak);
+            audioPlayerRef.current.onended = finishQuestionPlayback;
             audioPlayerRef.current.onerror = speakInBrowser;
             audioPlayerRef.current.play().catch(speakInBrowser);
         } catch (err) {
@@ -285,13 +304,14 @@ const AIInterview = ({ job, user, onComplete }) => {
                 jobId: job._id,
                 userId: user.uid
             });
+            const firstQuestion = normalizeQuestionText(res.data.question);
             setSessionId(res.data.sessionId);
             setRecordingSessionId(res.data.recordingSessionId || null);
-            setCurrentQuestion(res.data.question);
+            setCurrentQuestion(firstQuestion);
             setCurrentQNum(1);
             await startFullSessionRecording();
             setStep('interview');
-            playAudio(res.data.audio, res.data.question);
+            playAudio(res.data.audio, firstQuestion);
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -354,12 +374,13 @@ const AIInterview = ({ job, user, onComplete }) => {
                         setFeedback(nextRes.data.feedback);
                         setStep('completed');
                     } else {
-                        setCurrentQuestion(nextRes.data.question);
+                        const nextQuestion = normalizeQuestionText(nextRes.data.question);
+                        setCurrentQuestion(nextQuestion);
                         setCurrentQNum(nextRes.data.currentQuestionNumber);
                         setTranscript('');
                         setError(null);
                         setDisplayText('');
-                        playAudio(nextRes.data.audio, nextRes.data.question);
+                        playAudio(nextRes.data.audio, nextQuestion);
                     }
                 } catch (err) {
                     setError(err.message || "Response processing error.");
@@ -526,7 +547,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                                 key={currentQuestion}
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center"
+                                className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center whitespace-pre-wrap break-words"
                             >
                                 {displayText}
                             </motion.p>

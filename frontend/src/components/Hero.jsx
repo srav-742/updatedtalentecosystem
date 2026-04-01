@@ -36,7 +36,7 @@ const Hero = () => {
                     </h1>
 
                     <p className="max-w-3xl mx-auto text-lg md:text-xl text-gray-400 mb-12 leading-relaxed">
-                        Access the <span className="text-white font-semibold">top 1% of IIT-vetted AI engineers.</span><br />
+                        Access the <span className="text-gray-900 font-semibold">top 1% of IIT-vetted AI engineers.</span><br />
                         We help AI startups save money by managing payroll, legal, and compliance work.
                     </p>
 
@@ -52,7 +52,7 @@ const Hero = () => {
 
                         <button
                             onClick={() => setIsProfileModalOpen(true)}
-                            className="group flex items-center px-8 py-4 bg-white/5 border border-white/10 text-white font-semibold rounded-2xl hover:bg-white/10 transition-all backdrop-blur-sm"
+                            className="group flex items-center px-8 py-4 bg-white border border-gray-200 text-gray-900 font-semibold rounded-2xl hover:bg-gray-50 transition-all shadow-sm"
                         >
                             <Users className="w-5 h-5 mr-3" />
                             View Sample Profiles
