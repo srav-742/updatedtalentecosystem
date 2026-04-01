@@ -154,7 +154,7 @@ export default function AgentInterview() {
   const [personCount, setPersonCount] = useState(1);
   const webcamRef = useRef(null);
   const detectionIntervalRef = useRef(null);
-  const MAX_WARNINGS = 5;
+  const MAX_WARNINGS = 20;
 
   const bottomRef = useRef(null);
   const audioPlayerRef = useRef(new Audio());
@@ -689,7 +689,7 @@ export default function AgentInterview() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto px-4 bg-[#fcfcff]">
+    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto px-4 bg-white">
       {/* Header */}
       <div className="py-6 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-4">
@@ -853,4 +853,3 @@ export default function AgentInterview() {
     </div>
   );
 }
-

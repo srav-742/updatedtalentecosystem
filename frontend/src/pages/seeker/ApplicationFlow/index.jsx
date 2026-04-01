@@ -112,16 +112,16 @@ const ApplicationFlow = () => {
     };
 
     return (
-        <div className="min-h-screen bg-transparent flex flex-col">
+        <div className="min-h-screen bg-white flex flex-col">
             {/* Progress Header */}
-            <div className="bg-white/5 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
                 <div className="max-w-5xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between mb-2">
-                        <h1 className="text-xl font-bold text-white">Application for {job.title}</h1>
-                        <span className="text-sm font-medium text-gray-400">Step {stepIndex + 1} of {enabledSteps.length}</span>
+                        <h1 className="text-xl font-bold text-gray-900">Application for {job.title}</h1>
+                        <span className="text-sm font-medium text-gray-500">Step {stepIndex + 1} of {enabledSteps.length}</span>
                     </div>
 
-                    <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
                         <motion.div
                             className="absolute left-0 top-0 h-full bg-blue-500"
                             initial={{ width: "0%" }}
@@ -130,10 +130,10 @@ const ApplicationFlow = () => {
                         />
                     </div>
 
-                    <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
                         {enabledSteps.map((s, idx) => (
-                            <div key={s.id} className={`flex items-center ${stepIndex >= idx ? 'text-blue-400' : ''}`}>
-                                <div className={`p-1.5 rounded-lg mr-2 ${stepIndex >= idx ? 'bg-blue-500/20' : 'bg-white/5 text-gray-600'}`}>
+                            <div key={s.id} className={`flex items-center ${stepIndex >= idx ? 'text-blue-600' : ''}`}>
+                                <div className={`p-1.5 rounded-lg mr-2 ${stepIndex >= idx ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
                                     {s.icon}
                                 </div>
                                 <span className="hidden sm:inline">{s.label}</span>
@@ -188,7 +188,7 @@ const ApplicationFlow = () => {
 
                     {!currentStep && (
                         <div className="text-center py-20">
-                            <h2 className="text-2xl font-bold text-white mb-4">No steps enabled for this job</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-4">No steps enabled for this job</h2>
                             <button onClick={() => navigate('/seeker/jobs')} className="px-6 py-2 bg-blue-600 text-white rounded-xl">Back to Jobs</button>
                         </div>
                     )}

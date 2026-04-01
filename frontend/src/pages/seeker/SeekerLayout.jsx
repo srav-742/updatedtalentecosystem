@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Briefcase, FileText, UserCircle, LogOut, Zap, Clock } from 'lucide-react';
 import axios from 'axios';
 import { getUserProfile, API_URL, auth } from '../../firebase';
@@ -7,9 +7,16 @@ import { signOut } from 'firebase/auth';
 
 const SeekerLayout = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const isInterviewSurface =
+        location.pathname.startsWith('/seeker/apply/') ||
+        location.pathname === '/seeker/mock-interview' ||
+        location.pathname === '/seeker/agent-interview' ||
+        location.pathname === '/seeker/agentInterview' ||
+        location.pathname === '/seeker/agentInterview.jsx';
 
     useEffect(() => {
         if (user.role && user.role !== 'seeker') {
@@ -145,10 +152,10 @@ const SeekerLayout = () => {
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] relative scroll-smooth pt-20 md:pt-0">
+            <main className={`flex-1 overflow-y-auto relative scroll-smooth pt-20 md:pt-0 ${isInterviewSurface ? 'bg-white text-gray-900' : 'bg-[#0a0c12]'}`}>
                 {/* Background Glows */}
-                <div className="fixed top-[-10%] right-[-5%] w-[600px] h-[600px] bg-teal-600/10 blur-[150px] rounded-full pointer-events-none -z-10" />
-                <div className="fixed bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-emerald-500/5 blur-[150px] rounded-full pointer-events-none -z-10" />
+                <div className={`fixed top-[-10%] right-[-5%] w-[600px] h-[600px] blur-[150px] rounded-full pointer-events-none -z-10 ${isInterviewSurface ? 'bg-teal-200/40' : 'bg-teal-600/10'}`} />
+                <div className={`fixed bottom-[-10%] left-[-5%] w-[600px] h-[600px] blur-[150px] rounded-full pointer-events-none -z-10 ${isInterviewSurface ? 'bg-emerald-100/60' : 'bg-emerald-500/5'}`} />
 
                 <div className="p-4 md:p-10 max-w-7xl mx-auto">
                     <Outlet />
