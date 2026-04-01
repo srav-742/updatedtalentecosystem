@@ -2,7 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Zap, RotateCcw, DollarSign } from 'lucide-react';
 
-const RiskShield = () => {
+const RiskShield = ({ theme = 'light' }) => {
+    const isLight = theme === 'light';
+
     const guarantees = [
         {
             icon: <Zap className="w-6 h-6 text-yellow-400" />,
@@ -22,7 +24,7 @@ const RiskShield = () => {
     ];
 
     return (
-        <section id="safety" className="py-24 relative overflow-hidden bg-[#0c0f16]">
+        <section id="safety" className={`py-24 relative overflow-hidden ${isLight ? 'bg-slate-50' : 'bg-[#0c0f16]'}`}>
             <div className="container mx-auto px-6">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -34,8 +36,8 @@ const RiskShield = () => {
                         <ShieldCheck className="w-4 h-4 mr-2" />
                         Risk-Free Vetting
                     </div>
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Built for Startup Safety</h2>
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                    <h2 className={`mb-6 text-4xl font-bold md:text-5xl ${isLight ? 'text-gray-900' : 'text-white'}`}>Built for Startup Safety</h2>
+                    <p className={`mx-auto max-w-2xl text-xl ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                         We are so confident in our vetting process that we shoulder the risk for you.
                     </p>
                 </motion.div>
@@ -48,13 +50,13 @@ const RiskShield = () => {
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: i * 0.1 }}
-                            className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 hover:border-white/20 transition-all group"
+                            className={`group rounded-[2.5rem] p-8 transition-all ${isLight ? 'border border-gray-200 bg-white shadow-sm hover:border-gray-300' : 'border border-white/10 bg-white/5 hover:border-white/20'}`}
                         >
-                            <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <div className={`mb-6 flex h-14 w-14 items-center justify-center rounded-2xl transition-transform group-hover:scale-110 ${isLight ? 'bg-slate-100' : 'bg-white/5'}`}>
                                 {item.icon}
                             </div>
-                            <h4 className="text-xl font-bold text-white mb-4">{item.title}</h4>
-                            <p className="text-gray-400 leading-relaxed text-sm">
+                            <h4 className={`mb-4 text-xl font-bold ${isLight ? 'text-gray-900' : 'text-white'}`}>{item.title}</h4>
+                            <p className={`text-sm leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                                 {item.desc}
                             </p>
                         </motion.div>

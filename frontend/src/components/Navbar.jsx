@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const Navbar = ({ theme = 'dark' }) => {
+const Navbar = ({ theme = 'dark', onToggleTheme }) => {
     const [user, setUser] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const isLight = theme === 'light';
@@ -30,6 +31,16 @@ const Navbar = ({ theme = 'dark' }) => {
 
 
 
+    const themeToggle = onToggleTheme ? (
+        <button
+            onClick={onToggleTheme}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+        >
+            {isLight ? <Moon size={16} /> : <Sun size={16} />}
+            <span>{isLight ? 'Dark' : 'Light'}</span>
+        </button>
+    ) : null;
+
     return (
         <motion.nav
             initial={{ y: -100 }}
@@ -52,6 +63,7 @@ const Navbar = ({ theme = 'dark' }) => {
                     <a href="/#safety" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Safety</a>
 
                     <div className="flex items-center space-x-4">
+                        {themeToggle}
                         {user ? (
                             <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>
                                 Dashboard
@@ -97,6 +109,20 @@ const Navbar = ({ theme = 'dark' }) => {
                             <a href="/#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
                             <a href="/#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
                             <a href="/#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
+                            {onToggleTheme && (
+                                <div className="pt-2">
+                                    <button
+                                        onClick={() => {
+                                            onToggleTheme();
+                                            setIsMenuOpen(false);
+                                        }}
+                                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+                                    >
+                                        {isLight ? <Moon size={16} /> : <Sun size={16} />}
+                                        <span>Switch to {isLight ? 'Dark' : 'Light'}</span>
+                                    </button>
+                                </div>
+                            )}
                             <div className="pt-4 flex flex-col space-y-4">
                                 {user ? (
                                     <Link

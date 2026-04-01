@@ -17,19 +17,20 @@ const faqs = [
     }
 ];
 
-const FAQItem = ({ question, answer }) => {
+const FAQItem = ({ question, answer, theme = 'light' }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const isLight = theme === 'light';
 
     return (
-        <div className="border-b border-white/10 last:border-0">
+        <div className={`last:border-0 ${isLight ? 'border-b border-gray-200' : 'border-b border-white/10'}`}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full py-6 flex items-center justify-between text-left group"
             >
-                <span className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                <span className={`text-lg font-semibold transition-colors ${isLight ? 'text-gray-900 group-hover:text-blue-600' : 'text-white group-hover:text-blue-400'}`}>
                     {question}
                 </span>
-                <div className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center shrink-0 ml-4 group-hover:border-blue-400 group-hover:text-blue-400 transition-all">
+                <div className={`ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all ${isLight ? 'border-gray-300 text-gray-500 group-hover:border-blue-500 group-hover:text-blue-600' : 'border-white/20 group-hover:border-blue-400 group-hover:text-blue-400'}`}>
                     {isOpen ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 </div>
             </button>
@@ -41,7 +42,7 @@ const FAQItem = ({ question, answer }) => {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <p className="pb-6 text-gray-400 leading-relaxed italic">
+                        <p className={`pb-6 leading-relaxed italic ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                             {answer}
                         </p>
                     </motion.div>
@@ -51,9 +52,11 @@ const FAQItem = ({ question, answer }) => {
     );
 };
 
-const FounderFAQs = () => {
+const FounderFAQs = ({ theme = 'light' }) => {
+    const isLight = theme === 'light';
+
     return (
-        <section id="faq" className="py-24 bg-[#0c0f16]">
+        <section id="faq" className={`py-24 ${isLight ? 'bg-white' : 'bg-[#0c0f16]'}`}>
             <div className="container mx-auto px-6">
                 <div className="max-w-3xl mx-auto">
                     <motion.div
@@ -66,12 +69,12 @@ const FounderFAQs = () => {
                             <HelpCircle className="w-4 h-4 mr-2" />
                             Objection Handling
                         </div>
-                        <h2 className="text-4xl font-bold text-white mb-6">Founder FAQs</h2>
+                        <h2 className={`mb-6 text-4xl font-bold ${isLight ? 'text-gray-900' : 'text-white'}`}>Founder FAQs</h2>
                     </motion.div>
 
-                    <div className="p-8 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-sm">
+                    <div className={`rounded-[2rem] p-8 backdrop-blur-sm ${isLight ? 'border border-gray-200 bg-slate-50' : 'border border-white/10 bg-white/5'}`}>
                         {faqs.map((faq, i) => (
-                            <FAQItem key={i} {...faq} />
+                            <FAQItem key={i} theme={theme} {...faq} />
                         ))}
                     </div>
                 </div>

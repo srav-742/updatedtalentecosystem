@@ -2,7 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-const FinalCTA = () => {
+const FinalCTA = ({ theme = 'light' }) => {
+    const isLight = theme === 'light';
+
     return (
         <section className="py-24 relative overflow-hidden">
             {/* Background Decor */}
@@ -10,14 +12,14 @@ const FinalCTA = () => {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full -z-10" />
 
             <div className="container mx-auto px-6">
-                <div className="max-w-4xl mx-auto rounded-[3rem] p-12 md:p-20 border border-white/10 bg-[#0c0f16]/50 backdrop-blur-xl text-center shadow-2xl relative">
+                <div className={`relative mx-auto max-w-4xl rounded-[3rem] border p-12 text-center backdrop-blur-xl md:p-20 ${isLight ? 'border-gray-200 bg-white/90 shadow-xl' : 'border-white/10 bg-[#0c0f16]/50 shadow-2xl'}`}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                     >
-                        <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">Stop Spending. Start Shipping.</h2>
-                        <p className="text-xl text-gray-400 mb-12">
+                        <h2 className={`mb-6 text-4xl font-bold md:text-5xl ${isLight ? 'text-gray-900' : 'text-white'}`}>Stop Spending. Start Shipping.</h2>
+                        <p className={`mb-12 text-xl ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                             Get 3 verified AI engineer profiles in 14 days.
                         </p>
 
