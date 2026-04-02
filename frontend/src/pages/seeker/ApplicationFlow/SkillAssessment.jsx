@@ -15,6 +15,7 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import TabLockGuard from '../../../components/TabLockGuard';
+import ExamWrapper from '../../../components/exam/ExamWrapper';
 
 const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [started, setStarted] = useState(false);
@@ -27,6 +28,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     const [error, setError] = useState(null);
     const [submissionId, setSubmissionId] = useState(null);
     const [assessmentTerminated, setAssessmentTerminated] = useState(false);
+    const [examWrapperSubmitted, setExamWrapperSubmitted] = useState(false);
 
     /* ===========================
        START ASSESSMENT
@@ -154,6 +156,28 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
             });
         } catch (e) {
             console.warn('Failed to submit terminated assessment:', e);
+        }
+    };
+
+    const handleExamWrapperSubmit = async ({ reason, autoSubmitted }) => {
+        if (autoSubmitted) {
+            console.warn('Auto-submitted due to proctoring violation:', reason);
+            setExamWrapperSubmitted(true);
+            setAssessmentTerminated(true);
+
+            try {
+                await axios.post(`${API_URL}/submit-assessment`, {
+                    jobId: job._id,
+                    userId: user.uid,
+                    sessionId: sessionId,
+                    questions: questions || [],
+                    answers: [],
+                    terminated: true,
+                    terminationReason: reason
+                });
+            } catch (e) {
+                console.warn('Failed to submit auto-terminated assessment:', e);
+            }
         }
     };
 
@@ -299,78 +323,84 @@ const SkillAssessment = ({ job, user, onComplete, onBack }) => {
     }
 
     return (
-        <TabLockGuard
-            maxWarnings={3}
-            onMaxWarningsExceeded={handleAssessmentTermination}
-            isActive={started && !assessmentTerminated}
+        <ExamWrapper
+            examId={job._id}
+            userId={user.uid}
+            onSubmit={handleExamWrapperSubmit}
         >
-            <motion.div
-                key={currentQIndex}
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="max-w-4xl mx-auto"
+            <TabLockGuard
+                maxWarnings={3}
+                onMaxWarningsExceeded={handleAssessmentTermination}
+                isActive={started && !assessmentTerminated && !examWrapperSubmitted}
             >
-                <div className="bg-white rounded-3xl shadow-lg p-8">
-                    <div className="mb-6 flex justify-between">
-                        <span className="text-sm font-bold text-indigo-600 uppercase">
-                            {q.type === 'mcq' ? 'MCQ' : 'Coding'}
-                        </span>
-                        <span className="text-gray-400 font-bold">
-                            {currentQIndex + 1}/{questions.length}
-                        </span>
-                    </div>
-
-                    <h3 className="text-xl font-bold mb-6 text-gray-800">
-                        {q.question || "Loading question..."}
-                    </h3>
-
-                    {q.type === 'mcq' ? (
-                        <div className="space-y-3">
-                            {q.options.map((opt, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => handleAnswer(opt)}
-                                    className={`w-full p-4 rounded-xl border text-left
-                          ${answers[currentQIndex] === opt
-                                            ? 'border-indigo-600 bg-indigo-50 text-gray-900'
-                                            : 'border-gray-200 text-gray-800 hover:bg-gray-50'}
-                        `}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
+                <motion.div
+                    key={currentQIndex}
+                    initial={{ opacity: 0, x: 40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="max-w-4xl mx-auto"
+                >
+                    <div className="bg-white rounded-3xl shadow-lg p-8">
+                        <div className="mb-6 flex justify-between">
+                            <span className="text-sm font-bold text-indigo-600 uppercase">
+                                {q.type === 'mcq' ? 'MCQ' : 'Coding'}
+                            </span>
+                            <span className="text-gray-400 font-bold">
+                                {currentQIndex + 1}/{questions.length}
+                            </span>
                         </div>
-                    ) : (
-                        <>
-                            <pre className="bg-gray-900 text-gray-200 p-4 rounded-xl mb-4 font-mono text-sm">
-                                {q.starterCode || '// Write your solution here'}
-                            </pre>
-                            <textarea
-                                className="w-full h-48 border rounded-xl p-4 font-mono text-gray-800"
-                                value={answers[currentQIndex] || ''}
-                                onChange={e => handleAnswer(e.target.value)}
-                                placeholder="Write your code here..."
-                            />
-                        </>
-                    )}
 
-                    <div className="mt-8 text-right">
-                        <button
-                            onClick={nextQuestion}
-                            disabled={!answers[currentQIndex]}
-                            className={`px-8 py-4 rounded-xl font-bold
+                        <h3 className="text-xl font-bold mb-6 text-gray-800">
+                            {q.question || "Loading question..."}
+                        </h3>
+
+                        {q.type === 'mcq' ? (
+                            <div className="space-y-3">
+                                {q.options.map((opt, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => handleAnswer(opt)}
+                                        className={`w-full p-4 rounded-xl border text-left
+                          ${answers[currentQIndex] === opt
+                                                ? 'border-indigo-600 bg-indigo-50 text-gray-900'
+                                                : 'border-gray-200 text-gray-800 hover:bg-gray-50'}
+                        `}
+                                    >
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <>
+                                <pre className="bg-gray-900 text-gray-200 p-4 rounded-xl mb-4 font-mono text-sm">
+                                    {q.starterCode || '// Write your solution here'}
+                                </pre>
+                                <textarea
+                                    className="w-full h-48 border rounded-xl p-4 font-mono text-gray-800"
+                                    value={answers[currentQIndex] || ''}
+                                    onChange={e => handleAnswer(e.target.value)}
+                                    placeholder="Write your code here..."
+                                />
+                            </>
+                        )}
+
+                        <div className="mt-8 text-right">
+                            <button
+                                onClick={nextQuestion}
+                                disabled={!answers[currentQIndex]}
+                                className={`px-8 py-4 rounded-xl font-bold
               ${answers[currentQIndex]
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-200 text-gray-400'
-                                }`}
-                        >
-                            {currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}
-                            <ArrowRight className="inline ml-2" />
-                        </button>
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-200 text-gray-400'
+                                    }`}
+                            >
+                                {currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}
+                                <ArrowRight className="inline ml-2" />
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </motion.div>
-        </TabLockGuard>
+                </motion.div>
+            </TabLockGuard>
+        </ExamWrapper>
     );
 };
 
