@@ -172,9 +172,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
             <div className="flex flex-col items-center justify-center py-32">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mb-6"></div>
                 <h3 className="text-xl font-bold">Generating Skill Assessment</h3>
-                <p className="text-gray-500 mt-2">
-                    AI is creating {job.assessment?.totalQuestions || 5} unique questions
-                </p>
+                <p className="text-gray-500 mt-2">AI is generating questions</p>
             </div>
         );
     }

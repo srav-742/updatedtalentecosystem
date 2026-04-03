@@ -603,7 +603,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                 </div>
                             </div>
                         </div>
-                        <span className="text-sm font-medium text-gray-900">Question {currentQNum} of 10</span>
                     </div>
 
                     {/* Question Section - Elegant and Clean (No Bold) */}
