@@ -104,4 +104,65 @@ const updateApplicationStatus = async (req, res) => {
     }
 };
 
-module.exports = { submitApplication, getSeekerApplications, updateApplicationStatus };
+const resetApplicationAfterProctoring = async (req, res) => {
+    try {
+        const { jobId, userId, stage = 'unknown', reason, violation = null } = req.body;
+
+        if (!jobId || !mongoose.Types.ObjectId.isValid(jobId) || !userId) {
+            return res.status(400).json({ message: "Valid jobId and userId are required" });
+        }
+
+        const query = { jobId: new mongoose.Types.ObjectId(jobId), userId };
+
+        const application = await Application.findOneAndUpdate(
+            query,
+            {
+                $set: {
+                    resumeMatchPercent: null,
+                    assessmentScore: null,
+                    assessmentSubmissionId: null,
+                    interviewScore: null,
+                    interviewAnswers: [],
+                    finalScore: null,
+                    resultsVisibleAt: null,
+                    recordingSessionId: null,
+                    recordingPublicId: null,
+                    recordingAssetId: null,
+                    recordingUrl: null,
+                    recordingPlaybackUrl: null,
+                    recordingFormat: null,
+                    recordingDuration: null,
+                    recordingBytes: null,
+                    recordingUploadedAt: null,
+                    recordingStatus: 'pending',
+                    status: 'APPLIED',
+                    lastProctoringResetAt: new Date(),
+                    lastProctoringResetReason: reason || 'Security limit exceeded',
+                    lastProctoringResetStage: stage,
+                    lastProctoringViolation: violation
+                },
+                $inc: { proctoringResetCount: 1 }
+            },
+            { new: true }
+        );
+
+        if (!application) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+
+        res.json({
+            success: true,
+            application
+        });
+    } catch (error) {
+        console.error("[PROCTORING-RESET] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = {
+    submitApplication,
+    getSeekerApplications,
+    updateApplicationStatus,
+    resetApplicationAfterProctoring
+};

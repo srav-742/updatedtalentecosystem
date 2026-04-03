@@ -6,7 +6,7 @@ const proctoringViolationSchema = new mongoose.Schema({
     type: { 
         type: String, 
         required: true,
-        enum: ['TAB_SWITCH', 'WINDOW_BLUR', 'KEYBOARD_SHORTCUT', 'RIGHT_CLICK', 'SCREEN_SHARE_STOPPED']
+        enum: ['TAB_SWITCH', 'WINDOW_BLUR', 'KEYBOARD_SHORTCUT', 'RIGHT_CLICK', 'SCREEN_SHARE_STOPPED', 'FULLSCREEN_EXIT']
     },
     detail: { type: String, required: true },
     count: { type: Number, required: true },

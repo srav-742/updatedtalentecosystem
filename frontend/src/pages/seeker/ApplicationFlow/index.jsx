@@ -20,6 +20,7 @@ const ApplicationFlow = () => {
     const [resumeData, setResumeData] = useState(null);
     const [assessmentScore, setAssessmentScore] = useState(null);
     const [interviewResult, setInterviewResult] = useState(null);
+    const [securityNotice, setSecurityNotice] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -98,6 +99,7 @@ const ApplicationFlow = () => {
     const currentStep = enabledSteps[stepIndex];
 
     const handleNext = () => {
+        setSecurityNotice(null);
         if (stepIndex < enabledSteps.length - 1) {
             setStepIndex(stepIndex + 1);
         } else {
@@ -109,6 +111,30 @@ const ApplicationFlow = () => {
         if (stepIndex > 0) {
             setStepIndex(stepIndex - 1);
         }
+    };
+
+    const handleSecurityResetToResume = async ({ stage, reason, violation }) => {
+        try {
+            await axios.post(`${API_URL}/applications/proctoring-reset`, {
+                jobId: job._id,
+                userId: user?.uid || user?._id || user?.id,
+                stage,
+                reason,
+                violation
+            });
+        } catch (error) {
+            console.error('Failed to reset application after security violation:', error);
+        }
+
+        setResumeData(null);
+        setAssessmentScore(null);
+        setInterviewResult(null);
+        setSecurityNotice(
+            'Security policy triggered. Restart from Resume Analysis to continue this application.'
+        );
+
+        const resumeStepIndex = enabledSteps.findIndex((step) => step.id === 'resume');
+        setStepIndex(resumeStepIndex >= 0 ? resumeStepIndex : 0);
     };
 
     return (
@@ -145,6 +171,12 @@ const ApplicationFlow = () => {
 
             {/* Main Content Area */}
             <div className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6 pb-24">
+                {securityNotice && (
+                    <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-900">
+                        {securityNotice}
+                    </div>
+                )}
+
                 <AnimatePresence mode="wait">
                     {currentStep?.id === 'resume' && (
                         <ResumeAnalyzer
@@ -165,6 +197,7 @@ const ApplicationFlow = () => {
                             user={user}
                             resumeData={resumeData}
                             onBack={handleBack}
+                            onSecurityReset={handleSecurityResetToResume}
                             onComplete={(score) => {
                                 setAssessmentScore(score);
                                 handleNext();
@@ -179,6 +212,7 @@ const ApplicationFlow = () => {
                             user={user}
                             resumeData={resumeData}
                             assessmentScore={assessmentScore}
+                            onSecurityReset={handleSecurityResetToResume}
                             onComplete={(result) => {
                                 setInterviewResult(result);
                                 navigate('/seeker/applications');
