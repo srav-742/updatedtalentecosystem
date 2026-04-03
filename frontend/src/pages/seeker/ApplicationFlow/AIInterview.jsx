@@ -6,9 +6,9 @@ import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import Webcam from "react-webcam";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import TabLockGuard from '../../../components/TabLockGuard';
+import SecureExamWrapper from '../../../components/exam/SecureExamWrapper';
 
-const AIInterview = ({ job, user, onComplete }) => {
+const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const [step, setStep] = useState('ready');
     const [sessionId, setSessionId] = useState(null);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -26,8 +26,10 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     // Tab lock state
     const [interviewTerminated, setInterviewTerminated] = useState(false);
+    const [securityResetting, setSecurityResetting] = useState(false);
 
     const mediaRecorderRef = useRef(null);
+    const answerStreamRef = useRef(null);
     const audioChunksRef = useRef([]);
     const audioPlayerRef = useRef(new Audio());
     const recognitionRef = useRef(null);
@@ -35,6 +37,7 @@ const AIInterview = ({ job, user, onComplete }) => {
     const fullSessionRecorderRef = useRef(null);
     const fullSessionChunksRef = useRef([]);
     const fullSessionStreamRef = useRef(null);
+    const securityResetRef = useRef(false);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -336,10 +339,20 @@ const AIInterview = ({ job, user, onComplete }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
             mediaRecorderRef.current = recorder;
+            answerStreamRef.current = stream;
             audioChunksRef.current = [];
 
             recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
             recorder.onstop = async () => {
+                if (securityResetRef.current) {
+                    stopStreamTracks(answerStreamRef.current);
+                    answerStreamRef.current = null;
+                    setRecording(false);
+                    setProcessing(false);
+                    setCoreState('idle');
+                    return;
+                }
+
                 try {
                     const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
                     const formData = new FormData();
@@ -390,7 +403,8 @@ const AIInterview = ({ job, user, onComplete }) => {
                     setError(err.message || "Response processing error.");
                     setCoreState('idle');
                 } finally {
-                    stopStreamTracks(stream);
+                    stopStreamTracks(answerStreamRef.current || stream);
+                    answerStreamRef.current = null;
                     setProcessing(false);
                 }
             };
@@ -422,6 +436,7 @@ const AIInterview = ({ job, user, onComplete }) => {
         return () => {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
+            stopStreamTracks(answerStreamRef.current);
             stopStreamTracks(fullSessionStreamRef.current);
             audioPlayerRef.current.pause();
             if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
@@ -429,29 +444,43 @@ const AIInterview = ({ job, user, onComplete }) => {
         };
     }, []);
 
-    const handleInterviewTermination = async (violation) => {
-        console.warn('Interview terminated due to tab-switching violation:', violation);
+    const handleInterviewSecurityReset = async (violation) => {
+        console.warn('Interview security reset triggered:', violation);
+        securityResetRef.current = true;
         setInterviewTerminated(true);
+        setSecurityResetting(true);
+        setRecording(false);
+        setProcessing(false);
+        setCoreState('idle');
 
-        // Stop all recordings
+        recognitionRef.current?.stop();
+        audioPlayerRef.current.pause();
+        window.speechSynthesis.cancel();
+
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.onstop = null;
             mediaRecorderRef.current.stop();
         }
-        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state === 'recording') {
+
+        stopStreamTracks(answerStreamRef.current);
+        answerStreamRef.current = null;
+
+        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+            fullSessionRecorderRef.current.onstop = null;
+            fullSessionRecorderRef.current.onerror = null;
             fullSessionRecorderRef.current.stop();
         }
 
-        // Save termination record
-        try {
-            await axios.post(`${API_URL}/interview/terminate`, {
-                sessionId,
-                userId: user.uid,
-                reason: 'Tab-switching violation detected',
-                violation
-            });
-        } catch (e) {
-            console.warn('Failed to save termination record:', e);
-        }
+        stopStreamTracks(fullSessionStreamRef.current);
+        fullSessionStreamRef.current = null;
+        fullSessionRecorderRef.current = null;
+        fullSessionChunksRef.current = [];
+
+        await onSecurityReset?.({
+            stage: 'interview',
+            reason: violation?.detail || 'Interview security limit exceeded',
+            violation
+        });
     };
 
     if (isKickedOut) {
@@ -525,10 +554,14 @@ const AIInterview = ({ job, user, onComplete }) => {
 
     if (step === 'interview') {
         return (
-            <TabLockGuard
-                maxWarnings={3}
-                onMaxWarningsExceeded={handleInterviewTermination}
-                isActive={!interviewTerminated}
+            <SecureExamWrapper
+                examId={`interview:${job._id}:${sessionId || 'pending'}`}
+                userId={user.uid}
+                isActive={!interviewTerminated && !securityResetting}
+                requireScreenShare={false}
+                warningLimit={3}
+                resetLimit={4}
+                onSecurityReset={handleInterviewSecurityReset}
             >
                 <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
                     {/* Minimal Header */}
@@ -653,7 +686,7 @@ const AIInterview = ({ job, user, onComplete }) => {
                         </div>
                     )}
                 </div>
-            </TabLockGuard>
+            </SecureExamWrapper>
         );
     }
 
