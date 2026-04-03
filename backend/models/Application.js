@@ -24,6 +24,11 @@ const applicationSchema = new mongoose.Schema({
         enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
         default: 'pending'
     },
+    proctoringResetCount: { type: Number, default: 0 },
+    lastProctoringResetAt: Date,
+    lastProctoringResetReason: String,
+    lastProctoringResetStage: String,
+    lastProctoringViolation: mongoose.Schema.Types.Mixed,
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },
