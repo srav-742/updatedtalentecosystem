@@ -1,158 +1,232 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { logViolation } from "../utils/proctoringLogger";
 
-const MAX_VIOLATIONS = 3; // auto-submit after this many
+const MAX_VIOLATIONS = 3;
 
-export function useProctoring({ examId, userId, onAutoSubmit, isActive }) {
+const BLOCKED_COMBOS = [
+  { ctrl: true, key: "t" },
+  { ctrl: true, key: "n" },
+  { ctrl: true, key: "w" },
+  { ctrl: true, key: "Tab" },
+  { alt: true, key: "Tab" },
+  { meta: true, key: "Tab" },
+  { meta: true, key: "w" },
+  { meta: true, key: "n" },
+  { ctrl: true, shift: true, key: "Tab" },
+  { key: "F12" },
+  { key: "F5" },
+  { key: "F11" },
+  { ctrl: true, shift: true, key: "i" },
+  { ctrl: true, shift: true, key: "j" },
+  { ctrl: true, shift: true, key: "c" },
+  { ctrl: true, key: "u" },
+  { ctrl: true, key: "p" },
+  { ctrl: true, key: "f" },
+  { ctrl: true, key: "a" },
+  { ctrl: true, key: "r" },
+  { key: "PrintScreen" },
+  { alt: true, key: "F4" },
+  { meta: true, key: "d" },
+  { meta: true, key: "h" },
+  { meta: true, key: "m" },
+];
+
+export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
   const [violations, setViolations] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
-  const violationCountRef = useRef(0);
+  const [examLocked, setExamLocked] = useState(false); // NEW: hard lock state
+  const countRef = useRef(0);
+  const lockedRef = useRef(false);
+  const lastBlurTs = useRef(0); // debounce duplicate blur+visibility events
 
+  // ── Force fullscreen ──────────────────────────────────────────────────
+  const requestFullscreen = useCallback(() => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.()
+        || el.webkitRequestFullscreen?.()
+        || el.mozRequestFullScreen?.()
+        || el.msRequestFullscreen?.();
+    }
+  }, []);
+
+  // Re-enter fullscreen when user exits it
+  useEffect(() => {
+    if (!isActive) return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isActive && !lockedRef.current) {
+        // Give browser 300ms, then force back
+        setTimeout(() => {
+          if (!document.fullscreenElement) requestFullscreen();
+        }, 300);
+        recordViolation("FULLSCREEN_EXIT", "Exited fullscreen mode");
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, [isActive, requestFullscreen]);
+
+  // ── Lock exam UI (hard overlay) ───────────────────────────────────────
+  const lockExam = useCallback((msg) => {
+    lockedRef.current = true;
+    setExamLocked(true);
+    setWarningMessage(msg);
+    setShowWarning(true);
+  }, []);
+
+  const unlockExam = useCallback(() => {
+    lockedRef.current = false;
+    setExamLocked(false);
+    setShowWarning(false);
+    // Return to fullscreen when they come back
+    requestFullscreen();
+    // Refocus the window aggressively
+    window.focus();
+    document.documentElement.focus?.();
+  }, [requestFullscreen]);
+
+  // ── Core violation recorder ───────────────────────────────────────────
   const recordViolation = useCallback(
     (type, detail) => {
       if (!isActive) return;
 
-      violationCountRef.current += 1;
-      const count = violationCountRef.current;
+      // Debounce — blur + visibilitychange fire within ms of each other
+      const now = Date.now();
+      if (now - lastBlurTs.current < 500 &&
+        (type === "TAB_SWITCH" || type === "WINDOW_BLUR")) {
+        return; // duplicate event, skip
+      }
+      lastBlurTs.current = now;
 
-      const violation = {
-        type,
-        detail,
-        count,
-        timestamp: new Date().toISOString(),
-      };
+      countRef.current += 1;
+      const count = countRef.current;
 
-      setViolations((prev) => [...prev, violation]);
-      logViolation({ examId, userId, ...violation }); // send to backend
-
-      const message =
-        count >= MAX_VIOLATIONS
-          ? `🚨 Final warning #${count}: "${detail}". Your exam is being auto-submitted now.`
-          : `⚠️ Warning ${count}/${MAX_VIOLATIONS}: "${detail}". ${MAX_VIOLATIONS - count} warning(s) left before auto-submit.`;
-
-      setWarningMessage(message);
-      setShowWarning(true);
+      const v = { type, detail, count, timestamp: new Date().toISOString() };
+      setViolations((prev) => [...prev, v]);
+      logViolation({ examId, userId, ...v });
 
       if (count >= MAX_VIOLATIONS) {
-        setTimeout(() => onAutoSubmit?.("proctoring_violation"), 3000);
-      }
-    },
-    [isActive, examId, userId, onAutoSubmit]
-  );
-
-  // --- Tab Visibility Detection ---
-  useEffect(() => {
-    if (!isActive) return;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation(
-          "TAB_SWITCH",
-          "You switched to another tab or minimized the window"
+        lockExam(
+          `🚨 Exam auto-submitting: You have been caught switching tabs/windows ${count} times. Your responses have been recorded.`
+        );
+        setTimeout(() => onAutoSubmit?.("proctoring_violation"), 4000);
+      } else {
+        const remaining = MAX_VIOLATIONS - count;
+        lockExam(
+          `⛔ WARNING ${count}/${MAX_VIOLATIONS}: ${detail}.\n\n` +
+          `You have ${remaining} warning(s) remaining before your exam is auto-submitted.\n\n` +
+          `Click "Return to Exam" to continue.`
         );
       }
-    };
+    },
+    [isActive, examId, userId, lockExam, onAutoSubmit]
+  );
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isActive, recordViolation]);
-
-  // --- Window Blur Detection (Alt+Tab, other app) ---
+  // ── 1. Tab visibility (catches Ctrl+Tab, clicking other tab) ─────────
   useEffect(() => {
     if (!isActive) return;
-
-    const handleBlur = () => {
-      recordViolation(
-        "WINDOW_BLUR",
-        "You switched to another application or window"
-      );
+    const handler = () => {
+      if (document.hidden) {
+        recordViolation("TAB_SWITCH", "You switched to another tab");
+      } else {
+        // Tab is visible again — keep exam locked until they manually dismiss
+      }
     };
-
-    window.addEventListener("blur", handleBlur);
-    return () => window.removeEventListener("blur", handleBlur);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
   }, [isActive, recordViolation]);
 
-  // --- Keyboard Shortcut Blocking ---
+  // ── 2. Window blur (catches Alt+Tab, second window, clicking taskbar) ─
   useEffect(() => {
     if (!isActive) return;
+    const handler = () => {
+      recordViolation("WINDOW_BLUR", "You switched to another application or window");
+    };
+    window.addEventListener("blur", handler);
+    return () => window.removeEventListener("blur", handler);
+  }, [isActive, recordViolation]);
 
-    // All keyboard combos to block (exact spec from requirements)
-    const BLOCKED_KEYS = [
-      { ctrl: true, key: "t" },           // New tab
-      { ctrl: true, key: "n" },           // New window
-      { ctrl: true, key: "w" },           // Close tab
-      { ctrl: true, key: "Tab" },         // Cycle tabs
-      { alt: true, key: "Tab" },          // Switch app (Windows)
-      { meta: true, key: "Tab" },         // Switch app (Mac)
-      { ctrl: true, shift: true, key: "Tab" },
-      { key: "F12" },                      // DevTools
-      { ctrl: true, shift: true, key: "i" },
-      { ctrl: true, shift: true, key: "j" },
-      { ctrl: true, shift: true, key: "c" },
-      { ctrl: true, key: "u" },           // View source
-      { ctrl: true, key: "p" },           // Print
-      { key: "PrintScreen" },
-      { ctrl: true, key: "f" },           // Browser search
-    ];
-
-    const handleKeyDown = (e) => {
-      const matched = BLOCKED_KEYS.some((combo) => {
+  // ── 3. Keyboard shortcut blocking ─────────────────────────────────────
+  useEffect(() => {
+    if (!isActive) return;
+    const handler = (e) => {
+      const blocked = BLOCKED_COMBOS.some((combo) => {
         if (combo.key !== e.key) return false;
         if (combo.ctrl !== undefined && combo.ctrl !== e.ctrlKey) return false;
         if (combo.alt !== undefined && combo.alt !== e.altKey) return false;
-        if (combo.shift !== undefined && combo.shift !== e.shiftKey)
-          return false;
+        if (combo.shift !== undefined && combo.shift !== e.shiftKey) return false;
         if (combo.meta !== undefined && combo.meta !== e.metaKey) return false;
         return true;
       });
-
-      if (matched) {
+      if (blocked) {
         e.preventDefault();
         e.stopPropagation();
-        recordViolation(
-          "KEYBOARD_SHORTCUT",
-          `Blocked key: ${[
-            e.ctrlKey && "Ctrl",
-            e.altKey && "Alt",
-            e.shiftKey && "Shift",
-            e.metaKey && "Cmd",
-            e.key,
-          ]
-            .filter(Boolean)
-            .join("+")}`
-        );
+        e.stopImmediatePropagation();
+        const label = [
+          e.ctrlKey && "Ctrl", e.altKey && "Alt",
+          e.shiftKey && "Shift", e.metaKey && "Cmd", e.key,
+        ].filter(Boolean).join("+");
+        recordViolation("KEYBOARD_SHORTCUT", `Blocked shortcut: ${label}`);
         return false;
       }
     };
-
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () =>
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    // capture:true intercepts BEFORE browser handles it
+    window.addEventListener("keydown", handler, { capture: true });
+    return () => window.removeEventListener("keydown", handler, { capture: true });
   }, [isActive, recordViolation]);
 
-  // --- Right Click Block ---
+  // ── 4. Right-click block ───────────────────────────────────────────────
   useEffect(() => {
     if (!isActive) return;
-
-    const handleContextMenu = (e) => {
+    const handler = (e) => {
       e.preventDefault();
-      recordViolation("RIGHT_CLICK", "Right-click menu was blocked");
+      e.stopPropagation();
     };
+    document.addEventListener("contextmenu", handler, { capture: true });
+    return () => document.removeEventListener("contextmenu", handler, { capture: true });
+  }, [isActive]);
 
-    document.addEventListener("contextmenu", handleContextMenu);
-    return () =>
-      document.removeEventListener("contextmenu", handleContextMenu);
-  }, [isActive, recordViolation]);
+  // ── 5. Block text selection (prevents copy) ───────────────────────────
+  useEffect(() => {
+    if (!isActive) return;
+    const handler = (e) => e.preventDefault();
+    document.addEventListener("selectstart", handler);
+    return () => document.removeEventListener("selectstart", handler);
+  }, [isActive]);
 
-  const dismissWarning = () => setShowWarning(false);
+  // ── 6. Block drag (prevents dragging content out) ─────────────────────
+  useEffect(() => {
+    if (!isActive) return;
+    const handler = (e) => e.preventDefault();
+    document.addEventListener("dragstart", handler);
+    return () => document.removeEventListener("dragstart", handler);
+  }, [isActive]);
+
+  // ── 7. Window focus: re-assert lock when they come back ───────────────
+  useEffect(() => {
+    if (!isActive) return;
+    const handler = () => {
+      // When window regains focus, if exam is locked keep overlay visible
+      // This prevents the exam from silently resuming after switching away
+      if (lockedRef.current) {
+        setShowWarning(true); // ensure overlay is still showing
+      }
+    };
+    window.addEventListener("focus", handler);
+    return () => window.removeEventListener("focus", handler);
+  }, [isActive]);
 
   return {
     violations,
-    violationCount: violationCountRef.current,
+    violationCount: countRef.current,
     showWarning,
     warningMessage,
-    dismissWarning,
+    examLocked,
+    dismissWarning: unlockExam, // only unlocks if < MAX_VIOLATIONS
   };
 }
