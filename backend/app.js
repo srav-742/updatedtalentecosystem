@@ -8,10 +8,12 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 const app = express();
 
 // Middleware
-app.use(cors({
-    origin: '*',
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id']
-}));
+const corsOptions = {
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+    credentials: true
+};
+app.use(cors(corsOptions));
 app.use((req, res, next) => {
     // Only set COOP for routes that need popup windows
     if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
