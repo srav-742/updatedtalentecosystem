@@ -37,6 +37,9 @@ const TECH_KEYWORDS = [
     'developer', 'engineer', 'engineering', 'software', 'frontend', 'backend',
     'fullstack', 'full-stack', 'full stack', 'devops', 'data scientist',
     'data engineer', 'machine learning', 'ml engineer', 'ai engineer',
+    'artificial intelligence', 'ai researcher', 'ai scientist', 'llm engineer',
+    'prompt engineer', 'nlp engineer', 'computer vision', 'deep learning engineer',
+    'generative ai', 'genai', 'foundation model', 'rag engineer', 'mlops',
     'cloud engineer', 'sre', 'site reliability', 'qa engineer', 'test engineer',
     'automation engineer', 'security engineer', 'architect', 'programmer',
     'coding', 'development', 'web developer', 'mobile developer', 'ios developer',
@@ -46,6 +49,11 @@ const TECH_KEYWORDS = [
     'penetration tester', 'infrastructure', 'platform engineer', 'tech lead',
     'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
 ];
+
+// ─── CHANGE 1: Random question count between 5 and 6 ─────────────────────────
+function getRandomQuestionCount() {
+    return Math.random() < 0.5 ? 5 : 6;
+}
 
 /**
  * Determines if a job is a technical role based on title, description, and skills.
@@ -81,7 +89,15 @@ function classifyRole(job) {
         'solidity', 'blockchain', 'machine learning', 'deep learning', 'tensorflow',
         'pytorch', 'scikit', 'pandas', 'numpy', 'spark', 'hadoop', 'kafka',
         'redis', 'elasticsearch', 'ci/cd', 'jenkins', 'flask', 'django', 'spring',
-        'ruby', 'rails', 'swift', 'kotlin', 'flutter', 'dart', '.net', 'c#'];
+        'ruby', 'rails', 'swift', 'kotlin', 'flutter', 'dart', '.net', 'c#',
+        // ─── CHANGE 2: Added AI/ML specific skills ───────────────────────────
+        'langchain', 'langgraph', 'openai', 'anthropic', 'hugging face', 'transformers',
+        'llm', 'gpt', 'claude', 'gemini', 'ollama', 'rag', 'vector database',
+        'pinecone', 'weaviate', 'chroma', 'faiss', 'embeddings', 'fine-tuning',
+        'lora', 'rlhf', 'prompt engineering', 'stable diffusion', 'diffusion models',
+        'automl', 'mlflow', 'weights and biases', 'wandb', 'ray', 'triton',
+        'onnx', 'torchserve', 'bentoml', 'fastapi', 'gradio', 'streamlit'
+    ];
 
     for (const skill of skillsLower) {
         if (techSkills.some(ts => skill.includes(ts))) techScore += 1;
@@ -92,7 +108,12 @@ function classifyRole(job) {
     // Determine a more granular role category for prompt engineering
     let roleCategory = 'general';
     if (isTech) {
-        roleCategory = 'technical';
+        // ─── CHANGE 3: Detect AI Engineer category BEFORE generic 'technical' ─
+        if (/ai engineer|ml engineer|machine learning|deep learning|llm|artificial intelligence|ai researcher|ai scientist|nlp|computer vision|generative ai|genai|mlops|prompt engineer|rag|foundation model/i.test(titleLower + ' ' + descLower)) {
+            roleCategory = 'ai_engineer';
+        } else {
+            roleCategory = 'technical';
+        }
     } else if (/sales|business development|bd |bde|account executive|account manager/i.test(titleLower + ' ' + descLower)) {
         roleCategory = 'sales';
     } else if (/marketing|brand|growth|seo|sem|content|social media/i.test(titleLower + ' ' + descLower)) {
@@ -118,6 +139,31 @@ function classifyRole(job) {
 function buildSystemPrompt(roleInfo, job) {
     const { isTech, roleCategory } = roleInfo;
     const jobTitle = job?.title || 'the role';
+
+    if (isTech && roleCategory === 'ai_engineer') {
+        // ─── CHANGE 4: New AI Engineer system prompt ──────────────────────────
+        return `
+You are a principal AI/ML engineer and technical interviewer conducting a rigorous interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- You are interviewing for an AI/ML engineering role. Focus primarily on the job description requirements.
+- 80% of your questions MUST be derived directly from the job description — AI/ML frameworks, model architectures, data pipelines, deployment strategies, and domain-specific AI challenges.
+- 20% of your questions should reference the candidate's resume to validate their claimed AI/ML experience.
+- Ask about model selection and trade-offs, RAG pipeline design, LLM fine-tuning strategies, prompt engineering techniques, vector database architecture, MLOps practices, and production AI system challenges relevant to the job.
+- Dive into implementation details: tokenization, embedding strategies, chunking strategies, context window management, hallucination mitigation, latency optimisation, and cost management for LLM-based systems.
+- Probe their understanding of evaluation metrics: BLEU, ROUGE, BERTScore, faithfulness, relevance, and human evaluation for generative AI systems.
+
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a principal AI engineer interviewing at a top AI-first company.
+- Each question should naturally flow from the candidate's previous answer.
+- If the candidate gives a strong answer, go deeper. If they struggle, gracefully pivot to a related but different AI/ML topic from the job description.
+- Ask ONE question at a time. Never bundle multiple questions.
+- Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
+`;
+    }
 
     if (isTech) {
         return `
@@ -236,6 +282,8 @@ function buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions
     const resumeWeight = isTech ? '20%' : '10%';
     const jdWeight = isTech ? '80%' : '90%';
 
+    const isAiRole = roleCategory === 'ai_engineer';
+
     return `
 === JOB DESCRIPTION (PRIMARY SOURCE — ${jdWeight} of questions should come from this) ===
 Title: ${job?.title || 'Not specified'}
@@ -260,7 +308,11 @@ You are starting the interview. Ask the FIRST question.
 RULES:
 - The first question MUST be derived from the JOB DESCRIPTION, not the resume.
 - Start with a strong, role-specific opening question that assesses the candidate's understanding of the core responsibilities described in the JD.
-- For ${isTech ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.' : 'non-technical roles: ask about a core responsibility, business scenario, or domain-specific challenge mentioned in the JD.'}
+- For ${isAiRole
+            ? 'AI/ML engineering roles: ask about a key AI/ML architecture, framework, or technical challenge mentioned in the JD — e.g., RAG pipeline design, LLM selection rationale, embedding strategy, or model evaluation approach.'
+            : isTech
+                ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.'
+                : 'non-technical roles: ask about a core responsibility, business scenario, or domain-specific challenge mentioned in the JD.'}
 - Do NOT ask generic questions like "Tell me about yourself" — dive directly into the role.
 - Return ONLY the question. Nothing else. Ensure the question is a complete sentence and fully addresses the role requirements.
 `;
@@ -274,12 +326,19 @@ function buildNextQuestionPrompt(session, questionNumber) {
     const { isTech, roleCategory } = roleInfo;
     const resumeWeight = isTech ? '20%' : '10%';
     const jdWeight = isTech ? '80%' : '90%';
-    const totalQuestions = 10;
+    const totalQuestions = session.totalQuestions; // ─── CHANGE 5: use session's count
 
-    // Determine if this question should be resume-based
-    // For tech: questions 4 and 8 are resume-based (2 out of 10 = 20%)
-    // For non-tech: question 7 is resume-based (1 out of 10 = 10%)
-    const resumeQuestionSlots = isTech ? [4, 8] : [7];
+    const isAiRole = roleCategory === 'ai_engineer';
+
+    // Resume question slots scale with totalQuestions
+    // For 5 questions: slot 4 (tech/ai) or slot 4 (non-tech)
+    // For 6 questions: slots 4 and 6 (tech/ai) or slot 5 (non-tech)
+    let resumeQuestionSlots;
+    if (isTech) {
+        resumeQuestionSlots = totalQuestions === 5 ? [4] : [4, 6];
+    } else {
+        resumeQuestionSlots = totalQuestions === 5 ? [4] : [5];
+    }
     const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
 
     const askedQuestions = session.history
@@ -302,9 +361,11 @@ THIS IS A RESUME-BASED QUESTION (${resumeWeight} allocation).
 THIS IS A JOB-DESCRIPTION-BASED QUESTION (${jdWeight} allocation).
 - Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
 - Base the question on the candidate's PREVIOUS ANSWER — if they mentioned something relevant, drill deeper; if they struggled, pivot to another JD topic.
-- ${isTech
-                ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
-                : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities — "How would you handle...", "Walk me through how you would approach..."'}
+- ${isAiRole
+                ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
+                : isTech
+                    ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
+                    : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities — "How would you handle...", "Walk me through how you would approach..."'}
 `;
     }
 
@@ -350,9 +411,10 @@ Based on the interview flow above, ask the NEXT interview question (Question ${q
 function buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber) {
     const { roleInfo } = session;
     const { isTech, roleCategory } = roleInfo;
+    const isAiRole = roleCategory === 'ai_engineer';
 
     return `
-You are a senior ${isTech ? 'technical' : 'professional'} interview evaluator scoring ONE interview answer.
+You are a senior ${isAiRole ? 'AI/ML engineering' : isTech ? 'technical' : 'professional'} interview evaluator scoring ONE interview answer.
 
 === JOB CONTEXT ===
 Title: ${session.jobTitle || 'Not specified'}
@@ -370,7 +432,14 @@ ${questionText || 'Not specified'}
 ${answerText || 'No answer provided'}
 
 === SCORE THIS ANSWER ONLY ===
-${isTech ? `
+${isAiRole ? `
+- Depth of AI/ML knowledge: understanding of model architectures, training strategies, and inference pipelines
+- RAG and LLM system design: chunking, embedding, retrieval, reranking, and context management
+- Practical engineering judgement: framework selection rationale, trade-off awareness, latency/cost considerations
+- Evaluation mindset: knowledge of metrics (BLEU, ROUGE, BERTScore, faithfulness, relevance) and testing strategies
+- MLOps awareness: model versioning, monitoring, drift detection, and deployment best practices
+- Communication clarity when explaining complex AI/ML concepts
+` : isTech ? `
 - Technical depth and accuracy of answers
 - Problem-solving approach and analytical thinking
 - Implementation detail and architecture understanding when relevant
@@ -400,10 +469,11 @@ Evaluate ONLY this single answer and return ONLY a JSON object:
 function buildEvalPrompt(session, answerEvaluations, overallScore) {
     const { roleInfo } = session;
     const { isTech, roleCategory } = roleInfo;
+    const isAiRole = roleCategory === 'ai_engineer';
     const conversation = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
 
     return `
-You are a senior ${isTech ? 'technical' : 'professional'} interview evaluator.
+You are a senior ${isAiRole ? 'AI/ML engineering' : isTech ? 'technical' : 'professional'} interview evaluator.
 
 === JOB CONTEXT ===
 Title: ${session.jobTitle || 'Not specified'}
@@ -496,7 +566,7 @@ async function evaluateAnswer(session, questionText, answerText, questionNumber)
             prompt,
             500,
             true,
-            `You are a strict ${session.roleInfo.isTech ? 'technical' : 'professional'} interviewer. Score only the candidate's latest answer and respond with valid JSON.`
+            `You are a strict ${session.roleInfo.roleCategory === 'ai_engineer' ? 'AI/ML engineering' : session.roleInfo.isTech ? 'technical' : 'professional'} interviewer. Score only the candidate's latest answer and respond with valid JSON.`
         );
         const parsed = parseJsonObject(rawResponse);
         if (!parsed) {
@@ -519,8 +589,8 @@ function summarizeInterviewFallback(answerEvaluations, overallScore) {
     const weakest = [...answerEvaluations].sort((a, b) => a.score - b.score)[0];
     const band =
         overallScore >= 80 ? "strong" :
-        overallScore >= 60 ? "solid" :
-        "developing";
+            overallScore >= 60 ? "solid" :
+                "developing";
 
     return `The candidate delivered a ${band} interview overall with a final score of ${overallScore}%. Stronger moments appeared in "${strongest.question}", while weaker depth was visible in "${weakest.question}". Overall, the candidate should keep improving consistency, clarity, and role-specific detail across answers.`;
 }
@@ -570,9 +640,13 @@ router.post('/start', async (req, res) => {
 
         if (!firstQuestion) {
             // Fallback: role-appropriate generic question
-            firstQuestion = roleInfo.isTech
-                ? "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?"
-                : `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+            if (roleInfo.roleCategory === 'ai_engineer') {
+                firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
+            } else if (roleInfo.isTech) {
+                firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+            } else {
+                firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+            }
         }
 
         // Voice generation (TTS)
@@ -584,6 +658,10 @@ router.post('/start', async (req, res) => {
 
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
+
+        // ─── CHANGE 6: Pick random question count (5 or 6) and store in session ─
+        const totalQuestions = getRandomQuestionCount();
+        console.log(`[INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(
             { userId, jobId },
@@ -607,6 +685,7 @@ router.post('/start', async (req, res) => {
             jobSkills: job?.skills || [],
             experienceLevel: job?.experienceLevel || '',
             systemPrompt,
+            totalQuestions, // ─── stored here
             history: [{ role: 'interviewer', content: firstQuestion }],
             answerEvaluations: []
         });
@@ -616,7 +695,8 @@ router.post('/start', async (req, res) => {
             sessionId,
             recordingSessionId,
             question: firstQuestion,
-            audio: audioBase64
+            audio: audioBase64,
+            totalQuestions // ─── sent to frontend so it can show "Q1 of 5" or "Q1 of 6"
         });
     } catch (error) {
         console.error("Start Error:", error);
@@ -657,9 +737,9 @@ router.post('/next', async (req, res) => {
             feedback: answerEvaluation.feedback
         });
 
-        // End after 10 questions
-        if (interviewers.length >= 10) {
-            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId}`);
+        // ─── CHANGE 7: End after session's totalQuestions (5 or 6) not hardcoded 10 ─
+        if (interviewers.length >= session.totalQuestions) {
+            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${session.totalQuestions} questions`);
             const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
 
@@ -672,7 +752,7 @@ router.post('/next', async (req, res) => {
                     evalPrompt,
                     900,
                     true,
-                    `You are a senior ${session.roleInfo.isTech ? 'technical' : 'professional'} evaluator. Summarize this interview objectively in valid JSON.`
+                    `You are a senior ${session.roleInfo.roleCategory === 'ai_engineer' ? 'AI/ML engineering' : session.roleInfo.isTech ? 'technical' : 'professional'} evaluator. Summarize this interview objectively in valid JSON.`
                 );
                 console.log("[INTERVIEW-EVAL] Raw AI Response:", resText);
                 const parsed = parseJsonObject(resText);
@@ -759,9 +839,13 @@ router.post('/next', async (req, res) => {
         let nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
 
         if (!nextQuestion) {
-            nextQuestion = session.roleInfo.isTech
-                ? "Can you elaborate on the technical implementation details of that approach?"
-                : "Could you walk me through how you would specifically handle that situation in this role?";
+            if (session.roleInfo.roleCategory === 'ai_engineer') {
+                nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
+            } else if (session.roleInfo.isTech) {
+                nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
+            } else {
+                nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+            }
         }
 
         // Voice generation (TTS)
@@ -778,6 +862,7 @@ router.post('/next', async (req, res) => {
             question: nextQuestion,
             audio: audioBase64,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
+            totalQuestions: session.totalQuestions, // ─── keep frontend in sync
             answerEvaluation
         });
     } catch (error) {
