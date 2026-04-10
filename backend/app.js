@@ -10,37 +10,26 @@ const app = express();
 // Middleware
 const corsOptions = {
     origin: (origin, callback) => {
-        const allowedOrigins = [
-            'http://localhost:5173',
-            'http://localhost:5174',
-            'http://localhost:3000',
-            'http://127.0.0.1:5173',
-            'http://127.0.0.1:5174',
-            'https://www.hire1percent.com',
-            'https://hire1percent.com',
-            'https://api.hire1percent.com',
-            'https://updatedtalentecosystem.onrender.com'
-        ];
-        
-        // Simple check for allowed domains and localhost
+        // Broadly allow hire1percent.com and localhost
         if (!origin || 
-            allowedOrigins.includes(origin) || 
-            origin.startsWith('http://localhost:') || 
-            origin.endsWith('.hire1percent.com')) {
+            origin.includes('hire1percent.com') || 
+            origin.includes('localhost') || 
+            origin.includes('127.0.0.1')) {
             callback(null, true);
         } else {
-            console.log(`[CORS] Origin "${origin}" not explicitly in list, but checking...`);
-            callback(null, true); // Fallback to allowing for now to resolve user blocker
+            console.log(`[CORS] Rejected Origin: ${origin}`);
+            callback(null, true); // Still allow for now to resolve the blocker
         }
     },
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'Access-Control-Allow-Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     optionsSuccessStatus: 200 
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle preflight for all routes
+app.options('*', cors(corsOptions));
+
 
 
 app.use((req, res, next) => {
