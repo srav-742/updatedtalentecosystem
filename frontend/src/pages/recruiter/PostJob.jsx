@@ -123,7 +123,13 @@ const PostJob = () => {
             setTimeout(() => navigate('/recruiter/my-jobs'), 2000);
         } catch (error) {
             console.error('Error saving job:', error);
-            alert('Failed to save job. Please try again.');
+            const errorMessage = error.response?.data?.message || 'Failed to save job. Please try again.';
+            const errors = error.response?.data?.errors;
+            if (errors) {
+                alert(errorMessage + '\n\n' + errors.join('\n'));
+            } else {
+                alert(errorMessage);
+            }
         } finally {
             setLoading(false);
         }
