@@ -9,9 +9,18 @@ const app = express();
 
 // Middleware
 const corsOptions = {
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+    origin: [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
+        'https://www.hire1percent.com',
+        'https://hire1percent.com',
+        'https://api.hire1percent.com'
+    ],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 };
 app.use(cors(corsOptions));
 app.use((req, res, next) => {
