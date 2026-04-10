@@ -54,18 +54,49 @@ const createJob = async (req, res) => {
     try {
         const { recruiterId, title } = req.body;
         console.log(`[JOBS] Attempting to save job: "${title}" for recruiter: ${recruiterId}`);
+
         if (!recruiterId) {
             console.warn(`[JOBS] Save failed: Missing recruiterId`);
             return res.status(400).json({ message: "Recruiter ID is required" });
         }
+
+        if (!title) {
+            console.warn(`[JOBS] Save failed: Missing title`);
+            return res.status(400).json({ message: "Job title is required" });
+        }
+
         const jobData = { ...req.body };
         const job = new Job(jobData);
-        await job.save();
-        console.log(`[JOBS] Successfully saved job: ${job._id}`);
-        res.status(201).json(job);
+        const savedJob = await job.save();
+
+        console.log(`[JOBS] Successfully saved job: ${savedJob._id}`);
+        res.status(201).json({
+            message: "Job created successfully",
+            job: savedJob
+        });
     } catch (error) {
-        console.error(`[JOBS] Save error:`, error.message);
-        res.status(500).json({ message: error.message });
+        console.error(`[JOBS] Save error:`, error);
+
+        // Handle MongoDB validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({
+                message: "Validation failed",
+                errors: messages
+            });
+        }
+
+        // Handle duplicate key errors
+        if (error.code === 11000) {
+            return res.status(400).json({
+                message: "A job with this title already exists"
+            });
+        }
+
+        res.status(500).json({
+            message: "Failed to save job posting",
+            error: error.message
+        });
     }
 };
 
