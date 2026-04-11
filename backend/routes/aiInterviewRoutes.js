@@ -874,4 +874,4 @@ router.post('/next', async (req, res) => {
 // Get interview details for recruiter
 router.get('/interview-details/:applicationId', getInterviewDetails);
 
-module.exports = router;
+module.exports = router; 

@@ -53,11 +53,12 @@ const getRecruiterJobs = async (req, res) => {
 const createJob = async (req, res) => {
     try {
         const { recruiterId, title } = req.body;
-        console.log(`[JOBS] Attempting to save job: "${title}" for recruiter: ${recruiterId}`);
+        
+        console.log(`[JOBS] CREATE Attempt - Recruiter: ${recruiterId}, Title: "${title}"`);
 
         if (!recruiterId) {
             console.warn(`[JOBS] Save failed: Missing recruiterId`);
-            return res.status(400).json({ message: "Recruiter ID is required" });
+            return res.status(400).json({ message: "Recruiter ID is required. Please ensure you are logged in." });
         }
 
         if (!title) {
@@ -65,7 +66,17 @@ const createJob = async (req, res) => {
             return res.status(400).json({ message: "Job title is required" });
         }
 
+        // Data cleanup and type casting
         const jobData = { ...req.body };
+        
+        // Ensure numeric fields are numbers
+        if (jobData.minPercentage) jobData.minPercentage = Number(jobData.minPercentage);
+        if (jobData.assessment?.totalQuestions) jobData.assessment.totalQuestions = Number(jobData.assessment.totalQuestions);
+        if (jobData.mockInterview?.passingScore) jobData.mockInterview.passingScore = Number(jobData.mockInterview.passingScore);
+
+        // Remove _id if it exists (relevant if frontend state was reused from an edit)
+        delete jobData._id;
+
         const job = new Job(jobData);
         const savedJob = await job.save();
 
@@ -86,6 +97,14 @@ const createJob = async (req, res) => {
             });
         }
 
+        // Handle Cast Errors (e.g. string to number)
+        if (error.name === 'CastError') {
+            return res.status(400).json({
+                message: `Invalid data format for field: ${error.path}`,
+                error: error.message
+            });
+        }
+
         // Handle duplicate key errors
         if (error.code === 11000) {
             return res.status(400).json({
@@ -94,8 +113,9 @@ const createJob = async (req, res) => {
         }
 
         res.status(500).json({
-            message: "Failed to save job posting",
-            error: error.message
+            message: "Failed to save job posting due to a server error",
+            error: error.message,
+            tip: "Check if all required fields are provided and correctly formatted."
         });
     }
 };
