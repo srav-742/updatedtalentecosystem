@@ -69,7 +69,7 @@ export const signInWithGithub = async () => {
 };
 
 // Database Helpers - Redirected to MongoDB Backend
-export const API_URL = import.meta.env.VITE_API_URL || 'https://api.hire1percent.com';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://api.hire1percent.com/api';
 
 export const saveUserProfile = async (userId, data) => {
     try {

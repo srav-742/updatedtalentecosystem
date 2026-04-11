@@ -13,6 +13,14 @@ const PostJob = () => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
+    useEffect(() => {
+        if (!user.uid && !user._id && !user.id) {
+            navigate('/login');
+        } else if (user.role !== 'recruiter') {
+            navigate('/seeker');
+        }
+    }, [user, navigate]);
+
     const [jobData, setJobData] = useState({
         title: '',
         description: '',
@@ -107,11 +115,28 @@ const PostJob = () => {
         e.preventDefault();
         setLoading(true);
         try {
+            const recruiterId = user.uid || user._id || user.id;
+            
+            if (!recruiterId) {
+                alert("You must be logged in to post a job.");
+                navigate('/login');
+                return;
+            }
+
             const dataToSave = {
                 ...jobData,
-                recruiterId: user.uid || user._id || user.id,
-                company: user.company?.name || ''
+                recruiterId: recruiterId,
+                company: jobData.company || user.company?.name || user.company || 'hire1percent Partner',
+                minPercentage: Number(jobData.minPercentage)
             };
+
+            // Ensure nested values are also cast if they exist
+            if (dataToSave.assessment) {
+                dataToSave.assessment.totalQuestions = Number(dataToSave.assessment.totalQuestions);
+            }
+            if (dataToSave.mockInterview) {
+                dataToSave.mockInterview.passingScore = Number(dataToSave.mockInterview.passingScore);
+            }
 
             if (editJobId) {
                 await axios.put(`${API_URL}/jobs/${editJobId}`, dataToSave);
@@ -123,13 +148,16 @@ const PostJob = () => {
             setTimeout(() => navigate('/recruiter/my-jobs'), 2000);
         } catch (error) {
             console.error('Error saving job:', error);
-            const errorMessage = error.response?.data?.message || 'Failed to save job. Please try again.';
-            const errors = error.response?.data?.errors;
-            if (errors) {
-                alert(errorMessage + '\n\n' + errors.join('\n'));
-            } else {
-                alert(errorMessage);
-            }
+            const data = error.response?.data;
+            const errorMessage = data?.message || 'Failed to save job. Please try again.';
+            const detailedError = data?.error;
+            const validationErrors = data?.errors;
+            
+            let fullMessage = errorMessage;
+            if (detailedError) fullMessage += `\nError: ${detailedError}`;
+            if (validationErrors) fullMessage += `\n\nDetails:\n${validationErrors.join('\n')}`;
+            
+            alert(fullMessage);
         } finally {
             setLoading(false);
         }
