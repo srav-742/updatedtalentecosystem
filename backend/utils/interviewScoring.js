@@ -133,7 +133,6 @@ function scoreInterviewAnswer({
         };
     }
 
-    const answerLower = normalizedAnswer.toLowerCase();
     const words = normalizedAnswer.match(/\b[a-zA-Z0-9+#.%/-]+\b/g) || [];
     const uniqueWords = unique(words.map(word => word.toLowerCase()));
     const sentences = normalizedAnswer
