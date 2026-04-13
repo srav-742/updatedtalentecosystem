@@ -33,10 +33,8 @@ app.use(cors(corsOptions));
 
 
 app.use((req, res, next) => {
-    // Only set COOP for routes that need popup windows
-    if (req.path.includes('/auth/') || req.path.includes('/oauth/')) {
-        res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-    }
+    // Set COOP to same-origin-allow-popups to allow Firebase popups to function and close correctly
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     next();
 });
 app.use(express.json({ limit: '50mb' }));

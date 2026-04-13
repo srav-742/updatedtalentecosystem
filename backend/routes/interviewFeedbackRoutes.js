@@ -9,9 +9,10 @@ function detectSentiment(overallRating) {
     return "negative";
 }
 
-function sanitizeRatings(ratings = {}) {
+function sanitizeRatings(ratings) {
+    if (!ratings || typeof ratings !== 'object') return {};
     return Object.fromEntries(
-        Object.entries(ratings).filter(([, value]) => Number(value) > 0)
+        Object.entries(ratings).filter(([, value]) => value !== null && value !== undefined && Number(value) > 0)
     );
 }
 
