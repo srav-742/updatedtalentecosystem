@@ -52,7 +52,7 @@ const CircularProgress = ({ percentage, label, color, delay }) => {
     );
 };
 
-const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions, userId, interviewId, recordingNotice, onDone }) => {
+const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions, userId, jobId, interviewId, recordingNotice, onDone }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
 
@@ -219,6 +219,7 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                         >
                             <InterviewFeedbackForm
                                 userId={userId}
+                                jobId={jobId}
                                 interviewId={interviewId}
                                 onDone={() => {
                                     setShowFeedback(false);

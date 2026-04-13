@@ -24,7 +24,7 @@ const StarRating = ({ value, onChange, label, max = 5 }) => {
                     >
                         <Star
                             size={24}
-                            className={`transition-colors duration-200 ${(hover || value) > i ? 'text-yellow-400 fill-yellow-400' : 'text-white/10'}`}
+                            className={`transition-colors duration-200 ${(hover || value) > i ? 'text-yellow-400 fill-yellow-400' : 'text-[#ffffff1a]'}`}
                         />
                     </motion.button>
                 ))}
@@ -33,7 +33,7 @@ const StarRating = ({ value, onChange, label, max = 5 }) => {
     );
 };
 
-const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
+const InterviewFeedbackForm = ({ userId, jobId, interviewId, onDone }) => {
     const [step, setStep] = useState(1);
     const [overallRating, setOverallRating] = useState(0);
     const [recommendationScore, setRecommendationScore] = useState(5);
@@ -72,6 +72,7 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
 
             const payload = {
                 userId,
+                jobId,
                 interviewId,
                 overallRating,
                 recommendationScore,
@@ -298,7 +299,7 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => setStep(s => s + 1)}
-                            className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl shadow-white/5"
+                            className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl shadow-[#ffffff0d]"
                         >
                             Next <ChevronRight size={16} />
                         </motion.button>
@@ -308,7 +309,7 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
                             whileTap={{ scale: 0.95 }}
                             disabled={submitting}
                             onClick={handleSubmit}
-                            className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-teal-500 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:shadow-2xl hover:shadow-blue-500/20 transition-all disabled:opacity-50"
+                            className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-teal-500 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:shadow-2xl hover:shadow-[#3b82f633] transition-all disabled:opacity-50"
                         >
                             {submitting ? <Loader className="animate-spin" size={18} /> : <><Send size={18} /> Submit Experience</>}
                         </motion.button>

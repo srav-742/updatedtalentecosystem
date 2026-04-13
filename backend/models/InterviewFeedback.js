@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const interviewFeedbackSchema = new mongoose.Schema({
     userId: { type: String, required: true, index: true },
+    jobId: { type: String, required: true, index: true },
     interviewId: { type: String, required: true, index: true },
     overallRating: { type: Number, required: true, min: 1, max: 5 },
     recommendationScore: { type: Number, min: 0, max: 10 },
@@ -22,7 +23,7 @@ const interviewFeedbackSchema = new mongoose.Schema({
     submittedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
-// Prevent duplicate feedback per interview
-interviewFeedbackSchema.index({ userId: 1, interviewId: 1 }, { unique: true });
+// Prevent duplicate feedback per user, job and interview
+interviewFeedbackSchema.index({ userId: 1, jobId: 1, interviewId: 1 }, { unique: true });
 
 module.exports = mongoose.model('InterviewFeedback', interviewFeedbackSchema);
