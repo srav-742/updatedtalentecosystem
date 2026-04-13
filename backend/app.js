@@ -33,8 +33,8 @@ app.use(cors(corsOptions));
 
 
 app.use((req, res, next) => {
-    // Set COOP to same-origin-allow-popups to allow Firebase popups to function and close correctly
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    // Set COOP to unsafe-none as a fallback to ensure cross-origin popups can be managed/closed correctly in all browsers
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     next();
 });
 app.use(express.json({ limit: '50mb' }));

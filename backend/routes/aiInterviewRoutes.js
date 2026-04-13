@@ -659,8 +659,8 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        // ─── CHANGE 6: Pick random question count (5 or 6) and store in session ─
-        const totalQuestions = getRandomQuestionCount();
+        // ALWAYS 10 QUESTIONS
+        const totalQuestions = 10;
         console.log(`[INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(
@@ -737,8 +737,8 @@ router.post('/next', async (req, res) => {
             feedback: answerEvaluation.feedback
         });
 
-        // ─── CHANGE 7: End after session's totalQuestions (5 or 6) not hardcoded 10 ─
-        if (interviewers.length >= session.totalQuestions) {
+        // End after exactly 10 questions
+        if (interviewers.length >= 10) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${session.totalQuestions} questions`);
             const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);

@@ -66,10 +66,23 @@ router.post('/feedback', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[INTERVIEW-FEEDBACK] Error:', error.message);
+        console.error(' [INTERNAL-FEEDBACK-ERROR] Critical Failure during feedback save:');
+        console.error('  - Error Message:', error.message);
+        console.error('  - Error Stack:', error.stack);
+        console.error('  - Request Body:', JSON.stringify(req.body, null, 2));
+
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed.',
+                details: error.errors
+            });
+        }
+
         res.status(500).json({
             success: false,
-            message: 'Failed to save feedback.'
+            message: 'Failed to save feedback.',
+            error: error.message
         });
     }
 });
