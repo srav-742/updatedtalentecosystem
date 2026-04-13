@@ -22,6 +22,7 @@ router.post('/feedback', async (req, res) => {
     try {
         const {
             userId,
+            jobId,
             interviewId,
             overallRating,
             recommendationScore,
@@ -31,10 +32,10 @@ router.post('/feedback', async (req, res) => {
             issuesFaced
         } = req.body;
 
-        if (!userId || !interviewId || !overallRating) {
+        if (!userId || !jobId || !interviewId || !overallRating) {
             return res.status(400).json({
                 success: false,
-                message: 'userId, interviewId, and overallRating are required.'
+                message: 'userId, jobId, interviewId, and overallRating are required.'
             });
         }
 
@@ -43,9 +44,10 @@ router.post('/feedback', async (req, res) => {
 
         // Upsert: update if already submitted (one feedback per interview)
         const feedback = await InterviewFeedback.findOneAndUpdate(
-            { userId, interviewId },
+            { userId, jobId, interviewId },
             {
                 userId,
+                jobId,
                 interviewId,
                 overallRating,
                 recommendationScore,

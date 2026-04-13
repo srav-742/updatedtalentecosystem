@@ -745,6 +745,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 totalQuestions={10}
                 attemptedQuestions={currentQNum}
                 userId={user.uid}
+                jobId={job._id}
                 interviewId={sessionId}
                 recordingNotice={recordingNotice}
                 onDone={() => onComplete({ interviewScore: finalScore })}
