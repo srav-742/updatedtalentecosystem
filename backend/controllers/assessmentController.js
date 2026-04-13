@@ -41,7 +41,6 @@ const generateFullAssessment = async (req, res) => {
             }
         }
 
-        // await deductCoins(userId, 20, 'Skill Assessment');
         // 🎯 Config
         const totalQuestions = Math.min(job.assessment.totalQuestions || 5, 10);
         const assessmentType = (job.assessment.type || 'mixed').toLowerCase();

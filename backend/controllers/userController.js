@@ -24,21 +24,6 @@ const getUserProfile = async (req, res) => {
     }
 };
 
-const getUserCoins = async (req, res) => {
-    try {
-        const user = await User.findOne({
-            $or: [{ uid: req.params.userId }, { _id: mongoose.Types.ObjectId.isValid(req.params.userId) ? req.params.userId : null }, { email: req.params.userId }]
-        });
-        if (!user) {
-            return res.json({ coins: 50, history: [] });
-        }
-        res.json({ coins: user.coins, history: user.coinHistory });
-    } catch (error) {
-        console.error("[GET-USERS] Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-};
-
 const updateUserProfile = async (req, res) => {
     try {
         const { userId } = req.params;
@@ -67,15 +52,6 @@ const updateUserProfile = async (req, res) => {
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
-        /*
-        if ((isSeekerComplete || isRecruiterComplete) && !(user.coinHistory || []).some(h => h.reason === 'Profile Completion Bonus')) {
-            await addCoins(user.uid, 50, 'Profile Completion Bonus');
-            try {
-                const refreshedUser = await User.findOne(query);
-                if (refreshedUser) user.coins = refreshedUser.coins;
-            } catch (e) { }
-        }
-        */
         res.json(user);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
@@ -96,4 +72,4 @@ const getSampleSeekers = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, getUserProfile, getUserCoins, updateUserProfile, getSampleSeekers };
+module.exports = { getAllUsers, getUserProfile, updateUserProfile, getSampleSeekers };
