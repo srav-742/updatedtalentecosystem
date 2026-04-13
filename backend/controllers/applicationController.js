@@ -62,12 +62,6 @@ const submitApplication = async (req, res) => {
         if (application.finalScore >= 60) {
             console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${application.finalScore})`);
             const recruiterId = application.jobId?.recruiterId;
-            /*
-            if (recruiterId) {
-                console.log(`[LEDGER] Crediting Recruiter ${recruiterId} for Elite find.`);
-                await addCoins(recruiterId, 100, `Elite Find Bonus: Candidate ${application.applicantName}`);
-            }
-            */
             application.status = 'SHORTLISTED';
             await application.save();
         }

@@ -30,13 +30,6 @@ const userSchema = new mongoose.Schema({
     }],
     bio: String,
     resumeUrl: String,
-    coins: { type: Number, default: 100 },
-    coinHistory: [{
-        amount: Number,
-        type: { type: String, enum: ['CREDIT', 'DEBIT'] },
-        reason: String,
-        date: { type: Date, default: Date.now }
-    }]
 });
 
 module.exports = mongoose.model('User', userSchema);
