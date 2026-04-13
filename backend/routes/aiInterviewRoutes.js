@@ -559,6 +559,11 @@ async function evaluateAnswer(session, questionText, answerText, questionNumber)
         jobSkills: session.jobSkills,
         jobDescription: session.jobDescription
     });
+
+    if (heuristic.isAttempted === false) {
+        return heuristic;
+    }
+
     const prompt = buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber);
 
     try {
@@ -712,9 +717,6 @@ router.post('/next', async (req, res) => {
         if (!session) return res.status(404).json({ message: "Session not found" });
 
         const normalizedAnswer = String(answerText || '').trim();
-        if (!normalizedAnswer) {
-            return res.status(400).json({ message: "Answer text is required" });
-        }
 
         const interviewers = session.history.filter(h => h.role === 'interviewer');
         const currentQuestionNumber = interviewers.length;
@@ -734,7 +736,8 @@ router.post('/next', async (req, res) => {
             answer: normalizedAnswer,
             score: answerEvaluation.score,
             marks: answerEvaluation.marks,
-            feedback: answerEvaluation.feedback
+            feedback: answerEvaluation.feedback,
+            isAttempted: answerEvaluation.isAttempted !== false
         });
 
         // End after exactly 10 questions

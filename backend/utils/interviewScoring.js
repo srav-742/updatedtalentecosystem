@@ -15,6 +15,11 @@ const EXPLANATION_SIGNALS = [
     'prevent', 'monitor', 'measure', 'debug', 'analyze', 'validate', 'ensure'
 ];
 
+const WEAK_ANSWERS = [
+    'i dont know', 'i don\'t know', 'no idea', 'skip', 'don\'t know', 'not sure',
+    'i have no idea', 'i do not know'
+];
+
 const TECHNICAL_SIGNALS = [
     'api', 'architecture', 'async', 'backend', 'cache', 'caching', 'component',
     'database', 'frontend', 'function', 'hook', 'hooks', 'latency', 'memoization',
@@ -93,6 +98,14 @@ function buildHeuristicFeedback(dimensions, finalMarks, questionHits, jobHits) {
     return `The answer showed some understanding, but it needs stronger ${weakestLabel} and clearer role-specific detail to score higher.`;
 }
 
+function isEmptyAnswer(answer) {
+    return (
+        !answer ||
+        answer.trim().length === 0 ||
+        answer.trim().length < 10
+    );
+}
+
 function scoreInterviewAnswer({
     questionText,
     answerText,
@@ -100,16 +113,22 @@ function scoreInterviewAnswer({
     jobDescription = ''
 }) {
     const normalizedAnswer = String(answerText || '').trim();
-    if (!normalizedAnswer) {
+    const answerLower = normalizedAnswer.toLowerCase();
+
+    // Check for weak answers
+    const isWeak = WEAK_ANSWERS.some(weak => answerLower === weak || answerLower.includes(weak) && answerLower.length < 20);
+
+    if (isEmptyAnswer(normalizedAnswer) || isWeak) {
         return {
-            score: 20,
-            marks: 2.0,
-            feedback: "The answer was missing or too short to demonstrate the required knowledge.",
+            score: 0,
+            marks: 0,
+            isAttempted: false,
+            feedback: "The answer was missing, too short, or did not demonstrate any knowledge (e.g. 'skip' or 'I don't know').",
             breakdown: {
-                relevance: 2,
-                completeness: 2,
-                specificity: 2,
-                clarity: 2
+                relevance: 0,
+                completeness: 0,
+                specificity: 0,
+                clarity: 0
             }
         };
     }
