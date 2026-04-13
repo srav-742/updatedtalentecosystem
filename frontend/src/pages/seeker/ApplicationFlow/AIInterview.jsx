@@ -41,6 +41,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
+    const [timeLeft, setTimeLeft] = useState(90);
+    const timerRef = useRef(null);
 
     // --- AI Webcam Detection State ---
     const [model, setModel] = useState(null);
@@ -145,6 +147,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             }
             setDisplayText(textToSpeak);
             setCoreState('idle');
+            setTimeLeft(90); // Reset timer when question finishes
         };
 
         const speakInBrowser = () => {
@@ -319,11 +322,87 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             await startFullSessionRecording();
             setStep('interview');
             playAudio(res.data.audio, firstQuestion);
+            setTimeLeft(90);
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
         }
     };
+
+    const submitUserAnswer = async (answerText) => {
+        if (processing) return;
+        setProcessing(true);
+        setCoreState('processing');
+
+        try {
+            const nextRes = await axios.post(`${API_URL}/interview/next`, {
+                sessionId,
+                answerText: answerText || ""
+            });
+
+            if (!nextRes.data.hasNext) {
+                setStep('finalizing');
+                setRecording(false);
+
+                // ✅ Stop and Upload Full Session Recording
+                try {
+                    const uploadResponse = await stopAndUploadFullSessionRecording();
+                    if (uploadResponse?.recordingSessionId) {
+                        setRecordingSessionId(uploadResponse.recordingSessionId);
+                        setRecordingNotice('Interview recording saved successfully.');
+                    }
+                } catch (uploadErr) {
+                    setRecordingNotice('Interview completed, but the session recording could not be uploaded.');
+                }
+
+                setFinalScore(nextRes.data.finalScore);
+                setFeedback(nextRes.data.feedback);
+                setStep('completed');
+            } else {
+                const nextQuestion = normalizeQuestionText(nextRes.data.question);
+                setCurrentQuestion(nextQuestion);
+                setCurrentQNum(nextRes.data.currentQuestionNumber);
+                setTranscript('');
+                setError(null);
+                setDisplayText('');
+                playAudio(nextRes.data.audio, nextQuestion);
+            }
+        } catch (err) {
+            setError(err.message || "Response processing error.");
+            setCoreState('idle');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleSkip = () => {
+        if (recording) {
+            if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+            if (recognitionRef.current) recognitionRef.current.stop();
+            setRecording(false);
+        }
+        submitUserAnswer("");
+    };
+
+    useEffect(() => {
+        if (step === 'interview' && coreState === 'idle' && !processing && !recording) {
+            timerRef.current = setInterval(() => {
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        submitUserAnswer(""); // Auto-submit empty answer on timeout
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            if (timerRef.current) clearInterval(timerRef.current);
+        }
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [step, coreState, processing, recording]);
 
     const toggleRecording = async () => {
         if (recording) {
@@ -365,40 +444,13 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         if (trRes.data?.text) answerText = trRes.data.text;
                     } catch (e) { }
 
-                    if (!answerText || answerText.length < 2) throw new Error("Silence detected. Please try again.");
-
-                    const nextRes = await axios.post(`${API_URL}/interview/next`, {
-                        sessionId, answerText
-                    });
-
-                    if (!nextRes.data.hasNext) {
-                        setStep('finalizing');
-                        setRecording(false);
-                        setProcessing(true);
-
-                        // ✅ Stop and Upload Full Session Recording
-                        try {
-                            const uploadResponse = await stopAndUploadFullSessionRecording();
-                            if (uploadResponse?.recordingSessionId) {
-                                setRecordingSessionId(uploadResponse.recordingSessionId);
-                                setRecordingNotice('Interview recording saved successfully.');
-                            }
-                        } catch (uploadErr) {
-                            setRecordingNotice('Interview completed, but the session recording could not be uploaded.');
-                        }
-
-                        setFinalScore(nextRes.data.finalScore);
-                        setFeedback(nextRes.data.feedback);
-                        setStep('completed');
-                    } else {
-                        const nextQuestion = normalizeQuestionText(nextRes.data.question);
-                        setCurrentQuestion(nextQuestion);
-                        setCurrentQNum(nextRes.data.currentQuestionNumber);
-                        setTranscript('');
-                        setError(null);
-                        setDisplayText('');
-                        playAudio(nextRes.data.audio, nextQuestion);
+                    if (!answerText || answerText.length < 2) {
+                        // If it's too short, we still submit it but it will get 0 score
+                        // The user wanted: empty -> backend gives 0
+                        answerText = "";
                     }
+
+                    await submitUserAnswer(answerText);
                 } catch (err) {
                     setError(err.message || "Response processing error.");
                     setCoreState('idle');
@@ -712,6 +764,22 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
                                 </span>
                             </div>
+
+                            <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Time Remaining</span>
+                                <span className={`text-xl font-black ${timeLeft < 20 ? 'text-red-500 animate-pulse' : 'text-indigo-600'}`}>
+                                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                                </span>
+                            </div>
+
+                            <motion.button
+                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                onClick={handleSkip}
+                                disabled={processing || !displayText}
+                                className="px-6 py-3 rounded-full border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest"
+                            >
+                                Skip
+                            </motion.button>
                         </div>
 
                         {/* Transcript Preview */}
