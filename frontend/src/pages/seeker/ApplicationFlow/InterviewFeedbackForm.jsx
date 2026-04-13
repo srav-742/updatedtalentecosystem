@@ -101,14 +101,14 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: [0, 1.2, 1] }}
-                        className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/20"
+                        className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-[#22c55e33]"
                     >
                         <CheckCircle2 size={48} className="text-white" />
                     </motion.div>
                     <motion.div
                         animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className="absolute inset-0 bg-green-500/20 rounded-full"
+                        className="absolute inset-0 bg-[#22c55e33] rounded-full"
                     />
                 </div>
                 <h3 className="text-3xl font-black text-white mb-2 tracking-tight">Experience Received!</h3>
@@ -118,7 +118,8 @@ const InterviewFeedbackForm = ({ userId, interviewId, onDone }) => {
     }
 
     return (
-        <div className="relative w-full max-w-2xl mx-auto bg-[#0a0a0a]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <div className="relative w-full max-w-2xl mx-auto backdrop-blur-2xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
+             style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)' }}>
             {/* Progress Bar */}
             <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
                 <motion.div

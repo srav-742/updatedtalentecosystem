@@ -184,7 +184,7 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                                     onDone();
                                 }
                             }}
-                            className="group flex items-center gap-3 bg-white text-black px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl shadow-white/5"
+                            className="group flex items-center gap-3 bg-white text-black px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl shadow-[#ffffff0d]"
                         >
                             {hasTriggered ? 'Complete Application' : 'Next Step'} <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
                         </motion.button>
@@ -199,7 +199,8 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 bg-[#050505]/95 backdrop-blur-xl"
+                        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 backdrop-blur-xl"
+                        style={{ backgroundColor: 'rgba(5, 5, 5, 0.95)' }}
                     >
                         <motion.button
                             initial={{ opacity: 0 }}
