@@ -516,19 +516,67 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     if (step === 'ready') {
         return (
-            <div className="max-w-xl mx-auto py-20 px-10 bg-white border border-gray-200 rounded-[2.5rem] shadow-sm text-center">
-                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-8 text-indigo-600">
-                    <User size={32} />
+            <div className="max-w-2xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl text-center">
+                <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-indigo-600 shadow-sm border border-indigo-100">
+                    <User size={36} />
                 </div>
-                <h2 className="text-3xl font-medium text-gray-900 mb-4 tracking-tight">AI Interview Session</h2>
-                <p className="text-gray-600 mb-12 font-light leading-relaxed">
-                    This session will evaluate your professional capabilities through adaptive, role-specific questioning tailored to the job requirements.
+                <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">AI Interview Session</h2>
+                <p className="text-gray-500 mb-8 font-medium leading-relaxed max-w-md mx-auto">
+                    A personalized, adaptive interview designed to evaluate your fit for the <span className="text-indigo-600 font-bold">{job?.title || 'requested role'}</span>.
                 </p>
+
+                {/* Detailed Instructions Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                        <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold mt-0.5">1</div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-gray-900 mb-1">Environment</h4>
+                                <p className="text-[11px] text-gray-500 leading-normal">Sit in a quiet, well-lit room with a stable internet connection.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                        <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold mt-0.5">2</div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-gray-900 mb-1">Honesty</h4>
+                                <p className="text-[11px] text-gray-500 leading-normal">Your webcam and microphone will be active to ensure interview integrity.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                        <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold mt-0.5">3</div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-gray-900 mb-1">Process</h4>
+                                <p className="text-[11px] text-gray-500 leading-normal">The AI will ask 10 questions. Press the microphone to start and stop recording.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                        <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold mt-0.5">4</div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-gray-900 mb-1">Security</h4>
+                                <p className="text-[11px] text-gray-500 leading-normal">Tab switching and presence detection are active. Violations may reset the session.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-10 flex items-center gap-4">
+                    <AlertTriangle className="text-amber-500 shrink-0" size={20} />
+                    <p className="text-[11px] text-amber-800 font-medium text-left">
+                        Once you begin, do not close this window or switch tabs. Ensure your face is clearly visible in the camera frame at all times.
+                    </p>
+                </div>
+
                 <button
                     onClick={startInterviewTrigger}
-                    className="w-full py-4 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-5 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-200"
                 >
-                    Begin Interview <ChevronRight size={18} />
+                    Begin Interview Session <ChevronRight size={18} />
                 </button>
             </div>
         );

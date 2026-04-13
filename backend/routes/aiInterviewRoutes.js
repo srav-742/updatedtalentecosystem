@@ -50,9 +50,9 @@ const TECH_KEYWORDS = [
     'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
 ];
 
-// ─── CHANGE 1: Random question count between 5 and 6 ─────────────────────────
+// ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
 function getRandomQuestionCount() {
-    return Math.random() < 0.5 ? 5 : 6;
+    return 10;
 }
 
 /**
