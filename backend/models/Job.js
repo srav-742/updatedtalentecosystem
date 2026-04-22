@@ -29,6 +29,15 @@ const jobSchema = new mongoose.Schema({
         passingScore: { type: Number, default: 70 }
     },
     specialInstructions: { type: String, default: "" },
+    status: {
+        type: String,
+        enum: ['pending_approval', 'approved', 'rejected'],
+        default: 'pending_approval'
+    },
+    adminFeedback: {
+        reason: { type: String, default: '' },
+        reviewedAt: { type: Date }
+    },
     createdAt: { type: Date, default: Date.now }
 });
 

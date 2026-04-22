@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock } from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -40,9 +40,32 @@ const MyJobs = () => {
     };
 
     const filteredJobs = jobs.filter(job =>
-        job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.location.toLowerCase().includes(searchTerm.toLowerCase())
+        (job.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (job.location || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const getStatusBadge = (job) => {
+        if (job.status === 'approved') {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                    <CheckCircle2 size={12} /> Live
+                </span>
+            );
+        }
+        if (job.status === 'rejected') {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest">
+                    <XCircle size={12} /> Rejected
+                </span>
+            );
+        }
+        // Default: pending_approval
+        return (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                <Clock size={12} /> Pending Approval
+            </span>
+        );
+    };
 
     if (loading) return <div className="flex items-center justify-center h-[60vh] text-blue-400">Loading Job Postings...</div>;
 
@@ -73,20 +96,23 @@ const MyJobs = () => {
 
             <div className="grid grid-cols-1 gap-6">
                 {filteredJobs.length > 0 ? filteredJobs.map((job) => (
+                    <React.Fragment key={job._id}>
                     <motion.div
-                        key={job._id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative overflow-hidden"
                     >
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full" />
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 relative z-10">
                             <div className="flex items-start gap-6">
                                 <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-500/10 to-teal-500/10 flex items-center justify-center text-blue-400 border border-white/5 transition-transform group-hover:rotate-6">
                                     <Briefcase size={32} />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black mb-2 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{job.title}</h3>
+                                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                                        <h3 className="text-2xl font-black group-hover:text-blue-400 transition-colors uppercase tracking-tight">{job.title}</h3>
+                                        {getStatusBadge(job)}
+                                    </div>
                                     <div className="flex flex-col gap-3">
                                         <div className="flex flex-wrap items-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-loose">
                                             <span className="flex items-center gap-2 pr-4 border-r border-white/10"><MapPin size={14} className="text-blue-500" /> {job.location}</span>
@@ -183,6 +209,17 @@ const MyJobs = () => {
                             </div>
                         </div>
                     </motion.div>
+                    {/* Rejection reason notice */}
+                    {job.status === 'rejected' && job.adminFeedback?.reason && (
+                        <div className="mx-6 mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                            <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">Rejected by Admin</p>
+                                <p className="text-red-300/80 text-sm font-medium">{job.adminFeedback.reason}</p>
+                            </div>
+                        </div>
+                    )}
+                    </React.Fragment>
                 )) : (
                     <div className="p-24 text-center border-2 border-dashed border-white/5 rounded-[4rem] bg-white/[0.01]">
                         <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8">

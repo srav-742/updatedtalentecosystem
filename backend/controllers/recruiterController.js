@@ -82,6 +82,7 @@ const getRecruiterApplications = async (req, res) => {
 const getRecruiterJobs = async (req, res) => {
     try {
         const id = req.params.recruiterId;
+        // Return ALL statuses — recruiter should see pending, approved, and rejected
         const jobs = await Job.find({ recruiterId: id }).sort({ createdAt: -1 }).lean();
         const jobsWithCounts = await Promise.all(jobs.map(async (job) => {
             const count = await Application.countDocuments({ jobId: job._id });
