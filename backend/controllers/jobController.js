@@ -49,4 +49,15 @@ const deleteJob = async (req, res) => {
     }
 };
 
-module.exports = { getAllJobs, getJobById, updateJob, deleteJob };
+const createJob = async (req, res) => {
+    try {
+        const job = new Job(req.body);
+        const savedJob = await job.save();
+        res.status(201).json({ success: true, job: savedJob });
+    } catch (error) {
+        console.error("[CREATE-JOB] Failure:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = { getAllJobs, getJobById, updateJob, deleteJob, createJob };

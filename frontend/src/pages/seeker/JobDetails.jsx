@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, ChevronLeft, Building2, Star, CheckCircle, FileUp, Sparkles, Wand2, Clock } from 'lucide-react';
+import {
+    Building2,
+    ChevronLeft,
+    Clock3,
+    FileUp,
+    GraduationCap,
+    MapPin,
+    Sparkles,
+    Wand2
+} from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 
@@ -15,129 +24,149 @@ const JobDetails = () => {
         const fetchJob = async () => {
             try {
                 const res = await axios.get(`${API_URL}/jobs`);
-                const found = res.data.find(j => j._id === id);
+                const found = res.data.find((item) => item._id === id);
                 setJob(found);
             } catch (error) {
-                console.error("Failed to fetch job details:", error);
+                console.error('Failed to fetch job details:', error);
             } finally {
                 setLoading(false);
             }
         };
+
         fetchJob();
     }, [id]);
 
-    if (loading) return <div className="py-20 text-center text-teal-400 font-black uppercase tracking-widest">Accessing Job Node...</div>;
-    if (!job) return <div className="text-center py-20 text-red-400">Job not found.</div>;
+    if (loading) {
+        return (
+            <div className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
+                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
+                <p className="mt-6 text-sm font-medium text-gray-500">Loading job details...</p>
+            </div>
+        );
+    }
+
+    if (!job) {
+        return (
+            <div className="rounded-[2.5rem] border border-red-200 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
+                <p className="text-lg font-medium text-red-600">Job not found.</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-10 pb-20">
+        <div className="space-y-8">
             <button
                 onClick={() => navigate(-1)}
-                className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors font-black uppercase tracking-widest text-xs group"
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
             >
-                <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to jobs
+                <ChevronLeft size={16} />
+                Back to jobs
             </button>
 
-            <header className="flex flex-col md:flex-row md:items-start justify-between gap-8 p-10 rounded-[3rem] bg-gradient-to-br from-teal-500/10 to-emerald-500/10 border border-teal-500/10 shadow-2xl">
-                <div className="flex items-start gap-6">
-                    <div className="w-20 h-20 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center text-teal-400">
-                        <Building2 size={40} />
+            <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="flex items-start gap-5">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#f4efe6] text-gray-700">
+                            <Building2 size={36} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Job overview</p>
+                            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
+                            <p className="mt-2 text-base text-gray-500">
+                                {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
+                            </p>
+                            <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-500">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
+                                    <MapPin size={14} />
+                                    {job.location || 'Remote'}
+                                </span>
+                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
+                                    <Clock3 size={14} />
+                                    {job.experienceLevel || `${job.minExperience || 0}+ years`}
+                                </span>
+                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
+                                    <GraduationCap size={14} />
+                                    {job.qualification || 'Any qualification'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-4xl font-black mb-1 uppercase tracking-tighter">{job.title}</h1>
-                        <p className="text-teal-400 font-black flex items-center gap-2 text-lg uppercase">
-                            {job.company || job.recruiterId?.company?.name || 'Venture Startup'}
+
+                    <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
+                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
+                        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
+                        <p className="mt-3 text-sm leading-7 text-gray-600">
+                            Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
                         </p>
-                        <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-black uppercase tracking-widest text-gray-400">
-                            <span className="flex items-center gap-1.5"><MapPin size={14} className="text-teal-500/50" /> {job.location}</span>
-                            <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
-                            <span className="flex items-center gap-1.5"><Briefcase size={14} className="text-teal-500/50" /> {job.type}</span>
-                            <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
-                            <span className="flex items-center gap-1.5"><Clock size={14} className="text-amber-500" /> <span className="text-amber-500">Exp:</span> {job.experienceLevel || `${job.minExperience || 0} Years`}</span>
-                            {/* Education Display */}
-                            {job.education && job.education.length > 0 ? (
-                                job.education.map((edu, idx) => (
-                                    <span key={idx} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                                        {edu.qualification} | {edu.specialization}
-                                    </span>
-                                ))
-                            ) : (
-                                (job.qualification || job.specialization) && (
-                                    <span className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                                        {job.qualification || 'Any'} | {job.specialization || 'Any'}
-                                    </span>
-                                )
-                            )}
+
+                        <div className="mt-6 space-y-3">
+                            <Link
+                                to={`/seeker/apply/${job._id}`}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                            >
+                                <FileUp size={18} />
+                                Upload and analyze resume
+                            </Link>
+                            <Link
+                                to={`/seeker/apply/${job._id}?method=create`}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                            >
+                                <Wand2 size={18} />
+                                Create resume
+                            </Link>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                <div className="md:col-span-2 space-y-10">
-                    <section className="p-8 rounded-[2.5rem] bg-white/[0.03] border border-white/5">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-6 flex items-center gap-2">
-                            <Star size={16} /> Job Description
-                        </h3>
-                        <p className="text-gray-400 leading-relaxed font-medium whitespace-pre-line">
-                            {job.description}
-                        </p>
-                    </section>
+            <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+                <section className="rounded-[2rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Role description</p>
+                    <p className="mt-5 whitespace-pre-line text-sm leading-8 text-gray-600">
+                        {job.description}
+                    </p>
+                </section>
 
-                    <section className="p-8 rounded-[2.5rem] bg-white/[0.03] border border-white/5">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-6 flex items-center gap-2">
-                            <Sparkles size={16} /> Required Skill Ledger
-                        </h3>
-                        <div className="flex flex-wrap gap-3">
-                            {job.skills.map(skill => (
-                                <span key={skill} className="px-5 py-3 rounded-2xl bg-teal-500/5 border border-teal-500/10 text-sm font-black uppercase tracking-tight text-white/90">
+                <div className="space-y-6">
+                    <section className="rounded-[2rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
+                                <Sparkles size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Required skills</p>
+                                <h3 className="text-xl font-semibold tracking-tight text-gray-900">What the recruiter is looking for</h3>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap gap-2">
+                            {job.skills?.map((skill) => (
+                                <span
+                                    key={skill}
+                                    className="rounded-full border border-black/10 bg-[#fbf8f3] px-3 py-1.5 text-xs font-medium text-gray-600"
+                                >
                                     {skill}
                                 </span>
                             ))}
                         </div>
                     </section>
-                </div>
 
-                <div className="space-y-6">
-                    <div className="p-8 rounded-[2.5rem] bg-white text-black shadow-2xl overflow-hidden relative group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <FileUp size={80} />
+                    <section className="rounded-[2rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Application flow</p>
+                        <div className="mt-5 space-y-4">
+                            {[
+                                'Resume is analyzed against the recruiter requirements.',
+                                `Minimum match score to continue: ${job.minPercentage || 60}%.`,
+                                'Qualified candidates move to the secure assessment stage.',
+                                'After assessment, the candidate proceeds to the interview round.'
+                            ].map((item) => (
+                                <div key={item} className="flex items-start gap-3">
+                                    <div className="mt-1 h-2.5 w-2.5 rounded-full bg-black" />
+                                    <p className="text-sm leading-7 text-gray-600">{item}</p>
+                                </div>
+                            ))}
                         </div>
-                        <h3 className="text-2xl font-black uppercase tracking-tighter mb-4 leading-none">Ready to Apply?</h3>
-                        <p className="text-xs font-bold text-gray-500 mb-8 uppercase tracking-widest">Our AI will match your resume against the job ledger instantly.</p>
-
-                        <Link
-                            to={`/seeker/apply/${job._id}`}
-                            className="flex items-center justify-center gap-2 w-full py-5 rounded-2xl bg-black text-white font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition-all active:scale-95"
-                        >
-                            <FileUp size={18} /> Upload & Analyze
-                        </Link>
-
-                        <div className="relative my-8">
-                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-black/10"></div></div>
-                            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest text-gray-400 px-4 bg-white">OR</div>
-                        </div>
-
-                        <Link
-                            to={`/seeker/apply/${job._id}?method=create`}
-                            className="flex items-center justify-center gap-2 w-full py-5 rounded-2xl bg-teal-500 text-white font-black uppercase tracking-widest text-xs hover:bg-teal-600 transition-all active:scale-95 shadow-lg shadow-teal-500/20"
-                        >
-                            <Wand2 size={18} /> Create Resume
-                        </Link>
-                    </div>
-
-                    <div className="p-6 rounded-[2rem] border border-white/5 bg-white/[0.02] text-xs text-gray-500 space-y-4 font-medium italic">
-                        <div className="flex gap-3">
-                            <CheckCircle size={14} className="text-teal-500 flex-none" />
-                            <p>Once you apply, our AI (Gemini) evaluates your skills for an eligibility score.</p>
-                        </div>
-                        <div className="flex gap-3">
-                            <CheckCircle size={14} className="text-teal-500 flex-none" />
-                            <p>Eligible candidates proceed to a quick assessment and AI-powered interview.</p>
-                        </div>
-                    </div>
+                    </section>
                 </div>
             </div>
         </div>

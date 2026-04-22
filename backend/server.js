@@ -22,3 +22,9 @@ app.listen(PORT, () => {
     console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);
     startCleanupJob();
 });
+
+// server.js remains clean and only handles initialization
+
+// Note: /generate-posts is now handled via app.js and routes/index.js
+
+// Content generation is handled in cron/contentCron.js

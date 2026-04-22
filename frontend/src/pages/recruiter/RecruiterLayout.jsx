@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles } from 'lucide-react';
 import { getUserProfile, API_URL, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
 
@@ -56,6 +56,9 @@ const RecruiterLayout = () => {
         { label: 'Post Job', icon: <FilePlus size={20} />, path: '/recruiter/post-job' },
         { label: 'My Jobs', icon: <Briefcase size={20} />, path: '/recruiter/my-jobs' },
         { label: 'Applicants', icon: <Users size={20} />, path: '/recruiter/applicants' },
+        { label: 'Performance', icon: <BarChart3 size={20} />, path: '/recruiter/performance' },
+        { label: 'Onboarding Kit', icon: <Package size={20} />, path: '/recruiter/onboarding-kit' },
+        { label: 'AI Search', icon: <Sparkles size={20} />, path: '/recruiter/ai-search' },
         { label: 'Profile', icon: <UserCircle size={20} />, path: '/recruiter/profile' },
     ];
 

@@ -9,10 +9,12 @@ import {
     Briefcase,
     MessageSquare,
     Video,
-    PlayCircle
+    PlayCircle,
+    Github,
+    Linkedin
 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL } from '../../firebase'
 
 const InterviewDetail = ({ applicationId, onClose }) => {
     const [loading, setLoading] = useState(true);
@@ -93,6 +95,11 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                     <div className="text-3xl font-black">{interview.score}%</div>
                                     <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Overall Score</div>
                                 </div>
+                                {/* ─── OWNERSHIP V VETTING SCORE ─── */}
+                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                                    <div className="text-3xl font-black text-purple-200">{application.ownershipScore || 0}%</div>
+                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest text-purple-100 italic">Ownership %</div>
+                                </div>
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                                     <div className="text-3xl font-black">{formatMarks(interview.marks)}/10</div>
                                     <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Average Marks</div>
@@ -152,6 +159,34 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                 <div className="font-bold text-gray-800">{job.title}</div>
                             </div>
                         </div>
+
+                        {/* ─── SOCIAL INTEGRATIONS ─── */}
+                        {application.githubUrl && (
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gray-100 p-3 rounded-xl">
+                                    <Github className="w-5 h-5 text-gray-700" />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">GitHub</div>
+                                    <a href={application.githubUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-teal-600 hover:underline break-all">
+                                        {application.githubUrl.split('/').pop()}
+                                    </a>
+                                </div>
+                            </div>
+                        )}
+                        {application.linkedinUrl && (
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-50 p-3 rounded-xl">
+                                    <Linkedin className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">LinkedIn</div>
+                                    <a href={application.linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline break-all">
+                                        {application.linkedinUrl.split('/').pop() || application.linkedinUrl.split('/').slice(-2, -1)[0]}
+                                    </a>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

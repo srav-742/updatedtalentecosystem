@@ -207,8 +207,10 @@ const LoginPage = () => {
             <div className="grid md:grid-cols-2 gap-8">
                 {/* Recruiter Card */}
                 <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
                     whileHover={{ scale: 1.02, borderColor: 'rgba(59, 130, 246, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
+
                     onClick={() => handleRoleSelect('recruiter')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >
@@ -227,8 +229,10 @@ const LoginPage = () => {
 
                 {/* Candidate Card */}
                 <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
                     whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
+
                     onClick={() => handleRoleSelect('seeker')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >

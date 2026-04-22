@@ -13,7 +13,7 @@ console.log('[AI-CLIENT] API Keys loaded:', {
 });
 
 // Direct API implementation as requested
-const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null) => {
+const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null, temperature = 0.7) => {
     try {
         if (!process.env.GEMINI_API_KEY) {
             console.warn("[AI-CLIENT] Gemini API key not configured");
@@ -39,6 +39,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
                 ],
                 generationConfig: {
                     maxOutputTokens: maxTokens,
+                    temperature: temperature,
                     responseMimeType: isJsonMode ? "application/json" : "text/plain"
                 }
             },
@@ -57,7 +58,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
         let text = aiText.trim();
 
         if (isJsonMode) {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            const jsonMatch = text.match(/[\{\[][\s\S]*[\}\]]/);
             if (jsonMatch) text = jsonMatch[0];
         }
         if (text.startsWith('```')) {
@@ -75,21 +76,44 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
     return null;
 };
 
-/**
- * AI Client for Interview & Skill Analysis.
- * Prioritizes Gemini, Fallbacks to Groq.
- */
-const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null) => {
-    // 1. Try Gemini
-    const geminiText = await callGemini(prompt, maxTokens, isJsonMode, systemPrompt);
-    if (geminiText) return geminiText;
-
-    // 2. Fallback to Groq
+const callOpenAI = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null, temperature = 0.9) => {
     try {
-        if (!process.env.GROQ_API_KEY) {
-            console.warn("[AI-CLIENT] Groq API key not configured, skipping fallback");
-        } else {
-            console.log("[AI-CLIENT] Falling back to Groq (llama-3.3-70b)...");
+        if (!process.env.OPENAI_API_KEY) {
+            console.warn("[AI-CLIENT] OpenAI API key not configured");
+            return null;
+        }
+
+        console.log(`[AI-CLIENT] Attempting OpenAI (gpt-4o-mini)...`);
+        
+        const messages = [];
+        if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+        messages.push({ role: "user", content: prompt });
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: messages,
+            temperature: temperature,
+            max_tokens: maxTokens,
+            // If the prompt asks for a JSON array, we don't use json_object mode as it requires a specific schema or object root
+            ...(isJsonMode && !prompt.toLowerCase().includes("array") ? { response_format: { type: "json_object" } } : {})
+        });
+
+        let text = response.choices[0].message.content;
+        if (text) {
+            console.log("[AI-CLIENT] OpenAI Success.");
+            return text.trim();
+        }
+    } catch (err) {
+        console.warn("[AI-CLIENT] OpenAI Error:", err.message);
+    }
+    return null;
+};
+
+const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null, temperature = 0.7) => {
+    // 1. Try Groq (Primary for stability & no quota issues)
+    try {
+        if (process.env.GROQ_API_KEY) {
+            console.log("[AI-CLIENT] Attempting Groq (llama-3.3-70b)...");
             const messages = [];
             if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
             messages.push({ role: "user", content: prompt });
@@ -99,7 +123,7 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
                 {
                     model: "llama-3.3-70b-versatile",
                     messages: messages,
-                    temperature: 0.7,
+                    temperature: temperature,
                     max_tokens: maxTokens,
                     ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
                 },
@@ -120,15 +144,23 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             }
         }
     } catch (groqErr) {
-        console.error("[AI-CLIENT] Groq Error:", groqErr.response?.data || groqErr.message);
+        console.warn("[AI-CLIENT] Groq Error:", groqErr.response?.data || groqErr.message);
     }
+
+    // 2. Fallback to OpenAI
+    const openAiText = await callOpenAI(prompt, maxTokens, isJsonMode, systemPrompt, temperature);
+    if (openAiText) return openAiText;
+
+    // 3. Fallback to Gemini
+    const geminiText = await callGemini(prompt, maxTokens, isJsonMode, systemPrompt, temperature);
+    if (geminiText) return geminiText;
 
     console.error("[AI-CLIENT] All AI providers failed");
     return null;
 };
 
-const callSkillAI = async (prompt, maxTokens = 8192) => {
-    return await callInterviewAI(prompt, maxTokens, prompt.toLowerCase().includes("json"));
+const callSkillAI = async (prompt, maxTokens = 8192, temperature = 0.7) => {
+    return await callInterviewAI(prompt, maxTokens, prompt.toLowerCase().includes("json"), null, temperature);
 };
 
 module.exports = { callInterviewAI, callSkillAI, callGemini };

@@ -46,7 +46,14 @@ const applicationSchema = new mongoose.Schema({
             feedback: String
         }
     ],
-    status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED'], default: 'APPLIED' },
+    videoIntroUrl: String,
+    videoIntroPublicId: String,
+    teamFit: {
+        score: { type: Number, default: 0 },
+        reason: { type: String, default: "" },
+        lastCalculated: { type: Date }
+    },
+    status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED'], default: 'APPLIED' },
     resultsVisibleAt: { type: Date },
     appliedAt: { type: Date, default: Date.now }
 });

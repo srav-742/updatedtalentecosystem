@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const ResumeProfile = require('../models/ResumeProfile');
 const mongoose = require('mongoose');
 
 
@@ -17,7 +18,38 @@ const getUserProfile = async (req, res) => {
         const user = await User.findOne({
             $or: [{ uid: req.params.userId }, { _id: mongoose.Types.ObjectId.isValid(req.params.userId) ? req.params.userId : null }, { email: req.params.userId }]
         });
-        res.json(user);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const resumeProfile = await ResumeProfile.findOne({ userId: user.uid || String(user._id) }).lean();
+        const mergedUser = user.toObject();
+
+        if (resumeProfile) {
+            mergedUser.resumeProfile = resumeProfile;
+            mergedUser.phone = mergedUser.phone || resumeProfile?.basics?.phone || '';
+            mergedUser.bio = mergedUser.bio || resumeProfile?.summary || '';
+            mergedUser.skills = mergedUser.skills?.length ? mergedUser.skills : [
+                ...(resumeProfile.skills?.programming || []),
+                ...(resumeProfile.skills?.frameworks || []),
+                ...(resumeProfile.skills?.databases || []),
+                ...(resumeProfile.skills?.tools || []),
+                ...(resumeProfile.skills?.soft || [])
+            ];
+            mergedUser.education = mergedUser.education?.length ? mergedUser.education : (resumeProfile.education || []).map((item) => ({
+                institution: item.institution || '',
+                degree: [item.degree, item.field].filter(Boolean).join(' - '),
+                year: item.duration || item.score || ''
+            }));
+            mergedUser.experience = mergedUser.experience?.length ? mergedUser.experience : (resumeProfile.workExperience || []);
+            mergedUser.languages = mergedUser.languages?.length ? mergedUser.languages : (resumeProfile.languages || []);
+            mergedUser.projects = mergedUser.projects?.length ? mergedUser.projects : (resumeProfile.projects || []);
+            mergedUser.professionalProfiles = mergedUser.professionalProfiles?.length
+                ? mergedUser.professionalProfiles
+                : (resumeProfile.professionalProfiles || []);
+        }
+
+        res.json(mergedUser);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });

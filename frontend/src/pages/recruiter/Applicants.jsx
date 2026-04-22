@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
+import TeamFitBadge from '../../components/TeamFitBadge';
 
 const Applicants = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -26,6 +27,11 @@ const Applicants = () => {
     const [showInterviewDetail, setShowInterviewDetail] = useState(false);
     const [selectedInterviewApplicationId, setSelectedInterviewApplicationId] = useState(null);
 
+    // Video Intro Modal
+    const [showVideoModal, setShowVideoModal] = useState(false);
+    const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
+
+
     useEffect(() => {
         const fetchApplicants = async () => {
             setLoading(true);
@@ -41,8 +47,14 @@ const Applicants = () => {
                     resumeScore: app.resumeMatchPercent,
                     assessmentScore: app.assessmentScore,
                     interviewScore: app.interviewScore,
+                    ownershipScore: app.metrics?.ownershipMindset || 0, // ─── OWNERSHIP V VETTING SCORE
+                    githubUrl: app.user?.githubUrl, // ─── SOCIAL INTEGRATIONS
+                    linkedinUrl: app.user?.linkedinUrl,
+                    resumeUrl: app.user?.resumeUrl,
                     finalScore: app.finalScore,
                     status: app.status,
+                    teamFit: app.teamFit,
+                    videoIntroUrl: app.videoIntroUrl,
                     resultsVisibleAt: app.resultsVisibleAt
                 }));
 
@@ -128,9 +140,12 @@ const Applicants = () => {
                         <thead>
                             <tr className="border-b border-white/10 text-gray-400 text-[10px] uppercase font-bold tracking-widest">
                                 <th className="pb-6 pt-0 pl-4 text-left">Candidate Info</th>
+                                <th className="pb-6 pt-0 text-center">Video Intro</th>
                                 <th className="pb-6 pt-0 text-center">Resume Match %</th>
+
                                 <th className="pb-6 pt-0 text-center">Assessment</th>
                                 <th className="pb-6 pt-0 text-center">Interview</th>
+                                <th className="pb-6 pt-0 text-center">Team Fit</th>
                                 <th className="pb-6 pt-0 text-center">Final Score</th>
                                 <th className="pb-6 pt-0 text-center">Status</th>
                                 <th className="pb-6 pt-0 text-right pr-4">Action</th>
@@ -164,14 +179,63 @@ const Applicants = () => {
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
-                                                    <p className="text-xs text-gray-500 mt-0.5 font-bold uppercase tracking-widest">{app.job}</p>
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
+                                                        {/* ─── SOCIAL INTEGRATIONS ─── */}
+                                                        {app.githubUrl && (
+                                                            <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
+                                                                <Github size={14} />
+                                                            </a>
+                                                        )}
+                                                        {app.linkedinUrl && (
+                                                            <a href={app.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
+                                                                <Linkedin size={14} />
+                                                            </a>
+                                                        )}
+                                                        {app.resumeUrl && (
+                                                            <a href={app.resumeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-emerald-400 transition-colors" title="View Resume">
+                                                                <FileText size={14} />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{app.job}</p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
-                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
-                                                {app.resumeScore}%
+                                            {app.videoIntroUrl ? (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedVideoUrl(app.videoIntroUrl);
+                                                        setShowVideoModal(true);
+                                                    }}
+                                                    className="w-12 h-12 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/10 flex items-center justify-center transition-all group/video"
+                                                    title="Watch Candidate Introduction"
+                                                >
+                                                    <Video size={20} className="group-hover/video:scale-110 transition-transform" />
+                                                </button>
+                                            ) : (
+                                                <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">N/A</span>
+                                            )}
+                                        </td>
+                                        <td className="py-6 text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
+                                                    {app.resumeScore}%
+                                                </div>
+                                                {app.resumeUrl && (
+                                                    <a 
+                                                        href={app.resumeUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                                                        title="View Resume"
+                                                    >
+                                                        <FileText size={16} />
+                                                    </a>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">
@@ -195,8 +259,14 @@ const Applicants = () => {
                                         </td>
                                         <td className="py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-purple-500/5 border border-purple-500/10 text-purple-400 font-bold text-sm">
-                                                    {app.interviewScore || '-'}%
+                                                <div className="inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-purple-500/5 border border-purple-500/10 text-purple-400">
+                                                    <span className="font-bold text-sm">{app.interviewScore || '-'}%</span>
+                                                    <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Tech</span>
+                                                </div>
+                                                {/* ─── OWNERSHIP V VETTING SCORE ─── */}
+                                                <div className="inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-400">
+                                                    <span className="font-bold text-sm">{app.ownershipScore || '-'}%</span>
+                                                    <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Owner</span>
                                                 </div>
                                                 {app.interviewScore !== null && app.interviewScore !== undefined && (
                                                     <button
@@ -204,13 +274,22 @@ const Applicants = () => {
                                                             e.stopPropagation();
                                                             handleViewInterview(app.id);
                                                         }}
-                                                        className="p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-colors"
+                                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 transition-colors"
                                                         title="View Interview Details"
                                                     >
                                                         <Eye size={16} />
                                                     </button>
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="py-6 text-center">
+                                            <TeamFitBadge 
+                                                applicationId={app.id} 
+                                                teamFit={app.teamFit}
+                                                onUpdate={(newData) => {
+                                                    setApplicants(prev => prev.map(a => a.id === app.id ? { ...a, teamFit: newData } : a));
+                                                }}
+                                            />
                                         </td>
                                         <td className="py-6 text-center">
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg">
@@ -222,7 +301,9 @@ const Applicants = () => {
                                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                                 : app.status === 'REJECTED'
                                                     ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                                                    : app.status === 'HIRED'
+                                                        ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                                                        : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
                                                 }`}>
                                                 {app.status}
                                             </span>
@@ -253,6 +334,12 @@ const Applicants = () => {
                                                             className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
                                                         >
                                                             <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(app.id, 'HIRED')}
+                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                        >
+                                                            <Sparkles size={14} /> Mark Hired (AI Learn)
                                                         </button>
                                                         <button
                                                             onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
@@ -308,7 +395,36 @@ const Applicants = () => {
                     }}
                 />
             )}
+
+            {/* Video Intro Modal */}
+            {showVideoModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="relative w-full max-w-4xl bg-[#1a1d24] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+                        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                            <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
+                            <button
+                                onClick={() => setShowVideoModal(false)}
+                                className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
+                            >
+                                <Users className="rotate-45" size={24} />
+                            </button>
+                        </div>
+                        <div className="aspect-video bg-black">
+                            <video
+                                src={selectedVideoUrl}
+                                controls
+                                autoPlay
+                                className="w-full h-full object-contain"
+                            />
+                        </div>
+                        <div className="p-6 bg-white/5 text-center">
+                            <p className="text-xs text-gray-500 font-medium italic">This 60-second introduction is mandatory for all applicants to this job.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+
     );
 };
 

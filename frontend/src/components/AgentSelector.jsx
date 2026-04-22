@@ -17,6 +17,7 @@ const ROLE_META = {
   hr_manager: { emoji: "👥", color: "bg-teal-100 border-teal-400 text-teal-800" },
   finance_analyst: { emoji: "💹", color: "bg-emerald-100 border-emerald-400 text-emerald-800" },
   cybersecurity_analyst: { emoji: "🔐", color: "bg-red-100 border-red-400 text-red-800" },
+  machine_learning_engineer: { emoji: "🧠", color: "bg-purple-100 border-purple-400 text-purple-800" },
 };
 
 export default function AgentSelector({ onSelectRole }) {

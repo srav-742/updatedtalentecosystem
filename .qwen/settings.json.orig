@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(c:\\Users\\sravy\\OneDrive\\Desktop\\updatatalentecosystem\\backend\\controllers/**)"
-    ]
-  }
-}

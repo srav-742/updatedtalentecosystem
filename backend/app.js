@@ -11,9 +11,9 @@ const app = express();
 const corsOptions = {
     origin: (origin, callback) => {
         // Broadly allow hire1percent.com and localhost
-        if (!origin || 
-            origin.includes('hire1percent.com') || 
-            origin.includes('localhost') || 
+        if (!origin ||
+            origin.includes('hire1percent.com') ||
+            origin.includes('localhost') ||
             origin.includes('127.0.0.1')) {
             callback(null, true);
         } else {
@@ -24,7 +24,7 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    optionsSuccessStatus: 200 
+    optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
@@ -33,8 +33,9 @@ app.use(cors(corsOptions));
 
 
 app.use((req, res, next) => {
-    // Set COOP to unsafe-none as a fallback to ensure cross-origin popups can be managed/closed correctly in all browsers
+    // Set COOP to unsafe-none to ensure Firebase popups can close correctly in all environments
     res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
+
     next();
 });
 app.use(express.json({ limit: '50mb' }));
@@ -57,13 +58,20 @@ const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
 const agentRoutes = require("./routes/agentRoutes");
 const cloudinaryTestRoutes = require('./routes/cloudinaryTest.routes');
 const proctoringRoutes = require('./routes/proctoringRoutes');
+const contentRoutes = require("./routes/contentRoutes");
+const videoIntroRoutes = require('./routes/videoIntroRoutes');
+const communityRoutes = require('./routes/communityRoutes');
+const teamFitRoutes = require('./routes/teamFitRoutes');
+const insightRoutes = require('./routes/insightRoutes');
+const aiSearchRoutes = require('./routes/aiSearchRoutes');
+
 
 
 // ✅ Mount Routes
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
-app.use('/api', recruiterRoutes);
-app.use('/api', jobRoutes);
+app.use('/api', recruiterRoutes)
+app.use('/api/jobs', jobRoutes);
 app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
@@ -76,6 +84,13 @@ app.use('/api/interview', interviewFeedbackRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/cloudinary-test", cloudinaryTestRoutes);
 app.use('/api/proctoring', proctoringRoutes);
+app.use("/api/content", contentRoutes);
+app.use('/api', videoIntroRoutes);
+app.use('/api', communityRoutes);
+app.use('/api/team-fit', teamFitRoutes);
+app.use('/api/insights', insightRoutes);
+app.use('/api/ai-search', aiSearchRoutes);
+
 
 // ✅ API Health Check
 app.get('/api/status', (req, res) => {

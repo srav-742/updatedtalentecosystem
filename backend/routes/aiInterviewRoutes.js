@@ -330,6 +330,11 @@ function buildNextQuestionPrompt(session, questionNumber) {
 
     const isAiRole = roleCategory === 'ai_engineer';
 
+    // ─── OWNERSHIP VETTING SCORE LOGIC: Designated Question Slots ────────────
+    // Questions 8, 9, and 10 are reserved for testing Ownership Mindset
+    const isOwnershipPhase = questionNumber >= 8;
+    // ──────────────────────────────────────────────────────────────────────────
+
     // Resume question slots scale with totalQuestions
     // For 5 questions: slot 4 (tech/ai) or slot 4 (non-tech)
     // For 6 questions: slots 4 and 6 (tech/ai) or slot 5 (non-tech)
@@ -339,7 +344,7 @@ function buildNextQuestionPrompt(session, questionNumber) {
     } else {
         resumeQuestionSlots = totalQuestions === 5 ? [4] : [5];
     }
-    const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
+    const isResumeQuestion = !isOwnershipPhase && resumeQuestionSlots.includes(questionNumber);
 
     const askedQuestions = session.history
         .filter(h => h.role === 'interviewer')
@@ -349,7 +354,19 @@ function buildNextQuestionPrompt(session, questionNumber) {
     const thread = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
 
     let questionDirective;
-    if (isResumeQuestion) {
+    if (isOwnershipPhase) {
+        // ─── OWNERSHIP VETTING SCORE LOGIC: Scenarios ───────────────────────────
+        questionDirective = `
+THIS IS AN OWNERSHIP-MINDSET VETTING QUESTION.
+- The goal is to see if the candidate takes responsibility beyond their basic tasks.
+- Pick ONE of these scenarios to adapt for Question ${questionNumber}:
+  1. (Urgency) Finding a critical production bug at 2 AM.
+  2. (Integrity) Disagreeing with a manager's technical decision for the good of the project.
+  3. (Initiative) Identifying an inefficiency or problem that isn't their "job" and fixing it anyway.
+- Ensure the question is situational: "How would you handle..." or "Tell me about a time when..."
+`;
+        // ──────────────────────────────────────────────────────────────────────────
+    } else if (isResumeQuestion) {
         questionDirective = `
 THIS IS A RESUME-BASED QUESTION (${resumeWeight} allocation).
 - Ask a question that VALIDATES something specific from the candidate's resume.
@@ -768,12 +785,24 @@ router.post('/next', async (req, res) => {
 
             console.log("[INTERVIEW-EVAL] Final Score:", evaluation.score);
 
+            // ─── OWNERSHIP VETTING SCORE LOGIC: Final Calculation ────────────────
+            const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= 8);
+            const ownershipScore = ownershipEvals.length > 0 
+                ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.score, 0) / ownershipEvals.length)
+                : 0;
+            // ─────────────────────────────────────────────────────────────────────
+
             await Application.findOneAndUpdate(
                 { userId: session.userId, jobId: session.jobId },
                 {
                     interviewScore: evaluation.score,
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
+                    // ─── OWNERSHIP VETTING SCORE LOGIC: Persistence ──────────────────
+                    metrics: {
+                        ownershipMindset: ownershipScore
+                    },
+                    // ─────────────────────────────────────────────────────────────────
                     interviewAnswers: session.answerEvaluations.map((entry) => ({
                         question: entry.question,
                         answer: entry.answer,
@@ -828,6 +857,7 @@ router.post('/next', async (req, res) => {
             return res.json({
                 hasNext: false,
                 finalScore: evaluation.score,
+                ownershipScore: ownershipScore, // ─── Added for frontend display
                 feedback: evaluation.feedback,
                 answerEvaluation
             });

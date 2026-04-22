@@ -58,6 +58,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                 </Link>
 
                 <div className="hidden md:flex items-center space-x-8">
+                    <Link to="/pricing" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Pricing</Link>
                     <a href="/#elite-talent" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Elite Talent</a>
                     <a href="/#operations" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Operations</a>
                     <a href="/#safety" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Safety</a>
@@ -106,6 +107,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                         className={`md:hidden ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
                     >
                         <div className="flex flex-col p-6 space-y-4">
+                            <Link to="/pricing" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Pricing</Link>
                             <a href="/#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
                             <a href="/#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
                             <a href="/#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>

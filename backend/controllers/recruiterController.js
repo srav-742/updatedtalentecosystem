@@ -25,8 +25,53 @@ const getRecruiterApplications = async (req, res) => {
         const jobIds = jobs.map(j => j._id);
         const apps = await Application.find({ jobId: { $in: jobIds } })
             .populate('jobId')
-            .populate('user', 'name email profilePic')
+            .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
             .sort({ createdAt: -1 });
+
+        // ─── ROBUST SOCIAL LINK FALLBACK ───
+        const User = require('../models/User');
+        const missingUserApps = apps.filter(app => !app.user);
+        
+        if (missingUserApps.length > 0) {
+            const emails = missingUserApps.map(a => a.applicantEmail).filter(Boolean);
+            const uids = missingUserApps.map(a => a.userId).filter(Boolean);
+            
+            const fallbackUsers = await User.find({
+                $or: [
+                    { email: { $in: emails } },
+                    { uid: { $in: uids } }
+                ]
+            });
+
+            const userMap = new Map();
+            fallbackUsers.forEach(u => {
+                if (u.email) userMap.set(u.email, u);
+                if (u.uid) userMap.set(u.uid, u);
+            });
+
+            apps.forEach(app => {
+                if (!app.user) {
+                    const found = userMap.get(app.applicantEmail) || userMap.get(app.userId);
+                    if (found) {
+                        // Create a mock user object for the virtual field
+                        app._doc.user = {
+                            githubUrl: found.githubUrl,
+                            linkedinUrl: found.linkedinUrl,
+                            profilePic: found.profilePic,
+                            name: found.name,
+                            email: found.email,
+                            resumeUrl: found.resumeUrl
+                        };
+                    }
+                }
+            });
+        }
+        // ────────────────────────────────────
+
+        // ─── OWNERSHIP VETTING SCORE LOGIC ───
+        // Logic to calculate candidate suitability based on assessment and interview scores
+        // ─────────────────────────────────────
+
         res.json(apps);
     } catch (error) {
         console.error("[GET-APPS-REC] Failure:", error);
