@@ -441,7 +441,7 @@ export default function AgentInterview() {
   if (phase === "resume") {
     return (
       <div className="max-w-2xl mx-auto px-6 py-20 text-center">
-        <div className="w-16 h-16 bg-violet-100 text-violet-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-sm border border-violet-200">
+        <div className="w-16 h-16 bg-[#f4efe6] text-gray-700 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-sm border border-black/10">
           <User size={32} />
         </div>
         <h2 className="text-3xl font-black text-gray-800 mb-4">Provide Your Resume</h2>
@@ -449,13 +449,13 @@ export default function AgentInterview() {
           To make this mock interview truly adaptive, our AI will parse your resume and generate strategic, personalized questions.
         </p>
 
-        <div className="bg-white rounded-[32px] shadow-xl shadow-gray-100 border border-gray-100 p-8 mb-8 text-left">
+        <div className="bg-white rounded-[32px] shadow-xl shadow-gray-100 border border-black/10 p-8 mb-8 text-left">
           <label className="block text-sm font-bold text-gray-700 mb-2">Upload Resume (PDF)</label>
           <input
             type="file"
             accept=".pdf"
             onChange={(e) => setResumeFile(e.target.files[0])}
-            className="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 mb-6 cursor-pointer"
+            className="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#f4efe6] file:text-gray-700 hover:file:bg-[#ebe3d6] mb-6 cursor-pointer"
           />
 
           <div className="flex items-center gap-4 mb-6">
@@ -466,7 +466,7 @@ export default function AgentInterview() {
 
           <label className="block text-sm font-bold text-gray-700 mb-2">Paste Resume Text</label>
           <textarea
-            className="w-full h-40 border border-gray-200 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-violet-50 focus:border-violet-400 transition-all resize-none bg-gray-50"
+            className="w-full h-40 border border-black/10 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#f4efe6] focus:border-black/20 transition-all resize-none bg-[#fcfaf6]"
             placeholder="Paste your skills, experience, and projects here..."
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
@@ -476,7 +476,7 @@ export default function AgentInterview() {
         <button
           onClick={handleStartSession}
           disabled={loading || (!resumeFile && !resumeText.trim())}
-          className="w-full py-5 bg-violet-600 text-white rounded-[24px] font-bold hover:bg-violet-700 transition-all shadow-xl shadow-violet-200 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
+          className="w-full py-5 bg-black text-white rounded-[24px] font-bold hover:bg-gray-800 transition-all shadow-xl shadow-black/10 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
         >
           {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
           {loading ? "Analyzing Profile..." : "Start Adaptive Interview"}

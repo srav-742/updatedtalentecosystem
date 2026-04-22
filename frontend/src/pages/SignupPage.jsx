@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
 import Navbar from '../components/Navbar';
 
 const SignupPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
 
-    const [role, setRole] = useState(null); // 'recruiter' or 'seeker'
+    const [role, setRole] = useState(location.state?.role || null); // 'recruiter' or 'seeker'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -136,8 +137,10 @@ const SignupPage = () => {
             <div className="grid md:grid-cols-2 gap-8">
                 {/* Recruiter Card */}
                 <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
                     whileHover={{ scale: 1.02, borderColor: 'rgba(59, 130, 246, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
+
                     onClick={() => handleRoleSelect('recruiter')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >
@@ -156,8 +159,10 @@ const SignupPage = () => {
 
                 {/* Candidate Card */}
                 <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
                     whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
+
                     onClick={() => handleRoleSelect('seeker')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >

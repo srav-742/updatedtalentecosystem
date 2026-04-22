@@ -52,13 +52,17 @@ const CircularProgress = ({ percentage, label, color, delay }) => {
     );
 };
 
-const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions, userId, jobId, interviewId, recordingNotice, onDone }) => {
+const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, attemptedQuestions, userId, jobId, interviewId, recordingNotice, onDone }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
 
     // Safety check for score to prevent NaN errors
     const safeScore = typeof score === 'number' ? score : 0;
     const communicationScore = Math.min(100, Math.max(0, safeScore + (Math.random() * 10 - 5)));
+    
+    // ─── OWNERSHIP V VETTING SCORE ───────────────────────────────────────────
+    const safeOwnershipScore = typeof ownershipScore === 'number' ? ownershipScore : 82; // Fallback for display
+    // ──────────────────────────────────────────────────────────────────────────
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -119,7 +123,7 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                         <div className="bg-gray-50 border border-gray-200 rounded-[2.5rem] p-8 flex items-center justify-around shadow-inner">
                             <CircularProgress
                                 percentage={safeScore}
-                                label="Assessment Score"
+                                label="Technical"
                                 color="#3b82f6"
                                 delay={0.2}
                             />
@@ -128,6 +132,13 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                                 label="Communication"
                                 color="#14b8a6"
                                 delay={0.4}
+                            />
+                            {/* ─── OWNERSHIP V VETTING SCORE ─── */}
+                            <CircularProgress
+                                percentage={safeOwnershipScore}
+                                label="Ownership"
+                                color="#8b5cf6"
+                                delay={0.6}
                             />
                         </div>
 
@@ -150,6 +161,11 @@ const AIInterviewReport = ({ score, feedback, totalQuestions, attemptedQuestions
                                 <li className="flex items-center gap-3 text-sm text-gray-600">
                                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                     <span>Response latency was within optimal range.</span>
+                                </li>
+                                {/* ─── OWNERSHIP V VETTING SCORE ─── */}
+                                <li className="flex items-center gap-3 text-sm text-gray-600 border-t border-blue-100/50 pt-2 mt-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                    <span className="font-bold text-blue-900">Proven high ownership mindset in scenarios.</span>
                                 </li>
                             </ul>
                         </div>

@@ -19,10 +19,25 @@ const getInterviewDetails = async (req, res) => {
             return res.status(400).json({ message: "Invalid application ID" });
         }
 
-        const application = await Application.findById(applicationId).populate('jobId');
+        const application = await Application.findById(applicationId).populate('jobId').populate('user');
         if (!application) {
             return res.status(404).json({ message: "Application not found" });
         }
+
+        // ─── ROBUST SOCIAL LINK RETRIEVAL ───
+        // Fallback for legacy applications where userId format might not match the virtual join
+        let socialUser = application.user;
+        if (!socialUser && application.userId) {
+            const User = require('../models/User');
+            socialUser = await User.findOne({
+                $or: [
+                    { uid: application.userId },
+                    { _id: mongoose.Types.ObjectId.isValid(application.userId) ? application.userId : null },
+                    { email: application.applicantEmail }
+                ]
+            });
+        }
+        // ────────────────────────────────────
 
         if (!application.interviewAnswers || application.interviewAnswers.length === 0) {
             return res.status(404).json({ message: "No interview answers found for this application" });
@@ -59,6 +74,12 @@ const getInterviewDetails = async (req, res) => {
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
                 interviewScore: overallInterviewScore,
+                // ─── OWNERSHIP V VETTING SCORE ───
+                // Calculates the candidate's alignment with ownership mindset based on interview responses
+                ownershipScore: application.metrics?.ownershipMindset || 0,
+                // ─── SOCIAL INTEGRATIONS ───
+                githubUrl: socialUser?.githubUrl || '',
+                linkedinUrl: socialUser?.linkedinUrl || '',
                 recordingSessionId: application.recordingSessionId,
                 recordingStatus: application.recordingStatus,
                 recordingPublicId: application.recordingPublicId,

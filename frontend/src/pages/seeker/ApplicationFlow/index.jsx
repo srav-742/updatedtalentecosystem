@@ -7,6 +7,8 @@ import { API_URL } from '../../../firebase';
 import ResumeAnalyzer from './ResumeAnalyzer';
 import SkillAssessment from './SkillAssessment';
 import AIInterview from './AIInterview';
+import CandidateDeck from './CandidateDeck';
+
 
 const ApplicationFlow = () => {
     const { jobId } = useParams();
@@ -40,8 +42,10 @@ const ApplicationFlow = () => {
                 const enabledSteps = [
                     { id: 'resume', enabled: jobData.resumeAnalysis?.enabled !== false },
                     { id: 'assessment', enabled: jobData.assessment?.enabled },
+                    { id: 'candidate-deck', enabled: jobData.mockInterview?.enabled }, // Required if interview is enabled
                     { id: 'interview', enabled: jobData.mockInterview?.enabled },
                 ].filter(s => s.enabled);
+
 
                 // Check for existing application to resume state
                 try {
@@ -56,16 +60,20 @@ const ApplicationFlow = () => {
                         // Determine the next pending step
                         const resumeDone = !enabledIds.includes('resume') || !!existingApp.resumeMatchPercent;
                         const assessmentDone = !enabledIds.includes('assessment') || !!existingApp.assessmentScore;
+                        const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl;
                         const interviewDone = !enabledIds.includes('interview') || !!existingApp.interviewScore;
 
                         let targetIndex = 0;
                         if (resumeDone && !assessmentDone && enabledIds.includes('assessment')) {
                             targetIndex = enabledIds.indexOf('assessment');
-                        } else if (resumeDone && assessmentDone && !interviewDone && enabledIds.includes('interview')) {
+                        } else if (resumeDone && assessmentDone && !videoDone && enabledIds.includes('candidate-deck')) {
+                            targetIndex = enabledIds.indexOf('candidate-deck');
+                        } else if (resumeDone && assessmentDone && videoDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
-                        } else if (resumeDone && assessmentDone && interviewDone) {
+                        } else if (resumeDone && assessmentDone && videoDone && interviewDone) {
                             navigate('/seeker/applications');
                         }
+
                         setStepIndex(targetIndex);
                     }
                 } catch (e) {
@@ -93,8 +101,10 @@ const ApplicationFlow = () => {
     const enabledSteps = [
         { id: 'resume', label: 'Resume Analysis', icon: <FileText className="w-4 h-4" />, enabled: job.resumeAnalysis?.enabled !== false },
         { id: 'assessment', label: 'Skill Assessment', icon: <Brain className="w-4 h-4" />, enabled: job.assessment?.enabled },
-        { id: 'interview', label: 'AI Interview', icon: <Video className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
+        { id: 'candidate-deck', label: 'Candidate Deck', icon: <Video className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
+        { id: 'interview', label: 'AI Interview', icon: <CheckCircle className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
     ].filter(s => s.enabled);
+
 
     const currentStep = enabledSteps[stepIndex];
 
@@ -138,39 +148,61 @@ const ApplicationFlow = () => {
     };
 
     return (
-        <div className="min-h-screen bg-white flex flex-col">
-            {/* Progress Header */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
-                <div className="max-w-5xl mx-auto px-4 py-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <h1 className="text-xl font-bold text-gray-900">Application for {job.title}</h1>
-                        <span className="text-sm font-medium text-gray-500">Step {stepIndex + 1} of {enabledSteps.length}</span>
-                    </div>
-
-                    <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <motion.div
-                            className="absolute left-0 top-0 h-full bg-blue-500"
-                            initial={{ width: "0%" }}
-                            animate={{ width: `${((stepIndex + 1) / enabledSteps.length) * 100}%` }}
-                            transition={{ duration: 0.5 }}
-                        />
-                    </div>
-
-                    <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        {enabledSteps.map((s, idx) => (
-                            <div key={s.id} className={`flex items-center ${stepIndex >= idx ? 'text-blue-600' : ''}`}>
-                                <div className={`p-1.5 rounded-lg mr-2 ${stepIndex >= idx ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-                                    {s.icon}
-                                </div>
-                                <span className="hidden sm:inline">{s.label}</span>
+        <div className="min-h-screen bg-[#fbf8f3] flex flex-col">
+            <div className="sticky top-0 z-40 border-b border-black/10 bg-[#fbf8f3]/90 backdrop-blur">
+                <div className="mx-auto max-w-[1320px] px-4 py-5 md:px-6">
+                    <div className="rounded-[2rem] border border-black/10 bg-white px-6 py-5 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Candidate workflow</p>
+                                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">Application for {job.title}</h1>
+                                <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
+                                    Move from resume analysis to assessment and interview without losing your current progress.
+                                </p>
                             </div>
-                        ))}
+
+                            <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
+                                Step {stepIndex + 1} of {enabledSteps.length}
+                            </div>
+                        </div>
+
+                        <div className="mt-6 h-2 overflow-hidden rounded-full bg-black/10">
+                            <motion.div
+                                className="h-full rounded-full bg-black"
+                                initial={{ width: '0%' }}
+                                animate={{ width: `${((stepIndex + 1) / enabledSteps.length) * 100}%` }}
+                                transition={{ duration: 0.5 }}
+                            />
+                        </div>
+
+                        <div className="mt-5 grid gap-3 md:grid-cols-4">
+                            {enabledSteps.map((step, index) => (
+                                <div
+                                    key={step.id}
+                                    className={`rounded-[1.5rem] border px-4 py-4 transition ${stepIndex === index
+                                        ? 'border-black bg-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]'
+                                        : stepIndex > index
+                                            ? 'border-black/10 bg-[#f8f4ed] text-gray-800'
+                                            : 'border-black/10 bg-[#fbf8f3] text-gray-500'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${stepIndex === index ? 'bg-white text-black' : 'bg-white text-gray-600'}`}>
+                                            {step.icon}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] opacity-60">Stage {index + 1}</p>
+                                            <p className="mt-1 text-sm font-semibold">{step.label}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-6 pb-24">
+            <div className="flex-1 mx-auto max-w-[1320px] w-full p-4 md:p-6 pb-24">
                 {securityNotice && (
                     <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-900">
                         {securityNotice}
@@ -205,7 +237,19 @@ const ApplicationFlow = () => {
                         />
                     )}
 
+                    {currentStep?.id === 'candidate-deck' && (
+                        <CandidateDeck
+                            key="candidate-deck"
+                            job={job}
+                            user={user}
+                            onComplete={(url) => {
+                                handleNext();
+                            }}
+                        />
+                    )}
+
                     {currentStep?.id === 'interview' && (
+
                         <AIInterview
                             key="interview"
                             job={job}

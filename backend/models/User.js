@@ -28,8 +28,22 @@ const userSchema = new mongoose.Schema({
         duration: String,
         description: String
     }],
+    languages: [String],
+    projects: [{
+        name: String,
+        tech: [String],
+        role: String,
+        description: String
+    }],
+    professionalProfiles: [{
+        platform: String,
+        url: String
+    }],
     bio: String,
     resumeUrl: String,
+    githubUrl: String,
+    linkedinUrl: String,
+    hiringPattern: { type: String, default: "" },
 });
 
 module.exports = mongoose.model('User', userSchema);

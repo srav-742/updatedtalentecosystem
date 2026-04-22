@@ -20,6 +20,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState(null);
     const [finalScore, setFinalScore] = useState(null);
+    const [ownershipScore, setOwnershipScore] = useState(null); // ─── OWNERSHIP V VETTING SCORE
     const [feedback, setFeedback] = useState('');
     const [recordingSessionId, setRecordingSessionId] = useState(null);
     const [recordingNotice, setRecordingNotice] = useState('');
@@ -356,6 +357,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 }
 
                 setFinalScore(nextRes.data.finalScore);
+                setOwnershipScore(nextRes.data.ownershipScore); // ─── OWNERSHIP V VETTING SCORE
                 setFeedback(nextRes.data.feedback);
                 setStep('completed');
             } else {
@@ -569,12 +571,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     if (step === 'ready') {
         return (
             <div className="max-w-2xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl text-center">
-                <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-indigo-600 shadow-sm border border-indigo-100">
+                <div className="w-20 h-20 bg-black text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-2xl">
                     <User size={36} />
                 </div>
-                <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">AI Interview Session</h2>
-                <p className="text-gray-500 mb-8 font-medium leading-relaxed max-w-md mx-auto">
-                    A personalized, adaptive interview designed to evaluate your fit for the <span className="text-indigo-600 font-bold">{job?.title || 'requested role'}</span>.
+                <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight">AI Interview Session</h2>
+                <p className="text-gray-500 mb-10 font-medium leading-relaxed max-w-md mx-auto text-sm">
+                    An adaptive, high-fidelity interview session designed to verify your expertise for the <span className="text-black font-black uppercase tracking-wider">{job?.title || 'requested role'}</span>.
                 </p>
 
                 {/* Detailed Instructions Grid */}
@@ -626,7 +628,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
                 <button
                     onClick={startInterviewTrigger}
-                    className="w-full py-5 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-200"
+                    className="w-full py-6 bg-black text-white font-black text-xs uppercase tracking-[0.2em] rounded-[2rem] hover:bg-gray-800 transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95"
                 >
                     Begin Interview Session <ChevronRight size={18} />
                 </button>
@@ -809,6 +811,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         return (
             <AIInterviewReport
                 score={finalScore}
+                ownershipScore={ownershipScore} // ─── OWNERSHIP V VETTING SCORE
                 feedback={feedback}
                 totalQuestions={10}
                 attemptedQuestions={currentQNum}

@@ -1,6 +1,7 @@
 const Application = require('../models/Application');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const mongoose = require('mongoose');
+const { updateRecruiterPattern } = require('./teamFitController');
 
 
 const submitApplication = async (req, res) => {
@@ -90,7 +91,13 @@ const updateApplicationStatus = async (req, res) => {
             req.params.id,
             { status },
             { new: true }
-        );
+        ).populate('jobId');
+
+        // If status changed to HIRED, update the recruiter's hiring pattern
+        if (status === 'HIRED' && app.jobId?.recruiterId) {
+            updateRecruiterPattern(app.jobId.recruiterId);
+        }
+        
         res.json(app);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);

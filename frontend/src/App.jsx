@@ -10,7 +10,11 @@ import PostJob from './pages/recruiter/PostJob';
 import MyJobs from './pages/recruiter/MyJobs';
 import Applicants from './pages/recruiter/Applicants';
 import RecruiterProfile from './pages/recruiter/RecruiterProfile';
-
+import AdminContentPage from "./pages/AdminContentPage";
+import PerformanceDashboard from "./pages/recruiter/PerformanceDashboard";
+import OnboardingKit from "./pages/recruiter/OnboardingKit";
+import TalentSearch from "./pages/recruiter/TalentSearch";
+import PricingPage from './pages/PricingPage';
 // Seeker Pages
 import SeekerLayout from './pages/seeker/SeekerLayout';
 import SeekerDashboard from './pages/seeker/SeekerDashboard';
@@ -22,16 +26,24 @@ import InterviewFeedbackForm from './pages/seeker/ApplicationFlow/InterviewFeedb
 import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
 import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
+import EliteCommunity from './pages/seeker/EliteCommunity';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
+        <Route path="/admin" element={<AdminContentPage />} />
+        <Route path="/admin-content" element={<AdminContentPage />} />
+        <Route path="/admincontentpage" element={<AdminContentPage />} />
+        <Route path="/AdminContentPage" element={<AdminContentPage />} />
+        <Route path="/recruiter/AdminContentPage" element={<AdminContentPage />} />
+        <Route path="/recruiter/admincontentpage" element={<AdminContentPage />} />
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
@@ -40,6 +52,9 @@ function App() {
           <Route path="my-jobs" element={<MyJobs />} />
           <Route path="applicants" element={<Applicants />} />
           <Route path="profile" element={<RecruiterProfile />} />
+          <Route path="performance" element={<PerformanceDashboard />} />
+          <Route path="onboarding-kit" element={<OnboardingKit />} />
+          <Route path="ai-search" element={<TalentSearch />} />
         </Route>
 
         {/* Seeker Routes */}
@@ -55,6 +70,7 @@ function App() {
           <Route path="agent-interview" element={<AgentInterview />} />
           <Route path="agentInterview" element={<AgentInterview />} />
           <Route path="agentInterview.jsx" element={<AgentInterview />} />
+          <Route path="community" element={<EliteCommunity />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -12,6 +12,7 @@ const Footer = ({ theme = 'dark' }) => {
                     </div>
 
                     <div className="flex items-center space-x-8 text-sm text-gray-500 font-medium">
+                        <a href="/pricing" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Pricing</a>
                         <a href="#elite-talent" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Elite Talent</a>
                         <a href="#operations" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Operations</a>
                         <a href="#safety" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Safety</a>

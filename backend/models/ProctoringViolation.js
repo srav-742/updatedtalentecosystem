@@ -14,8 +14,6 @@ const proctoringViolationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes for admin queries
-proctoringViolationSchema.index({ examId: 1 });
-proctoringViolationSchema.index({ userId: 1 });
 proctoringViolationSchema.index({ examId: 1, userId: 1 });
 
 module.exports = mongoose.model('ProctoringViolation', proctoringViolationSchema);
