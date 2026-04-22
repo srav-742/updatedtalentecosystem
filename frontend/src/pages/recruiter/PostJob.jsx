@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -145,7 +145,7 @@ const PostJob = () => {
             }
 
             setSuccess(true);
-            setTimeout(() => navigate('/recruiter/my-jobs'), 2000);
+            setTimeout(() => navigate('/recruiter/my-jobs'), 3000);
         } catch (error) {
             console.error('Error saving job:', error);
             const data = error.response?.data;
@@ -165,16 +165,21 @@ const PostJob = () => {
 
     if (success) {
         return (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6">
                 <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mb-6"
+                    className="w-24 h-24 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mb-6 border-2 border-amber-500/30"
                 >
-                    <CheckCircle2 size={40} />
+                    <Clock size={44} />
                 </motion.div>
-                <h1 className="text-3xl font-bold mb-2">Job Posted Successfully!</h1>
-                <p className="text-gray-400">Redirecting to your job listings...</p>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                    <h1 className="text-3xl font-bold mb-3">Job Submitted for Review</h1>
+                    <p className="text-gray-400 max-w-md mx-auto leading-relaxed">
+                        Your job posting is now <span className="text-amber-400 font-bold">pending admin approval</span>. You'll be able to see the status in your job listings. Once approved, it will be visible to candidates.
+                    </p>
+                    <p className="text-gray-600 text-sm mt-4">Redirecting to your job listings...</p>
+                </motion.div>
             </div>
         );
     }
@@ -568,13 +573,17 @@ const PostJob = () => {
                 </div>
 
                 {/* Submit */}
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium flex items-start gap-3">
+                    <Clock size={18} className="shrink-0 mt-0.5" />
+                    <span>After posting, your job will go through a brief admin review before being visible to candidates. You'll see the approval status in your job listings.</span>
+                </div>
                 <button
                     type="submit"
                     disabled={loading}
                     className="w-full py-5 rounded-3xl bg-gradient-to-r from-blue-600 to-teal-500 text-white text-xl font-bold shadow-2xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                     {loading ? <Loader2 className="animate-spin" /> : <FilePlus />}
-                    {loading ? 'Posting Job...' : 'Post Job Now'}
+                    {loading ? 'Submitting for Review...' : 'Submit for Admin Review'}
                 </button>
             </form >
         </div >
