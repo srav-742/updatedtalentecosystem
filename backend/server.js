@@ -7,6 +7,7 @@ connectDB();
 
 const PORT = process.env.PORT || 5000;
 const { startCleanupJob } = require('./services/cleanupService');
+const seedAdmin = require('./utils/seedAdmin');
 
 const fs = require('fs');
 const path = require('path');
@@ -18,10 +19,12 @@ if (!fs.existsSync(privateDir)) {
     console.log(`[STORAGE] Created private storage: ${privateDir}`);
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);
+    await seedAdmin();
     startCleanupJob();
 });
+
 
 // server.js remains clean and only handles initialization
 

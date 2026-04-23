@@ -118,3 +118,15 @@ export const updateUserProfile = async (userId, data) => {
         throw error;
     }
 };
+export const getAuthHeaders = async () => {
+    const user = auth.currentUser;
+    if (user) {
+        const token = await user.getIdToken();
+        return {
+            'Authorization': `Bearer ${token}`,
+            'x-user-id': user.uid
+        };
+    }
+    return {};
+};
+

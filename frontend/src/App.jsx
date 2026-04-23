@@ -38,12 +38,13 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
-        <Route path="/admin" element={<AdminContentPage />} />
-        <Route path="/admin-content" element={<AdminContentPage />} />
-        <Route path="/admincontentpage" element={<AdminContentPage />} />
-        <Route path="/AdminContentPage" element={<AdminContentPage />} />
-        <Route path="/recruiter/AdminContentPage" element={<AdminContentPage />} />
-        <Route path="/recruiter/admincontentpage" element={<AdminContentPage />} />
+        {/* Admin Routes */}
+        <Route path="/admin" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
+        <Route path="/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
+        <Route path="/recruiter/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
+        <Route path="/recruiter/AdminContentPage" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
+
+
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
