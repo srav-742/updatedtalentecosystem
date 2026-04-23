@@ -1,8 +1,19 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles } from 'lucide-react';
-import { getUserProfile, API_URL, auth } from '../../firebase';
+import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
+
+const navItems = [
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/recruiter' },
+    { label: 'Post Job', icon: FilePlus, path: '/recruiter/post-job' },
+    { label: 'My Jobs', icon: Briefcase, path: '/recruiter/my-jobs' },
+    { label: 'Applicants', icon: Users, path: '/recruiter/applicants' },
+    { label: 'Performance', icon: BarChart3, path: '/recruiter/performance' },
+    { label: 'Onboarding Kit', icon: Package, path: '/recruiter/onboarding-kit' },
+    { label: 'AI Search', icon: Sparkles, path: '/recruiter/ai-search' },
+    { label: 'Profile', icon: UserCircle, path: '/recruiter/profile' },
+];
 
 const RecruiterLayout = () => {
     const navigate = useNavigate();
@@ -51,105 +62,93 @@ const RecruiterLayout = () => {
         navigate('/login');
     };
 
-    const navItems = [
-        { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/recruiter' },
-        { label: 'Post Job', icon: <FilePlus size={20} />, path: '/recruiter/post-job' },
-        { label: 'My Jobs', icon: <Briefcase size={20} />, path: '/recruiter/my-jobs' },
-        { label: 'Applicants', icon: <Users size={20} />, path: '/recruiter/applicants' },
-        { label: 'Performance', icon: <BarChart3 size={20} />, path: '/recruiter/performance' },
-        { label: 'Onboarding Kit', icon: <Package size={20} />, path: '/recruiter/onboarding-kit' },
-        { label: 'AI Search', icon: <Sparkles size={20} />, path: '/recruiter/ai-search' },
-        { label: 'Profile', icon: <UserCircle size={20} />, path: '/recruiter/profile' },
-    ];
-
     return (
-        <div className="flex h-screen bg-[#0c0f16] text-white overflow-hidden relative">
-            {/* Hamburger for Mobile */}
+        <div className="recruiter-light-theme relative flex h-screen overflow-hidden bg-[#f3efe7] text-gray-900">
             <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="md:hidden fixed top-6 left-6 z-50 p-2 bg-white/5 border border-white/10 rounded-xl"
+                onClick={() => setIsSidebarOpen((value) => !value)}
+                className="fixed left-6 top-6 z-50 rounded-2xl border border-black/10 bg-white p-3 shadow-sm md:hidden"
             >
-                {isSidebarOpen ? <LogOut className="rotate-90" size={24} /> : <Zap size={24} />}
+                <Zap size={22} />
             </button>
 
-            {/* Sidebar */}
             <aside className={`
-                fixed inset-y-0 left-0 z-40 w-64 border-r border-white/10 bg-[#0c0f16] flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+                fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-black/10 bg-[#fcfbf8] shadow-[0_24px_70px_rgba(15,23,42,0.08)]
+                transition-transform duration-300 ease-in-out md:relative md:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-6">
-                    <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-400 rounded-lg flex items-center justify-center">
-                            <Zap size={18} className="text-white" />
+                <div className="px-6 py-5">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-[1.25rem] bg-black text-white shadow-lg shadow-black/10">
+                            <Zap size={22} />
                         </div>
-                        <span className="font-bold text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">Recruiter Hub</span>
+                        <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400">Recruiter portal</p>
+                            <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+                                hire1<span className="text-gray-500">percent</span>
+                            </h1>
+                        </div>
                     </div>
                 </div>
 
-                <nav className="flex-1 px-4 space-y-2 mt-4">
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            end={item.path === '/recruiter'}
-                            onClick={() => setIsSidebarOpen(false)}
-                            className={({ isActive }) => `
-                                flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200
-                                ${isActive
-                                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'}
-                            `}
-                        >
-                            {item.icon}
-                            <span className="font-medium">{item.label}</span>
-                        </NavLink>
-                    ))}
+                <nav className="flex-1 space-y-1.5 px-4 pb-2">
+                    {navItems.map((item) => {
+                        const Icon = item.icon;
+
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.path === '/recruiter'}
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={({ isActive }) => `
+                                    flex items-center gap-3 rounded-2xl border px-5 py-3 text-sm font-semibold transition
+                                    ${isActive
+                                        ? 'border-black bg-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]'
+                                        : 'border-transparent bg-transparent text-gray-500 hover:border-black/5 hover:bg-black/[0.03] hover:text-gray-900'}
+                                `}
+                            >
+                                <Icon size={18} />
+                                <span>{item.label}</span>
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
-                <div className="p-4 mt-auto border-t border-white/5">
+                <div className="mt-auto shrink-0 border-t border-black/10 p-3">
                     <button
                         onClick={handleLogout}
-                        className="flex items-center space-x-3 w-full px-4 py-3 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200"
+                        className="mb-3 flex w-full items-center gap-3 rounded-2xl px-5 py-3 text-sm font-semibold text-gray-500 transition hover:bg-red-50 hover:text-red-500"
                     >
                         <LogOut size={18} />
-                        <span className="font-medium">Logout</span>
+                        <span>Logout</span>
                     </button>
-
-
-
-                    <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-teal-500/10 border border-white/5">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20 overflow-hidden">
+                    <div className="rounded-[1.6rem] border border-black/10 bg-[#f4efe6] p-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1.1rem] border border-black/10 bg-white text-base font-semibold text-gray-900">
                                 {profile?.profilePic ? (
-                                    <img src={profile.profilePic} alt="Avatar" className="w-full h-full object-cover" />
+                                    <img src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                 ) : (
                                     user.name?.[0]?.toUpperCase() || 'R'
                                 )}
                             </div>
-                            <div className="overflow-hidden">
-                                <p className="text-sm font-bold truncate">{profile?.name || user.name || 'Recruiter'}</p>
-                                <p className="text-[10px] text-gray-500 truncate uppercase tracking-widest font-bold">{profile?.designation || 'Hiring Lead'}</p>
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-gray-900">{profile?.name || user.name || 'Recruiter'}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">{profile?.designation || 'Hiring Lead'}</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </aside>
 
-            {/* Overlay for mobile */}
             {isSidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+                    className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm md:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto bg-[#0a0c10] relative pt-20 md:pt-0">
-                {/* Global Background Accents */}
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none -z-10" />
-                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
-
-                <div className="p-4 md:p-8 max-w-7xl mx-auto">
+            <main className="recruiter-content relative flex-1 overflow-y-auto bg-[#f7f4ee] pt-20 text-gray-900 md:pt-0">
+                <div className="mx-auto max-w-[1440px] p-4 md:p-10">
                     <Outlet />
                 </div>
             </main>

@@ -17,6 +17,7 @@ const JobRequestsPanel = () => {
     const [rejectReason, setRejectReason] = useState("");
     const [actionLoading, setActionLoading] = useState(null);
     const [statusMsg, setStatusMsg] = useState("");
+    const [filterStatus, setFilterStatus] = useState("pending_approval");
 
     const fetchJobs = async () => {
         setLoading(true);
@@ -69,7 +70,13 @@ const JobRequestsPanel = () => {
     };
 
     const pendingJobs = jobs.filter(j => j.status === 'pending_approval');
-    const reviewedJobs = jobs.filter(j => j.status !== 'pending_approval');
+    const filteredJobs = jobs.filter(j => j.status === filterStatus);
+
+    const filterLabels = {
+        pending_approval: { label: "Pending Review", icon: <Clock size={12} />, color: "text-amber-400" },
+        approved: { label: "Approved & Live", icon: <CheckCircle size={12} />, color: "text-emerald-400" },
+        rejected: { label: "Rejected", icon: <XCircle size={12} />, color: "text-red-400" }
+    };
 
     const StatusBadge = ({ status }) => {
         if (status === 'approved') return (
@@ -277,14 +284,20 @@ const JobRequestsPanel = () => {
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-4">
                 {[
-                    { label: "Pending Review", count: pendingJobs.length, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-                    { label: "Approved & Live", count: jobs.filter(j => j.status === 'approved').length, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-                    { label: "Rejected", count: jobs.filter(j => j.status === 'rejected').length, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+                    { label: "Pending Review", status: 'pending_approval', count: pendingJobs.length, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", activeBg: "border-amber-500/50 bg-amber-500/25 shadow-lg shadow-amber-500/5" },
+                    { label: "Approved & Live", status: 'approved', count: jobs.filter(j => j.status === 'approved').length, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", activeBg: "border-emerald-500/50 bg-emerald-500/25 shadow-lg shadow-emerald-500/5" },
+                    { label: "Rejected", status: 'rejected', count: jobs.filter(j => j.status === 'rejected').length, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", activeBg: "border-red-500/50 bg-red-500/25 shadow-lg shadow-red-500/5" },
                 ].map(stat => (
-                    <div key={stat.label} className={`p-4 rounded-2xl border ${stat.bg} text-center`}>
-                        <p className={`text-3xl font-black ${stat.color}`}>{stat.count}</p>
+                    <button
+                        key={stat.status}
+                        onClick={() => setFilterStatus(stat.status)}
+                        className={`p-4 rounded-2xl border transition-all text-center group ${filterStatus === stat.status
+                            ? stat.activeBg + " scale-[1.02]"
+                            : stat.bg + " opacity-60 hover:opacity-100 hover:scale-[1.01]"}`}
+                    >
+                        <p className={`text-3xl font-black transition-transform group-hover:scale-110 ${stat.color}`}>{stat.count}</p>
                         <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mt-1">{stat.label}</p>
-                    </div>
+                    </button>
                 ))}
             </div>
 
@@ -295,29 +308,28 @@ const JobRequestsPanel = () => {
                 </div>
             ) : (
                 <>
-                    {/* Pending Jobs */}
-                    {pendingJobs.length > 0 && (
-                        <div>
-                            <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-400 mb-3 flex items-center gap-2">
-                                <Clock size={12} /> Awaiting Review ({pendingJobs.length})
-                            </h3>
+                    {/* Dynamic Job List */}
+                    <motion.div
+                        key={filterStatus}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        <h3 className={`text-[11px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${filterLabels[filterStatus].color}`}>
+                            {filterLabels[filterStatus].icon} {filterLabels[filterStatus].label} ({filteredJobs.length})
+                        </h3>
+                        {filteredJobs.length > 0 ? (
                             <div className="space-y-3">
-                                {pendingJobs.map(job => <JobCard key={job._id} job={job} />)}
+                                {filteredJobs.map(job => <JobCard key={job._id} job={job} />)}
                             </div>
-                        </div>
-                    )}
-
-                    {/* Reviewed Jobs */}
-                    {reviewedJobs.length > 0 && (
-                        <div>
-                            <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
-                                <CheckCircle size={12} /> Previously Reviewed ({reviewedJobs.length})
-                            </h3>
-                            <div className="space-y-3">
-                                {reviewedJobs.map(job => <JobCard key={job._id} job={job} />)}
+                        ) : (
+                            <div className="text-center py-20 text-gray-600 bg-black/5 rounded-3xl border border-dashed border-black/10">
+                                <Briefcase className="mx-auto mb-4 opacity-30" size={48} />
+                                <p className="font-bold text-lg">No {filterLabels[filterStatus].label.toLowerCase().includes('live') ? 'live' : filterLabels[filterStatus].label.toLowerCase()} jobs found</p>
+                                <p className="text-sm mt-1">Jobs with this status will appear here for management.</p>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </motion.div>
 
                     {jobs.length === 0 && (
                         <div className="text-center py-20 text-gray-600">
@@ -375,24 +387,24 @@ const AdminContentPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#0c0f16] text-white font-sans overflow-x-hidden">
-            <main className="container mx-auto px-6 pt-16 pb-20">
+        <div className="admin-content min-h-screen overflow-x-hidden bg-[#f7f4ee] font-sans text-gray-900">
+            <main className="mx-auto max-w-[1440px] px-4 pb-20 pt-8 md:px-10 md:pt-10">
                 {/* ── Header ─────────────────────────────────────────────── */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                <header className="mb-8 flex flex-col justify-between gap-8 overflow-hidden rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] md:flex-row md:items-center">
                     <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <div className="mb-3 flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-[1.25rem] bg-black text-white shadow-lg shadow-black/10">
                                 <Layers size={18} />
                             </div>
-                            <span className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">Admin Dashboard</span>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400">Admin Dashboard</span>
                         </div>
-                        <h1 className="text-4xl font-black uppercase tracking-tight">
+                        <h1 className="text-4xl font-semibold tracking-tight text-gray-900">
                             {activeTab === "content"
-                                ? <>Content <span className="text-teal-400">Dashboard</span></>
-                                : <>Job <span className="text-amber-400">Approvals</span></>
+                                ? <>Content <span className="text-gray-500">Dashboard</span></>
+                                : <>Job <span className="text-gray-500">Approvals</span></>
                             }
                         </h1>
-                        <p className="text-gray-500 font-medium mt-1">
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-500">
                             {activeTab === "content"
                                 ? "Manage AI-generated viral content for multi-channel growth."
                                 : "Review, approve, or reject recruiter job posting requests."
@@ -404,7 +416,7 @@ const AdminContentPage = () => {
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => setShowCommunitySettings(true)}
-                                className="p-4 rounded-2xl bg-white/5 border border-white/10 text-gray-400 hover:text-teal-400 hover:border-teal-500/30 transition-all shadow-xl"
+                                className="rounded-2xl border border-black/10 bg-white p-4 text-gray-600 shadow-sm transition hover:bg-[#faf7f1] hover:text-gray-900"
                                 title="Community Settings"
                             >
                                 <Settings size={20} />
@@ -412,34 +424,33 @@ const AdminContentPage = () => {
                             <button
                                 onClick={handleGenerate}
                                 disabled={loading}
-                                className="group relative overflow-hidden px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 font-black uppercase tracking-widest text-xs transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shadow-xl shadow-blue-500/20"
+                                className="relative overflow-hidden rounded-2xl bg-black px-8 py-4 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition active:scale-95 disabled:opacity-50"
                             >
                                 <div className="flex items-center gap-2 relative z-10">
                                     {loading ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
                                     {loading ? (statusMsg || "Processing...") : "Generate Daily Batch"}
                                 </div>
-                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                             </button>
                         </div>
                     )}
                 </header>
 
                 {/* ── Tab Navigation ──────────────────────────────────────── */}
-                <div className="flex items-center gap-3 mb-10 p-1.5 bg-white/5 border border-white/10 rounded-2xl w-fit">
+                <div className="mb-8 flex w-fit items-center gap-2 rounded-[1.5rem] border border-black/10 bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
                     <button
                         onClick={() => setActiveTab("content")}
-                        className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "content"
-                            ? "bg-gradient-to-r from-blue-600 to-teal-500 text-white shadow-lg"
-                            : "text-gray-500 hover:text-gray-300"}`}
+                        className={`flex items-center gap-2.5 rounded-2xl px-6 py-3 text-xs font-semibold uppercase tracking-[0.22em] transition-all ${activeTab === "content"
+                            ? "bg-black text-white shadow-lg"
+                            : "text-gray-500 hover:bg-[#faf7f1] hover:text-gray-900"}`}
                     >
                         <Layers size={14} />
                         News & LinkedIn Posts
                     </button>
                     <button
                         onClick={() => setActiveTab("jobs")}
-                        className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "jobs"
-                            ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
-                            : "text-gray-500 hover:text-gray-300"}`}
+                        className={`flex items-center gap-2.5 rounded-2xl px-6 py-3 text-xs font-semibold uppercase tracking-[0.22em] transition-all ${activeTab === "jobs"
+                            ? "bg-black text-white shadow-lg"
+                            : "text-gray-500 hover:bg-[#faf7f1] hover:text-gray-900"}`}
                     >
                         <Briefcase size={14} />
                         Job Posting Requests
@@ -458,10 +469,10 @@ const AdminContentPage = () => {
                         >
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                                 <div className="lg:col-span-5">
-                                    <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-6 backdrop-blur-xl h-[700px] overflow-hidden flex flex-col">
+                                    <div className="flex h-[700px] flex-col overflow-hidden rounded-[2.5rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                                         <div className="flex items-center justify-between mb-6 px-4">
-                                            <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Content Feed</h3>
-                                            <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-gray-500">
+                                            <h3 className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-400">Content Feed</h3>
+                                            <span className="rounded-full border border-black/10 bg-[#fbf8f3] px-3 py-1 text-[10px] font-semibold text-gray-500">
                                                 {content.length} Items
                                             </span>
                                         </div>
@@ -471,8 +482,7 @@ const AdminContentPage = () => {
                                     </div>
                                 </div>
                                 <div className="lg:col-span-7">
-                                    <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 backdrop-blur-xl min-h-[700px] flex flex-col relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                                    <div className="relative flex min-h-[700px] flex-col overflow-hidden rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                                         <ContentDetail selected={selected} refresh={fetchContent} />
                                     </div>
                                 </div>
@@ -486,7 +496,7 @@ const AdminContentPage = () => {
                             exit={{ opacity: 0, y: -8 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <div className="max-w-3xl mx-auto">
+                            <div className="mx-auto max-w-5xl rounded-[2.5rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                                 <JobRequestsPanel />
                             </div>
                         </motion.div>
