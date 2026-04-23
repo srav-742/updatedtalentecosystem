@@ -1,45 +1,68 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { Navigate, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
-/**
- * ProtectedRoute - Wraps routes that require authentication.
- * If Firebase session is gone (user closed tab, session expired, or logged out),
- * it redirects to /login instead of showing a 404.
- */
-const ProtectedRoute = ({ children }) => {
-    const [loading, setLoading] = useState(true);
-    const [authenticated, setAuthenticated] = useState(false);
+const ProtectedRoute = ({ children, role }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState(null);
+    const location = useLocation();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            if (firebaseUser) {
-                setAuthenticated(true);
-            } else {
-                // Firebase session is gone — clear stale localStorage too
-                localStorage.removeItem('user');
-                setAuthenticated(false);
+        const checkAuth = () => {
+            const storedUser = localStorage.getItem('user');
+            console.log("[ProtectedRoute] Stored user:", storedUser);
+            if (storedUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    console.log("[ProtectedRoute] Parsed user role:", parsedUser?.role);
+                    setUser(parsedUser);
+                } catch (e) {
+                    console.error("Failed to parse user from localStorage", e);
+                }
             }
-            setLoading(false);
-        });
-        return () => unsubscribe();
+            setIsLoading(false);
+        };
+        checkAuth();
     }, []);
 
-    if (loading) {
-        // Small loading state while Firebase resolves auth — prevents flash
+
+    if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#0c0f16]">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="h-screen w-full flex items-center justify-center bg-[#0c0f16]">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
             </div>
         );
     }
 
-    if (!authenticated) {
-        return <Navigate to="/login" replace />;
+    console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, userRole: user?.role });
+
+    if (!user || !user.uid) {
+        console.log("[ProtectedRoute] No valid user, redirecting to login");
+        if (window.location.pathname.includes('AdminContentPage')) {
+            window.location.href = '/login';
+            return null;
+        }
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+
+    if (role && user.role !== role) {
+        console.log(`[ProtectedRoute] Role mismatch: Expected ${role}, got ${user.role}. Redirecting...`);
+        const redirectPath = user.role === 'recruiter' ? '/recruiter' : '/seeker';
+        
+        // Hard fallback if Navigate seems to be ignored
+        if (window.location.pathname.includes('AdminContentPage') && user.role !== 'admin') {
+            window.location.href = redirectPath;
+            return null;
+        }
+        
+        return <Navigate to={redirectPath} replace />;
+    }
+
+
+    console.log("[ProtectedRoute] Access Granted");
     return children;
 };
+
 
 export default ProtectedRoute;

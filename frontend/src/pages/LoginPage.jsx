@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL } from '../firebase';
 import Navbar from '../components/Navbar';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const [role, setRole] = useState(null); // 'recruiter' or 'seeker'
+    const location = useLocation();
+    const [role, setRole] = useState(null); // 'recruiter', 'seeker', or 'admin'
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -81,8 +82,15 @@ const LoginPage = () => {
             // Store in local storage
             localStorage.setItem('user', JSON.stringify(profile));
 
-            // Navigate to dashboard
-            navigate(role === 'recruiter' ? '/recruiter' : '/seeker');
+            // Navigate to intended page or default dashboard based on profile role
+            const from = location.state?.from?.pathname;
+            if (from) {
+                navigate(from, { replace: true });
+            } else if (profile.role === 'admin') {
+                navigate('/admin', { replace: true });
+            } else {
+                navigate(profile.role === 'recruiter' ? '/recruiter' : '/seeker', { replace: true });
+            }
         } catch (error) {
             let userFriendlyMessage = "Invalid credentials. Please check your email/password.";
 
@@ -120,8 +128,16 @@ const LoginPage = () => {
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
             // Navigate right away
-            if (targetRole === 'recruiter') navigate('/recruiter');
-            else navigate('/seeker');
+            const from = location.state?.from?.pathname;
+            if (from) {
+                navigate(from, { replace: true });
+            } else if (targetRole === 'admin') {
+                navigate('/admin', { replace: true });
+            } else if (targetRole === 'recruiter') {
+                navigate('/recruiter', { replace: true });
+            } else {
+                navigate('/seeker', { replace: true });
+            }
 
             // 4. Background Sync
             getUserProfile(googleUser.uid).then(async (profile) => {
@@ -250,9 +266,16 @@ const LoginPage = () => {
                 </motion.div>
             </div>
 
-            <div className="mt-12 text-gray-500 text-sm">
-                Don't have an account? <Link to="/signup" className="text-blue-400 hover:underline font-semibold">Join the ecosystem</Link>
+            <div className="mt-12 text-gray-500 text-sm flex flex-col items-center gap-4">
+                <p>Don't have an account? <Link to="/signup" className="text-blue-400 hover:underline font-semibold">Join the ecosystem</Link></p>
+                <button
+                    onClick={() => handleRoleSelect('admin')}
+                    className="text-gray-600 hover:text-gray-400 text-xs transition-colors uppercase tracking-[0.2em] font-bold"
+                >
+                    System Administrator Access
+                </button>
             </div>
+
         </motion.div>
     );
 
@@ -271,9 +294,9 @@ const LoginPage = () => {
                     initial={{ opacity: 0, x: -50 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
-                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
+                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : role === 'admin' ? 'from-purple-600/20 to-purple-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
                 >
-                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
+                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : role === 'admin' ? 'bg-[radial-gradient(circle_at_50%_50%,#a855f7,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
 
                     <div className="relative z-10">
                         <button
@@ -283,34 +306,40 @@ const LoginPage = () => {
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
                         <h2 className="text-3xl font-bold mb-4">
-                            {isRecruiter ? 'Welcome Back, Recruiter' : 'Welcome Back, Candidate'}
+                            {role === 'admin' ? 'Admin Control Center' : isRecruiter ? 'Welcome Back, Recruiter' : 'Welcome Back, Candidate'}
                         </h2>
+
                         <p className="text-gray-400 mb-6 text-sm max-w-sm">
-                            {isRecruiter
-                                ? 'Your hiring suite is ready. Find top-tier talent with AI precision.'
-                                : 'Ready for your next big break? Your future in Web3 starts here.'
+                            {role === 'admin'
+                                ? 'System overview and core management tools are ready for your oversight.'
+                                : isRecruiter
+                                    ? 'Your hiring suite is ready. Find top-tier talent with AI precision.'
+                                    : 'Ready for your next big break? Your future in Web3 starts here.'
                             }
                         </p>
 
+
                         <div className="space-y-4">
                             {[
-                                isRecruiter ? "Manage active postings" : "Track your applications",
-                                isRecruiter ? "Analyze recent applications" : "Get matching job alerts",
-                                isRecruiter ? "Schedule AI interviews" : "Improve your skill score"
+                                role === 'admin' ? "Manage platform content" : isRecruiter ? "Manage active postings" : "Track your applications",
+                                role === 'admin' ? "Approve job requests" : isRecruiter ? "Analyze recent applications" : "Get matching job alerts",
+                                role === 'admin' ? "System performance monitoring" : isRecruiter ? "Schedule AI interviews" : "Improve your skill score"
                             ].map((text, i) => (
                                 <div key={i} className="flex items-center gap-4 text-sm">
-                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${role === 'admin' ? 'bg-purple-500/20 text-purple-400' : isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
                                         <ShieldCheck className="w-3 h-3" />
                                     </div>
                                     <span className="text-gray-300 font-medium">{text}</span>
                                 </div>
                             ))}
+
                         </div>
                     </div>
                     {/* Role Icon Decor */}
                     <div className="absolute bottom-10 right-10 opacity-20 pointer-events-none">
-                        {isRecruiter ? <Briefcase size={240} className="text-blue-500" /> : <Users size={240} className="text-teal-500" />}
+                        {role === 'admin' ? <ShieldCheck size={240} className="text-purple-500" /> : isRecruiter ? <Briefcase size={240} className="text-blue-500" /> : <Users size={240} className="text-teal-500" />}
                     </div>
+
                 </motion.div>
 
                 {/* Right Side: Form */}
@@ -363,11 +392,14 @@ const LoginPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${isRecruiter
-                                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
+                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
+                                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
+                                    : isRecruiter
+                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
+                                        : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
                                     } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
+
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {loading ? 'Signing In...' : 'Sign In'}
                             </button>

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, RefreshCw, Layers, Settings, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Zap, RefreshCw, Layers, Settings, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, LogOut } from "lucide-react";
 import { getAllContent, generateContent } from "../services/contentService";
 import ContentList from "../components/ContentList";
 import ContentDetail from "../components/ContentDetail";
 import CommunitySettingsModal from "../components/CommunitySettingsModal";
 import axios from "axios";
-import { API_URL } from "../firebase";
+import { API_URL, getAuthHeaders } from "../firebase";
 
 // ─── Job Approval Panel ──────────────────────────────────────────────────────
 const JobRequestsPanel = () => {
@@ -22,7 +23,8 @@ const JobRequestsPanel = () => {
     const fetchJobs = async () => {
         setLoading(true);
         try {
-            const res = await axios.get(`${API_URL}/jobs/admin/all`);
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/jobs/admin/all`, { headers });
             setJobs(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             console.error("[ADMIN] Failed to fetch jobs:", err);
@@ -37,7 +39,8 @@ const JobRequestsPanel = () => {
     const handleApprove = async (jobId) => {
         setActionLoading(jobId + "_approve");
         try {
-            await axios.patch(`${API_URL}/jobs/${jobId}/approve`);
+            const headers = await getAuthHeaders();
+            await axios.patch(`${API_URL}/jobs/${jobId}/approve`, {}, { headers });
             setStatusMsg("✅ Job approved and now live!");
             await fetchJobs();
         } catch (err) {
@@ -56,7 +59,8 @@ const JobRequestsPanel = () => {
         }
         setActionLoading(jobId + "_reject");
         try {
-            await axios.patch(`${API_URL}/jobs/${jobId}/reject`, { reason: rejectReason });
+            const headers = await getAuthHeaders();
+            await axios.patch(`${API_URL}/jobs/${jobId}/reject`, { reason: rejectReason }, { headers });
             setStatusMsg("Job rejected with reason sent to recruiter.");
             setRejectingJobId(null);
             setRejectReason("");
@@ -352,6 +356,12 @@ const AdminContentPage = () => {
     const [loading, setLoading] = useState(false);
     const [statusMsg, setStatusMsg] = useState("");
     const [showCommunitySettings, setShowCommunitySettings] = useState(false);
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        localStorage.removeItem("user");
+        navigate("/login");
+    };
 
     const fetchContent = async () => {
         try {
@@ -430,6 +440,13 @@ const AdminContentPage = () => {
                                     {loading ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
                                     {loading ? (statusMsg || "Processing...") : "Generate Daily Batch"}
                                 </div>
+                            </button>
+                            <button
+                                onClick={handleLogout}
+                                className="rounded-2xl border border-red-100 bg-white p-4 text-red-500 shadow-sm transition hover:bg-red-50 hover:text-red-600"
+                                title="Logout"
+                            >
+                                <LogOut size={20} />
                             </button>
                         </div>
                     )}
