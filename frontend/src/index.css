@@ -94,3 +94,199 @@ body {
     background: rgba(0, 0, 0, 0.2);
   }
 }
+
+/* Recruiter screens reuse the candidate portal's warm light treatment. */
+.recruiter-content {
+  color: #111827;
+}
+
+.recruiter-content [class~="bg-white/5"],
+.recruiter-content [class~="bg-white/10"],
+.recruiter-content [class~="bg-white/20"],
+.recruiter-content [class~="bg-white/[0.01]"],
+.recruiter-content [class~="bg-white/[0.02]"],
+.recruiter-content [class~="bg-black/20"],
+.recruiter-content [class~="bg-[#11131a]"],
+.recruiter-content [class~="bg-[#13171e]"],
+.recruiter-content [class~="bg-[#1a1d24]"] {
+  background-color: #ffffff !important;
+}
+
+.recruiter-content [class~="bg-gradient-to-br"]:not([class~="bg-clip-text"]) {
+  background-image: none !important;
+  background-color: #f4efe6 !important;
+}
+
+.recruiter-content [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) {
+  background-image: none !important;
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
+.recruiter-content [class~="text-transparent"][class~="bg-clip-text"] {
+  background-image: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.recruiter-content [class~="border-white/5"],
+.recruiter-content [class~="border-white/10"],
+.recruiter-content [class~="border-white/20"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.recruiter-content [class~="divide-white/5"] > :not([hidden]) ~ :not([hidden]),
+.recruiter-content [class~="divide-white/10"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.recruiter-content [class~="text-white"],
+.recruiter-content [class~="text-gray-300"] {
+  color: #111827 !important;
+}
+
+.recruiter-content [class~="text-gray-400"],
+.recruiter-content [class~="text-gray-500"],
+.recruiter-content [class~="text-gray-600"],
+.recruiter-content [class~="text-gray-700"] {
+  color: #6b7280 !important;
+}
+
+.recruiter-content [class~="bg-black"],
+.recruiter-content [class~="bg-blue-600"],
+.recruiter-content [class~="bg-teal-600"],
+.recruiter-content [class~="bg-purple-600"],
+.recruiter-content [class~="bg-indigo-600"],
+.recruiter-content [class~="bg-gray-600"],
+.recruiter-content [class~="bg-red-500"],
+.recruiter-content [class~="bg-green-500"],
+.recruiter-content [class~="bg-emerald-500"],
+.recruiter-content [class~="bg-orange-500"],
+.recruiter-content [class~="bg-amber-500"],
+.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
+.recruiter-content [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) *,
+.recruiter-content [class~="bg-black"] *,
+.recruiter-content [class~="bg-blue-600"] *,
+.recruiter-content [class~="bg-teal-600"] *,
+.recruiter-content [class~="bg-purple-600"] *,
+.recruiter-content [class~="bg-indigo-600"] *,
+.recruiter-content [class~="bg-gray-600"] *,
+.recruiter-content [class~="bg-red-500"] *,
+.recruiter-content [class~="bg-green-500"] *,
+.recruiter-content [class~="bg-emerald-500"] *,
+.recruiter-content [class~="bg-orange-500"] *,
+.recruiter-content [class~="bg-amber-500"] *,
+.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] * {
+  color: inherit !important;
+}
+
+.recruiter-content input:not([type="range"]):not([type="file"]),
+.recruiter-content select,
+.recruiter-content textarea {
+  background-color: #fbf8f3 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+}
+
+.recruiter-content input::placeholder,
+.recruiter-content textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.recruiter-content select option {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.recruiter-content input[type="range"] {
+  background-color: #ded7cb !important;
+  accent-color: #111827;
+}
+
+.recruiter-content [class~="hover:bg-white/5"]:hover,
+.recruiter-content [class~="hover:bg-white/10"]:hover,
+.recruiter-content [class~="hover:bg-white/[0.02]"]:hover {
+  background-color: #fbf8f3 !important;
+}
+
+.recruiter-content [class~="hover:text-white"]:hover {
+  color: #111827 !important;
+}
+
+.admin-content [class~="bg-white/5"],
+.admin-content [class~="bg-white/10"],
+.admin-content [class~="bg-white/20"],
+.admin-content [class~="bg-black/20"],
+.admin-content [class~="bg-black/30"],
+.admin-content [class~="bg-[#11131a]"],
+.admin-content [class~="bg-[#13171e]"],
+.admin-content [class~="bg-[#1a1d24]"] {
+  background-color: #fbf8f3 !important;
+}
+
+.admin-content [class~="border-white/5"],
+.admin-content [class~="border-white/10"],
+.admin-content [class~="border-white/20"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.admin-content [class~="text-white"],
+.admin-content [class~="text-gray-300"] {
+  color: #111827 !important;
+}
+
+.admin-content [class~="text-gray-400"],
+.admin-content [class~="text-gray-500"],
+.admin-content [class~="text-gray-600"],
+.admin-content [class~="text-gray-700"] {
+  color: #6b7280 !important;
+}
+
+.admin-content [class~="text-transparent"][class~="bg-clip-text"] {
+  background-image: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.admin-content input:not([type="range"]):not([type="file"]),
+.admin-content select,
+.admin-content textarea {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+}
+
+.admin-content input::placeholder,
+.admin-content textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.admin-content :is(button, a)[class~="bg-white"][class~="text-black"],
+.admin-content [class~="bg-black"],
+.admin-content [class~="bg-blue-600"],
+.admin-content [class~="bg-emerald-600"],
+.admin-content [class~="bg-red-600"] {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
+.admin-content :is(button, a)[class~="bg-white"][class~="text-black"] *,
+.admin-content [class~="bg-black"] *,
+.admin-content [class~="bg-blue-600"] *,
+.admin-content [class~="bg-emerald-600"] *,
+.admin-content [class~="bg-red-600"] * {
+  color: inherit !important;
+}
+
+.admin-content [class~="hover:bg-white/5"]:hover,
+.admin-content [class~="hover:bg-white/10"]:hover {
+  background-color: #f4efe6 !important;
+}
+
+.admin-content [class~="hover:text-white"]:hover {
+  color: #111827 !important;
+}
