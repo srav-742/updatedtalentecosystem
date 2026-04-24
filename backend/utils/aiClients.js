@@ -71,7 +71,13 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
         }
 
     } catch (err) {
-        console.warn("[AI-CLIENT] Gemini Error:", err.response?.data || err.message);
+        const status = err.response?.status;
+        const msg = err.response?.data?.error?.message || err.message;
+        if (status === 503 || msg.includes('demand')) {
+            console.warn("[AI-CLIENT] Gemini busy (503).");
+        } else {
+            console.warn("[AI-CLIENT] Gemini Error:", msg);
+        }
     }
     return null;
 };
@@ -104,7 +110,13 @@ const callOpenAI = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
             return text.trim();
         }
     } catch (err) {
-        console.warn("[AI-CLIENT] OpenAI Error:", err.message);
+        if (err.message.includes('quota')) {
+            console.warn("[AI-CLIENT] OpenAI Quota Exceeded. Check billing.");
+        } else if (err.message.includes('429')) {
+            console.warn("[AI-CLIENT] OpenAI Rate Limited (429).");
+        } else {
+            console.warn("[AI-CLIENT] OpenAI Error:", err.message);
+        }
     }
     return null;
 };
@@ -144,7 +156,15 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             }
         }
     } catch (groqErr) {
-        console.warn("[AI-CLIENT] Groq Error:", groqErr.response?.data || groqErr.message);
+        const msg = groqErr.response?.data?.error?.message || groqErr.message;
+        if (msg.includes('Rate limit')) {
+            // Log a clean, one-line rate limit warning
+            const retryMatch = msg.match(/try again in ([\d.]+s)/);
+            const retryMsg = retryMatch ? ` (Retry in ${retryMatch[1]})` : "";
+            console.warn(`[AI-CLIENT] Groq Rate Limited${retryMsg}.`);
+        } else {
+            console.warn("[AI-CLIENT] Groq Error:", msg);
+        }
     }
 
     // 2. Fallback to OpenAI

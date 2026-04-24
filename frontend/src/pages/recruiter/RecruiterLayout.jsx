@@ -23,7 +23,8 @@ const RecruiterLayout = () => {
 
 
     React.useEffect(() => {
-        if (user.role && user.role !== 'recruiter') {
+        // Only redirect if user has a role and it's not recruiter OR admin
+        if (user.role && user.role !== 'recruiter' && user.role !== 'admin') {
             navigate('/seeker');
             return;
         }

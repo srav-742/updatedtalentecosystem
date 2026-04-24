@@ -19,7 +19,8 @@ const SeekerLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
-        if (user.role && user.role !== 'seeker') {
+        // Only redirect if user has a role and it's not seeker OR admin
+        if (user.role && user.role !== 'seeker' && user.role !== 'admin') {
             navigate('/recruiter');
             return;
         }
