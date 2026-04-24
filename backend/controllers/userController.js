@@ -15,12 +15,40 @@ const getAllUsers = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
     try {
+        const { userId } = req.params;
+        
+        // Find user by UID, _id, or Email
         const user = await User.findOne({
-            $or: [{ uid: req.params.userId }, { _id: mongoose.Types.ObjectId.isValid(req.params.userId) ? req.params.userId : null }, { email: req.params.userId }]
+            $or: [
+                { uid: userId },
+                { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null },
+                { email: userId }
+            ]
         });
+
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
+
+        // ─── SELF-HEALING UID SYNC ───
+        // If the lookup parameter was a Firebase UID but it doesn't match what's in our DB,
+        // it means the user has re-signed up or changed Firebase projects.
+        if (userId && !mongoose.Types.ObjectId.isValid(userId) && !userId.includes('@') && user.uid !== userId) {
+            const oldUid = user.uid;
+            console.log(`[PROFILE-SYNC] Auto-migrating UID for ${user.email}: ${oldUid} -> ${userId}`);
+            
+            user.uid = userId;
+            await user.save();
+
+            const Job = require('../models/Job');
+            const Application = require('../models/Application');
+            const ResumeProfile = require('../models/ResumeProfile');
+
+            await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: userId } });
+            await Application.updateMany({ userId: oldUid }, { $set: { userId: userId } });
+            await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: userId } });
+        }
+        // ──────────────────────────────
 
         const resumeProfile = await ResumeProfile.findOne({ userId: user.uid || String(user._id) }).lean();
         const mergedUser = user.toObject();
