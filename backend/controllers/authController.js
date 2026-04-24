@@ -29,20 +29,24 @@ const syncUser = async (req, res) => {
                 if (profilePic && !user.profilePic) user.profilePic = profilePic;
                 await user.save();
 
-                // ─── CASCADE UID UPDATES ───
+                // ─── CASCADE UID UPDATES (Data Rescue) ───
                 const Job = require('../models/Job');
                 const Application = require('../models/Application');
                 const ResumeProfile = require('../models/ResumeProfile');
 
-                // Update jobs where this user is the recruiter
+                // 1. Update jobs where this user is the recruiter
                 const jobUpdate = await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
-                console.log(`[AUTH-SYNC] Updated ${jobUpdate.modifiedCount} jobs`);
+                console.log(`[AUTH-SYNC] Rescued ${jobUpdate.modifiedCount} jobs from old UID`);
 
-                // Update applications submitted by this user
-                const appUpdate = await Application.updateMany({ userId: oldUid }, { $set: { userId: uid } });
-                console.log(`[AUTH-SYNC] Updated ${appUpdate.modifiedCount} applications`);
+                // 2. Update applications where this user was the recruiter
+                const appRecUpdate = await Application.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
+                console.log(`[AUTH-SYNC] Rescued ${appRecUpdate.modifiedCount} recruiter-side applications`);
 
-                // Update resume profile
+                // 3. Update applications submitted by this user as candidate
+                const appSeekerUpdate = await Application.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+                console.log(`[AUTH-SYNC] Rescued ${appSeekerUpdate.modifiedCount} seeker-side applications`);
+
+                // 4. Update resume profile
                 await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: uid } });
             } else {
                 // UID is same, just update metadata if needed
