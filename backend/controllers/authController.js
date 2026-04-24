@@ -1,5 +1,5 @@
-const User = require('../models/User');
 const bcrypt = require('bcryptjs');
+const ALLOWED_ADMIN_EMAILS = ['sravyadhadi@gmail.com', 'hemangi@web3today.io'];
 
 
 const syncUser = async (req, res) => {
@@ -11,10 +11,16 @@ const syncUser = async (req, res) => {
 
         if (!user) {
             // New user - create them
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+                return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
+            }
             user = new User({ uid, email, name, profilePic, role: role || 'seeker' });
             await user.save();
         } else {
-            // Existing user - check if UID has changed (Firebase Project reset or Re-signup)
+            // Check if someone is trying to sync to admin who shouldn't
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+                return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
+            }
             if (user.uid !== uid) {
                 const oldUid = user.uid;
                 console.log(`[AUTH-SYNC] Migrating UID for ${email}: ${oldUid} -> ${uid}`);
@@ -58,6 +64,11 @@ const signup = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
         console.log(`[AUTH-SIGNUP] Start for ${email}`);
+
+        if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+            return res.status(403).json({ message: "Unauthorized. Admin signup is restricted." });
+        }
+
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             console.log(`[AUTH-SIGNUP] User already exists: ${email}`);
@@ -103,6 +114,9 @@ const googleAuth = async (req, res) => {
         const { email, name, profilePic, role } = req.body;
         let user = await User.findOne({ email });
         if (user) {
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+                return res.status(403).json({ message: "Unauthorized. Admin access is restricted." });
+            }
             if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {
                 user.profilePic = profilePic;
                 await user.save();
@@ -110,6 +124,11 @@ const googleAuth = async (req, res) => {
             return res.json({ message: "Login successful", user });
         } else {
             if (!role) return res.status(400).json({ message: "Role is required for first-time signup" });
+            
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+                return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
+            }
+
             user = new User({ name, email, profilePic, role });
             await user.save();
 
