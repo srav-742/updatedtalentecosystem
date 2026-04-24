@@ -5,18 +5,50 @@ const bcrypt = require('bcryptjs');
 const syncUser = async (req, res) => {
     try {
         const { uid, email, name, profilePic, role } = req.body;
-        let user = await User.findOne({ $or: [{ uid }, { email }] });
+        
+        // Find user by email first (primary anchor)
+        let user = await User.findOne({ email });
+
         if (!user) {
+            // New user - create them
             user = new User({ uid, email, name, profilePic, role: role || 'seeker' });
             await user.save();
         } else {
-            if (!user.uid) user.uid = uid;
-            if (profilePic && !user.profilePic) user.profilePic = profilePic;
-            await user.save();
+            // Existing user - check if UID has changed (Firebase Project reset or Re-signup)
+            if (user.uid !== uid) {
+                const oldUid = user.uid;
+                console.log(`[AUTH-SYNC] Migrating UID for ${email}: ${oldUid} -> ${uid}`);
+                
+                user.uid = uid;
+                if (profilePic && !user.profilePic) user.profilePic = profilePic;
+                await user.save();
+
+                // ─── CASCADE UID UPDATES ───
+                const Job = require('../models/Job');
+                const Application = require('../models/Application');
+                const ResumeProfile = require('../models/ResumeProfile');
+
+                // Update jobs where this user is the recruiter
+                const jobUpdate = await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
+                console.log(`[AUTH-SYNC] Updated ${jobUpdate.modifiedCount} jobs`);
+
+                // Update applications submitted by this user
+                const appUpdate = await Application.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+                console.log(`[AUTH-SYNC] Updated ${appUpdate.modifiedCount} applications`);
+
+                // Update resume profile
+                await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+            } else {
+                // UID is same, just update metadata if needed
+                if (profilePic && !user.profilePic) {
+                    user.profilePic = profilePic;
+                    await user.save();
+                }
+            }
         }
         res.json(user);
     } catch (error) {
-        console.error("[GET-USERS] Error:", error);
+        console.error("[AUTH-SYNC] Critical Failure:", error);
         res.status(500).json({ message: error.message });
     }
 };
