@@ -181,27 +181,6 @@ const SignupPage = () => {
                     </button>
                 </motion.div>
 
-                {/* Admin Card */}
-                <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(168, 85, 247, 0.5)' }}
-                    whileTap={{ scale: 0.98 }}
-
-                    onClick={() => handleRoleSelect('admin')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <ShieldCheck className="w-32 h-32" />
-                    </div>
-                    <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
-                        <ShieldCheck className="w-8 h-8" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4">I am an Admin</h3>
-                    <p className="text-gray-400 text-sm mb-6">Access platform tools to oversee content and manage the ecosystem.</p>
-                    <button className="px-6 py-2 rounded-full border border-purple-500/30 text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all text-sm font-bold">
-                        Get Started
-                    </button>
-                </motion.div>
             </div>
 
             <div className="mt-12 text-gray-500 text-sm">
