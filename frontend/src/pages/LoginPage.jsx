@@ -220,7 +220,7 @@ const LoginPage = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Welcome Back</h1>
             <p className="text-gray-400 mb-12 text-lg">Select your account type to continue your journey.</p>
 
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-3 gap-8">
                 {/* Recruiter Card */}
                 <motion.div
                     initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
@@ -264,16 +264,32 @@ const LoginPage = () => {
                         Continue
                     </button>
                 </motion.div>
+
+                {/* Admin Card */}
+                <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
+                    whileHover={{ scale: 1.02, borderColor: 'rgba(168, 85, 247, 0.5)' }}
+                    whileTap={{ scale: 0.98 }}
+
+                    onClick={() => handleRoleSelect('admin')}
+                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <ShieldCheck className="w-32 h-32" />
+                    </div>
+                    <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                        <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4">Admin Login</h3>
+                    <p className="text-gray-400 text-sm mb-6">Manage platform content, approve job requests, and monitor systems.</p>
+                    <button className="px-6 py-2 rounded-full border border-purple-500/30 text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all text-sm font-bold">
+                        Continue
+                    </button>
+                </motion.div>
             </div>
 
             <div className="mt-12 text-gray-500 text-sm flex flex-col items-center gap-4">
                 <p>Don't have an account? <Link to="/signup" className="text-blue-400 hover:underline font-semibold">Join the ecosystem</Link></p>
-                <button
-                    onClick={() => handleRoleSelect('admin')}
-                    className="text-gray-600 hover:text-gray-400 text-xs transition-colors uppercase tracking-[0.2em] font-bold"
-                >
-                    System Administrator Access
-                </button>
             </div>
 
         </motion.div>
