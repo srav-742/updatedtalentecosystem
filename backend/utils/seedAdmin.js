@@ -3,27 +3,56 @@ const bcrypt = require('bcryptjs');
 const admin = require('../config/firebase');
 
 const seedAdmin = async () => {
-    const adminEmails = [
-        'sravyadhadi@gmail.com',
-        'hemangi@web3today.io'
+    const adminAccounts = [
+        { email: 'sravyadhadi@gmail.com', name: 'Sravya Admin', password: 'Sravya@123' },
+        { email: 'hemangi@web3today.io', name: 'Hemangi Admin', password: 'hemangi@123' }
     ];
 
-    for (const email of adminEmails) {
+    for (const account of adminAccounts) {
         try {
-            const user = await User.findOne({ email });
-            
-            if (user) {
-                if (user.role !== 'admin') {
-                    user.role = 'admin';
-                    await user.save();
-                    console.log(`[SEED] Granted Admin role to: ${email}`);
-                }
+            const { email: adminEmail, password: adminPassword, name: adminName } = account;
+
+            // 1. Ensure user exists in MongoDB
+            const existingAdmin = await User.findOne({ email: adminEmail });
+
+            if (!existingAdmin) {
+                const hashedPassword = await bcrypt.hash(adminPassword, 10);
+                const adminUser = new User({
+                    name: adminName,
+                    email: adminEmail,
+                    password: hashedPassword,
+                    role: 'admin',
+                    uid: 'admin-default-uid'
+                });
+
+                await adminUser.save();
+                console.log(`[SEED] Default Admin user created in MongoDB: ${adminEmail}`);
             } else {
-                // If user doesn't exist, we don't create them here because we don't have a password.
-                // They can register themselves via the Admin Signup card in the UI.
+                // Ensure role is admin
+                if (existingAdmin.role !== 'admin') {
+                    existingAdmin.role = 'admin';
+                    await existingAdmin.save();
+                    console.log(`[SEED] Existing user ${adminEmail} upgraded to Admin role.`);
+                }
+            }
+            
+            // 2. Firebase check (if SDK is initialized)
+            if (admin.apps.length > 0) {
+                try {
+                    await admin.auth().getUserByEmail(adminEmail);
+                } catch (e) {
+                    if (e.code === 'auth/user-not-found') {
+                        await admin.auth().createUser({
+                            email: adminEmail,
+                            password: adminPassword,
+                            displayName: adminName
+                        });
+                        console.log(`[SEED] Created Admin in Firebase: ${adminEmail}`);
+                    }
+                }
             }
         } catch (error) {
-            console.error(`[SEED] Error processing admin role for ${email}:`, error.message);
+            console.error(`[SEED] Error processing admin ${account.email}:`, error.message);
         }
     }
 };
