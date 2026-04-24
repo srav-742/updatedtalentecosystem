@@ -18,6 +18,7 @@ const getStatusTone = (status) => {
     switch (status) {
         case 'SHORTLISTED':
             return 'bg-[#eef8f1] text-emerald-700 border-emerald-200';
+        case 'HIRED':
         case 'ELIGIBLE':
             return 'bg-[#eef4ff] text-blue-700 border-blue-200';
         case 'REJECTED':
@@ -28,30 +29,31 @@ const getStatusTone = (status) => {
 };
 
 const getTimeline = (status) => {
-    const shortlisted = status === 'SHORTLISTED' || status === 'ELIGIBLE';
-    const selected = status === 'ELIGIBLE';
-    const rejected = status === 'REJECTED';
+    const isShortlisted = ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(status);
+    const isSelected = ['ELIGIBLE', 'HIRED'].includes(status);
+    const isHired = status === 'HIRED';
+    const isRejected = status === 'REJECTED';
 
     return [
         {
             label: 'Application submitted',
-            active: true,
+            active: false,
             completed: true
         },
         {
-            label: rejected ? 'Application reviewed' : 'Pending review',
-            active: status === 'APPLIED' || rejected,
-            completed: shortlisted || selected || rejected
+            label: isRejected ? 'Application reviewed' : 'Pending review',
+            active: status === 'APPLIED',
+            completed: isShortlisted || isSelected || isRejected || isHired
         },
         {
-            label: rejected ? 'Not shortlisted' : 'Shortlisted',
-            active: shortlisted || rejected,
-            completed: shortlisted || selected || rejected
+            label: isRejected ? 'Not shortlisted' : 'Shortlisted',
+            active: status === 'SHORTLISTED',
+            completed: isShortlisted || isSelected || isRejected || isHired
         },
         {
-            label: rejected ? 'Closed' : 'Selected for job',
-            active: selected || rejected,
-            completed: selected || rejected
+            label: isRejected ? 'Closed' : 'Selected for job',
+            active: isSelected || isRejected || isHired,
+            completed: isSelected || isRejected || isHired
         }
     ];
 };
