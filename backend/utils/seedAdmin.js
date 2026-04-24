@@ -4,55 +4,67 @@ const admin = require('../config/firebase');
 
 const seedAdmin = async () => {
     const adminAccounts = [
-        { email: 'sravyadhadi@gmail.com', name: 'Sravya ', password: 'Sravya@123' },
-        { email: 'hemangi@web3today.io', name: 'Hemangi ', password: 'hemangi@123' }
+        { email: 'sravyadhadi@gmail.com', name: 'Sravya', password: 'Sravya@123' },
+        { email: 'hemangi@web3today.io', name: 'Hemangi', password: 'hemangi@123' }
     ];
 
     for (const account of adminAccounts) {
         try {
             const { email: adminEmail, password: adminPassword, name: adminName } = account;
 
-            // 1. Ensure user exists in MongoDB
+            // 1. Firebase Check & Create/Update (Primary Authority)
+            let firebaseUid = null;
+            if (admin.apps.length > 0) {
+                try {
+                    const fbUser = await admin.auth().getUserByEmail(adminEmail);
+                    firebaseUid = fbUser.uid;
+                    
+                    // Force password update if needed to ensure login works
+                    await admin.auth().updateUser(firebaseUid, {
+                        password: adminPassword,
+                        displayName: adminName
+                    });
+                    console.log(`[SEED] Updated Firebase credentials for: ${adminEmail}`);
+                } catch (e) {
+                    if (e.code === 'auth/user-not-found') {
+                        const newUser = await admin.auth().createUser({
+                            email: adminEmail,
+                            password: adminPassword,
+                            displayName: adminName
+                        });
+                        firebaseUid = newUser.uid;
+                        console.log(`[SEED] Created new Firebase account for: ${adminEmail}`);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+
+            // 2. MongoDB Check & Sync
             const existingAdmin = await User.findOne({ email: adminEmail });
+            const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
             if (!existingAdmin) {
-                const hashedPassword = await bcrypt.hash(adminPassword, 10);
                 const adminUser = new User({
                     name: adminName,
                     email: adminEmail,
                     password: hashedPassword,
                     role: 'admin',
-                    uid: 'admin-default-uid'
+                    uid: firebaseUid || 'admin-pending-sync'
                 });
 
                 await adminUser.save();
-                console.log(`[SEED] Default Admin user created in MongoDB: ${adminEmail}`);
+                console.log(`[SEED] Created Admin record in MongoDB: ${adminEmail}`);
             } else {
-                // Ensure role is admin
-                if (existingAdmin.role !== 'admin') {
-                    existingAdmin.role = 'admin';
-                    await existingAdmin.save();
-                    console.log(`[SEED] Existing user ${adminEmail} upgraded to Admin role.`);
-                }
-            }
-
-            // 2. Firebase check (if SDK is initialized)
-            if (admin.apps.length > 0) {
-                try {
-                    await admin.auth().getUserByEmail(adminEmail);
-                } catch (e) {
-                    if (e.code === 'auth/user-not-found') {
-                        await admin.auth().createUser({
-                            email: adminEmail,
-                            password: adminPassword,
-                            displayName: adminName
-                        });
-                        console.log(`[SEED] Created Admin in Firebase: ${adminEmail}`);
-                    }
-                }
+                // Update existing record to match Firebase and Roles
+                existingAdmin.role = 'admin';
+                existingAdmin.password = hashedPassword;
+                if (firebaseUid) existingAdmin.uid = firebaseUid;
+                await existingAdmin.save();
+                console.log(`[SEED] Synced Admin record for: ${adminEmail}`);
             }
         } catch (error) {
-            console.error(`[SEED] Error processing admin ${account.email}:`, error.message);
+            console.error(`[SEED] Critical failure for ${account.email}:`, error.message);
         }
     }
 };
