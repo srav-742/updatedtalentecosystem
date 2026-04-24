@@ -4,8 +4,8 @@ const admin = require('../config/firebase');
 
 const seedAdmin = async () => {
     const adminAccounts = [
-        { email: 'sravyadhadi@gmail.com', name: 'Sravya Admin', password: 'Sravya@123' },
-        { email: 'hemangi@web3today.io', name: 'Hemangi Admin', password: 'hemangi@123' }
+        { email: 'sravyadhadi@gmail.com', name: 'Sravya ', password: 'Sravya@123' },
+        { email: 'hemangi@web3today.io', name: 'Hemangi ', password: 'hemangi@123' }
     ];
 
     for (const account of adminAccounts) {
@@ -35,7 +35,7 @@ const seedAdmin = async () => {
                     console.log(`[SEED] Existing user ${adminEmail} upgraded to Admin role.`);
                 }
             }
-            
+
             // 2. Firebase check (if SDK is initialized)
             if (admin.apps.length > 0) {
                 try {
