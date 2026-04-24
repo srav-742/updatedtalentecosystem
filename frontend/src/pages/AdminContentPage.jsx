@@ -422,34 +422,36 @@ const AdminContentPage = () => {
                         </p>
                     </div>
 
-                    {activeTab === "content" && (
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => setShowCommunitySettings(true)}
-                                className="rounded-2xl border border-black/10 bg-white p-4 text-gray-600 shadow-sm transition hover:bg-[#faf7f1] hover:text-gray-900"
-                                title="Community Settings"
-                            >
-                                <Settings size={20} />
-                            </button>
-                            <button
-                                onClick={handleGenerate}
-                                disabled={loading}
-                                className="relative overflow-hidden rounded-2xl bg-black px-8 py-4 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition active:scale-95 disabled:opacity-50"
-                            >
-                                <div className="flex items-center gap-2 relative z-10">
-                                    {loading ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
-                                    {loading ? (statusMsg || "Processing...") : "Generate Daily Batch"}
-                                </div>
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="rounded-2xl border border-red-100 bg-white p-4 text-red-500 shadow-sm transition hover:bg-red-50 hover:text-red-600"
-                                title="Logout"
-                            >
-                                <LogOut size={20} />
-                            </button>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-4">
+                        {activeTab === "content" && (
+                            <>
+                                <button
+                                    onClick={() => setShowCommunitySettings(true)}
+                                    className="rounded-2xl border border-black/10 bg-white p-4 text-gray-600 shadow-sm transition hover:bg-[#faf7f1] hover:text-gray-900"
+                                    title="Community Settings"
+                                >
+                                    <Settings size={20} />
+                                </button>
+                                <button
+                                    onClick={handleGenerate}
+                                    disabled={loading}
+                                    className="relative overflow-hidden rounded-2xl bg-black px-8 py-4 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition active:scale-95 disabled:opacity-50"
+                                >
+                                    <div className="flex items-center gap-2 relative z-10">
+                                        {loading ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
+                                        {loading ? (statusMsg || "Processing...") : "Generate Daily Batch"}
+                                    </div>
+                                </button>
+                            </>
+                        )}
+                        <button
+                            onClick={handleLogout}
+                            className="rounded-2xl border border-red-100 bg-white p-4 text-red-500 shadow-sm transition hover:bg-red-50 hover:text-red-600"
+                            title="Logout"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    </div>
                 </header>
 
                 {/* ── Tab Navigation ──────────────────────────────────────── */}

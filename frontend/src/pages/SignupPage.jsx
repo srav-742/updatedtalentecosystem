@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2 } from 'lucide-react';
+import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
@@ -53,7 +53,8 @@ const SignupPage = () => {
             localStorage.setItem('user', JSON.stringify(profileData));
             setMessage({ type: 'success', text: "Account created successfully!" });
 
-            if (role === 'recruiter') navigate('/recruiter');
+            if (role === 'admin') navigate('/admin');
+            else if (role === 'recruiter') navigate('/recruiter');
             else navigate('/seeker');
 
             // 4. Background Sync
@@ -104,7 +105,8 @@ const SignupPage = () => {
             localStorage.setItem('user', JSON.stringify(newProfile));
             setMessage({ type: 'success', text: "Account created! Logging in..." });
 
-            if (role === 'recruiter') navigate('/recruiter');
+            if (role === 'admin') navigate('/admin');
+            else if (role === 'recruiter') navigate('/recruiter');
             else navigate('/seeker');
 
             // 4. Background: Sync to Firebase DB
@@ -134,7 +136,7 @@ const SignupPage = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Choose Your Path</h1>
             <p className="text-gray-400 mb-12 text-lg">Are you looking to hire top talent or start your dream career?</p>
 
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-3 gap-8">
                 {/* Recruiter Card */}
                 <motion.div
                     initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
@@ -178,6 +180,28 @@ const SignupPage = () => {
                         Get Started
                     </button>
                 </motion.div>
+
+                {/* Admin Card */}
+                <motion.div
+                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
+                    whileHover={{ scale: 1.02, borderColor: 'rgba(168, 85, 247, 0.5)' }}
+                    whileTap={{ scale: 0.98 }}
+
+                    onClick={() => handleRoleSelect('admin')}
+                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <ShieldCheck className="w-32 h-32" />
+                    </div>
+                    <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                        <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4">I am an Admin</h3>
+                    <p className="text-gray-400 text-sm mb-6">Access platform tools to oversee content and manage the ecosystem.</p>
+                    <button className="px-6 py-2 rounded-full border border-purple-500/30 text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all text-sm font-bold">
+                        Get Started
+                    </button>
+                </motion.div>
             </div>
 
             <div className="mt-12 text-gray-500 text-sm">
@@ -201,10 +225,10 @@ const SignupPage = () => {
                     initial={{ opacity: 0, x: -50 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
-                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
+                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : role === 'admin' ? 'from-purple-600/20 to-purple-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
                 >
                     {/* Animated Background Element */}
-                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
+                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : role === 'admin' ? 'bg-[radial-gradient(circle_at_50%_50%,#a855f7,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
 
                     <div className="relative z-10">
                         <button
@@ -214,20 +238,22 @@ const SignupPage = () => {
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
                         <h2 className="text-3xl font-bold mb-4">
-                            {isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Potential'}
+                            {role === 'admin' ? 'System Oversight & Control' : isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Potential'}
                         </h2>
                         <p className="text-gray-400 mb-6 text-sm max-w-md">
-                            {isRecruiter
-                                ? 'Join thousands of employers using our AI matching system to find the world\'s most exceptional technical talent.'
-                                : 'Build your career identity and get matched with the most innovative projects in the space.'
+                            {role === 'admin'
+                                ? 'Register as a system administrator to manage news content, job requests, and platform settings.'
+                                : isRecruiter
+                                    ? 'Join thousands of employers using our AI matching system to find the world\'s most exceptional technical talent.'
+                                    : 'Build your career identity and get matched with the most innovative projects in the space.'
                             }
                         </p>
 
                         <div className="space-y-4">
                             {[
-                                isRecruiter ? "Skill-based ranking" : "AI Resume Analysis",
-                                isRecruiter ? "Automated interviewing" : "Verified skill badges",
-                                isRecruiter ? "Seamless candidate management" : "Smart job matching"
+                                role === 'admin' ? "Content management" : isRecruiter ? "Skill-based ranking" : "AI Resume Analysis",
+                                role === 'admin' ? "Job request oversight" : isRecruiter ? "Automated interviewing" : "Verified skill badges",
+                                role === 'admin' ? "System analytics" : isRecruiter ? "Seamless candidate management" : "Smart job matching"
                             ].map((text, i) => (
                                 <div key={i} className="flex items-center gap-4">
                                     <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
@@ -241,7 +267,7 @@ const SignupPage = () => {
 
                     {/* Floating UI Elements Mockup */}
                     <div className="absolute bottom-10 right-10 opacity-20 pointer-events-none">
-                        {isRecruiter ? <Briefcase size={200} /> : <Users size={200} />}
+                        {role === 'admin' ? <ShieldCheck size={200} /> : isRecruiter ? <Briefcase size={200} /> : <Users size={200} />}
                     </div>
                 </motion.div>
 
@@ -249,7 +275,7 @@ const SignupPage = () => {
                 <div className="lg:w-1/2 p-10 flex flex-col justify-center">
                     <div className="max-w-md mx-auto w-full">
                         <div className="mb-6">
-                            <h3 className="text-2xl font-bold mb-1">Create {isRecruiter ? 'Recruiter' : 'Candidate'} Account</h3>
+                            <h3 className="text-2xl font-bold mb-1">Create {role === 'admin' ? 'Admin' : isRecruiter ? 'Recruiter' : 'Candidate'} Account</h3>
                             <p className="text-gray-500 text-sm">Fill in the details to get started.</p>
                         </div>
 
@@ -303,9 +329,11 @@ const SignupPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${isRecruiter
-                                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
+                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
+                                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
+                                    : isRecruiter
+                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
+                                        : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
                                     } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
