@@ -12,24 +12,47 @@ const client = twilio(accountSid, authToken);
  * 🔹 MASTER SYSTEM PROMPT (Core logic as requested)
  */
 const MASTER_SYSTEM_PROMPT = `
-You are a professional, friendly voice assistant from Hire1Percent.
+[Identity]
+You are Alex from the Hire1Percent Talent Team.
+Your role is to call candidates and guide them to attend their interview on Hire1Percent.
 
-Your job is to:
-- Inform candidates about their application status
-- Guide them to the next step
-- Keep conversation short, clear, and natural
+[Style]
+- Professional, friendly, and encouraging
+- Clear and concise
+- Speak naturally with short pauses
+- Avoid technical or internal details
 
-Rules:
-- Speak like a human recruiter
-- Do not talk too long
-- Always confirm candidate identity first
-- Always guide to Hire1Percent platform
-- Handle yes/no responses properly
-- End politely
+[Rules]
+- Ask only one question at a time  
+- Keep responses short (1–2 sentences)  
+- If interrupted, stop and listen  
+- Respond politely to all questions  
+- If unsure, say you will forward the query to the team  
+- Do not mention internal systems or technical details  
 
-Never:
-- Give unnecessary details
-- Sound robotic
+[Conversation Flow]
+
+1. Identity Verification  
+Say: "Hi, am I speaking with {{candidate_name}}?"  
+If NO: Politely ask for the correct person. If unavailable, end the call politely.
+
+2. Deliver Good News  
+Say: "Great! I’m calling from Hire1Percent. I have some good news — your resume has been selected for the {{job_title}} role."
+
+3. Call to Action  
+Ask: "To proceed to the next round, you need to attend the interview on our platform. Have you received the interview link in your email?"  
+
+4. Handle Response  
+If YES: Say: "Perfect. You can log into Hire1Percent.com using that link to start your interview. Do you have any questions?"  
+If NO: Say: "No problem. You can log into Hire1Percent.com directly to find your interview, or we can resend the link for you."
+
+5. Closing  
+Say: "We are looking forward to your interview. Best of luck, and have a great day!"
+
+[Fallback Handling]
+- If responses are unclear, politely ask for clarification  
+- If the candidate is not available, end the call politely  
+- If the call is interrupted or disconnected, close politely  
 `;
 
 /**
@@ -157,10 +180,25 @@ const triggerVoiceCall = async (applicationId, forceStage = null) => {
         const baseUrl = process.env.BASE_URL || "http://localhost:5000";
         const twimlUrl = `${baseUrl}/api/voice-agent/twiml/${applicationId}${forceStage ? '?stage=' + forceStage : ''}`;
 
+        const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+        if (!fromNumber || fromNumber === '+1234567890') {
+            const flow = getStageContext(name, jobRole, state);
+            console.log(`[VOICE-AGENT-SIMULATION] No real Twilio number found. Skipping actual call.`);
+            return {
+                success: true,
+                message: "SIMULATION MODE: Call logic verified. Update TWILIO_PHONE_NUMBER in .env for real calls.",
+                stage: state,
+                data: {
+                    recipient: phone,
+                    flow
+                }
+            };
+        }
+
         const call = await client.calls.create({
             url: twimlUrl,
             to: phone,
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: fromNumber,
             statusCallback: `${baseUrl}/api/voice-agent/status-callback/${applicationId}`,
             statusCallbackEvent: ['completed', 'failed', 'busy', 'no-answer']
         });
@@ -217,18 +255,16 @@ const handleCallResponse = (applicationId, speechResult) => {
     const input = (speechResult || "").toLowerCase();
     
     if (input.includes('yes') || input.includes('sure') || input.includes('okay')) {
-        response.say(voiceConfig, "Perfect! Please head over to Hire1Percent.com now. We look forward to your progress. All the best!");
+        response.say(voiceConfig, "Perfect. You can log into Hire1Percent.com using that link to start your interview. Do you have any questions?");
     } else if (input.includes('no') || input.includes('didn\'t') || input.includes('receive')) {
-        response.say(voiceConfig, "No worries. I've just resent the link and instructions to your email. You can access them through Hire1Percent.com as well.");
+        response.say(voiceConfig, "No problem. You can log into Hire1Percent.com directly to find your interview, or we can resend the link for you.");
     } else if (input.includes('busy') || input.includes('later')) {
-        response.say(voiceConfig, "I understand you're busy. I'll call you back later. Have a great day!");
-    } else if (input.includes('confused') || input.includes('what') || input.includes('help')) {
-        response.say(voiceConfig, "I apologize for the confusion. Basically, you have a pending step on our platform. Just login to Hire1Percent.com to continue.");
+        response.say(voiceConfig, "I understand you're busy right now. I'll call you back later so we can discuss this. Have a great day!");
     } else {
-        response.say(voiceConfig, "Thank you for your time. Please login to Hire1Percent.com whenever you're ready to proceed. Goodbye!");
+        response.say(voiceConfig, "I understand. Please login to Hire1Percent.com whenever you're ready to proceed with your interview. We look forward to seeing your progress!");
     }
     
-    response.hangup();
+    response.say(voiceConfig, "Best of luck, and have a great day!");
     return response.toString();
 };
 

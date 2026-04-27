@@ -6,7 +6,8 @@ const voiceAgentService = require('../services/voiceAgentService');
 const triggerCall = async (req, res) => {
     try {
         const { applicationId } = req.params;
-        const { stage } = req.body; // Optional: Force a specific stage (e.g. for "Old Candidate" case)
+        // Check both body (POST) and query (GET) for the optional stage parameter
+        const stage = req.body?.stage || req.query?.stage;
         
         const result = await voiceAgentService.triggerVoiceCall(applicationId, stage);
         res.status(200).json(result);
@@ -22,13 +23,23 @@ const triggerCall = async (req, res) => {
 const getTwiML = async (req, res) => {
     try {
         const { applicationId } = req.params;
-        const { stage } = req.query;
+        const { stage, format } = req.query;
+        console.log(`[VOICE-AGENT-DEBUG] Generating TwiML for App: ${applicationId}, Stage: ${stage || 'auto'}`);
+
         const twiml = await voiceAgentService.generateTwiML(applicationId, stage);
-        res.type('text/xml');
-        res.send(twiml);
+        
+        if (format === 'text') {
+            // Extract text content from <Say> tags for easy reading
+            const textContent = twiml.match(/<Say[^>]*>([\s\S]*?)<\/Say>/g)
+                .map(val => val.replace(/<Say[^>]*>|<\/Say>/g, '').trim())
+                .join('\n\n');
+            res.type('text/plain').send(textContent);
+        } else {
+            res.type('text/xml').send(twiml);
+        }
     } catch (error) {
-        console.error("[VOICE-AGENT-CONTROLLER] TwiML Error:", error);
-        res.status(500).send('<Response><Say>An error occurred.</Say></Response>');
+        console.error("[VOICE-AGENT-CONTROLLER-FATAL]:", error);
+        res.status(500).type('text/xml').send(`<Response><Say>Error generating script: ${error.message}</Say></Response>`);
     }
 };
 
@@ -38,13 +49,23 @@ const getTwiML = async (req, res) => {
 const handleResponse = async (req, res) => {
     try {
         const { applicationId } = req.params;
-        const speechResult = req.body.SpeechResult;
+        const { format } = req.query;
+        const speechResult = req.body?.SpeechResult || req.query?.SpeechResult;
+        console.log(`[VOICE-AGENT-DEBUG] Handling response for App: ${applicationId}, Input: ${speechResult}`);
+
         const twiml = voiceAgentService.handleCallResponse(applicationId, speechResult);
-        res.type('text/xml');
-        res.send(twiml);
+        
+        if (format === 'text') {
+            const textContent = twiml.match(/<Say[^>]*>([\s\S]*?)<\/Say>/g)
+                .map(val => val.replace(/<Say[^>]*>|<\/Say>/g, '').trim())
+                .join('\n\n');
+            res.type('text/plain').send(textContent);
+        } else {
+            res.type('text/xml').send(twiml);
+        }
     } catch (error) {
-        console.error("[VOICE-AGENT-CONTROLLER] Response Handling Error:", error);
-        res.status(500).send('<Response><Say>An error occurred.</Say></Response>');
+        console.error("[VOICE-AGENT-CONTROLLER-RESPONSE-ERROR]:", error);
+        res.status(500).type('text/xml').send(`<Response><Say>Error processing response: ${error.message}</Say></Response>`);
     }
 };
 
