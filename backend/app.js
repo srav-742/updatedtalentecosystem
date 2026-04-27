@@ -32,12 +32,6 @@ app.use(cors(corsOptions));
 
 
 
-app.use((req, res, next) => {
-    // Set COOP to unsafe-none to ensure Firebase popups can close correctly in all environments
-    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
-
-    next();
-});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -64,6 +58,8 @@ const communityRoutes = require('./routes/communityRoutes');
 const teamFitRoutes = require('./routes/teamFitRoutes');
 const insightRoutes = require('./routes/insightRoutes');
 const aiSearchRoutes = require('./routes/aiSearchRoutes');
+const voiceAgentRoutes = require('./routes/voiceAgentRoutes');
+
 
 
 
@@ -90,6 +86,8 @@ app.use('/api', communityRoutes);
 app.use('/api/team-fit', teamFitRoutes);
 app.use('/api/insights', insightRoutes);
 app.use('/api/ai-search', aiSearchRoutes);
+app.use('/api/voice-agent', voiceAgentRoutes);
+
 
 
 // ✅ API Health Check

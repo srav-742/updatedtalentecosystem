@@ -29,6 +29,7 @@
         "openai": "^6.15.0",
         "pdf-parse": "^1.1.4",
         "streamifier": "^0.1.1",
+        "twilio": "^6.0.0",
         "uuid": "^13.0.0",
         "wav": "^1.0.2",
         "wavefile": "^11.0.0",
