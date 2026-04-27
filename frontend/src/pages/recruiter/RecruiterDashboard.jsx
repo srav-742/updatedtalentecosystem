@@ -51,18 +51,21 @@ const RecruiterDashboard = () => {
         if (user.uid || user._id || user.id) fetchDashboardData();
     }, [user.uid, user._id, user.id]);
 
-    if (loading) return <div className="flex items-center justify-center h-[60vh] text-blue-400">Loading Dashboard...</div>;
+    if (loading) return <div className="flex items-center justify-center h-[60vh] text-gray-500">Loading dashboard...</div>;
 
     return (
         <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Welcome Back, {user.name}</h1>
-                    <p className="text-gray-400">Here's an overview of your recruitment activity.</p>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-400 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-                    <Clock size={16} />
-                    <span>Last updated: Just now</span>
+            <div className="overflow-hidden rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Recruiter dashboard</p>
+                        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">Welcome back, {user.name || 'Recruiter'}</h1>
+                        <p className="mt-4 max-w-3xl text-base leading-8 text-gray-500">Here&apos;s a clean overview of your hiring activity, open roles, and recent applicant flow.</p>
+                    </div>
+                    <div className="flex items-center space-x-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                        <Clock size={16} />
+                        <span>Last updated: Just now</span>
+                    </div>
                 </div>
             </div>
 
@@ -89,10 +92,10 @@ const RecruiterDashboard = () => {
             </div>
 
             {/* Recent Jobs Table */}
-            <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10">
+            <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                 <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-2xl font-bold">Recent Job Postings</h2>
-                    <button className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
+                    <h2 className="text-2xl font-bold text-gray-900">Recent Job Postings</h2>
+                    <button className="text-sm font-semibold text-gray-700 hover:text-black transition-colors flex items-center gap-1">
                         View All <ArrowUpRight size={16} />
                     </button>
                 </div>
@@ -100,19 +103,19 @@ const RecruiterDashboard = () => {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="border-b border-white/10 text-gray-400 text-sm font-medium">
+                            <tr className="border-b border-black/10 text-gray-400 text-sm font-medium">
                                 <th className="pb-4 pt-0">Job Title</th>
                                 <th className="pb-4 pt-0 text-center">Min Match</th>
                                 <th className="pb-4 pt-0 text-center">Applicants</th>
                                 <th className="pb-4 pt-0 text-right">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-black/5">
                             {recentJobs.length > 0 ? recentJobs.map((job) => (
-                                <tr key={job._id} className="group transition-colors hover:bg-white/[0.02]">
+                                <tr key={job._id} className="group transition-colors hover:bg-[#faf7f1]">
                                     <td className="py-5">
                                         <div>
-                                            <p className="font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</p>
+                                            <p className="font-bold text-gray-900 group-hover:text-black transition-colors">{job.title}</p>
                                             <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                                                 <span className="flex items-center gap-1"><MapPin size={12} /> {job.location}</span>
                                                 <span className="w-1 h-1 bg-gray-500 rounded-full" />
@@ -121,15 +124,15 @@ const RecruiterDashboard = () => {
                                         </div>
                                     </td>
                                     <td className="py-5 text-center">
-                                        <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20">
+                                        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
                                             {job.minPercentage}%
                                         </span>
                                     </td>
-                                    <td className="py-5 text-center font-bold text-white">{job.applicantCount || 0}</td>
+                                    <td className="py-5 text-center font-bold text-gray-900">{job.applicantCount || 0}</td>
                                     <td className="py-5 text-right">
                                         <button
                                             onClick={() => navigate(`/recruiter/applicants?jobId=${job._id}`)}
-                                            className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold hover:bg-white/10 transition-all active:scale-95"
+                                            className="px-5 py-2 rounded-xl bg-[#fcfaf6] border border-black/10 text-xs font-bold text-gray-800 hover:bg-[#f4efe6] transition-all active:scale-95"
                                         >
                                             View Applicants
                                         </button>

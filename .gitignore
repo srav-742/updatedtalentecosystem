@@ -8,3 +8,5 @@ coverage/
 backend/vosk-model-small-en-us-0.15/
 backend/uploads/
 *.zip
+backend/config/serviceAccountKey.json
+backend/scratch/

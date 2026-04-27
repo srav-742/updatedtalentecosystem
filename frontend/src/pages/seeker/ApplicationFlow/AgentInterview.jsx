@@ -9,6 +9,7 @@ import Webcam from "react-webcam";
 import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import TabLockGuard from "../../../components/TabLockGuard";
+import { API_URL } from "../../../firebase";
 
 // --- Radar Chart Component ---
 function RadarChart({ categories }) {
@@ -133,6 +134,7 @@ function RadarChart({ categories }) {
 }
 
 export default function AgentInterview() {
+  const [user] = useState(() => JSON.parse(localStorage.getItem("user") || "{}"));
   const [phase, setPhase] = useState("select");   // select | resume | interview | complete
   const [sessionId, setSessionId] = useState(null);
   const [roleKey, setRoleKey] = useState("");
@@ -316,7 +318,7 @@ export default function AgentInterview() {
 
   async function startApiCall(base64, text) {
     try {
-      const res = await axios.post("/api/agent/start", {
+      const res = await axios.post(`${API_URL}/agent/start`, {
         agentRole: roleKey,
         resumeBase64: base64,
         resumeText: text
@@ -342,10 +344,10 @@ export default function AgentInterview() {
     setLoading(true);
 
     try {
-      const res = await axios.post("/api/agent/respond", { sessionId, userMessage: userText });
+      const res = await axios.post(`${API_URL}/agent/respond`, { sessionId, userMessage: userText });
 
       if (res.data.isComplete) {
-        const evalRes = await axios.post("/api/agent/evaluate", { sessionId });
+        const evalRes = await axios.post(`${API_URL}/agent/evaluate`, { sessionId });
         setEvaluation(evalRes.data);
         setPhase("complete");
       } else {
@@ -397,7 +399,7 @@ export default function AgentInterview() {
 
     // Save termination record
     try {
-      await axios.post("/api/agent/terminate", {
+      await axios.post(`${API_URL}/agent/terminate`, {
         sessionId,
         userId: user?.uid,
         reason: 'Tab-switching violation detected',

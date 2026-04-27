@@ -62,19 +62,33 @@ const LoginPage = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            // 1. Firebase Auth Login
-            const userCredential = await loginWithEmail(formData.email, formData.password);
-            const user = userCredential.user;
+            let profile;
 
-            // 2. Fetch Profile Data from Firebase Database
-            const profile = await getUserProfile(user.uid);
+            if (role === 'admin') {
+                // 1. Backend Login for Admin (No Firebase)
+                const response = await axios.post(`${API_URL}/login`, {
+                    email: formData.email,
+                    password: formData.password,
+                    role: 'admin'
+                });
 
-            if (!profile) {
-                throw new Error("User profile not found in Firebase. Please signup first.");
-            }
+                profile = response.data.user;
+                if (!profile) throw new Error("Invalid response from server.");
+            } else {
+                // 1. Firebase Auth Login for others
+                const userCredential = await loginWithEmail(formData.email, formData.password);
+                const user = userCredential.user;
 
-            if (profile.role !== role) {
-                throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                // 2. Fetch Profile Data from Backend
+                profile = await getUserProfile(user.uid);
+
+                if (!profile) {
+                    throw new Error("User profile not found. Please signup first.");
+                }
+
+                if (profile.role !== role) {
+                    throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                }
             }
 
             setMessage({ type: 'success', text: "Login successful!" });
@@ -84,17 +98,23 @@ const LoginPage = () => {
 
             // Navigate to intended page or default dashboard based on profile role
             const from = location.state?.from?.pathname;
-            if (from) {
-                navigate(from, { replace: true });
-            } else if (profile.role === 'admin') {
+            
+            // Explicitly handle admin redirect to dashboard
+            if (profile.role === 'admin') {
+                console.log("[LOGIN] Admin detected, redirecting to /admin");
                 navigate('/admin', { replace: true });
+            } else if (from) {
+                navigate(from, { replace: true });
             } else {
                 navigate(profile.role === 'recruiter' ? '/recruiter' : '/seeker', { replace: true });
             }
         } catch (error) {
+            console.error("[LOGIN-ERROR]", error);
             let userFriendlyMessage = "Invalid credentials. Please check your email/password.";
 
-            if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+            if (error.response?.data?.message) {
+                userFriendlyMessage = error.response.data.message;
+            } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
                 userFriendlyMessage = "Account not found or password incorrect. Since we switched to Firebase, you may need to Create a New Account.";
             } else if (error.message) {
                 userFriendlyMessage = error.message;
