@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const User = require('../models/User');
 const ALLOWED_ADMIN_EMAILS = ['sravyadhadi@gmail.com', 'hemangi@web3today.io'];
 
 

@@ -28,6 +28,7 @@ const authMiddleware = async (req, res, next) => {
 
         // Method 2: Fallback to x-user-id (if Firebase Admin is missing or token fails)
         if (userIdHeader) {
+            console.warn(`[AUTH-MIDDLEWARE] Falling back to x-user-id for: ${userIdHeader}`);
             const user = await User.findOne({ uid: userIdHeader });
             if (user) {
                 req.user = user;
