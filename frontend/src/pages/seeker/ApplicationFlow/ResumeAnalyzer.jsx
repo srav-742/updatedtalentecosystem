@@ -491,7 +491,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                     } catch (navError) {
                         console.error('Auto-navigation failed:', navError);
                     }
-                }, 2500); // 2.5s delay to let user see the extraordinary score gauge
+                }, 500); // 500ms delay to feel near-instant while still briefly showing success state
             }
         } catch (err) {
             setError(
