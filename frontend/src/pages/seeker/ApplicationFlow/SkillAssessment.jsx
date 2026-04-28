@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     AlertCircle,
@@ -32,6 +32,16 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
     const assessmentType = (job.assessment?.type || 'mcq').toUpperCase();
     const totalQuestions = questions.length || job.assessment?.totalQuestions || 5;
     const estimatedMinutes = Math.max(totalQuestions * 8, 20);
+
+    // Auto-navigate to next step when completed
+    useEffect(() => {
+        if (score !== null) {
+            const timer = setTimeout(() => {
+                onComplete(score);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [score, onComplete]);
 
     const progress = useMemo(() => {
         if (!questions.length) return 0;

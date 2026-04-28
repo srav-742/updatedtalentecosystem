@@ -101,7 +101,7 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                 setStep('success');
                 setTimeout(() => {
                     onComplete(response.data.videoUrl);
-                }, 1500);
+                }, 500);
             }
         } catch (err) {
             console.error('Upload failed:', err);

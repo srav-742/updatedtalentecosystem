@@ -11,8 +11,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const modelName = "gemini-flash-latest"; // Fast and supports JSON mode well
 
 // Helper to build the generation config for JSON
-const getJsonConfig = () => ({
+const getJsonConfig = (maxTokens = 250) => ({
   temperature: 0.7,
+  maxOutputTokens: maxTokens,
   responseMimeType: "application/json",
 });
 
@@ -69,7 +70,7 @@ async function startSession(req, res) {
       try {
         const resumeAnalysisResult = await modelOptions.generateContent({
            contents: [{ role: "user", parts: [{ text: resumePrompt }] }],
-           generationConfig: getJsonConfig()
+           generationConfig: getJsonConfig(800) // allow more tokens for resume parsing
         });
         const jsonText = cleanJson(resumeAnalysisResult.response.text());
         parsedResumeData = JSON.parse(jsonText);
@@ -100,7 +101,8 @@ You MUST reply to every turn ONLY in JSON format matching exactly this structure
   "question": "Great answer! Next, tell me about...",
   "is_complete": false
 }
-If this is the FIRST message (start of interview), set evaluation to null. Set is_complete to true only after asking at least 5-6 questions covering various concepts and you are ready to end the interview.`;
+If this is the FIRST message (start of interview), set evaluation to null. Set is_complete to true only after asking at least 5-6 questions covering various concepts and you are ready to end the interview.
+CRITICAL INSTRUCTION: Your "question" MUST be extremely concise, direct, and short (1-2 sentences maximum) so it can be spoken quickly. Do not ramble.`;
 
     // Initialize conversation
     const messages = [
@@ -179,7 +181,8 @@ You MUST reply to every turn ONLY in JSON format matching exactly this structure
   "question": "The actual text you will say to the candidate",
   "is_complete": false
 }
-Set is_complete to true ONLY if you've fully covered all necessary concepts and asked at least 5-6 questions.`;
+Set is_complete to true ONLY if you've fully covered all necessary concepts and asked at least 5-6 questions.
+CRITICAL INSTRUCTION: Your "question" MUST be extremely concise, direct, and short (1-2 sentences maximum) so it can be spoken quickly. Do not ramble.`;
 
     const contents = [];
     contents.push({ role: "user", parts: [{ text: `System parameters: ${systemPrompt}` }] });
@@ -272,7 +275,7 @@ Rubric categories to use: ${JSON.stringify(config.evaluationRubric)}`;
 
     const response = await modelOptions.generateContent({
        contents,
-       generationConfig: getJsonConfig()
+       generationConfig: getJsonConfig(1000) // Detailed evaluation needs more tokens
     });
 
     const evalMessage = cleanJson(response.response.text());
