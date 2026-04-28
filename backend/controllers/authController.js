@@ -95,18 +95,19 @@ const login = async (req, res) => {
     const start = Date.now();
     try {
         const { email, password, role } = req.body;
-        console.log(`[AUTH-LOGIN] Start for ${email}`);
-        const user = await User.findOne({ email, role });
+        const normalizedEmail = email ? email.toLowerCase().trim() : '';
+        console.log(`[AUTH-LOGIN] Start for ${normalizedEmail}`);
+        const user = await User.findOne({ email: normalizedEmail, role });
         if (!user) {
-            console.log(`[AUTH-LOGIN] User not found: ${email} in ${Date.now() - start}ms`);
+            console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
         }
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            console.log(`[AUTH-LOGIN] Password mismatch: ${email} in ${Date.now() - start}ms`);
+            console.log(`[AUTH-LOGIN] Password mismatch: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
         }
-        console.log(`[AUTH-LOGIN] Success for ${email} in ${Date.now() - start}ms`);
+        console.log(`[AUTH-LOGIN] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
         res.json({ message: "Login successful", user });
     } catch (error) {
         console.error(`[AUTH-LOGIN] Error in ${Date.now() - start}ms:`, error.message);
