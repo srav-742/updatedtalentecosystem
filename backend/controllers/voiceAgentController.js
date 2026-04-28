@@ -5,7 +5,8 @@ const voiceAgentService = require('../services/voiceAgentService');
  */
 const triggerCall = async (req, res) => {
     try {
-        const { applicationId } = req.params;
+        let { applicationId } = req.params;
+        applicationId = applicationId.trim();
         // Check both body (POST) and query (GET) for the optional stage parameter
         const stage = req.body?.stage || req.query?.stage;
         
@@ -22,7 +23,8 @@ const triggerCall = async (req, res) => {
  */
 const getTwiML = async (req, res) => {
     try {
-        const { applicationId } = req.params;
+        let { applicationId } = req.params;
+        applicationId = applicationId.trim();
         const { stage, format } = req.query;
         console.log(`[VOICE-AGENT-DEBUG] Generating TwiML for App: ${applicationId}, Stage: ${stage || 'auto'}`);
 
@@ -48,12 +50,13 @@ const getTwiML = async (req, res) => {
  */
 const handleResponse = async (req, res) => {
     try {
-        const { applicationId } = req.params;
+        let { applicationId } = req.params;
+        applicationId = applicationId.trim();
         const { format } = req.query;
         const speechResult = req.body?.SpeechResult || req.query?.SpeechResult;
         console.log(`[VOICE-AGENT-DEBUG] Handling response for App: ${applicationId}, Input: ${speechResult}`);
 
-        const twiml = voiceAgentService.handleCallResponse(applicationId, speechResult);
+        const twiml = await voiceAgentService.handleCallResponse(applicationId, speechResult);
         
         if (format === 'text') {
             const textContent = twiml.match(/<Say[^>]*>([\s\S]*?)<\/Say>/g)
@@ -74,7 +77,8 @@ const handleResponse = async (req, res) => {
  */
 const handleStatusCallback = async (req, res) => {
     const { CallStatus, To, CallSid } = req.body;
-    const { applicationId } = req.params;
+    let { applicationId } = req.params;
+    applicationId = applicationId.trim();
 
     console.log(`[VOICE-AGENT-STATUS] Call ${CallSid} to ${To} (App: ${applicationId}) ended with status: ${CallStatus}`);
 

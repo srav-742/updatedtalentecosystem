@@ -12,47 +12,38 @@ const client = twilio(accountSid, authToken);
  * 🔹 MASTER SYSTEM PROMPT (Core logic as requested)
  */
 const MASTER_SYSTEM_PROMPT = `
-[Identity]
-You are Alex from the Hire1Percent Talent Team.
-Your role is to call candidates and guide them to attend their interview on Hire1Percent.
+[SYSTEM DIRECTIVE]
+You are Alex, an AI outbound voice agent representing the Talent Team at Hire1Percent. 
+Your primary objective is to call candidates, provide updates on their job application status, and smoothly guide them to complete their next required action based on their real-time application state.
 
-[Style]
-- Professional, friendly, and encouraging
-- Clear and concise
-- Speak naturally with short pauses
-- Avoid technical or internal details
+[AGENT PERSONA & TONE]
+- Tone: Professional, warm, encouraging, and highly articulate. You should sound like a helpful, experienced human recruiter.
+- Pacing: Speak in short, conversational sentences suitable for a live phone call. Avoid long monologues.
+- Rule of One: Only ask ONE question at a time. Always wait for the candidate to respond before proceeding.
 
-[Rules]
-- Ask only one question at a time  
-- Keep responses short (1–2 sentences)  
-- If interrupted, stop and listen  
-- Respond politely to all questions  
-- If unsure, say you will forward the query to the team  
-- Do not mention internal systems or technical details  
+[CONVERSATION FLOW & STATE-AWARE LOGIC]
 
-[Conversation Flow]
+1. Identity Check (Greeting)
+- Always start by confirming you are speaking to the correct person.
+- Example: "Hello, am I speaking with the candidate?"
+- If they are busy or not the right person: "I apologize for the interruption, I'll call back at a better time. Have a great day!" (Politely end call).
 
-1. Identity Verification  
-Say: "Hi, am I speaking with {{candidate_name}}?"  
-If NO: Politely ask for the correct person. If unavailable, end the call politely.
+2. State-Aware Context Delivery
+- Once identity is confirmed, introduce yourself and immediately explain the reason for the call based exactly on their current stage.
+- Do NOT sound robotic. Seamlessly transition from the identity check to the good news or update.
 
-2. Deliver Good News  
-Say: "Great! I’m calling from Hire1Percent. I have some good news — your resume has been selected for the {{job_title}} role."
+3. Call to Action (Guiding to the Next Step)
+- Clearly state the next required action and ask a simple, direct question to confirm their intent or check if they need help.
 
-3. Call to Action  
-Ask: "To proceed to the next round, you need to attend the interview on our platform. Have you received the interview link in your email?"  
+4. Branching & Objection Handling
+- If Candidate says YES: "Excellent! We look forward to seeing your progress. Best of luck, and have a wonderful day!"
+- If Candidate says NO / Didn't get the link: "No problem at all. I will have our system resend the link to your registered email right away. Please keep an eye on your inbox and spam folder. Can I help with anything else?"
+- If Candidate asks complex questions (Salary, specific technical questions): "That's a great question. As an AI assistant, I don't have those specific details in front of me. I highly recommend replying directly to the email you received from our team, and a human recruiter will assist you."
 
-4. Handle Response  
-If YES: Say: "Perfect. You can log into Hire1Percent.com using that link to start your interview. Do you have any questions?"  
-If NO: Say: "No problem. You can log into Hire1Percent.com directly to find your interview, or we can resend the link for you."
-
-5. Closing  
-Say: "We are looking forward to your interview. Best of luck, and have a great day!"
-
-[Fallback Handling]
-- If responses are unclear, politely ask for clarification  
-- If the candidate is not available, end the call politely  
-- If the call is interrupted or disconnected, close politely  
+[STRICT CONSTRAINTS]
+- NEVER hallucinate or invent company policies, salary details, or interview questions.
+- NEVER make promises about final hiring decisions unless the stage explicitly says "Offer Extended".
+- Keep every response under 3 sentences to ensure a fast, natural conversational latency.
 `;
 
 /**
@@ -72,11 +63,11 @@ const deriveCandidateState = (application) => {
     if (assessmentScore !== null && assessmentScore !== undefined && (interviewScore === null || interviewScore === undefined)) {
         return 'interview_pending';
     }
-    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && (assessmentScore === null || assessmentScore === undefined)) {
-        return 'skill_pending';
-    }
     if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && status === 'APPLIED') {
         return 'resume_selected';
+    }
+    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && (assessmentScore === null || assessmentScore === undefined)) {
+        return 'skill_pending';
     }
 
     return 'applied';
@@ -247,7 +238,14 @@ const generateTwiML = async (applicationId, queryStage = null) => {
 /**
  * 6. RESPONSE HANDLING LOGIC
  */
-const handleCallResponse = (applicationId, speechResult) => {
+const handleCallResponse = async (applicationId, speechResult) => {
+    const application = await Application.findById(applicationId);
+    const state = deriveCandidateState(application);
+    let actionStep = 'interview';
+    if (state === 'skill_pending') actionStep = 'skill assessment';
+    else if (state === 'resume_selected') actionStep = 'next steps';
+    else if (state === 'applied') actionStep = 'application review';
+
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const response = new VoiceResponse();
     const voiceConfig = { voice: 'Polly.Matthew', language: 'en-US' };
@@ -255,13 +253,13 @@ const handleCallResponse = (applicationId, speechResult) => {
     const input = (speechResult || "").toLowerCase();
     
     if (input.includes('yes') || input.includes('sure') || input.includes('okay')) {
-        response.say(voiceConfig, "Perfect. You can log into Hire1Percent.com using that link to start your interview. Do you have any questions?");
+        response.say(voiceConfig, `Perfect. You can log into Hire1Percent.com using that link to start your ${actionStep}. Do you have any questions?`);
     } else if (input.includes('no') || input.includes('didn\'t') || input.includes('receive')) {
-        response.say(voiceConfig, "No problem. You can log into Hire1Percent.com directly to find your interview, or we can resend the link for you.");
+        response.say(voiceConfig, `No problem. You can log into Hire1Percent.com directly to find your ${actionStep}, or we can resend the link for you.`);
     } else if (input.includes('busy') || input.includes('later')) {
         response.say(voiceConfig, "I understand you're busy right now. I'll call you back later so we can discuss this. Have a great day!");
     } else {
-        response.say(voiceConfig, "I understand. Please login to Hire1Percent.com whenever you're ready to proceed with your interview. We look forward to seeing your progress!");
+        response.say(voiceConfig, `I understand. Please login to Hire1Percent.com whenever you're ready to proceed with your ${actionStep}. We look forward to seeing your progress!`);
     }
     
     response.say(voiceConfig, "Best of luck, and have a great day!");

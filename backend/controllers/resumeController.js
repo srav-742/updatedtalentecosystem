@@ -223,10 +223,22 @@ JSON STRUCTURE:
   "experienceScore": 78,
   "skillsFeedback": "List exact matching and missing skills with context.",
   "experienceFeedback": "Detailed breakdown of experience tenure and education alignment.",
-  "explanation": "Summarize the overall fit, highlighting unique strengths or critical gaps."
+  "explanation": "Summarize the overall fit, highlighting unique strengths or critical gaps.",
+  "structured": {
+    "skills": {
+      "programming": [],
+      "frameworks": [],
+      "databases": [],
+      "tools": []
+    },
+    "projects": [{ "name": "Project", "tech": [], "role": "" }],
+    "experienceYears": 0
+  }
 }
 `;
-        const rawResponse = await callSkillAI(prompt);
+
+        // Requesting max 1500 tokens to avoid exceeding provider limits and triggering slow fallbacks
+        const rawResponse = await callSkillAI(prompt, 1500);
         if (!rawResponse) throw new Error("AI Service Failed");
 
         console.log("[RESUME-ANALYSIS] AI Response received, length:", rawResponse.length);
@@ -273,26 +285,12 @@ JSON STRUCTURE:
             };
         }
 
-        // 2. Structured Extraction
-        const extractPrompt = `
-Extract structured resume data as JSON:
-{
- "skills": {
-   "programming": [],
-   "frameworks": [],
-   "databases": [],
-   "tools": []
- },
- "projects": [{ "name": "Project", "tech": [], "role": "" }],
- "experienceYears": 0
-}
-Resume:
-${resumeText ? resumeText.substring(0, 8000) : ''}
-`;
+        // 2. Structured Extraction Parsing
         let structured = { skills: { programming: [], frameworks: [], databases: [], tools: [] }, projects: [], experienceYears: 0 };
         try {
-            const rawIn = await callSkillAI(extractPrompt);
-            if (rawIn) structured = parseAiJson(rawIn, structured);
+            if (analysis && analysis.structured) {
+                structured = analysis.structured;
+            }
         } catch (e) { console.warn("Structured parse failed"); }
 
         // 3. Store
@@ -406,7 +404,8 @@ Resume:
 ${resumeText.substring(0, 8000)}
 `;
 
-        const rawResponse = await callSkillAI(prompt);
+        // Requesting max 3000 tokens to avoid exceeding provider limits and triggering slow fallbacks
+        const rawResponse = await callSkillAI(prompt, 3000);
         if (!rawResponse) {
             return res.status(500).json({ message: "Resume parsing failed" });
         }
