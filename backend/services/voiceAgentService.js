@@ -1,5 +1,6 @@
 const Application = require('../models/Application');
 const User = require('../models/User'); // For inactive candidate case
+const mongoose = require('mongoose');
 const twilio = require('twilio');
 const { callOpenAI, callSkillAI } = require('../utils/aiClients');
 
@@ -156,20 +157,33 @@ const generateDynamicPrompt = async (context) => {
 /**
  * 2.1 Calling System (Twilio)
  */
-const triggerVoiceCall = async (applicationId, forceStage = null) => {
+const triggerVoiceCall = async (id, forceStage = null) => {
     try {
-        const application = await Application.findById(applicationId).populate('jobId');
-        if (!application && !forceStage) throw new Error('Application not found');
+        const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+        let application = isValidObjectId ? await Application.findById(id).populate('jobId') : null;
+        let user = null;
+        
+        if (!application) {
+            user = isValidObjectId ? await User.findById(id) : null;
+            if (!user) user = await User.findOne({ uid: id });
+            
+            if (user) {
+                application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 }).populate('jobId');
+            }
+        }
 
-        const name = application ? application.applicantName : "Candidate";
-        const jobRole = application?.jobId?.title || 'the position';
+        if (!application && !user && !forceStage) throw new Error('Candidate or Application not found');
+
+        const name = application ? application.applicantName : (user ? user.name : "Candidate");
+        const jobRole = application?.jobId?.title || 'an exciting new role';
         const state = forceStage || deriveCandidateState(application);
-        const phone = application?.applicantPhone || "+1234567890";
+        const phone = application?.applicantPhone || (user?.phone || "+1234567890");
 
         console.log(`[STATE-AWARE-EXEC] Fetching data for ${name} | Stage: ${state}`);
 
+        const identifier = application ? application._id.toString() : (user ? user._id.toString() : id);
         const baseUrl = process.env.BASE_URL || "http://localhost:5000";
-        const twimlUrl = `${baseUrl}/api/voice-agent/twiml/${applicationId}${forceStage ? '?stage=' + forceStage : ''}`;
+        const twimlUrl = `${baseUrl}/api/voice-agent/twiml/${identifier}${forceStage ? '?stage=' + forceStage : ''}`;
 
         const fromNumber = process.env.TWILIO_PHONE_NUMBER;
         if (!fromNumber || fromNumber === '+1234567890') {
@@ -190,7 +204,7 @@ const triggerVoiceCall = async (applicationId, forceStage = null) => {
             url: twimlUrl,
             to: phone,
             from: fromNumber,
-            statusCallback: `${baseUrl}/api/voice-agent/status-callback/${applicationId}`,
+            statusCallback: `${baseUrl}/api/voice-agent/status-callback/${identifier}`,
             statusCallbackEvent: ['completed', 'failed', 'busy', 'no-answer']
         });
 
@@ -204,11 +218,23 @@ const triggerVoiceCall = async (applicationId, forceStage = null) => {
 /**
  * 3. CALL FLOW SYSTEM (TwiML Generation)
  */
-const generateTwiML = async (applicationId, queryStage = null) => {
-    const application = await Application.findById(applicationId).populate('jobId');
+const generateTwiML = async (id, queryStage = null) => {
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+    let application = isValidObjectId ? await Application.findById(id).populate('jobId') : null;
+    let user = null;
+    
+    if (!application) {
+        user = isValidObjectId ? await User.findById(id) : null;
+        if (!user) user = await User.findOne({ uid: id });
+        
+        if (user) {
+            application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 }).populate('jobId');
+        }
+    }
+
     const state = queryStage || deriveCandidateState(application);
-    const name = application ? application.applicantName : "Candidate";
-    const jobRole = application?.jobId?.title || 'the position';
+    const name = application ? application.applicantName : (user ? user.name : "Candidate");
+    const jobRole = application?.jobId?.title || 'an exciting new role';
 
     const aiDialogue = await generateDynamicPrompt({ name, jobRole, stage: state });
 
@@ -221,9 +247,10 @@ const generateTwiML = async (applicationId, queryStage = null) => {
 
     response.say(voiceConfig, aiDialogue);
     
+    const identifier = application ? application._id.toString() : (user ? user._id.toString() : id);
     const gather = response.gather({
         input: 'speech',
-        action: `${process.env.BASE_URL}/api/voice-agent/handle-response/${applicationId}`,
+        action: `${process.env.BASE_URL}/api/voice-agent/handle-response/${identifier}`,
         timeout: 3,
         speechTimeout: 'auto',
         hints: 'yes, no, sure, busy, later, confused'
@@ -238,8 +265,20 @@ const generateTwiML = async (applicationId, queryStage = null) => {
 /**
  * 6. RESPONSE HANDLING LOGIC
  */
-const handleCallResponse = async (applicationId, speechResult) => {
-    const application = await Application.findById(applicationId);
+const handleCallResponse = async (id, speechResult) => {
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+    let application = isValidObjectId ? await Application.findById(id) : null;
+    let user = null;
+    
+    if (!application) {
+        user = isValidObjectId ? await User.findById(id) : null;
+        if (!user) user = await User.findOne({ uid: id });
+        
+        if (user) {
+            application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 });
+        }
+    }
+
     const state = deriveCandidateState(application);
     let actionStep = 'interview';
     if (state === 'skill_pending') actionStep = 'skill assessment';
