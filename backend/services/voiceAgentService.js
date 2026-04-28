@@ -188,6 +188,16 @@ const triggerVoiceCall = async (id, forceStage = null) => {
         const fromNumber = process.env.TWILIO_PHONE_NUMBER;
         if (!fromNumber || fromNumber === '+1234567890') {
             const flow = getStageContext(name, jobRole, state);
+            
+            // Format flow into a structured object for the API response
+            const contextMatch = flow.match(/Context:\s*(.*)/);
+            const taskMatches = flow.match(/-\s*(.*)/g);
+            
+            const formattedFlow = {
+                context: contextMatch ? contextMatch[1].trim() : "Application status update.",
+                tasks: taskMatches ? taskMatches.map(t => t.replace('-', '').trim()) : []
+            };
+
             console.log(`[VOICE-AGENT-SIMULATION] No real Twilio number found. Skipping actual call.`);
             return {
                 success: true,
@@ -195,7 +205,7 @@ const triggerVoiceCall = async (id, forceStage = null) => {
                 stage: state,
                 data: {
                     recipient: phone,
-                    flow
+                    flow: formattedFlow
                 }
             };
         }
