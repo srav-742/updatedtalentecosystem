@@ -14,6 +14,7 @@ const SignupPage = () => {
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
 
     const handleRoleSelect = (selectedRole) => {
         setRole(selectedRole);
@@ -34,6 +35,12 @@ const SignupPage = () => {
         e.preventDefault();
         setLoading(true);
         setMessage({ type: '', text: '' });
+
+        if (!acceptedTerms) {
+            setMessage({ type: 'error', text: 'You must agree to the Terms and Privacy Policy.' });
+            setLoading(false);
+            return;
+        }
 
         try {
             // 1. Firebase Auth Signup
@@ -83,6 +90,10 @@ const SignupPage = () => {
     const handleGoogleSignup = async () => {
         if (!role) {
             setMessage({ type: 'error', text: 'Please select a role first.' });
+            return;
+        }
+        if (!acceptedTerms) {
+            setMessage({ type: 'error', text: 'You must agree to the Terms and Privacy Policy.' });
             return;
         }
         setLoading(true);
@@ -305,6 +316,19 @@ const SignupPage = () => {
                                 </div>
                             </div>
 
+                            <div className="flex items-start gap-3 py-2 px-1">
+                                <input 
+                                    type="checkbox" 
+                                    id="terms" 
+                                    checked={acceptedTerms}
+                                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                                    className="mt-1 w-4 h-4 rounded border-white/10 bg-white/5 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+                                />
+                                <label htmlFor="terms" className="text-xs text-gray-400 leading-relaxed cursor-pointer select-none">
+                                    I agree to the <Link to="/terms" target="_blank" className="text-white hover:underline">Terms & Conditions</Link> and <Link to="/privacy" target="_blank" className="text-white hover:underline">Privacy Policy</Link>.
+                                </label>
+                            </div>
+
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -342,8 +366,8 @@ const SignupPage = () => {
                             </div>
                         </form>
 
-                        <p className="mt-8 text-center text-gray-500 text-sm">
-                            By signing up, you agree to our <span className="text-white hover:underline cursor-pointer">Terms of Service</span>.
+                        <p className="mt-8 text-center text-gray-500 text-xs">
+                            Secure 256-bit encrypted signup.
                         </p>
                     </div>
                 </div>

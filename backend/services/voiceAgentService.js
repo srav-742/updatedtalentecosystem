@@ -185,7 +185,8 @@ const triggerVoiceCall = async (id, forceStage = null) => {
         const baseUrl = process.env.BASE_URL || "http://localhost:5000";
         const twimlUrl = `${baseUrl}/api/voice-agent/twiml/${identifier}${forceStage ? '?stage=' + forceStage : ''}`;
 
-        const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+        const fromNumber = process.env.TWILIO_PHONE_NUMBER ? process.env.TWILIO_PHONE_NUMBER.trim() : null;
+        console.log(`[VOICE-AGENT-DEBUG] Using From Number: ${fromNumber}`);
         if (!fromNumber || fromNumber === '+1234567890') {
             const flow = getStageContext(name, jobRole, state);
             

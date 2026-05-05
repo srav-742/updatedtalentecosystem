@@ -27,10 +27,16 @@ import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
 import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
 import EliteCommunity from './pages/seeker/EliteCommunity';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Terms from './pages/Terms';
+import Cookies from './pages/Cookies';
+import Contact from './pages/Contact';
+import CookieBanner from './components/CookieBanner';
 
 function App() {
   return (
     <BrowserRouter>
+      <CookieBanner />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
@@ -38,6 +44,12 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
+        
+        {/* Legal Routes */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/cookies" element={<Cookies />} />
+        <Route path="/contact" element={<Contact />} />
         {/* Admin Routes */}
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
         <Route path="/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />

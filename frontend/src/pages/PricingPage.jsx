@@ -154,17 +154,6 @@ const PricingPage = () => {
                         <PricingCalculator theme={theme} />
                     </div>
 
-                    {/* Trust Banner */}
-                    <div className={`p-12 rounded-[3.5rem] text-center border ${isLight ? 'bg-slate-50 border-gray-100' : 'bg-white/[0.02] border-white/5'}`}>
-                        <h4 className="text-sm font-black uppercase tracking-[0.3em] text-blue-500 mb-8">Trusted by Global Teams</h4>
-                        <div className="flex flex-wrap justify-center items-center gap-12 opacity-40 grayscale contrast-125">
-                            {/* Placeholders for logos */}
-                            <span className="text-2xl font-black tracking-tighter">TECHSTAR</span>
-                            <span className="text-2xl font-black tracking-tighter">VELOCITY</span>
-                            <span className="text-2xl font-black tracking-tighter">NEXUS AI</span>
-                            <span className="text-2xl font-black tracking-tighter">PRISM</span>
-                        </div>
-                    </div>
                 </div>
             </section>
 

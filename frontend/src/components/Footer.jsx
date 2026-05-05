@@ -11,15 +11,16 @@ const Footer = ({ theme = 'dark' }) => {
                         <span className={`font-bold bg-clip-text text-transparent text-sm tracking-widest uppercase ${isLight ? 'bg-gradient-to-r from-gray-800 to-gray-500' : 'bg-gradient-to-r from-white/50 to-white/30'}`}>hire1percent</span>
                     </div>
 
-                    <div className="flex items-center space-x-8 text-sm text-gray-500 font-medium">
+                    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm text-gray-500 font-medium">
                         <a href="/pricing" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Pricing</a>
-                        <a href="#elite-talent" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Elite Talent</a>
-                        <a href="#operations" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Operations</a>
-                        <a href="#safety" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Safety</a>
+                        <a href="/privacy" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Privacy</a>
+                        <a href="/terms" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Terms</a>
+                        <a href="/cookies" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Cookies</a>
+                        <a href="/contact" className={isLight ? 'hover:text-gray-900 transition-colors' : 'hover:text-white transition-colors'}>Contact</a>
                     </div>
 
                     <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-600'}`}>
-                        © 2025 hire1percent. All rights reserved.
+                        © 2026 hire1percent. All rights reserved.
                     </div>
                 </div>
             </div>
