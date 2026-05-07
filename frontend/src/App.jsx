@@ -33,6 +33,15 @@ import Cookies from './pages/Cookies';
 import Contact from './pages/Contact';
 import CookieBanner from './components/CookieBanner';
 
+
+//seo pages
+import AIInterviewPlatform from './pages/seo/AIInterviewPlatform.jsx';
+import AIRecruitmentSoftware from './pages/seo/AIRecruitmentSoftware.jsx';
+import AutomatedHiring from './pages/seo/AutomatedHiring.jsx';
+import CandidateScreening from './pages/seo/CandidateScreening.jsx';
+import ResumeAnalysis from './pages/seo/ResumeAnalysis.jsx';
+
+
 function App() {
   return (
     <BrowserRouter>
@@ -44,7 +53,7 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
-        
+
         {/* Legal Routes */}
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
@@ -85,6 +94,18 @@ function App() {
           <Route path="agentInterview.jsx" element={<AgentInterview />} />
           <Route path="community" element={<EliteCommunity />} />
         </Route>
+        <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />
+        <Route path="/ai-recruitment-software" element={<AIRecruitmentSoftware />} />
+        <Route path="/automated-hiring" element={<AutomatedHiring />} />
+        <Route path="/candidate-screening" element={<CandidateScreening />} />
+        <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+
+        {/* PascalCase aliases */}
+        <Route path="/AIInterviewPlatform" element={<AIInterviewPlatform />} />
+        <Route path="/AIRecruitmentSoftware" element={<AIRecruitmentSoftware />} />
+        <Route path="/AutomatedHiring" element={<AutomatedHiring />} />
+        <Route path="/CandidateScreening" element={<CandidateScreening />} />
+        <Route path="/ResumeAnalysis" element={<ResumeAnalysis />} />
       </Routes>
     </BrowserRouter>
   );
