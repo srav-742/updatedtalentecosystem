@@ -1,0 +1,28 @@
+# Hire1Percent
+
+> AI-powered recruitment and interview platform.
+
+Hire1Percent helps recruiters automate candidate screening,
+AI interviews, resume analysis, and hiring workflows.
+
+## Main Features
+
+- AI Interviews
+- Candidate Scoring
+- Resume Screening
+- Recruiter Dashboard
+- Automated Hiring Workflow
+
+## Pages
+
+- https://hire1percent.com
+- https://hire1percent.com/jobs
+- https://hire1percent.com/interview
+
+## Technology Stack
+
+- React
+- Node.js
+- PostgreSQL
+- OpenAI
+- Vapi AI

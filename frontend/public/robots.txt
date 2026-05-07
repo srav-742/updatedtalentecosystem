@@ -1,0 +1,9 @@
+User-agent: *
+
+Allow: /
+
+Disallow: /admin/
+Disallow: /api/
+Disallow: /dashboard/
+
+Sitemap: https://hire1percent.com/sitemap.xml
