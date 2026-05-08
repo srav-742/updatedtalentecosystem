@@ -1,51 +1,53 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import LandingPage from './pages/LandingPage';
-import AboutPage from './pages/AboutPage';
-import SignupPage from './pages/SignupPage';
-import LoginPage from './pages/LoginPage';
-import RecruiterLayout from './pages/recruiter/RecruiterLayout';
-import RecruiterDashboard from './pages/recruiter/RecruiterDashboard';
-import PostJob from './pages/recruiter/PostJob';
-import MyJobs from './pages/recruiter/MyJobs';
-import Applicants from './pages/recruiter/Applicants';
-import RecruiterProfile from './pages/recruiter/RecruiterProfile';
-import AdminContentPage from "./pages/AdminContentPage";
-import PerformanceDashboard from "./pages/recruiter/PerformanceDashboard";
-import OnboardingKit from "./pages/recruiter/OnboardingKit";
-import TalentSearch from "./pages/recruiter/TalentSearch";
-import PricingPage from './pages/PricingPage';
-// Seeker Pages
-import SeekerLayout from './pages/seeker/SeekerLayout';
-import SeekerDashboard from './pages/seeker/SeekerDashboard';
-import BrowseJobs from './pages/seeker/BrowseJobs';
-import JobDetails from './pages/seeker/JobDetails';
-import ApplicationFlow from './pages/seeker/ApplicationFlow';
-import InterviewFeedbackForm from './pages/seeker/ApplicationFlow/InterviewFeedbackForm';
-
-import MyApplications from './pages/seeker/MyApplications';
-import SeekerProfile from './pages/seeker/SeekerProfile';
-import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
-import EliteCommunity from './pages/seeker/EliteCommunity';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import Terms from './pages/Terms';
-import Cookies from './pages/Cookies';
-import Contact from './pages/Contact';
 import CookieBanner from './components/CookieBanner';
 
-
-//seo pages
-import AIInterviewPlatform from './pages/seo/AIInterviewPlatform.jsx';
-import AIRecruitmentSoftware from './pages/seo/AIRecruitmentSoftware.jsx';
-import AutomatedHiring from './pages/seo/AutomatedHiring.jsx';
-import CandidateScreening from './pages/seo/CandidateScreening.jsx';
-import ResumeAnalysis from './pages/seo/ResumeAnalysis.jsx';
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const SignupPage = lazy(() => import('./pages/SignupPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RecruiterLayout = lazy(() => import('./pages/recruiter/RecruiterLayout'));
+const RecruiterDashboard = lazy(() => import('./pages/recruiter/RecruiterDashboard'));
+const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
+const MyJobs = lazy(() => import('./pages/recruiter/MyJobs'));
+const Applicants = lazy(() => import('./pages/recruiter/Applicants'));
+const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile'));
+const AdminContentPage = lazy(() => import('./pages/AdminContentPage'));
+const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
+const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
+const TalentSearch = lazy(() => import('./pages/recruiter/TalentSearch'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
+const SeekerDashboard = lazy(() => import('./pages/seeker/SeekerDashboard'));
+const BrowseJobs = lazy(() => import('./pages/seeker/BrowseJobs'));
+const JobDetails = lazy(() => import('./pages/seeker/JobDetails'));
+const MyApplications = lazy(() => import('./pages/seeker/MyApplications'));
+const SeekerProfile = lazy(() => import('./pages/seeker/SeekerProfile'));
+const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Cookies = lazy(() => import('./pages/Cookies'));
+const Contact = lazy(() => import('./pages/Contact'));
+const ApplicationFlow = lazy(() => import('./pages/seeker/ApplicationFlow'));
+const InterviewFeedbackForm = lazy(() => import('./pages/seeker/ApplicationFlow/InterviewFeedbackForm'));
+const AgentInterview = lazy(() => import('./pages/seeker/ApplicationFlow/AgentInterview'));
+const AIInterviewPlatform = lazy(() => import('./pages/seo/AIInterviewPlatform.jsx'));
+const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftware.jsx'));
+const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
+const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
+const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 
 
 function App() {
   return (
     <BrowserRouter>
       <CookieBanner />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#0c0f16] text-white">
+          <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">Loading...</div>
+        </div>
+      }>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
@@ -107,6 +109,7 @@ function App() {
         <Route path="/CandidateScreening" element={<CandidateScreening />} />
         <Route path="/ResumeAnalysis" element={<ResumeAnalysis />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

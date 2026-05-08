@@ -8,6 +8,39 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return;
+          }
+
+          if (id.includes('@tensorflow') || id.includes('coco-ssd')) {
+            return 'tf-vendor';
+          }
+
+          if (id.includes('firebase')) {
+            return 'firebase-vendor';
+          }
+
+          if (id.includes('framer-motion')) {
+            return 'motion-vendor';
+          }
+
+          if (
+            id.includes('react') ||
+            id.includes('scheduler') ||
+            id.includes('react-router')
+          ) {
+            return 'react-vendor';
+          }
+
+          return 'vendor';
+        }
+      }
+    }
+  },
   server: {
     proxy: {
       '/api': {

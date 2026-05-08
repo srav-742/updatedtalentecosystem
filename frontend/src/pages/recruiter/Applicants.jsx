@@ -55,7 +55,9 @@ const Applicants = () => {
                     status: app.status,
                     teamFit: app.teamFit,
                     videoIntroUrl: app.videoIntroUrl,
-                    resultsVisibleAt: app.resultsVisibleAt
+                    resultsVisibleAt: app.resultsVisibleAt,
+                    interviewAnswerCount: app.interviewAnswers?.length || 0,
+                    recordingStatus: app.recordingStatus || 'pending'
                 }));
 
                 if (targetJobId) {
@@ -107,6 +109,51 @@ const Applicants = () => {
     const handleViewInterview = (applicationId) => {
         setSelectedInterviewApplicationId(applicationId);
         setShowInterviewDetail(true);
+    };
+
+    const getInterviewMeta = (app) => {
+        if (app.interviewScore !== null && app.interviewScore !== undefined) {
+            return {
+                label: `${app.interviewScore}%`,
+                statusText: 'Completed',
+                canView: true,
+                pillClass: 'bg-purple-500/5 border-purple-500/10 text-purple-400'
+            };
+        }
+
+        if (app.recordingStatus === 'uploaded') {
+            return {
+                label: 'Sync',
+                statusText: 'Recording Saved',
+                canView: true,
+                pillClass: 'bg-amber-500/5 border-amber-500/10 text-amber-400'
+            };
+        }
+
+        if (app.recordingStatus === 'recording') {
+            return {
+                label: 'Live',
+                statusText: 'In Progress',
+                canView: true,
+                pillClass: 'bg-amber-500/5 border-amber-500/10 text-amber-400'
+            };
+        }
+
+        if (app.recordingStatus === 'upload_failed') {
+            return {
+                label: 'Hold',
+                statusText: 'Needs Retry',
+                canView: true,
+                pillClass: 'bg-red-500/5 border-red-500/10 text-red-400'
+            };
+        }
+
+        return {
+            label: '-',
+            statusText: 'Not Started',
+            canView: false,
+            pillClass: 'bg-purple-500/5 border-purple-500/10 text-purple-400'
+        };
     };
 
     return (
@@ -162,7 +209,9 @@ const Applicants = () => {
                                     </td>
                                 </tr>
                             ) : filteredApplicants.length > 0 ? (
-                                filteredApplicants.map((app) => (
+                                filteredApplicants.map((app) => {
+                                    const interviewMeta = getInterviewMeta(app);
+                                    return (
                                     <tr key={app.id} className="group transition-all hover:bg-white/[0.02]">
                                         <td className="py-6 pl-4">
                                             <div className="flex items-center gap-4">
@@ -259,8 +308,8 @@ const Applicants = () => {
                                         </td>
                                         <td className="py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <div className="inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-purple-500/5 border border-purple-500/10 text-purple-400">
-                                                    <span className="font-bold text-sm">{app.interviewScore || '-'}%</span>
+                                                <div className={`inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${interviewMeta.pillClass}`}>
+                                                    <span className="font-bold text-[11px]">{interviewMeta.label}</span>
                                                     <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Tech</span>
                                                 </div>
                                                 {/* ─── OWNERSHIP V VETTING SCORE ─── */}
@@ -268,14 +317,24 @@ const Applicants = () => {
                                                     <span className="font-bold text-sm">{app.ownershipScore || '-'}%</span>
                                                     <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Owner</span>
                                                 </div>
-                                                {app.interviewScore !== null && app.interviewScore !== undefined && (
+                                                <div className="min-w-[82px] text-left">
+                                                    <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                        {interviewMeta.statusText}
+                                                    </div>
+                                                    {app.interviewAnswerCount > 0 && (
+                                                        <div className="text-[9px] text-gray-600 font-bold uppercase tracking-wider">
+                                                            {app.interviewAnswerCount} saved
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {interviewMeta.canView && (
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleViewInterview(app.id);
                                                         }}
                                                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 transition-colors"
-                                                        title="View Interview Details"
+                                                        title="View Interview Status"
                                                     >
                                                         <Eye size={16} />
                                                     </button>
@@ -352,7 +411,7 @@ const Applicants = () => {
                                             )}
                                         </td>
                                     </tr>
-                                ))
+                                )})
                             ) : (
                                 <tr>
                                     <td colSpan="7" className="py-20 text-center">

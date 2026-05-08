@@ -2,35 +2,45 @@ const Job = require('../models/Job');
 const Application = require('../models/Application');
 const User = require('../models/User');
 
+const resolveRecruiterJobQuery = async (recruiterId) => {
+    if (!recruiterId) {
+        return { recruiterId: null };
+    }
+
+    let resolvedUid = null;
+    let resolvedObjectId = null;
+
+    if (recruiterId.length === 24) {
+        const user = await User.findById(recruiterId).select('uid').lean();
+        resolvedUid = user?.uid || null;
+        resolvedObjectId = recruiterId;
+    } else {
+        const user = await User.findOne({ uid: recruiterId }).select('_id').lean();
+        resolvedUid = recruiterId;
+        resolvedObjectId = user?._id?.toString() || null;
+    }
+
+    const recruiterIds = [resolvedUid, resolvedObjectId, recruiterId].filter(Boolean);
+    return recruiterIds.length > 1
+        ? { recruiterId: { $in: recruiterIds } }
+        : { recruiterId: recruiterIds[0] || recruiterId };
+};
+
 const getRecruiterDashboard = async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
-        
-        // ─── ROBUST ID RESOLUTION ───
-        // Recruiters might use Firebase UID or MongoDB _id. We check both.
-        let jobQuery = { recruiterId };
-        if (recruiterId.length === 24) { // Likely a MongoDB ObjectId
-             const user = await User.findById(recruiterId);
-             if (user && user.uid) {
-                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user.uid }] };
-             }
-        } else { // Likely a Firebase UID
-             const user = await User.findOne({ uid: recruiterId });
-             if (user && user._id) {
-                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user._id.toString() }] };
-             }
-        }
-        
-        const jobs = await Job.find(jobQuery);
-        const jobIds = jobs.map(j => j._id);
+        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        const jobs = await Job.find(jobQuery).select('_id').lean();
+        const jobIds = jobs.map((job) => job._id);
+
         const [applicationCount, shortlistedCount] = await Promise.all([
             Application.countDocuments({ jobId: { $in: jobIds } }),
             Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' })
         ]);
-        console.log(`[Dashboard] Recruiter ${recruiterId}: Found ${jobs.length} jobs, ${applicationCount} apps`);
+
         res.json({ jobCount: jobs.length, applicationCount, shortlistedCount });
     } catch (error) {
-        console.error("[Dashboard] Error:", error);
+        console.error('[Dashboard] Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -38,53 +48,38 @@ const getRecruiterDashboard = async (req, res) => {
 const getRecruiterApplications = async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
+        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        const jobs = await Job.find(jobQuery).select('_id').lean();
+        const jobIds = jobs.map((job) => job._id);
 
-        // ─── ROBUST ID RESOLUTION ───
-        let jobQuery = { recruiterId };
-        if (recruiterId.length === 24) {
-             const user = await User.findById(recruiterId);
-             if (user && user.uid) {
-                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user.uid }] };
-             }
-        } else {
-             const user = await User.findOne({ uid: recruiterId });
-             if (user && user._id) {
-                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user._id.toString() }] };
-             }
-        }
-
-        const jobs = await Job.find(jobQuery);
-        const jobIds = jobs.map(j => j._id);
         const apps = await Application.find({ jobId: { $in: jobIds } })
             .populate('jobId')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
             .sort({ createdAt: -1 });
 
-        // ─── ROBUST SOCIAL LINK FALLBACK ───
-        const missingUserApps = apps.filter(app => !app.user);
-        
+        const missingUserApps = apps.filter((app) => !app.user);
+
         if (missingUserApps.length > 0) {
-            const emails = missingUserApps.map(a => a.applicantEmail).filter(Boolean);
-            const uids = missingUserApps.map(a => a.userId).filter(Boolean);
-            
+            const emails = missingUserApps.map((app) => app.applicantEmail).filter(Boolean);
+            const uids = missingUserApps.map((app) => app.userId).filter(Boolean);
+
             const fallbackUsers = await User.find({
                 $or: [
                     { email: { $in: emails } },
                     { uid: { $in: uids } }
                 ]
-            });
+            }).lean();
 
             const userMap = new Map();
-            fallbackUsers.forEach(u => {
-                if (u.email) userMap.set(u.email, u);
-                if (u.uid) userMap.set(u.uid, u);
+            fallbackUsers.forEach((user) => {
+                if (user.email) userMap.set(user.email, user);
+                if (user.uid) userMap.set(user.uid, user);
             });
 
-            apps.forEach(app => {
+            apps.forEach((app) => {
                 if (!app.user) {
                     const found = userMap.get(app.applicantEmail) || userMap.get(app.userId);
                     if (found) {
-                        // Create a mock user object for the virtual field
                         app._doc.user = {
                             githubUrl: found.githubUrl,
                             linkedinUrl: found.linkedinUrl,
@@ -97,32 +92,38 @@ const getRecruiterApplications = async (req, res) => {
                 }
             });
         }
-        // ────────────────────────────────────
-
-        // ─── OWNERSHIP VETTING SCORE LOGIC ───
-        // Logic to calculate candidate suitability based on assessment and interview scores
-        // ─────────────────────────────────────
 
         res.json(apps);
     } catch (error) {
-        console.error("[GET-APPS-REC] Failure:", error);
+        console.error('[GET-APPS-REC] Failure:', error);
         res.status(500).json({ message: error.message });
     }
 };
 
 const getRecruiterJobs = async (req, res) => {
     try {
-        const id = req.params.recruiterId;
-        // Return ALL statuses — recruiter should see pending, approved, and rejected
-        const jobs = await Job.find({ recruiterId: id }).sort({ createdAt: -1 }).lean();
-        const jobsWithCounts = await Promise.all(jobs.map(async (job) => {
-            const count = await Application.countDocuments({ jobId: job._id });
-            return { ...job, applicantCount: count };
+        const recruiterId = req.params.recruiterId;
+        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        const jobs = await Job.find(jobQuery).sort({ createdAt: -1 }).lean();
+        const jobIds = jobs.map((job) => job._id);
+
+        const counts = await Application.aggregate([
+            { $match: { jobId: { $in: jobIds } } },
+            { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
+        ]);
+
+        const countMap = new Map(
+            counts.map((item) => [String(item._id), item.applicantCount])
+        );
+
+        const jobsWithCounts = jobs.map((job) => ({
+            ...job,
+            applicantCount: countMap.get(String(job._id)) || 0
         }));
-        console.log(`[MyJobs] Found ${jobs.length} jobs for recruiter ${id}`);
+
         res.json(jobsWithCounts);
     } catch (error) {
-        console.error("[MyJobs] Error:", error);
+        console.error('[MyJobs] Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -130,28 +131,25 @@ const getRecruiterJobs = async (req, res) => {
 const createJob = async (req, res) => {
     try {
         const { recruiterId, title } = req.body;
-        
+
         console.log(`[JOBS] CREATE Attempt - Recruiter: ${recruiterId}, Title: "${title}"`);
 
         if (!recruiterId) {
-            console.warn(`[JOBS] Save failed: Missing recruiterId`);
-            return res.status(400).json({ message: "Recruiter ID is required. Please ensure you are logged in." });
+            console.warn('[JOBS] Save failed: Missing recruiterId');
+            return res.status(400).json({ message: 'Recruiter ID is required. Please ensure you are logged in.' });
         }
 
         if (!title) {
-            console.warn(`[JOBS] Save failed: Missing title`);
-            return res.status(400).json({ message: "Job title is required" });
+            console.warn('[JOBS] Save failed: Missing title');
+            return res.status(400).json({ message: 'Job title is required' });
         }
 
-        // Data cleanup and type casting
         const jobData = { ...req.body };
-        
-        // Ensure numeric fields are numbers
+
         if (jobData.minPercentage) jobData.minPercentage = Number(jobData.minPercentage);
         if (jobData.assessment?.totalQuestions) jobData.assessment.totalQuestions = Number(jobData.assessment.totalQuestions);
         if (jobData.mockInterview?.passingScore) jobData.mockInterview.passingScore = Number(jobData.mockInterview.passingScore);
 
-        // Remove _id if it exists (relevant if frontend state was reused from an edit)
         delete jobData._id;
 
         const job = new Job(jobData);
@@ -159,22 +157,20 @@ const createJob = async (req, res) => {
 
         console.log(`[JOBS] Successfully saved job: ${savedJob._id}`);
         res.status(201).json({
-            message: "Job created successfully",
+            message: 'Job created successfully',
             job: savedJob
         });
     } catch (error) {
-        console.error(`[JOBS] Save error:`, error);
+        console.error('[JOBS] Save error:', error);
 
-        // Handle MongoDB validation errors
         if (error.name === 'ValidationError') {
-            const messages = Object.values(error.errors).map(err => err.message);
+            const messages = Object.values(error.errors).map((err) => err.message);
             return res.status(400).json({
-                message: "Validation failed",
+                message: 'Validation failed',
                 errors: messages
             });
         }
 
-        // Handle Cast Errors (e.g. string to number)
         if (error.name === 'CastError') {
             return res.status(400).json({
                 message: `Invalid data format for field: ${error.path}`,
@@ -182,17 +178,16 @@ const createJob = async (req, res) => {
             });
         }
 
-        // Handle duplicate key errors
         if (error.code === 11000) {
             return res.status(400).json({
-                message: "A job with this title already exists"
+                message: 'A job with this title already exists'
             });
         }
 
         res.status(500).json({
-            message: "Failed to save job posting due to a server error",
+            message: 'Failed to save job posting due to a server error',
             error: error.message,
-            tip: "Check if all required fields are provided and correctly formatted."
+            tip: 'Check if all required fields are provided and correctly formatted.'
         });
     }
 };

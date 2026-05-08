@@ -5,6 +5,7 @@ const { generateSpeech } = require('../services/tts.service');
 const crypto = require('crypto');
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
+const InterviewSession = require('../models/InterviewSession');
 const Job = require('../models/Job');
 const { getInterviewDetails } = require('../controllers/interviewController');
 const {
@@ -16,6 +17,73 @@ const {
 
 // In-memory session store
 const interviewSessions = new Map();
+const MAX_INTERVIEW_QUESTIONS = 10;
+
+async function saveInterviewSession(sessionId, session) {
+    interviewSessions.set(sessionId, session);
+
+    await InterviewSession.findOneAndUpdate(
+        { sessionId },
+        {
+            $set: {
+                sessionId,
+                userId: session.userId,
+                jobId: String(session.jobId),
+                recordingSessionId: session.recordingSessionId,
+                resumeProfile: session.resumeProfile,
+                specialInstructions: session.specialInstructions,
+                roleInfo: session.roleInfo,
+                jobTitle: session.jobTitle,
+                jobDescription: session.jobDescription,
+                jobSkills: session.jobSkills,
+                experienceLevel: session.experienceLevel,
+                systemPrompt: session.systemPrompt,
+                totalQuestions: Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+                history: session.history || [],
+                answerEvaluations: session.answerEvaluations || []
+            }
+        },
+        { upsert: true, setDefaultsOnInsert: true }
+    );
+
+    return session;
+}
+
+async function loadInterviewSession(sessionId) {
+    if (interviewSessions.has(sessionId)) {
+        return interviewSessions.get(sessionId);
+    }
+
+    const storedSession = await InterviewSession.findOne({ sessionId }).lean();
+    if (!storedSession) {
+        return null;
+    }
+
+    const restoredSession = {
+        userId: storedSession.userId,
+        jobId: storedSession.jobId,
+        recordingSessionId: storedSession.recordingSessionId,
+        resumeProfile: storedSession.resumeProfile,
+        specialInstructions: storedSession.specialInstructions,
+        roleInfo: storedSession.roleInfo,
+        jobTitle: storedSession.jobTitle,
+        jobDescription: storedSession.jobDescription,
+        jobSkills: storedSession.jobSkills || [],
+        experienceLevel: storedSession.experienceLevel || '',
+        systemPrompt: storedSession.systemPrompt,
+        totalQuestions: Math.min(storedSession.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+        history: storedSession.history || [],
+        answerEvaluations: storedSession.answerEvaluations || []
+    };
+
+    interviewSessions.set(sessionId, restoredSession);
+    return restoredSession;
+}
+
+async function deleteInterviewSession(sessionId) {
+    interviewSessions.delete(sessionId);
+    await InterviewSession.deleteOne({ sessionId }).catch(() => null);
+}
 
 function sanitizeRecordingSegment(value) {
     return String(value || 'unknown')
@@ -52,7 +120,7 @@ const TECH_KEYWORDS = [
 
 // ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
 function getRandomQuestionCount() {
-    return 10;
+    return MAX_INTERVIEW_QUESTIONS;
 }
 
 /**
@@ -681,8 +749,7 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        // ALWAYS 10 QUESTIONS
-        const totalQuestions = 10;
+        const totalQuestions = getRandomQuestionCount();
         console.log(`[INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(
@@ -696,7 +763,7 @@ router.post('/start', async (req, res) => {
             { upsert: true }
         );
 
-        interviewSessions.set(sessionId, {
+        await saveInterviewSession(sessionId, {
             userId, jobId,
             recordingSessionId,
             resumeProfile: structured,
@@ -730,7 +797,7 @@ router.post('/start', async (req, res) => {
 router.post('/next', async (req, res) => {
     try {
         const { sessionId, answerText } = req.body;
-        const session = interviewSessions.get(sessionId);
+        const session = await loadInterviewSession(sessionId);
         if (!session) return res.status(404).json({ message: "Session not found" });
 
         const normalizedAnswer = String(answerText || '').trim();
@@ -785,7 +852,7 @@ router.post('/next', async (req, res) => {
         // ───────────────────────────────────────────
 
         // End after exactly 10 questions
-        if (interviewers.length >= 10) {
+        if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${session.totalQuestions} questions`);
             const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
@@ -830,7 +897,7 @@ router.post('/next', async (req, res) => {
                         ownershipMindset: ownershipScore
                     },
                     // ─────────────────────────────────────────────────────────────────
-                    interviewAnswers: session.answerEvaluations.map((entry) => ({
+                    interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry) => ({
                         question: entry.question,
                         answer: entry.answer,
                         score: entry.score,
@@ -880,7 +947,7 @@ router.post('/next', async (req, res) => {
                 console.log(`[INTERVIEW-EVAL] Application Updated. Final Score: ${app.finalScore}`);
             }
 
-            interviewSessions.delete(sessionId);
+            await deleteInterviewSession(sessionId);
             return res.json({
                 hasNext: false,
                 finalScore: evaluation.score,
@@ -916,6 +983,7 @@ router.post('/next', async (req, res) => {
         } catch (e) { console.warn("TTS failed"); }
 
         session.history.push({ role: 'interviewer', content: nextQuestion });
+        await saveInterviewSession(sessionId, session);
 
         res.json({
             hasNext: true,

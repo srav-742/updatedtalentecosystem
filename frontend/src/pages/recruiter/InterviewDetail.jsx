@@ -73,6 +73,12 @@ const InterviewDetail = ({ applicationId, onClose }) => {
 
     const { application, job, interview } = data;
     const formatMarks = (marks) => (typeof marks === 'number' ? marks.toFixed(1) : '0.0');
+    const hasCompletedInterview = interview?.status === 'completed' && (interview?.questions?.length || 0) > 0;
+    const interviewStatusLabel = interview?.status === 'in_progress'
+        ? 'In Progress'
+        : interview?.status === 'not_completed'
+            ? 'Not Finalized'
+            : 'Completed';
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -92,8 +98,8 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-3xl font-black">{interview.score}%</div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Overall Score</div>
+                                    <div className="text-3xl font-black">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
+                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Overall Score' : 'Interview Status'}</div>
                                 </div>
                                 {/* ─── OWNERSHIP V VETTING SCORE ─── */}
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
@@ -101,7 +107,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                     <div className="text-xs opacity-80 font-bold uppercase tracking-widest text-purple-100 italic">Ownership %</div>
                                 </div>
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-3xl font-black">{formatMarks(interview.marks)}/10</div>
+                                    <div className="text-3xl font-black">{hasCompletedInterview ? `${formatMarks(interview.marks)}/10` : '--'}</div>
                                     <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Average Marks</div>
                                 </div>
                                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
@@ -112,7 +118,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                     <div className="text-sm font-black">
                                         {new Date(interview.completedAt).toLocaleDateString()}
                                     </div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Completed</div>
+                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Completed' : 'Last Update'}</div>
                                 </div>
                             </div>
                         </div>
@@ -223,7 +229,20 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         Interview Questions & Responses
                     </h3>
                     <div className="space-y-6">
-                        {interview.questions.map((q, idx) => (
+                        {!hasCompletedInterview && (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-left">
+                                <div className="text-sm font-black uppercase tracking-widest text-amber-800">Interview Not Finalized</div>
+                                <p className="mt-2 text-sm text-amber-900">
+                                    This candidate started the interview flow, but the final interview answers were not saved yet. If a recording is available above, you can still review that session evidence here.
+                                </p>
+                                {application.recordingSessionId && (
+                                    <div className="mt-3 text-xs font-mono text-amber-900/80 break-all">
+                                        Session ID: {application.recordingSessionId}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {hasCompletedInterview && interview.questions.map((q, idx) => (
                             <motion.div
                                 key={idx}
                                 initial={{ opacity: 0, y: 20 }}
@@ -295,8 +314,8 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         <div className="flex items-center gap-3">
                             <Award className="w-6 h-6 text-purple-600" />
                             <div>
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">Final Score</div>
-                                <div className="text-2xl font-black text-purple-600">{interview.score}%</div>
+                                <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Final Score' : 'Interview Status'}</div>
+                                <div className="text-2xl font-black text-purple-600">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
                             </div>
                         </div>
                         <button
