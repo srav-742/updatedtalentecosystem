@@ -40,8 +40,8 @@ const Applicants = () => {
                 const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
                 let mapped = res.data.map(app => ({
                     id: app._id,
-                    jobId: app.jobId?._id,
-                    name: app.applicantName || 'Anonymous',
+                    jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
+                    name: app.applicantName || app.user?.name || 'Anonymous',
                     email: app.applicantEmail || 'No Email',
                     job: app.jobId?.title || 'Unknown Job',
                     resumeScore: app.resumeMatchPercent,
@@ -59,7 +59,7 @@ const Applicants = () => {
                 }));
 
                 if (targetJobId) {
-                    mapped = mapped.filter(app => app.jobId === targetJobId);
+                    mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
                 }
                 setApplicants(mapped);
             } catch (error) {

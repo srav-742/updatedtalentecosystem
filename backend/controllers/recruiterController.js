@@ -5,7 +5,23 @@ const User = require('../models/User');
 const getRecruiterDashboard = async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
-        const jobs = await Job.find({ recruiterId });
+        
+        // ─── ROBUST ID RESOLUTION ───
+        // Recruiters might use Firebase UID or MongoDB _id. We check both.
+        let jobQuery = { recruiterId };
+        if (recruiterId.length === 24) { // Likely a MongoDB ObjectId
+             const user = await User.findById(recruiterId);
+             if (user && user.uid) {
+                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user.uid }] };
+             }
+        } else { // Likely a Firebase UID
+             const user = await User.findOne({ uid: recruiterId });
+             if (user && user._id) {
+                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user._id.toString() }] };
+             }
+        }
+        
+        const jobs = await Job.find(jobQuery);
         const jobIds = jobs.map(j => j._id);
         const [applicationCount, shortlistedCount] = await Promise.all([
             Application.countDocuments({ jobId: { $in: jobIds } }),
@@ -22,7 +38,22 @@ const getRecruiterDashboard = async (req, res) => {
 const getRecruiterApplications = async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
-        const jobs = await Job.find({ recruiterId });
+
+        // ─── ROBUST ID RESOLUTION ───
+        let jobQuery = { recruiterId };
+        if (recruiterId.length === 24) {
+             const user = await User.findById(recruiterId);
+             if (user && user.uid) {
+                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user.uid }] };
+             }
+        } else {
+             const user = await User.findOne({ uid: recruiterId });
+             if (user && user._id) {
+                 jobQuery = { $or: [{ recruiterId }, { recruiterId: user._id.toString() }] };
+             }
+        }
+
+        const jobs = await Job.find(jobQuery);
         const jobIds = jobs.map(j => j._id);
         const apps = await Application.find({ jobId: { $in: jobIds } })
             .populate('jobId')
