@@ -757,6 +757,33 @@ router.post('/next', async (req, res) => {
             isAttempted: answerEvaluation.isAttempted !== false
         });
 
+        // ─── INCREMENTAL SAVE (Rescue Mechanism) ───
+        // Save each answer immediately so data isn't lost if the session restarts
+        try {
+            const mongoose = require('mongoose');
+            await Application.findOneAndUpdate(
+                { 
+                    userId: session.userId, 
+                    jobId: new mongoose.Types.ObjectId(session.jobId) 
+                },
+                {
+                    $push: {
+                        interviewAnswers: {
+                            question: currentQuestion,
+                            answer: normalizedAnswer,
+                            score: answerEvaluation.score,
+                            marks: answerEvaluation.marks,
+                            feedback: answerEvaluation.feedback
+                        }
+                    }
+                }
+            );
+            console.log(`[INTERVIEW-INCREMENTAL] Saved Q${currentQuestionNumber} for user: ${session.userId}`);
+        } catch (dbErr) {
+            console.error("[INTERVIEW-INCREMENTAL-SAVE] Failed to push answer:", dbErr.message);
+        }
+        // ───────────────────────────────────────────
+
         // End after exactly 10 questions
         if (interviewers.length >= 10) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${session.totalQuestions} questions`);

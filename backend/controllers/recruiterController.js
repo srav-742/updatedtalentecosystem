@@ -1,5 +1,6 @@
 const Job = require('../models/Job');
 const Application = require('../models/Application');
+const User = require('../models/User');
 
 const getRecruiterDashboard = async (req, res) => {
     try {
@@ -29,7 +30,6 @@ const getRecruiterApplications = async (req, res) => {
             .sort({ createdAt: -1 });
 
         // ─── ROBUST SOCIAL LINK FALLBACK ───
-        const User = require('../models/User');
         const missingUserApps = apps.filter(app => !app.user);
         
         if (missingUserApps.length > 0) {
