@@ -50,7 +50,15 @@ const generateFullAssessment = async (req, res) => {
         // 🧠 Groq Prompt
         const prompt = `
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
+Target Role: ${job.title}
+Job Context: ${job.description.substring(0, 500)}...
 Session Seed: ${seed}
+
+TASK: 
+- Create a diverse set of original questions tailored specifically to the ${job.title} role.
+- For MLOps roles, cover a mix of: Model Deployment, Monitoring, Infrastructure, and Automation.
+- Do NOT repeat common or basic questions. Focus on practical, real-world technical scenarios.
+- Each user should get unique questions (use the Session Seed: ${seed} to vary the focus).
 
 Return ONLY a JSON object with key "questions" containing an array.
 Each question must be original and different from common examples.

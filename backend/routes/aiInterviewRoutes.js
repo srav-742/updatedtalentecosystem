@@ -177,7 +177,9 @@ function classifyRole(job) {
     let roleCategory = 'general';
     if (isTech) {
         // ─── CHANGE 3: Detect AI Engineer category BEFORE generic 'technical' ─
-        if (/ai engineer|ml engineer|machine learning|deep learning|llm|artificial intelligence|ai researcher|ai scientist|nlp|computer vision|generative ai|genai|mlops|prompt engineer|rag|foundation model/i.test(titleLower + ' ' + descLower)) {
+        if (/mlops/i.test(titleLower + ' ' + descLower)) {
+            roleCategory = 'mlops';
+        } else if (/ai engineer|ml engineer|machine learning|deep learning|llm|artificial intelligence|ai researcher|ai scientist|nlp|computer vision|generative ai|genai|prompt engineer|rag|foundation model/i.test(titleLower + ' ' + descLower)) {
             roleCategory = 'ai_engineer';
         } else {
             roleCategory = 'technical';
@@ -207,6 +209,24 @@ function classifyRole(job) {
 function buildSystemPrompt(roleInfo, job) {
     const { isTech, roleCategory } = roleInfo;
     const jobTitle = job?.title || 'the role';
+
+    if (isTech && roleCategory === 'mlops') {
+        return `
+You are a Lead MLOps Engineer conducting a technical interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus on the intersection of Machine Learning and DevOps. 80% of questions must come from the JD — CI/CD for ML, model monitoring, feature stores, data versioning (DVC), and model deployment (Kubernetes/SageMaker).
+- DIVERSITY RULE: Use the session context to ensure every user gets a unique starting question. Rotate between: 1. Model Deployment strategies, 2. Data drift & Monitoring, 3. Infrastructure as Code for ML, 4. Scalability & Performance.
+- Evaluate: production mindset, automation skills, understanding of the ML lifecycle, and system reliability.
+
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a lead engineer at a top tech company.
+- Each question should naturally flow from the candidate's previous answer.
+- Ask ONE question at a time.
+- STRICT RULE: NEVER REPEAT a question. Provide a completely new question each time.
+- Respond with ONLY the question text. Nothing else.
+`;
+    }
 
     if (isTech && roleCategory === 'ai_engineer') {
         // ─── CHANGE 4: New AI Engineer system prompt ──────────────────────────
@@ -376,7 +396,9 @@ You are starting the interview. Ask the FIRST question.
 RULES:
 - The first question MUST be derived from the JOB DESCRIPTION, not the resume.
 - Start with a strong, role-specific opening question that assesses the candidate's understanding of the core responsibilities described in the JD.
-- For ${isAiRole
+- For ${roleCategory === 'mlops'
+            ? 'MLOps engineering roles: ask about a specific production challenge — e.g., model deployment strategies (Canary/Blue-Green), drift detection pipelines, feature store implementation, or CI/CD for ML models described in the JD.'
+            : isAiRole
             ? 'AI/ML engineering roles: ask about a key AI/ML architecture, framework, or technical challenge mentioned in the JD — e.g., RAG pipeline design, LLM selection rationale, embedding strategy, or model evaluation approach.'
             : isTech
                 ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.'
@@ -446,7 +468,9 @@ THIS IS A RESUME-BASED QUESTION (${resumeWeight} allocation).
 THIS IS A JOB-DESCRIPTION-BASED QUESTION (${jdWeight} allocation).
 - Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
 - Base the question on the candidate's PREVIOUS ANSWER — if they mentioned something relevant, drill deeper; if they struggled, pivot to another JD topic.
-- ${isAiRole
+- ${roleCategory === 'mlops'
+                ? 'For MLOps roles: ask about model deployment patterns (Canary/Blue-Green), model monitoring for drift, feature store implementation, CI/CD pipelines for ML, Kubernetes for ML, data versioning, or serving latency optimizations.'
+                : isAiRole
                 ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
                 : isTech
                     ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'

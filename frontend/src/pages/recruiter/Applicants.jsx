@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles, XCircle } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -411,8 +411,9 @@ const Applicants = () => {
                                             )}
                                         </td>
                                     </tr>
-                                )})
-                            ) : (
+                                        );
+                                    })
+                                ) : (
                                 <tr>
                                     <td colSpan="7" className="py-20 text-center">
                                         <div className="flex flex-col items-center opacity-40">
@@ -465,14 +466,14 @@ const Applicants = () => {
                                 onClick={() => setShowVideoModal(false)}
                                 className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
                             >
-                                <Users className="rotate-45" size={24} />
+                                <XCircle size={24} />
                             </button>
                         </div>
                         <div className="aspect-video bg-black">
                             <video
                                 src={selectedVideoUrl}
                                 controls
-                                autoPlay
+                                playsInline
                                 className="w-full h-full object-contain"
                             />
                         </div>
