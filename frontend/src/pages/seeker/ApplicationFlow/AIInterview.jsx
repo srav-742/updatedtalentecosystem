@@ -708,7 +708,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     </div>
 
                     {/* Question Section - Elegant and Clean (No Bold) */}
-                    <div className="min-h-[220px] max-h-[400px] overflow-y-auto flex flex-col justify-center mb-16 px-6 custom-scrollbar">
+                    <div className="min-h-[120px] max-h-[300px] overflow-y-auto flex flex-col justify-center mb-6 px-6 custom-scrollbar">
                         <AnimatePresence>
                             {displayText ? (
                                 <motion.p
@@ -746,7 +746,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     </div>
 
                     {/* Interaction Section */}
-                    <div className="flex flex-col items-center gap-10">
+                    <div className="flex flex-col items-center gap-6">
                         <div className="flex items-center gap-8">
                             <motion.button
                                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}

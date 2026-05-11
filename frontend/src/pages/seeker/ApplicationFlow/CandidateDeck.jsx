@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Video, StopCircle, RefreshCcw, Check, Loader, AlertCircle, Camera } from 'lucide-react';
+import { Video, StopCircle, RefreshCcw, Check, Loader, AlertCircle, Camera, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
 import axios from 'axios';
@@ -175,6 +175,7 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                                 className="w-full h-full object-cover"
                                 controls
                                 autoPlay
+                                playsInline
                             />
                         </div>
                     )}
@@ -233,7 +234,7 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                 {/* Privacy Badge */}
                 <div className="p-6 text-center bg-white">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
-                         Private & Secure Recording Active
+                        <Lock size={12} /> Private & Secure Recording Active
                     </p>
                 </div>
             </div>

@@ -89,23 +89,23 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
                                 <h2 className="text-3xl font-black">Assessment Details</h2>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-3xl font-black">{assessment.score}%</div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Score</div>
+                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-black">{assessment.score}%</div>
+                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Score</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-3xl font-black">{assessment.correctAnswers}/{assessment.totalQuestions}</div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Correct</div>
+                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-black">{assessment.correctAnswers}/{assessment.totalQuestions}</div>
+                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Correct</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-3xl font-black">{assessment.totalQuestions}</div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Questions</div>
+                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-black">{assessment.totalQuestions}</div>
+                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Questions</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                                    <div className="text-sm font-black">
+                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-sm font-black text-black">
                                         {new Date(assessment.submittedAt).toLocaleDateString()}
                                     </div>
-                                    <div className="text-xs opacity-80 font-bold uppercase tracking-widest">Submitted</div>
+                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Submitted</div>
                                 </div>
                             </div>
                         </div>
