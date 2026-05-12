@@ -244,12 +244,12 @@
 
                 mediaRecorder.start();
 
-                // Listen for 5 seconds
+                // Listen for 15 seconds
                 setTimeout(() => {
-                    if (mediaRecorder.state === 'recording') {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
                         mediaRecorder.stop();
                     }
-                }, 5000);
+                }, 15000);
 
             } catch (err) {
                 console.error(err);

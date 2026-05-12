@@ -387,12 +387,18 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     };
 
     useEffect(() => {
-        if (step === 'interview' && coreState === 'idle' && !processing && !recording) {
+        // Timer should run whenever we are in 'interview' step and not already processing a response
+        if (step === 'interview' && !processing) {
             timerRef.current = setInterval(() => {
                 setTimeLeft((prev) => {
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
-                        submitUserAnswer(""); // Auto-submit empty answer on timeout
+                        // If we were recording, stop it first to trigger the transcription
+                        if (recording) {
+                            toggleRecording();
+                        } else {
+                            submitUserAnswer(""); 
+                        }
                         return 0;
                     }
                     return prev - 1;
@@ -404,7 +410,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [step, coreState, processing, recording]);
+    }, [step, processing, recording]);
 
     const toggleRecording = async () => {
         if (recording) {
@@ -412,7 +418,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             if (recognitionRef.current) recognitionRef.current.stop();
             setRecording(false);
             setCoreState('processing');
-            setProcessing(true);
+            // Remove setProcessing(true) here as it causes a race condition inside submitUserAnswer
             return;
         }
 
