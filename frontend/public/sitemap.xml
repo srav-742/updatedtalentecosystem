@@ -1,29 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
-  <url>
-    <loc>https://hire1percent.com/</loc>
-    <lastmod>2026-05-07</lastmod>
-    <priority>1.0</priority>
-  </url>
-
-  <url>
-    <loc>https://hire1percent.com/jobs</loc>
-    <lastmod>2026-05-07</lastmod>
-    <priority>0.9</priority>
-  </url>
-
-  <url>
-    <loc>https://hire1percent.com/interview</loc>
-    <lastmod>2026-05-07</lastmod>
-    <priority>0.8</priority>
-  </url>
-
-  <url>
-    <loc>https://hire1percent.com/recruiters</loc>
-    <lastmod>2026-05-07</lastmod>
-    <priority>0.8</priority>
-  </url>
-
-</urlset>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-static.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-jobs.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-companies.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-skills.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-locations.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-categories.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-candidates.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-assessments.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-ai-interviews.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-tools.xml</loc>
+   </sitemap>
+   <sitemap>
+      <loc>https://hire1percent.com/sitemap-blog.xml</loc>
+   </sitemap>
+</sitemapindex>
