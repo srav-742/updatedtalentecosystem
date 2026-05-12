@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-   <url><loc>https://hire1percent.com/skills/react-jobs</loc><priority>0.8</priority></url>
-   <url><loc>https://hire1percent.com/skills/nodejs-jobs</loc><priority>0.8</priority></url>
    <url><loc>https://hire1percent.com/skills/python-jobs</loc><priority>0.8</priority></url>
-   <url><loc>https://hire1percent.com/skills/java-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/machine-learning-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/devops-jobs</loc><priority>0.8</priority></url>
    <url><loc>https://hire1percent.com/skills/docker-jobs</loc><priority>0.8</priority></url>
    <url><loc>https://hire1percent.com/skills/kubernetes-jobs</loc><priority>0.8</priority></url>
    <url><loc>https://hire1percent.com/skills/aws-jobs</loc><priority>0.8</priority></url>
-   <url><loc>https://hire1percent.com/skills/machine-learning-jobs</loc><priority>0.8</priority></url>
-   <url><loc>https://hire1percent.com/skills/typescript-jobs</loc><priority>0.8</priority></url>
-   <url><loc>https://hire1percent.com/skills/golang-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/sales-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/marketing-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/communication-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/skills/business-strategy-jobs</loc><priority>0.8</priority></url>
 </urlset>
