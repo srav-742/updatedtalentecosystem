@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alex - AI Recruiter Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --chat-bg: #1e293b;
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --ai-bubble: #334155;
+            --user-bubble: #3b82f6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --header-bg: rgba(30, 41, 59, 0.85);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 600px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--chat-bg);
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .header {
+            background: var(--header-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 10;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 18px;
+            margin-right: 15px;
+        }
+
+        .header-info h2 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .header-info p {
+            margin: 2px 0 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 75%;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-size: 15px;
+            line-height: 1.4;
+            color: var(--text-main);
+            position: relative;
+            box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } }
+
+        .message.ai {
+            align-self: flex-start;
+            background: var(--ai-bubble);
+            border-top-left-radius: 0;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--user-bubble);
+            color: #ffffff;
+            border-top-right-radius: 0;
+        }
+
+        .time {
+            font-size: 11px;
+            color: var(--text-muted);
+            float: right;
+            margin: 10px 0 -5px 10px;
+        }
+
+        .controls {
+            background: var(--header-bg);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover { background: var(--primary-dark); transform: translateY(-2px); }
+        .btn-stop { background: #ea0038; }
+        .btn-stop:hover { background: #c80030; }
+
+        .status-indicator {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: none;
+            z-index: 20;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="header">
+            <div class="avatar">A</div>
+            <div class="header-info">
+                <h2>Alex (AI Recruiter)</h2>
+                <p id="status-text">Online</p>
+            </div>
+        </div>
+
+        <div class="chat-container" id="chat-box">
+            <div class="message ai">
+                Hello, I am Alex, the Senior Executive Talent Scout for Hire1Percent. How may I assist you with your application today?
+                <div class="time">Now</div>
+            </div>
+        </div>
+
+        <div class="status-indicator" id="status-indicator">Listening...</div>
+
+        <div class="controls">
+            <button id="mainBtn" class="btn">Start Voice Chat</button>
+            <button id="stopBtn" class="btn btn-stop" style="display:none;">End Chat</button>
+        </div>
+    </div>
+
+    <script>
+        let isAutoMode = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        const synth = window.speechSynthesis;
+        const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+
+        const mainBtn = document.getElementById('mainBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('status-text');
+        const statusIndicator = document.getElementById('status-indicator');
+        const chatBox = document.getElementById('chat-box');
+
+        function appendMessage(text, sender) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            
+            const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            msgDiv.innerHTML = `${text} <div class="time">${timeStr}</div>`;
+            
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        mainBtn.onclick = () => {
+            isAutoMode = true;
+            mainBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            startConversationCycle();
+        };
+
+        stopBtn.onclick = () => {
+            isAutoMode = false;
+            stopBtn.style.display = 'none';
+            mainBtn.style.display = 'block';
+            updateStatus('Online', false);
+            if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+            synth.cancel();
+        };
+
+        async function startConversationCycle() {
+            if (!isAutoMode) return;
+            
+            try {
+                updateStatus('Listening...', true);
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    if (!isAutoMode) return;
+                    processAudio();
+                };
+
+                mediaRecorder.start();
+
+                // Listen for 5 seconds
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 5000);
+
+            } catch (err) {
+                console.error(err);
+                updateStatus('Mic Error', false);
+                stopBtn.click();
+            }
+        }
+
+        async function processAudio() {
+            updateStatus('Typing...', true);
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const response = await fetch('http://localhost:5005/api/voice-command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio: base64Audio, sessionId: sessionId })
+                    });
+                    const result = await response.json();
+                    
+                    if(result.transcription && result.transcription.trim() !== "..." && result.transcription !== "Sorry, I couldn't understand that.") {
+                        appendMessage(result.transcription, 'user');
+                        appendMessage(result.response, 'ai');
+                        speakText(result.response);
+                    } else {
+                        // If silent or failed to transcribe, just loop
+                        updateStatus('Online', false);
+                        if (isAutoMode) setTimeout(startConversationCycle, 1000);
+                    }
+                    
+                } catch (err) {
+                    console.error(err);
+                    if (isAutoMode) setTimeout(startConversationCycle, 2000);
+                }
+            };
+        }
+
+        function speakText(text) {
+            updateStatus('Speaking...', true);
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.05;
+            utterance.pitch = 1.0;
+            
+            utterance.onend = () => {
+                if (isAutoMode) {
+                    setTimeout(startConversationCycle, 500);
+                }
+            };
+
+            synth.speak(utterance);
+        }
+
+        function updateStatus(text, showIndicator) {
+            statusText.innerText = text;
+            statusIndicator.innerText = text;
+            statusIndicator.style.display = showIndicator ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
+
