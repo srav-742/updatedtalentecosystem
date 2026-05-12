@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-   <url><loc>https://hire1percent.com/candidates/sravya-ai-engineer</loc></url>
-   <url><loc>https://hire1percent.com/candidates/john-react-developer</loc></url>
+   <url><loc>https://hire1percent.com/candidates/sravya-ai-engineer</loc><priority>0.6</priority></url>
+   <url><loc>https://hire1percent.com/candidates/john-react-developer</loc><priority>0.6</priority></url>
+   <url><loc>https://hire1percent.com/candidates/sarah-backend-dev</loc><priority>0.6</priority></url>
+   <url><loc>https://hire1percent.com/candidates/mike-devops-engineer</loc><priority>0.6</priority></url>
 </urlset>

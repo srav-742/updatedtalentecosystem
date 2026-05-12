@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-   <url><loc>https://hire1percent.com/blog/top-react-interview-questions</loc></url>
-   <url><loc>https://hire1percent.com/blog/how-to-crack-ai-interviews</loc></url>
-   <url><loc>https://hire1percent.com/blog/best-resume-format</loc></url>
+   <url><loc>https://hire1percent.com/blog/top-react-interview-questions</loc><priority>0.7</priority></url>
+   <url><loc>https://hire1percent.com/blog/how-to-crack-ai-interviews</loc><priority>0.7</priority></url>
+   <url><loc>https://hire1percent.com/blog/best-resume-format</loc><priority>0.7</priority></url>
+   <url><loc>https://hire1percent.com/blog/system-design-interview-guide</loc><priority>0.7</priority></url>
+   <url><loc>https://hire1percent.com/blog/future-of-ai-recruitment</loc><priority>0.7</priority></url>
 </urlset>

@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-   <url><loc>https://hire1percent.com/category/frontend-jobs</loc></url>
-   <url><loc>https://hire1percent.com/category/backend-jobs</loc></url>
-   <url><loc>https://hire1percent.com/category/devops-jobs</loc></url>
-   <url><loc>https://hire1percent.com/category/ai-jobs</loc></url>
-   <url><loc>https://hire1percent.com/category/fullstack-jobs</loc></url>
+   <url><loc>https://hire1percent.com/category/frontend-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/backend-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/devops-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/ai-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/fullstack-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/data-science-jobs</loc><priority>0.8</priority></url>
+   <url><loc>https://hire1percent.com/category/mobile-jobs</loc><priority>0.8</priority></url>
 </urlset>
