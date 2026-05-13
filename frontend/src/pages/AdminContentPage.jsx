@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, RefreshCw, Layers, Settings, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, LogOut } from "lucide-react";
+import { Zap, RefreshCw, Layers, Settings, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, LogOut, FileText } from "lucide-react";
 import { getAllContent, generateContent } from "../services/contentService";
 import ContentList from "../components/ContentList";
 import ContentDetail from "../components/ContentDetail";
 import CommunitySettingsModal from "../components/CommunitySettingsModal";
 import axios from "axios";
 import { API_URL, getAuthHeaders } from "../firebase";
+import TranscriptListPanel from "./admin/TranscriptListPanel";
 
 // ─── Job Approval Panel ──────────────────────────────────────────────────────
 const JobRequestsPanel = () => {
@@ -350,7 +351,7 @@ const JobRequestsPanel = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AdminContentPage = () => {
-    const [activeTab, setActiveTab] = useState("content"); // "content" | "jobs"
+    const [activeTab, setActiveTab] = useState("content"); // "content" | "jobs" | "transcripts"
     const [content, setContent] = useState([]);
     const [selected, setSelected] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -474,6 +475,15 @@ const AdminContentPage = () => {
                         <Briefcase size={14} />
                         Job Posting Requests
                     </button>
+                    <button
+                        onClick={() => setActiveTab("transcripts")}
+                        className={`flex items-center gap-2.5 rounded-2xl px-6 py-3 text-xs font-semibold uppercase tracking-[0.22em] transition-all ${activeTab === "transcripts"
+                            ? "bg-black text-white shadow-lg"
+                            : "text-gray-500 hover:bg-[#faf7f1] hover:text-gray-900"}`}
+                    >
+                        <FileText size={14} />
+                        Candidate Transcripts
+                    </button>
                 </div>
 
                 {/* ── Tab Content ─────────────────────────────────────────── */}
@@ -507,7 +517,7 @@ const AdminContentPage = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    ) : (
+                    ) : activeTab === "jobs" ? (
                         <motion.div
                             key="jobs"
                             initial={{ opacity: 0, y: 8 }}
@@ -517,6 +527,18 @@ const AdminContentPage = () => {
                         >
                             <div className="mx-auto max-w-5xl rounded-[2.5rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                                 <JobRequestsPanel />
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="transcripts"
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <div className="mx-auto max-w-6xl rounded-[2.5rem] border border-black/10 bg-[#0c0f16] p-6 shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+                                <TranscriptListPanel />
                             </div>
                         </motion.div>
                     )}

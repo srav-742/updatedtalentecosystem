@@ -71,6 +71,10 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
     }
 
     const { application, job, assessment } = data;
+    
+    // Calculate weighted points per question based on the 30-point maximum
+    const pointsPerQuestion = assessment?.totalQuestions > 0 ? (30 / assessment.totalQuestions) : 0;
+    const formattedPoints = Number.isInteger(pointsPerQuestion) ? pointsPerQuestion : pointsPerQuestion.toFixed(1);
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -263,8 +267,8 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
                                             )}
                                         </div>
                                         <div className="text-sm font-bold text-gray-600">
-                                            Score: <span className={q.answerScore > 0 ? 'text-green-600' : 'text-red-600'}>
-                                                {q.answerScore > 0 ? '+1' : '0'}
+                                            Score: <span className={q.isCorrect ? 'text-green-600' : 'text-red-600'}>
+                                                {q.isCorrect ? `+${formattedPoints}` : '0'}
                                             </span>
                                         </div>
                                     </div>

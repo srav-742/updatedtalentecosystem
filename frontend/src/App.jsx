@@ -37,7 +37,7 @@ const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftwa
 const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
 const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
-
+const CandidateTranscriptPage = lazy(() => import('./pages/admin/CandidateTranscriptPage'));
 
 function App() {
   return (
@@ -61,13 +61,13 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/contact" element={<Contact />} />
+
         {/* Admin Routes */}
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
         <Route path="/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
         <Route path="/recruiter/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
         <Route path="/recruiter/AdminContentPage" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
-
-
+        <Route path="/admin/transcript/:applicationId" element={<ProtectedRoute role="admin"><CandidateTranscriptPage /></ProtectedRoute>} />
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
@@ -87,7 +87,6 @@ function App() {
           <Route path="jobs" element={<BrowseJobs />} />
           <Route path="job/:id" element={<JobDetails />} />
           <Route path="apply/:jobId" element={<ApplicationFlow />} />
-
           <Route path="applications" element={<MyApplications />} />
           <Route path="profile" element={<SeekerProfile />} />
           <Route path="mock-interview" element={<AgentInterview />} />
@@ -96,6 +95,7 @@ function App() {
           <Route path="agentInterview.jsx" element={<AgentInterview />} />
           <Route path="community" element={<EliteCommunity />} />
         </Route>
+
         <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />
         <Route path="/ai-recruitment-software" element={<AIRecruitmentSoftware />} />
         <Route path="/automated-hiring" element={<AutomatedHiring />} />

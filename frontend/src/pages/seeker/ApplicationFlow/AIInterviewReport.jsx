@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Award, MessageSquare, BarChart3, ChevronRight, Zap, X } from 'lucide-react';
 import InterviewFeedbackForm from './InterviewFeedbackForm';
 
-const CircularProgress = ({ percentage, label, color, delay }) => {
+const CircularProgress = ({ value, max = 100, label, color, delay }) => {
     const radius = 36;
     const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+    const strokeDashoffset = circumference - (value / max) * circumference;
 
     return (
         <div className="flex flex-col items-center gap-4">
@@ -43,7 +43,7 @@ const CircularProgress = ({ percentage, label, color, delay }) => {
                         transition={{ delay: delay + 0.5 }}
                         className="text-2xl font-black text-gray-900"
                     >
-                        {percentage}%
+                        {Math.round(value)}/{max}
                     </motion.span>
                 </div>
             </div>
@@ -61,7 +61,7 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
     const communicationScore = Math.min(100, Math.max(0, safeScore + (Math.random() * 10 - 5)));
     
     // ─── OWNERSHIP V VETTING SCORE ───────────────────────────────────────────
-    const safeOwnershipScore = typeof ownershipScore === 'number' ? ownershipScore : 82; // Fallback for display
+    const safeOwnershipScore = typeof ownershipScore === 'number' ? ownershipScore : 8; // Fallback for display
     // ──────────────────────────────────────────────────────────────────────────
 
     useEffect(() => {
@@ -122,20 +122,23 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                         <div className="bg-gray-50 border border-gray-200 rounded-[2.5rem] p-8 flex items-center justify-around shadow-inner">
                             <CircularProgress
-                                percentage={safeScore}
+                                value={safeScore}
+                                max={50}
                                 label="Technical"
                                 color="#3b82f6"
                                 delay={0.2}
                             />
                             <CircularProgress
-                                percentage={Math.round(communicationScore)}
+                                value={Math.round(communicationScore)}
+                                max={50}
                                 label="Communication"
                                 color="#14b8a6"
                                 delay={0.4}
                             />
                             {/* ─── OWNERSHIP V VETTING SCORE ─── */}
                             <CircularProgress
-                                percentage={safeOwnershipScore}
+                                value={safeOwnershipScore}
+                                max={10}
                                 label="Ownership"
                                 color="#8b5cf6"
                                 delay={0.6}

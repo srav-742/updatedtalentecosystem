@@ -87,6 +87,7 @@ app.use('/api/team-fit', teamFitRoutes);
 app.use('/api/insights', insightRoutes);
 app.use('/api/ai-search', aiSearchRoutes);
 app.use('/api/voice-agent', voiceAgentRoutes);
+app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 
 
 

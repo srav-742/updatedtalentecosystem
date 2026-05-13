@@ -196,31 +196,30 @@ ${specialInstructions || 'None'}
 Resume Content:
 ${resumeText ? resumeText.substring(0, 10000) : ''}
 
-SCORING ALGORITHM (STRICT):
-1. Skills Match (0-100):
-   - Direct Match: Exact skill mentioned (High Confidence).
-   - Related Match: Synonyms or version-specific matches (e.g., "React.js" for "React").
-   - Missing: Skill not mentioned at all.
-   - Deduction: -5 for each critical missing skill.
+SCORING ALGORITHM (STRICT - MAX 20 POINTS TOTAL):
+1. Skills Match (0-20 Points):
+   - 0 Missing Skills: 20 points
+   - 1 or 2 Missing Skills: 18 points
+   - exactly 3 Missing Skills: 15 points
+   - more than 3 Missing Skills: 12 points or lower (Failing)
 
-2. Experience & Profile Score (0-100):
-   - Years of Experience: Compare resume timeline vs job requirements.
-   - Education: Verify degree level and field relevance.
-   - Career Progression: Stability and role relevance.
+2. Experience Penalty:
+   - Deduct 1-3 points from the Skills Match if the candidate's years of experience or role progression severely falls short of requirements.
 
-3. Final Weighted Percentage:
-   - (Skills Score * 0.6) + (Experience Score * 0.4)
+3. Final Match Percentage:
+   - The final 'matchPercentage' MUST be a number between 0 and 20. 
+   - NEVER output a number out of 100.
 
 OUTPUT REQUIREMENTS:
-- Provide high-fidelity feedback that explains EXACTLY why the candidate scored this way.
+- Provide high-fidelity feedback that explains EXACTLY why the candidate scored this out of 20.
 - Be critical and professional.
 - Return ONLY valid JSON.
 
 JSON STRUCTURE:
 {
-  "matchPercentage": 85,
-  "skillsScore": 90,
-  "experienceScore": 78,
+  "matchPercentage": 18,
+  "skillsScore": 18,
+  "experienceScore": 18,
   "skillsFeedback": "List exact matching and missing skills with context.",
   "experienceFeedback": "Detailed breakdown of experience tenure and education alignment.",
   "explanation": "Summarize the overall fit, highlighting unique strengths or critical gaps.",
@@ -261,11 +260,12 @@ JSON STRUCTURE:
             analysis = JSON.parse(cleanedResponse);
 
             // 3. Ensure all required fields exist and are the correct type
-            analysis.skillsScore = Math.max(0, Math.min(100, Number(analysis.skillsScore) || 0));
-            analysis.experienceScore = Math.max(0, Math.min(100, Number(analysis.experienceScore) || 0));
+            // CRITICAL FIX: Ensure the scores are strictly bounded
+            analysis.skillsScore = Math.max(0, Math.min(20, Number(analysis.skillsScore) || 0));
+            analysis.experienceScore = Math.max(0, Math.min(20, Number(analysis.experienceScore) || 0));
 
-            // CRITICAL FIX: Mathematically force exactly 60% / 40% weighting
-            analysis.matchPercentage = Math.round((analysis.skillsScore * 0.6) + (analysis.experienceScore * 0.4));
+            // Force matchPercentage out of 20 (we take the skillsScore as primary, minus any experience penalty if the AI applied one)
+            analysis.matchPercentage = Math.max(0, Math.min(20, Number(analysis.matchPercentage) || analysis.skillsScore));
 
             analysis.skillsFeedback = String(analysis.skillsFeedback || "Analysis derived from extracted skills.");
             analysis.experienceFeedback = String(analysis.experienceFeedback || "Analysis derived from extracted experience.");

@@ -114,7 +114,7 @@ const Applicants = () => {
     const getInterviewMeta = (app) => {
         if (app.interviewScore !== null && app.interviewScore !== undefined) {
             return {
-                label: `${app.interviewScore}%`,
+                label: `${app.interviewScore}/50`,
                 statusText: 'Completed',
                 canView: true,
                 pillClass: 'bg-purple-500/5 border-purple-500/10 text-purple-400'
@@ -188,7 +188,7 @@ const Applicants = () => {
                             <tr className="border-b border-white/10 text-gray-400 text-[10px] uppercase font-bold tracking-widest">
                                 <th className="pb-6 pt-0 pl-4 text-left">Candidate Info</th>
                                 <th className="pb-6 pt-0 text-center">Video Intro</th>
-                                <th className="pb-6 pt-0 text-center">Resume Match %</th>
+                                <th className="pb-6 pt-0 text-center">Resume Match</th>
 
                                 <th className="pb-6 pt-0 text-center">Assessment</th>
                                 <th className="pb-6 pt-0 text-center">Interview</th>
@@ -271,7 +271,7 @@ const Applicants = () => {
                                         <td className="py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
-                                                    {app.resumeScore}%
+                                                    {app.resumeScore}/20
                                                 </div>
                                                 {app.resumeUrl && (
                                                     <a 
@@ -290,7 +290,7 @@ const Applicants = () => {
                                         <td className="py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
-                                                    {app.assessmentScore || '-'}%
+                                                    {app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/30` : '-'}
                                                 </div>
                                                 {app.assessmentScore !== null && app.assessmentScore !== undefined && (
                                                     <button
@@ -314,7 +314,7 @@ const Applicants = () => {
                                                 </div>
                                                 {/* ─── OWNERSHIP V VETTING SCORE ─── */}
                                                 <div className="inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-400">
-                                                    <span className="font-bold text-sm">{app.ownershipScore || '-'}%</span>
+                                                    <span className="font-bold text-sm">{app.ownershipScore !== null && app.ownershipScore !== undefined ? `${app.ownershipScore}/10` : '-'}</span>
                                                     <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Owner</span>
                                                 </div>
                                                 <div className="min-w-[82px] text-left">
@@ -352,7 +352,7 @@ const Applicants = () => {
                                         </td>
                                         <td className="py-6 text-center">
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg">
-                                                {app.finalScore || '-'}
+                                                {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
                                             </div>
                                         </td>
                                         <td className="py-6 text-center">

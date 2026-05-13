@@ -50,13 +50,8 @@ const submitApplication = async (req, res) => {
             }
         }
 
-        // Fallback if no modules enabled logically
-        if (numModules === 0) {
-            totalScore = r + a + i;
-            numModules = 3;
-        }
-
-        const finalScore = Math.round(totalScore / numModules);
+        // Final Score is the direct sum of the components (max 20 + 30 + 50 = 100)
+        const finalScore = r + a + i;
         application.finalScore = finalScore;
         await application.save();
 

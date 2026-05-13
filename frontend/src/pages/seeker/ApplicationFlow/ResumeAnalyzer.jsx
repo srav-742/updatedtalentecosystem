@@ -466,7 +466,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             setActiveSection(firstCompletedSection?.id || 'resume');
 
             // --- AUTOMATIC NAVIGATION LOGIC ---
-            const minThreshold = job.minPercentage || 60;
+            const minThreshold = (job.minPercentage || 60) * 0.20;
             if (normalizedData.matchPercentage >= minThreshold) {
                 setIsRedirecting(true);
                 // Show success for 2.5 seconds then auto-navigate
@@ -526,7 +526,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
         }
     };
 
-    const threshold = job.minPercentage || 60;
+    const threshold = (job.minPercentage || 60) * 0.20;
     const matchPercentage = analysisResult?.data?.matchPercentage || 0;
     const isPassed = analysisResult ? matchPercentage >= threshold : false;
 
@@ -1201,7 +1201,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                 </div>
                                 <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
                                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Resume match</p>
-                                    <p className="mt-3 text-lg font-semibold text-gray-900">{matchPercentage}%</p>
+                                    <p className="mt-3 text-lg font-semibold text-gray-900">{matchPercentage}/20</p>
                                 </div>
                                 <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
                                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Next</p>
@@ -1269,7 +1269,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                                 strokeWidth="8"
                                                 strokeDasharray={264}
                                                 initial={{ strokeDashoffset: 264 }}
-                                                animate={{ strokeDashoffset: 264 - (264 * matchPercentage) / 100 }}
+                                                animate={{ strokeDashoffset: 264 - (264 * matchPercentage) / 20 }}
                                                 transition={{ duration: 1.5, ease: "easeOut" }}
                                                 strokeLinecap="round"
                                                 stroke="currentColor"
@@ -1280,14 +1280,14 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                             />
                                         </svg>
                                         <div className="absolute flex flex-col items-center justify-center">
-                                            <span className="text-4xl font-black tracking-tight text-gray-900">{matchPercentage}%</span>
+                                            <span className="text-3xl font-black tracking-tight text-gray-900">{matchPercentage}<span className="text-xl text-gray-400">/20</span></span>
                                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Match</span>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-1 shadow-sm">
                                         <div className={`h-1.5 w-1.5 rounded-full ${isPassed ? 'bg-emerald-500' : 'bg-red-500'}`} />
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                            Min. {threshold}% Required
+                                            Min. {threshold}/20 Required
                                         </span>
                                     </div>
                                 </div>
@@ -1297,7 +1297,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                         <div className="mt-8 grid gap-4 md:grid-cols-2">
                             <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-6">
                                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Skills match</p>
-                                <div className="mt-4 text-4xl font-semibold tracking-tight text-gray-900">{analysisResult.data.skillsScore}%</div>
+                                <div className="mt-4 text-4xl font-semibold tracking-tight text-gray-900">{analysisResult.data.skillsScore}<span className="text-xl text-gray-400">/20</span></div>
                                 <p className="mt-3 text-sm leading-6 text-gray-500">{analysisResult.data.skillsFeedback}</p>
                             </div>
                             <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-6">

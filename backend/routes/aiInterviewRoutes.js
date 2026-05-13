@@ -906,14 +906,14 @@ router.post('/next', async (req, res) => {
             // ─── OWNERSHIP VETTING SCORE LOGIC: Final Calculation ────────────────
             const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= 8);
             const ownershipScore = ownershipEvals.length > 0 
-                ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.score, 0) / ownershipEvals.length)
+                ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
                 : 0;
             // ─────────────────────────────────────────────────────────────────────
 
             await Application.findOneAndUpdate(
                 { userId: session.userId, jobId: session.jobId },
                 {
-                    interviewScore: evaluation.score,
+                    interviewScore: Math.round(evaluation.score * 0.50),
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
                     // ─── OWNERSHIP VETTING SCORE LOGIC: Persistence ──────────────────
@@ -958,12 +958,8 @@ router.post('/next', async (req, res) => {
                     }
                 }
 
-                if (numModules === 0) {
-                    totalScore = r + a + i;
-                    numModules = 3;
-                }
-
-                app.finalScore = Math.round(totalScore / numModules);
+                // Final Score is simply the sum of all components (max 20 + 30 + 50 = 100)
+                app.finalScore = r + a + i;
 
                 if (app.finalScore >= 60) app.status = 'SHORTLISTED';
 
@@ -974,7 +970,7 @@ router.post('/next', async (req, res) => {
             await deleteInterviewSession(sessionId);
             return res.json({
                 hasNext: false,
-                finalScore: evaluation.score,
+                finalScore: Math.round(evaluation.score * 0.50),
                 ownershipScore: ownershipScore, // ─── Added for frontend display
                 feedback: evaluation.feedback,
                 answerEvaluation

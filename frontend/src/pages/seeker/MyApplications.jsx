@@ -151,10 +151,10 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                     </div>
 
                                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                        <Metric label="Resume Match" value={`${application.resumeMatchPercent ?? '--'}%`} />
-                                        <Metric label="Assessment" value={application.assessmentScore ?? '--'} />
-                                        <Metric label="Interview" value={application.interviewScore ?? '--'} />
-                                        <Metric label="Final Score" value={application.finalScore ?? '--'} />
+                                        <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/20` : '--'} />
+                                        <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/30` : '--'} />
+                                        <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/50` : '--'} />
+                                        <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
                                     </div>
                                 </div>
                             </article>

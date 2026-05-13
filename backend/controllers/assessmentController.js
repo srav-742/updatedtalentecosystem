@@ -36,7 +36,8 @@ const generateFullAssessment = async (req, res) => {
             if (!application) {
                 return res.status(400).json({ message: "You must apply (upload resume) first" });
             }
-            if (application.resumeMatchPercent < (job.minPercentage || 60)) {
+            const minThreshold = (job.minPercentage || 60) * 0.20;
+            if (application.resumeMatchPercent < minThreshold) {
                 return res.status(400).json({ message: `Resume match below ${job.minPercentage || 60}%` });
             }
         }
@@ -217,7 +218,7 @@ const submitAssessment = async (req, res) => {
             };
         });
 
-        const finalScore = Math.round((correctCount / questions.length) * 100);
+        const finalScore = Math.round((correctCount / questions.length) * 30);
 
         const submission = await AssessmentSubmission.create({
             jobId,
