@@ -296,7 +296,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                     <div className="mt-4 pt-4 border-t border-purple-200">
                                         <div className="flex items-center gap-2 mb-2">
                                             <CheckCircle className="w-4 h-4 text-green-600" />
-                                            <h4 className="font-bold text-gray-800">AI Feedback:</h4>
+                                            <h4 className="font-bold text-gray-800">Automated Assessment:</h4>
                                         </div>
                                         <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                                             <p className="text-gray-800">{q.feedback}</p>

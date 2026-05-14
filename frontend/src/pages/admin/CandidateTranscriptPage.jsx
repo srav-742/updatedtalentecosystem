@@ -141,7 +141,7 @@ const CandidateTranscriptPage=()=>{
               <div className='p-5 space-y-4'>
                 <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>AI Question</p><p className='text-sm font-bold text-white p-3 rounded-xl bg-white/5 border border-white/10'>{q.question}</p></div>
                 {q.isAttempted?<div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Candidate Answer</p><p className='text-sm text-gray-300 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 leading-relaxed'>{q.answer}</p></div>:<p className='text-xs text-red-400 font-bold italic'>Not attempted</p>}
-                {q.feedback&&<div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>AI Feedback</p><p className='text-xs text-gray-400 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 leading-relaxed'>{q.feedback}</p></div>}
+                {q.feedback&&<div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Reason for Assessment</p><p className='text-xs text-gray-400 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 leading-relaxed'>{q.feedback}</p></div>}
               </div></motion.div>))}</div>
           </Sec>)}
         <Sec title='Overall Evaluation Summary' icon={<Award size={16}/>} grad='from-yellow-500 to-orange-500'>

@@ -244,7 +244,7 @@ const InterviewFeedbackForm = ({ userId, jobId, interviewId, onDone }) => {
                                         <textarea
                                             value={likedMost}
                                             onChange={e => setLikedMost(e.target.value)}
-                                            placeholder="The AI feedback was very detailed..."
+                                            placeholder="The automated assessment was very detailed..."
                                             className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors h-24 resize-none"
                                         />
                                     </div>

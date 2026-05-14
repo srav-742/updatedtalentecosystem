@@ -567,7 +567,7 @@ Evaluate ONLY this single answer and return ONLY a JSON object:
 {
   "marks": <number 0-10>,
   "percentage": <number 0-100>,
-  "feedback": "<one concise sentence about this answer only, mentioning at least one strength or weakness>"
+  "feedback": "<one concise sentence providing the exact reason for the assessment score, mentioning at least one specific strength or weakness in their answer>"
 }
 `;
 }

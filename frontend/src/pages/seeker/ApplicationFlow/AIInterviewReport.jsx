@@ -174,10 +174,10 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
                         </div>
                     </div>
 
-                    {/* AI Feedback */}
+                    {/* Automated Assessment */}
                     <div className="bg-gray-50 border border-gray-200 rounded-[2.5rem] p-8 mb-12">
                         <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                            <MessageSquare size={20} className="text-blue-600" /> AI Feedback Summary
+                            <MessageSquare size={20} className="text-blue-600" /> Automated Assessment Summary
                         </h4>
                         <div className="text-gray-600 text-sm leading-relaxed font-light whitespace-pre-line">
                             {feedback || "Calculating detailed evaluation based on your responses..."}
