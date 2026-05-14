@@ -179,29 +179,39 @@ const Applicants = () => {
             </div>
 
             <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
-                <div className="overflow-x-auto min-h-[400px]">
+                <div className="min-h-[400px]">
                     <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                         <Users size={200} />
                     </div>
-                    <table className="w-full text-left relative z-10">
+                    <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                            <col style={{ width: '4%' }} />
+                            <col style={{ width: '22%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '11%' }} />
+                            <col style={{ width: '7%' }} />
+                        </colgroup>
                         <thead>
                             <tr className="border-b border-white/10 text-gray-400 text-[10px] uppercase font-bold tracking-widest">
-                                <th className="pb-6 pt-0 pl-4 text-left">Candidate Info</th>
-                                <th className="pb-6 pt-0 text-center">Video Intro</th>
-                                <th className="pb-6 pt-0 text-center">Resume Match</th>
-
-                                <th className="pb-6 pt-0 text-center">Assessment</th>
-                                <th className="pb-6 pt-0 text-center">Interview</th>
-                                <th className="pb-6 pt-0 text-center">Team Fit</th>
-                                <th className="pb-6 pt-0 text-center">Final Score</th>
-                                <th className="pb-6 pt-0 text-center">Status</th>
-                                <th className="pb-6 pt-0 text-right pr-4">Action</th>
+                                <th className="pb-6 pt-4 pl-4 text-center border border-white/10">S.No</th>
+                                <th className="pb-6 pt-4 pl-4 text-left border border-white/10">Candidate Info</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Video Intro</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Resume Match</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Assessment</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Interview</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Final Score</th>
+                                <th className="pb-6 pt-4 text-center border border-white/10">Status</th>
+                                <th className="pb-6 pt-4 text-right pr-4 border border-white/10">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="7" className="py-20 text-center text-gray-500 italic">
+                                    <td colSpan="9" className="py-20 text-center text-gray-500 italic border border-white/10">
                                         <div className="flex items-center justify-center gap-2">
                                             <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
                                             Reading Applicant Ledger...
@@ -209,11 +219,14 @@ const Applicants = () => {
                                     </td>
                                 </tr>
                             ) : filteredApplicants.length > 0 ? (
-                                filteredApplicants.map((app) => {
+                                filteredApplicants.map((app, index) => {
                                     const interviewMeta = getInterviewMeta(app);
                                     return (
-                                    <tr key={app.id} className="group transition-all hover:bg-white/[0.02]">
-                                        <td className="py-6 pl-4">
+                                    <tr key={app.id} className="group transition-all hover:bg-white/[0.02]" style={{ verticalAlign: 'middle' }}>
+                                        <td className="py-4 text-center border border-white/10 text-xs font-bold text-gray-400">
+                                            {index + 1}
+                                        </td>
+                                        <td className="py-4 pl-4 border border-white/10" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             <div className="flex items-center gap-4">
                                                 {app.profilePic ? (
                                                     <img
@@ -251,7 +264,7 @@ const Applicants = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-6 text-center">
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             {app.videoIntroUrl ? (
                                                 <button
                                                     onClick={(e) => {
@@ -268,7 +281,7 @@ const Applicants = () => {
                                                 <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">N/A</span>
                                             )}
                                         </td>
-                                        <td className="py-6 text-center">
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
                                                     {app.resumeScore}/20
@@ -287,7 +300,7 @@ const Applicants = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="py-6 text-center">
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
                                                     {app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/30` : '-'}
@@ -306,16 +319,11 @@ const Applicants = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="py-6 text-center">
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className={`inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${interviewMeta.pillClass}`}>
                                                     <span className="font-bold text-[11px]">{interviewMeta.label}</span>
                                                     <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Tech</span>
-                                                </div>
-                                                {/* ─── OWNERSHIP V VETTING SCORE ─── */}
-                                                <div className="inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-400">
-                                                    <span className="font-bold text-sm">{app.ownershipScore !== null && app.ownershipScore !== undefined ? `${app.ownershipScore}/10` : '-'}</span>
-                                                    <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Owner</span>
                                                 </div>
                                                 <div className="min-w-[82px] text-left">
                                                     <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">
@@ -341,21 +349,13 @@ const Applicants = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="py-6 text-center">
-                                            <TeamFitBadge 
-                                                applicationId={app.id} 
-                                                teamFit={app.teamFit}
-                                                onUpdate={(newData) => {
-                                                    setApplicants(prev => prev.map(a => a.id === app.id ? { ...a, teamFit: newData } : a));
-                                                }}
-                                            />
-                                        </td>
-                                        <td className="py-6 text-center">
+
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg">
                                                 {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
                                             </div>
                                         </td>
-                                        <td className="py-6 text-center">
+                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${app.status === 'SHORTLISTED'
                                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                                 : app.status === 'REJECTED'
@@ -367,7 +367,7 @@ const Applicants = () => {
                                                 {app.status}
                                             </span>
                                         </td>
-                                        <td className="py-6 text-right pr-4 relative">
+                                        <td className="py-4 text-right pr-4 relative border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -415,7 +415,7 @@ const Applicants = () => {
                                     })
                                 ) : (
                                 <tr>
-                                    <td colSpan="7" className="py-20 text-center">
+                                    <td colSpan="9" className="py-20 text-center border border-white/10">
                                         <div className="flex flex-col items-center opacity-40">
                                             <Users size={48} className="mb-4" />
                                             <p className="text-xl font-bold uppercase tracking-widest">{searchTerm ? 'No matches found' : 'No Applicants Yet'}</p>

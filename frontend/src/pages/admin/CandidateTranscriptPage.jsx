@@ -42,7 +42,10 @@ const CandidateTranscriptPage=()=>{
   if(error||!data)return(<div className='min-h-screen bg-[#0c0f16] flex items-center justify-center'><div className='text-center text-white'><XCircle size={48} className='mx-auto mb-4 text-red-400'/><p className='font-bold text-xl mb-4'>{error||'No data'}</p><button onClick={()=>navigate('/admin')} className='px-6 py-3 bg-white/10 rounded-xl font-bold'>Back</button></div></div>);
 
   const{candidate,job,application,resume,assessment,interview,scores,generatedAt}=data;
-  const fs=scores.finalScore;
+  const dynResume=scores?.resumeMatch||0;
+  const dynAssessment=assessment&&assessment.totalQuestions>0?Math.round((assessment.correctAnswers/assessment.totalQuestions)*30):(scores?.assessmentScore||0);
+  const dynInterview=interview?.questions?.length>0?Math.round((interview.questions.reduce((s,q)=>s+(typeof q.marks==='number'?q.marks:0),0)/(interview.questions.length*10))*50):(scores?.interviewScore||0);
+  const fs=dynResume+dynAssessment+dynInterview;
   const verdict=fs>=80?{l:'Strongly Recommended',c:'text-emerald-400',b:'bg-emerald-500/20 border-emerald-500/30'}
     :fs>=60?{l:'Recommended',c:'text-blue-400',b:'bg-blue-500/20 border-blue-500/30'}
     :fs>=40?{l:'Needs Review',c:'text-amber-400',b:'bg-amber-500/20 border-amber-500/30'}
@@ -103,8 +106,11 @@ const CandidateTranscriptPage=()=>{
           </Sec>)}
         {resume?.analysis&&(
           <Sec title='Resume Evaluation' icon={<BarChart2 size={16}/>} grad='from-emerald-500 to-teal-500'>
-            <div className='grid grid-cols-3 gap-4 mb-6'>
-              {[{l:'Resume Match',v:resume.analysis.matchPercentage,c:'#3b82f6',m:20},{l:'Skills Score',v:resume.analysis.skillsScore,c:'#10b981',m:20},{l:'Experience',v:resume.analysis.experienceScore,c:'#8b5cf6',m:20}].map((s,i)=>(<div key={i} className='p-5 rounded-2xl bg-white/5 border border-white/10 text-center'><ScoreRing value={s.v} color={s.c} max={s.m}/><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2'>{s.l}</p></div>))}
+            <div className='flex justify-center mb-6'>
+              <div className='p-6 rounded-2xl bg-white/5 border border-white/10 text-center flex flex-col items-center min-w-[240px]'>
+                <ScoreRing value={scores?.resumeMatch} color='#3b82f6' size={100} max={20}/>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-4'>Overall Resume Match</p>
+              </div>
             </div>
             {resume.analysis.explanation&&<p className='text-gray-300 text-sm leading-relaxed p-4 rounded-2xl bg-white/5 border border-white/10 mb-3'>{resume.analysis.explanation}</p>}
             {resume.analysis.skillsFeedback&&<p className='text-gray-400 text-xs p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 mb-2'><span className='font-black text-emerald-400'>Skills: </span>{resume.analysis.skillsFeedback}</p>}
@@ -113,7 +119,7 @@ const CandidateTranscriptPage=()=>{
         {assessment&&(
           <Sec title='Skill Assessment Transcript' icon={<Code size={16}/>} grad='from-orange-500 to-amber-500'>
             <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-orange-500/10 border border-orange-500/20'>
-              <div className='text-center'><p className='text-4xl font-black text-orange-400'>{assessment.score!=null?`${Math.round(assessment.score)}/30`:'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
+              <div className='text-center'><p className='text-4xl font-black text-orange-400'>{assessment.totalQuestions>0?`${Math.round((assessment.correctAnswers/assessment.totalQuestions)*30)}/30`:'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
               <div className='text-center'><p className='text-4xl font-black text-white'>{assessment.correctAnswers}/{assessment.totalQuestions}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Correct</p></div>
             </div>
             <div className='space-y-4'>{assessment.answers.map((a,i)=>(<div key={i} className={'p-4 rounded-2xl border '+(a.isCorrect?'border-emerald-500/20 bg-emerald-500/5':'border-red-500/20 bg-red-500/5')}>
@@ -130,7 +136,7 @@ const CandidateTranscriptPage=()=>{
         {interview?.questions?.length>0&&(
           <Sec title='AI Interview Transcript' icon={<MessageSquare size={16}/>} grad='from-purple-500 to-indigo-500'>
             <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-purple-500/10 border border-purple-500/20'>
-              <div className='text-center'><p className='text-4xl font-black text-purple-400'>{interview.score!=null?`${Math.round(interview.score)}/50`:'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
+              <div className='text-center'><p className='text-4xl font-black text-purple-400'>{interview.questions.length>0?`${Math.round((interview.questions.reduce((s,q)=>s+(typeof q.marks==='number'?q.marks:0),0)/(interview.questions.length*10))*50)}/50`:'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
               <div className='text-center'><p className='text-4xl font-black text-white'>{interview.totalQuestions}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Questions</p></div>
             </div>
             <div className='space-y-5'>{interview.questions.map((q,i)=>(<motion.div key={i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.04}} className='rounded-2xl border border-purple-500/20 bg-purple-500/5 overflow-hidden'>
@@ -146,7 +152,7 @@ const CandidateTranscriptPage=()=>{
           </Sec>)}
         <Sec title='Overall Evaluation Summary' icon={<Award size={16}/>} grad='from-yellow-500 to-orange-500'>
           <div className='grid grid-cols-2 md:grid-cols-3 gap-4 mb-6'>
-            {[{l:'Resume Match',v:scores.resumeMatch,c:'#3b82f6',m:20},{l:'Assessment',v:scores.assessmentScore,c:'#f97316',m:30},{l:'Interview',v:scores.interviewScore,c:'#8b5cf6',m:50},{l:'Ownership',v:scores.ownershipScore,c:'#ec4899',m:10},{l:'Team Fit',v:scores.teamFitScore,c:'#14b8a6',m:100},{l:'Final Score',v:scores.finalScore,c:'#f59e0b',m:100}].map((s,i)=>(<div key={i} className='p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center'><ScoreRing value={s.v} color={s.c} size={80} max={s.m}/><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2'>{s.l}</p></div>))}
+            {[{l:'Resume Match',v:dynResume,c:'#3b82f6',m:20},{l:'Assessment',v:dynAssessment,c:'#f97316',m:30},{l:'Interview',v:dynInterview,c:'#8b5cf6',m:50},{l:'Final Score',v:fs,c:'#f59e0b',m:100}].map((s,i)=>(<div key={i} className='p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center'><ScoreRing value={s.v} color={s.c} size={80} max={s.m}/><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2'>{s.l}</p></div>))}
           </div>
           <div className={'flex items-center justify-between p-6 rounded-3xl border '+verdict.b}>
             <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1'>Hire Recommendation</p><p className={'text-3xl font-black '+verdict.c}>{verdict.l}</p></div>
