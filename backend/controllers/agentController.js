@@ -17,13 +17,26 @@ const getJsonConfig = (maxTokens = 250) => ({
   responseMimeType: "application/json",
 });
 
-// Helper to clean markdown block
+// Helper to clean markdown block and extract JSON
 const cleanJson = (str) => {
+  if (!str) return "";
   let cleaned = str.trim();
-  if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+  
+  // Remove markdown code blocks if present
+  if (cleaned.includes('```')) {
+    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) cleaned = match[1];
   }
-  return cleaned;
+
+  // Find the first '{' and last '}' to handle conversational filler
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+  
+  return cleaned.trim();
 };
 
 // POST /api/agent/start
@@ -89,35 +102,51 @@ async function startSession(req, res) {
       baseContext += `\n\nCANDIDATE RESUME PROFILE:\n- Skills: ${parsedResumeData.skills?.join(', ') || 'N/A'}\n- Projects: ${parsedResumeData.projects?.join(' | ') || 'N/A'}\n- Strengths: ${parsedResumeData.strength?.join(', ') || 'N/A'}\n- Weaknesses: ${parsedResumeData.weakness?.join(', ') || 'N/A'}\n\nSTRATEGY: Base questions heavily on their actual resume, adapting to their specific skills and listed projects. Test weaknesses starting with fundamentals, and push deeper on strengths.`;
     }
 
-    const systemPrompt = config.systemPrompt + "\n\n" + baseContext + `\n\nRULES FOR JSON OUTPUT:
-You MUST reply to every turn ONLY in JSON format matching exactly this structure:
+    const systemPrompt = config.systemPrompt + "\n\n" + baseContext + `\n\nINTERVIEW GUIDELINES:
+1. This is a 10-question deep-dive interview.
+2. Current Question Number: 1.
+3. You MUST ask exactly ONE question related to the candidate's background or the role requirements.
+4. Be professional, slightly challenging, and adaptive.
+
+RULES FOR JSON OUTPUT (STRICT):
+You MUST reply ONLY in JSON format matching exactly this structure:
 {
   "evaluation": {
-    "score": 8,
-    "confidence": "high",
-    "feedback": "candidate did well but missed X",
-    "next_focus": "ask deeper about X"
+    "score": 5,
+    "confidence": "medium",
+    "feedback": "Briefly describe how well they answered the previous point",
+    "next_focus": "The specific technical or behavioral area you will target next"
   },
-  "question": "Great answer! Next, tell me about...",
+  "question": "Your actual question to the candidate",
   "is_complete": false
 }
-If this is the FIRST message (start of interview), set evaluation to null. Set is_complete to true only after asking at least 5-6 questions covering various concepts and you are ready to end the interview.
-CRITICAL INSTRUCTION: Your "question" MUST be extremely concise, direct, and short (1-2 sentences maximum) so it can be spoken quickly. Do not ramble.`;
+STRICT RULES:
+1. OUTPUT ONLY THE JSON payload.
+2. No conversational filler before or after the JSON.
+3. If this is the FIRST message, set evaluation to null. 
+4. After exactly 10 questions, set is_complete to true.`;
+
+    const interviewModel = genAI.getGenerativeModel({ 
+      model: modelName,
+      systemInstruction: systemPrompt 
+    });
 
     // Initialize conversation
     const messages = [
-      { role: "user", parts: [{ text: `System parameters: ${systemPrompt}\n\nStart the interview.` }] }
+      { role: "user", parts: [{ text: "Start the interview." }] }
     ];
 
-    const response = await modelOptions.generateContent({
+    const response = await interviewModel.generateContent({
        contents: messages,
        generationConfig: getJsonConfig()
     });
 
     let jsonResponse;
     try {
-      jsonResponse = JSON.parse(cleanJson(response.response.text()));
+      const rawText = response.response.text();
+      jsonResponse = JSON.parse(cleanJson(rawText));
     } catch(e) {
+      console.warn("Start session JSON parse failed, using fallback");
       jsonResponse = { question: "Hello, let's begin the interview. Could you start by introducing yourself?", is_complete: false };
     }
 
@@ -162,47 +191,74 @@ async function respondToAgent(req, res) {
     const config = agentConfigs[session.agentRole];
     sessionManager.addMessage(sessionId, "user", userMessage);
 
-    const modelOptions = genAI.getGenerativeModel({ model: modelName });
-
     let baseContext = `You are a senior ${config.role} interviewer.`;
     if (session.resumeData) {
       baseContext += `\nCANDIDATE INFO: ${JSON.stringify(session.resumeData)}`;
     }
     
-    const systemPrompt = config.systemPrompt + "\n\n" + baseContext + `\n\nRULES FOR JSON OUTPUT:
-You MUST reply to every turn ONLY in JSON format matching exactly this structure:
+    const currentQuestionCount = (session.messages.filter(m => m.role === 'assistant').length) + 1;
+    const isLastQuestion = currentQuestionCount >= 10;
+
+    const systemPrompt = config.systemPrompt + "\n\n" + baseContext + `\n\nINTERVIEW GUIDELINES:
+1. This is a 10-question deep-dive interview.
+2. Current Question Number: ${currentQuestionCount}.
+3. You MUST ask exactly ONE question. 
+4. If this is question 10, set is_complete to true after asking the question.
+5. Be progressively more challenging. If the candidate answers well, go deeper into technical implementation details.
+
+RULES FOR JSON OUTPUT (STRICT):
+You MUST reply ONLY in JSON format matching exactly this structure:
 {
   "evaluation": {
-    "score": 8,
+    "score": 7,
     "confidence": "high",
-    "feedback": "short reflection on this specific answer",
-    "next_focus": "what you should target next"
+    "feedback": "Critique the candidate's last response",
+    "next_focus": "What technical concept you are moving to next"
   },
-  "question": "The actual text you will say to the candidate",
-  "is_complete": false
+  "question": "Your actual question to the candidate",
+  "is_complete": ${isLastQuestion}
 }
-Set is_complete to true ONLY if you've fully covered all necessary concepts and asked at least 5-6 questions.
-CRITICAL INSTRUCTION: Your "question" MUST be extremely concise, direct, and short (1-2 sentences maximum) so it can be spoken quickly. Do not ramble.`;
+STRICT RULES:
+1. OUTPUT ONLY THE JSON payload.
+2. Do not use conversational filler.
+3. CONCISE: Keep the "question" string under 30 words.`;
+
+    const interviewModel = genAI.getGenerativeModel({ 
+      model: modelName,
+      systemInstruction: systemPrompt
+    });
 
     const contents = [];
-    contents.push({ role: "user", parts: [{ text: `System parameters: ${systemPrompt}` }] });
-    contents.push({ role: "model", parts: [{ text: "Understood. I will strictly output the requested JSON format." }] });
-    
     session.messages.forEach(m => {
        const role = m.role === "assistant" ? "model" : "user";
        contents.push({ role, parts: [{ text: m.content }] });
     });
 
-    const response = await modelOptions.generateContent({
+    const response = await interviewModel.generateContent({
        contents,
        generationConfig: getJsonConfig()
     });
 
     let jsonResponse;
     try {
-      jsonResponse = JSON.parse(cleanJson(response.response.text()));
+      const rawText = response.response.text();
+      const cleaned = cleanJson(rawText);
+      jsonResponse = JSON.parse(cleaned);
+      
+      // Secondary check: if AI put the question inside evaluation or elsewhere
+      if (!jsonResponse.question && jsonResponse.evaluation?.next_focus) {
+          jsonResponse.question = jsonResponse.evaluation.next_focus;
+      }
     } catch(e) {
-      jsonResponse = { question: cleanJson(response.response.text()), is_complete: false };
+      console.warn("Respond JSON parse failed, extracting best effort");
+      const rawText = response.response.text();
+      // Try to find anything that looks like a question if JSON fails
+      const questionMatch = rawText.match(/"question":\s*"([^"]+)"/);
+      if (questionMatch) {
+          jsonResponse = { question: questionMatch[1], is_complete: false };
+      } else {
+          jsonResponse = { question: "Can you elaborate on your experience with this role?", is_complete: false };
+      }
     }
 
     const assistantMessage = jsonResponse.question || jsonResponse.message || "Can you elaborate on that?";
@@ -243,7 +299,10 @@ async function getEvaluation(req, res) {
     if (!session) return res.status(404).json({ error: "Session not found" });
 
     const config = agentConfigs[session.agentRole];
-    const modelOptions = genAI.getGenerativeModel({ model: modelName });
+    const modelOptions = genAI.getGenerativeModel({ 
+      model: modelName,
+      systemInstruction: config.systemPrompt 
+    });
 
     const evalPrompt = `The mock interview is now finished. Generate a comprehensive final report.
 Here is the tracking history of their performance per question: ${JSON.stringify(session.evalHistory.filter(e => e))}
@@ -263,9 +322,6 @@ Provide the detailed evaluation strictly in JSON format matching this EXACT stru
 Rubric categories to use: ${JSON.stringify(config.evaluationRubric)}`;
 
     const contents = [];
-    contents.push({ role: "user", parts: [{ text: `System parameters: ${config.systemPrompt}` }] });
-    contents.push({ role: "model", parts: [{ text: "Understood." }] });
-
     session.messages.forEach(m => {
        const role = m.role === "assistant" ? "model" : "user";
        contents.push({ role, parts: [{ text: m.content }] });
@@ -307,4 +363,24 @@ function getAvailableRoles(req, res) {
   }
 }
 
-module.exports = { startSession, respondToAgent, getEvaluation, getAvailableRoles };
+// POST /api/agent/terminate
+function terminateSession(req, res) {
+  try {
+    const { sessionId, reason } = req.body;
+    console.log(`[AGENT-TERMINATE] Session ${sessionId} closed. Reason: ${reason || 'User ended session'}`);
+    
+    // We don't necessarily delete the session immediately to allow for final evaluation if needed,
+    // but we can mark it as complete.
+    const session = sessionManager.getSession(sessionId);
+    if (session) {
+        session.isComplete = true;
+    }
+
+    return res.json({ success: true, message: "Session terminated" });
+  } catch (err) {
+    console.error("terminateSession error:", err.message);
+    res.status(500).json({ error: "Failed to terminate session" });
+  }
+}
+
+module.exports = { startSession, respondToAgent, getEvaluation, getAvailableRoles, terminateSession };
