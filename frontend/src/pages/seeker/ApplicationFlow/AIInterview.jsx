@@ -206,7 +206,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 ? { mimeType, videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 }
                 : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
 
-            const fullSessionRecorder = new MediaRecorder(fullSessionStreamRef.current, recorderOptions);
+            // Create a clean record stream with 1 video track and 1 audio track to prevent MediaRecorder multiple video track errors
+            const recordTracks = [];
+            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+            const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
+
+            if (camVideoTrack) recordTracks.push(camVideoTrack);
+            if (audioTrack) recordTracks.push(audioTrack);
+
+            const recordStream = new MediaStream(recordTracks);
+
+            const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
 
