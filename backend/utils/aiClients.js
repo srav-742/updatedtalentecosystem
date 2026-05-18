@@ -130,29 +130,60 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
             messages.push({ role: "user", content: prompt });
 
-            const response = await axios.post(
-                'https://api.groq.com/openai/v1/chat/completions',
-                {
-                    model: "llama-3.3-70b-versatile",
-                    messages: messages,
-                    temperature: temperature,
-                    max_tokens: maxTokens,
-                    ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                        'Content-Type': 'application/json'
+            try {
+                const response = await axios.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    {
+                        model: "llama-3.3-70b-versatile",
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: maxTokens,
+                        ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
                     }
+                );
+                let text = response.data?.choices?.[0]?.message?.content || null;
+                if (text && text.startsWith('```')) {
+                    text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
                 }
-            );
-            let text = response.data?.choices?.[0]?.message?.content || null;
-            if (text && text.startsWith('```')) {
-                text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
-            }
-            if (text) {
-                console.log("[AI-CLIENT] Groq Success.");
-                return text;
+                if (text) {
+                    console.log("[AI-CLIENT] Groq 70B Success.");
+                    return text;
+                }
+            } catch (groq70bErr) {
+                const msg = groq70bErr.response?.data?.error?.message || groq70bErr.message;
+                console.warn("[AI-CLIENT] Groq 70B Failed or Rate-Limited:", msg);
+                console.log("[AI-CLIENT] Attempting Groq 8B immediate fallback (llama-3.1-8b-instant)...");
+
+                const response = await axios.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    {
+                        model: "llama-3.1-8b-instant",
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: maxTokens,
+                        ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                let text = response.data?.choices?.[0]?.message?.content || null;
+                if (text && text.startsWith('```')) {
+                    text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+                }
+                if (text) {
+                    console.log("[AI-CLIENT] Groq 8B Success.");
+                    return text;
+                }
             }
         }
     } catch (groqErr) {
