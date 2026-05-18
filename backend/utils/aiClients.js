@@ -130,6 +130,9 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
             if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
             messages.push({ role: "user", content: prompt });
 
+            // Dynamic clamp to safely fit prompt + max_tokens under Groq's free-tier TPM limits (6,000 max)
+            const groqMaxTokens = Math.min(maxTokens, 2000);
+
             try {
                 const response = await axios.post(
                     'https://api.groq.com/openai/v1/chat/completions',
@@ -137,7 +140,7 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
                         model: "llama-3.3-70b-versatile",
                         messages: messages,
                         temperature: temperature,
-                        max_tokens: maxTokens,
+                        max_tokens: groqMaxTokens,
                         ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
                     },
                     {
@@ -166,7 +169,7 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
                         model: "llama-3.1-8b-instant",
                         messages: messages,
                         temperature: temperature,
-                        max_tokens: maxTokens,
+                        max_tokens: groqMaxTokens,
                         ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
                     },
                     {
@@ -210,7 +213,7 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
     return null;
 };
 
-const callSkillAI = async (prompt, maxTokens = 8192, temperature = 0.7) => {
+const callSkillAI = async (prompt, maxTokens = 2000, temperature = 0.7) => {
     return await callInterviewAI(prompt, maxTokens, prompt.toLowerCase().includes("json"), null, temperature);
 };
 
