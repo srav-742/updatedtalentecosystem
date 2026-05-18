@@ -7,7 +7,182 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { callSkillAI } = require('../utils/aiClients');
 const { generateHash } = require('../utils/helpers');
+const uniqueStrings = (values = []) => [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
 
+const FALLBACK_QUESTIONS = {
+    javascript: [
+        {
+            type: "mcq",
+            question: "Which of the following is NOT a primitive data type in JavaScript?",
+            options: ["String", "Number", "Object", "Boolean"],
+            correctAnswer: 2
+        },
+        {
+            type: "mcq",
+            question: "What is the primary difference between 'let' and 'var' declarations in JS?",
+            options: [
+                "let has block scope, var has function scope",
+                "let has function scope, var has block scope",
+                "let is hoisted, var is not",
+                "let allows duplicate declarations, var does not"
+            ],
+            correctAnswer: 0
+        },
+        {
+            type: "coding",
+            question: "Write a function `fibonacci(n)` that returns the n-th Fibonacci number. Assume n >= 0.",
+            starterCode: "function fibonacci(n) {\n  // Write your code here\n}"
+        },
+        {
+            type: "mcq",
+            question: "What is the purpose of the 'Promise.all' method in JavaScript?",
+            options: [
+                "Runs promises sequentially",
+                "Resolves when all promises resolve, or rejects if any promise rejects",
+                "Resolves when the first promise resolves",
+                "Cancels all pending promises"
+            ],
+            correctAnswer: 1
+        },
+        {
+            type: "coding",
+            question: "Write a function `deepClone(obj)` that returns a deep copy of a given object.",
+            starterCode: "function deepClone(obj) {\n  // Write your code here\n}"
+        }
+    ],
+    react: [
+        {
+            type: "mcq",
+            question: "What is the main purpose of React Virtual DOM?",
+            options: [
+                "To store states globally",
+                "To optimize rendering performance by minimizing direct DOM manipulation",
+                "To enable server-side rendering",
+                "To handle routing in single page applications"
+            ],
+            correctAnswer: 1
+        },
+        {
+            type: "mcq",
+            question: "Which Hook should you use to run side effects in a functional React component?",
+            options: ["useState", "useContext", "useEffect", "useReducer"],
+            correctAnswer: 2
+        },
+        {
+            type: "coding",
+            question: "Create a React component `Counter` that increments and decrements a count on button click.",
+            starterCode: "import React, { useState } from 'react';\n\nexport default function Counter() {\n  // Write your component here\n}"
+        },
+        {
+            type: "mcq",
+            question: "What does the 'key' prop do in React list items?",
+            options: [
+                "Secures list elements",
+                "Provides unique styling",
+                "Helps React identify which items have changed, been added, or been removed",
+                "Acts as index in array"
+            ],
+            correctAnswer: 2
+        }
+    ],
+    python: [
+        {
+            type: "mcq",
+            question: "In Python, which of the following data types is mutable?",
+            options: ["List", "Tuple", "String", "Integer"],
+            correctAnswer: 0
+        },
+        {
+            type: "coding",
+            question: "Write a Python function `is_anagram(s1, s2)` that returns True if two strings are anagrams, False otherwise.",
+            starterCode: "def is_anagram(s1: str, s2: str) -> bool:\n    # Write your code here\n    pass"
+        },
+        {
+            type: "mcq",
+            question: "What is the output of `[x**2 for x in range(3)]` in Python?",
+            options: ["[0, 1, 4]", "[1, 4, 9]", "[0, 1, 2]", "[1, 2, 3]"],
+            correctAnswer: 0
+        }
+    ],
+    sql: [
+        {
+            type: "mcq",
+            question: "Which SQL clause is used to filter group results after aggregation?",
+            options: ["WHERE", "HAVING", "GROUP BY", "ORDER BY"],
+            correctAnswer: 1
+        },
+        {
+            type: "coding",
+            question: "Write a SQL query to find the second highest salary from an `Employee` table.",
+            starterCode: "-- Select the second highest salary\nSELECT Max(Salary) FROM Employee WHERE Salary < (SELECT Max(Salary) FROM Employee);"
+        }
+    ]
+};
+
+const generateDynamicFallback = (skill, count) => {
+    const questions = [];
+    const skillName = String(skill).trim();
+    
+    questions.push({
+        type: "mcq",
+        skill: skillName,
+        question: `In ${skillName}, what is the best practice for managing configuration states across production deployments?`,
+        options: [
+            "Store configurations directly inside codebase files",
+            "Use centralized environment variables (.env / Secrets Manager)",
+            "Hardcode credentials in database scripts",
+            "Disable configuration controls altogether"
+        ],
+        correctAnswer: 1,
+        difficulty: "medium"
+    });
+    
+    questions.push({
+        type: "mcq",
+        skill: skillName,
+        question: `Which of the following represents a primary constraint when architecting scalable workloads in ${skillName}?`,
+        options: [
+            "Minimizing database concurrency controls",
+            "Resource acquisition locks and latency bottlenecks",
+            "Using legacy monolithic designs exclusively",
+            "Avoiding automated logging and trace frameworks"
+        ],
+        correctAnswer: 1,
+        difficulty: "medium"
+    });
+
+    questions.push({
+        type: "coding",
+        skill: skillName,
+        question: `Write a robust utility script or configuration blueprint for initializing a resilient ${skillName} worker loop.`,
+        starterCode: `// Resilient ${skillName} Initializer\nfunction initializeWorker() {\n  // Implement startup logic\n}`,
+        difficulty: "medium"
+    });
+
+    questions.push({
+        type: "mcq",
+        skill: skillName,
+        question: `What is the most effective approach to handle unexpected exceptions or resource leaks in ${skillName}?`,
+        options: [
+            "Ignore errors and let the process restart indefinitely",
+            "Implement structured try-catch-finally blocks with active connection cleanup",
+            "Re-throw errors globally without logging",
+            "Hard-reboot the production hardware cluster"
+        ],
+        correctAnswer: 1,
+        difficulty: "medium"
+    });
+
+    questions.push({
+        type: "coding",
+        skill: skillName,
+        question: `Implement a mock testing framework to validate the pipeline flow of ${skillName} operations.`,
+        starterCode: `// Resilient test suite for ${skillName}\ndescribe('${skillName} Pipeline', () => {\n  it('should run operations successfully', () => {\n    // Write test assertions\n  });\n});`,
+        difficulty: "medium"
+    });
+
+    return questions.slice(0, count);
+};
 
 const generateFullAssessment = async (req, res) => {
     try {
@@ -27,7 +202,6 @@ const generateFullAssessment = async (req, res) => {
             return res.status(400).json({ message: "Assessment not enabled for this job" });
         }
         const user = await User.findOne({ uid: userId });
-        // Removed unnecessary ResumeProfile check. Application record is the source of truth.
         const application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
 
         // Only enforce resume match if resume analysis is enabled
@@ -48,6 +222,7 @@ const generateFullAssessment = async (req, res) => {
         const skills = job.skills || ['General'];
         const usedHashes = new Set((await QuestionLog.find({ userId }).select('hash')).map(q => q.hash));
         const seed = crypto.randomBytes(8).toString('hex');
+        
         // 🧠 Groq Prompt
         const prompt = `
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
@@ -84,39 +259,60 @@ NO extra text, explanations, or markdown.
 `;
         // 🔁 Call AI
         console.log("[ASSESSMENT] Calling AI service...");
-        const rawResponse = await callSkillAI(prompt);
+        let parsed = null;
 
-        if (!rawResponse) {
-            console.error("[ASSESSMENT] AI response was null - Check API keys and connectivity");
-            return res.status(503).json({
-                message: "AI service unavailable. Please ensure API keys are configured and try again.",
-                debug: process.env.NODE_ENV === 'development' ? {
-                    hasGeminiKey: !!process.env.GEMINI_API_KEY,
-                    hasGroqKey: !!process.env.GROQ_API_KEY,
-                    hasOpenAIKey: !!process.env.OPENAI_API_KEY
-                } : undefined
-            });
-        }
-
-        // ✅ Robust JSON Extraction
-        let parsed;
         try {
-            let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            const firstBrace = cleanedResponse.indexOf('{');
-            const lastBrace = cleanedResponse.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            const rawResponse = await callSkillAI(prompt);
+            if (rawResponse) {
+                let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const firstBrace = cleanedResponse.indexOf('{');
+                const lastBrace = cleanedResponse.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+                }
+                parsed = JSON.parse(cleanedResponse);
             }
-            parsed = JSON.parse(cleanedResponse);
         } catch (e) {
-            console.error("[ASSESSMENT JSON PARSE FAILED]:", rawResponse.substring(0, 500));
-            return res.status(503).json({ message: "AI returned invalid JSON formatting." });
+            console.error("[ASSESSMENT] AI failed or returned invalid JSON. Using local fallback...", e);
         }
 
-        if (!parsed?.questions || !Array.isArray(parsed.questions)) {
-            console.error("[ASSESSMENT] Invalid structure:", parsed);
-            return res.status(503).json({ message: "AI returned incorrect question structure." });
+        // Trigger premium local fallback generator if the response is empty or malformed
+        if (!parsed || !parsed.questions || !Array.isArray(parsed.questions)) {
+            console.warn("[ASSESSMENT] AI service unavailable or returned incorrect question structure. Triggering high-fidelity local fallback questions...");
+            
+            const selectedQuestions = [];
+            skills.forEach(skill => {
+                const normSkill = String(skill).toLowerCase().trim();
+                const fallbackSet = FALLBACK_QUESTIONS[normSkill] || generateDynamicFallback(skill, 5);
+                fallbackSet.forEach(q => {
+                    selectedQuestions.push({
+                        type: q.type,
+                        skill: q.skill || skill,
+                        question: q.question,
+                        options: q.options || [],
+                        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : 0,
+                        starterCode: q.starterCode || "",
+                        difficulty: "medium"
+                    });
+                });
+            });
+
+            // Deduplicate by question text
+            const seen = new Set();
+            const uniqueFallbacks = selectedQuestions.filter(q => {
+                const key = q.question;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
+            // Shuffle and slice
+            const shuffled = uniqueFallbacks.sort(() => 0.5 - Math.random());
+            parsed = {
+                questions: shuffled.slice(0, totalQuestions)
+            };
         }
+
         // 🔒 Dedupe & Save
         const finalQuestions = [];
         for (const q of parsed.questions) {
@@ -149,13 +345,31 @@ NO extra text, explanations, or markdown.
             usedHashes.add(hash);
             if (finalQuestions.length >= totalQuestions) break;
         }
+
+        // If we still don't have enough questions after filtering by usedHashes, run a second pass ignoring usedHashes!
+        if (finalQuestions.length < totalQuestions) {
+            for (const q of parsed.questions) {
+                const hash = generateHash(q.question);
+                const alreadyAdded = finalQuestions.some(added => generateHash(added.question) === hash);
+                if (alreadyAdded) continue;
+                
+                const type = (q.type || 'mcq').toLowerCase();
+                if (type === 'mcq') {
+                    if (!Array.isArray(q.options) || q.options.length < 2) continue;
+                    if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer >= q.options.length) {
+                        q.correctAnswer = 0;
+                    }
+                } else if (type === 'coding') {
+                    if (!q.starterCode) q.starterCode = "// Write your solution here";
+                }
+                
+                finalQuestions.push(q);
+                if (finalQuestions.length >= totalQuestions) break;
+            }
+        }
+
         // Final trim
         const output = finalQuestions.slice(0, totalQuestions);
-        if (output.length < 3) {
-            return res.status(503).json({
-                message: "Elite assessment failed. Generated only " + output.length + " questions (< 3)."
-            });
-        }
         console.log(`[ASSESSMENT] ✅ Generated ${output.length} questions (Requested: ${totalQuestions}) for user ${userId}`);
         res.json({
             sessionId: seed,
