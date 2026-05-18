@@ -375,13 +375,16 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             latestTranscriptRef.current = '';
 
             let stream;
+            let isReusedStream = false;
             const existingAudioTracks = fullSessionStreamRef.current?.getAudioTracks();
             if (existingAudioTracks && existingAudioTracks.length > 0) {
                 // Reuse the active audio track from the webcam/interview session stream to avoid device/resource conflicts
                 stream = new MediaStream([existingAudioTracks[0]]);
+                isReusedStream = true;
             } else {
                 // Fallback to requesting mic access if not already active
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isReusedStream = false;
             }
 
             const recorder = new MediaRecorder(stream);
@@ -423,7 +426,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     setError(err.message || "Response processing error.");
                     setCoreState('idle');
                 } finally {
-                    stopStreamTracks(answerStreamRef.current || stream);
+                    if (!isReusedStream) {
+                        stopStreamTracks(answerStreamRef.current || stream);
+                    }
                     answerStreamRef.current = null;
                     setProcessing(false);
                 }
