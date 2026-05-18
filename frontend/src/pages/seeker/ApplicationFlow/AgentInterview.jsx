@@ -1,7 +1,7 @@
 // frontend/src/pages/seeker/ApplicationFlow/AgentInterview.jsx
 
 import { useState, useRef, useEffect } from "react";
-import { Mic, StopCircle, Volume2, Sparkles, Cpu, Send, Loader2, ChevronLeft, User, MessageCircle, Target, AlertTriangle, VideoOff } from "lucide-react";
+import { Mic, StopCircle, Volume2, Sparkles, Cpu, Send, Loader2, ChevronLeft, User, MessageCircle, Target, AlertTriangle, VideoOff, Printer, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import AgentSelector from "../../../components/AgentSelector";
@@ -11,63 +11,41 @@ import { API_URL } from "../../../firebase";
 function RadarChart({ categories }) {
   const size = 500;
   const center = size / 2;
-  const radius = size * 0.28; // Increased graph size
-  const angleStep = (Math.PI * 2) / categories.length;
+  const radius = size * 0.28; 
+  const angleStep = (Math.PI * 2) / (categories?.length || 4);
 
   const getPoint = (score, index, scale = 1) => {
-    // scale is current radius as % of max (10)
     const r = (score / 10) * radius * scale;
-    const angle = index * angleStep - Math.PI / 2; // Start from top
+    const angle = index * angleStep - Math.PI / 2;
     return {
       x: center + r * Math.cos(angle),
       y: center + r * Math.sin(angle)
     };
   };
 
-  // Paths for background polygons
   const gridLevels = [0.2, 0.4, 0.6, 0.8, 1];
   const gridPaths = gridLevels.map(level => (
-    categories.map((_, i) => {
+    (categories || []).map((_, i) => {
       const p = getPoint(10, i, level);
       return `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`;
     }).join(' ') + ' Z'
   ));
 
-  // Path for the data area
-  const dataPath = categories.map((cat, i) => {
-    const p = getPoint(Math.max(1, cat.score), i);
+  const dataPath = (categories || []).map((cat, i) => {
+    const p = getPoint(Math.max(1, cat.score || 0), i);
     return `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`;
   }).join(' ') + ' Z';
 
   return (
     <div className="relative w-full aspect-square flex items-center justify-center select-none overflow-visible px-4">
       <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
-        {/* Background Grids */}
         {gridPaths.map((path, i) => (
-          <path
-            key={i}
-            d={path}
-            fill="none"
-            stroke={i === 4 ? "#e2e8f0" : "#f1f5f9"}
-            strokeWidth="1"
-          />
+          <path key={i} d={path} fill="none" stroke={i === 4 ? "#e2e8f0" : "#f1f5f9"} strokeWidth="1" />
         ))}
-
-        {/* Axis Lines */}
-        {categories.map((_, i) => {
+        {(categories || []).map((_, i) => {
           const p = getPoint(10, i);
-          return (
-            <line
-              key={i}
-              x1={center} y1={center}
-              x2={p.x} y2={p.y}
-              stroke="#f1f5f9"
-              strokeWidth="1"
-            />
-          );
+          return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#f1f5f9" strokeWidth="1" />;
         })}
-
-        {/* Data Area */}
         <motion.path
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -78,10 +56,8 @@ function RadarChart({ categories }) {
           strokeWidth="3"
           strokeLinejoin="round"
         />
-
-        {/* Points */}
-        {categories.map((cat, i) => {
-          const p = getPoint(cat.score, i);
+        {(categories || []).map((cat, i) => {
+          const p = getPoint(cat.score || 0, i);
           return (
             <motion.circle
               key={i}
@@ -94,32 +70,19 @@ function RadarChart({ categories }) {
             />
           );
         })}
-
-        {/* Labels with adaptive positioning */}
-        {categories.map((cat, i) => {
-          const p = getPoint(14.5, i); // Generous offset from the graph axes
+        {(categories || []).map((cat, i) => {
+          const p = getPoint(14.5, i);
           let textAnchor = "middle";
           if (p.x < center - 20) textAnchor = "end";
           if (p.x > center + 20) textAnchor = "start";
-
           return (
-            <text
-              key={i}
-              x={p.x} y={p.y}
-              fontSize="12" // Slightly larger for clarity
-              fontWeight="800"
-              fill="#334155"
-              textAnchor={textAnchor}
-              dominantBaseline="middle"
-              className="uppercase tracking-tight"
-            >
-              {/* Simple word wrap: split by space or ampersand if label is long */}
-              {cat.label.length > 15 && cat.label.includes(' ') ? (
+            <text key={i} x={p.x} y={p.y} fontSize="12" fontWeight="800" fill="#334155" textAnchor={textAnchor} dominantBaseline="middle" className="uppercase tracking-tight">
+              {cat.label && cat.label.length > 15 && cat.label.includes(' ') ? (
                 cat.label.split(' ').map((word, idx) => (
                   <tspan x={p.x} dy={idx === 0 ? -6 : 12} key={idx}>{word}</tspan>
                 ))
               ) : (
-                cat.label
+                cat.label || 'Metric'
               )}
             </text>
           );
@@ -131,11 +94,11 @@ function RadarChart({ categories }) {
 
 export default function AgentInterview() {
   const [user] = useState(() => JSON.parse(localStorage.getItem("user") || "{}"));
-  const [phase, setPhase] = useState("select");   // select | resume | interview | complete
+  const [phase, setPhase] = useState("select");   
   const [sessionId, setSessionId] = useState(null);
   const [roleKey, setRoleKey] = useState("");
   const [roleName, setRoleName] = useState("");
-  const [messages, setMessages] = useState([]);   // { role: "agent"|"user", text }
+  const [messages, setMessages] = useState([]);   
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
@@ -146,22 +109,9 @@ export default function AgentInterview() {
   const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
   const bottomRef = useRef(null);
   const audioPlayerRef = useRef(new Audio());
   const typewriterIntervalRef = useRef(null);
-
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -180,7 +130,6 @@ export default function AgentInterview() {
     let i = 0;
     setDisplayText("");
     if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
     typewriterIntervalRef.current = setInterval(() => {
       i++;
       if (i <= text.length) {
@@ -204,7 +153,6 @@ export default function AgentInterview() {
         setMessages(prev => [...prev, { role: "agent", text }]);
         setDisplayText("");
       };
-      // For browser TTS, reveal text while speaking
       let charIdx = 0;
       const interval = setInterval(() => {
         charIdx++;
@@ -234,27 +182,14 @@ export default function AgentInterview() {
       );
       const url = URL.createObjectURL(audioBlob);
       audioPlayerRef.current.src = url;
-      audioPlayerRef.current.onplay = () => {
-        // Only start typing when audio actually plays
-        startTyping();
-      };
-      audioPlayerRef.current.onended = () => {
-        // Ensure state clears even if typing finished earlier
-        setIsSpeaking(false);
-      };
-      audioPlayerRef.current.onerror = (e) => {
-        console.error("Audio playback error:", e);
-        speakInBrowser();
-      };
-      audioPlayerRef.current.play().catch(err => {
-        console.warn("Audio play blocked:", err);
-        speakInBrowser();
-      });
+      audioPlayerRef.current.onplay = () => startTyping();
+      audioPlayerRef.current.onended = () => setIsSpeaking(false);
+      audioPlayerRef.current.onerror = () => speakInBrowser();
+      audioPlayerRef.current.play().catch(() => speakInBrowser());
     } catch (e) {
       speakInBrowser();
     }
   };
-
 
   async function handleSelectRole(selectedKey) {
     setRoleKey(selectedKey);
@@ -263,13 +198,9 @@ export default function AgentInterview() {
 
   async function handleStartSession() {
     setLoading(true);
-    let base64 = null;
     if (resumeFile) {
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        base64 = reader.result;
-        await startApiCall(base64, resumeText);
-      };
+      reader.onloadend = async () => startApiCall(reader.result, resumeText);
       reader.readAsDataURL(resumeFile);
     } else {
       await startApiCall(null, resumeText);
@@ -288,7 +219,7 @@ export default function AgentInterview() {
       setPhase("interview");
       playAudioAndType(res.data.audio, res.data.message);
     } catch (e) {
-      alert("Failed to start session. Please try again.");
+      alert("Failed to start session.");
     } finally {
       setLoading(false);
     }
@@ -305,7 +236,6 @@ export default function AgentInterview() {
 
     try {
       const res = await axios.post(`${API_URL}/agent/respond`, { sessionId, userMessage: userText });
-
       if (res.data.isComplete) {
         const evalRes = await axios.post(`${API_URL}/agent/evaluate`, { sessionId });
         setEvaluation(evalRes.data);
@@ -314,7 +244,7 @@ export default function AgentInterview() {
         playAudioAndType(res.data.audio, res.data.message);
       }
     } catch (e) {
-      setMessages(prev => [...prev, { role: "agent", text: "Sorry, I encountered an error. Please try again." }]);
+      setMessages(prev => [...prev, { role: "agent", text: "Error. Try again." }]);
     } finally {
       setLoading(false);
     }
@@ -326,13 +256,8 @@ export default function AgentInterview() {
       setRecording(false);
       return;
     }
-
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert("Voice recognition not supported in this browser.");
-      return;
-    }
-
+    if (!SpeechRec) return alert("Not supported.");
     const rec = new SpeechRec();
     rec.continuous = true;
     rec.interimResults = true;
@@ -342,300 +267,137 @@ export default function AgentInterview() {
       setTranscript(full);
     };
     rec.onend = () => setRecording(false);
-
     recognitionRef.current = rec;
     rec.start();
     setRecording(true);
   };
 
-  if (phase === "select") {
-    return <AgentSelector onSelectRole={handleSelectRole} />;
-  }
-
+  if (phase === "select") return <AgentSelector onSelectRole={handleSelectRole} />;
   if (phase === "resume") {
     return (
       <div className="max-w-2xl mx-auto px-6 py-20 text-center">
-        <div className="w-16 h-16 bg-[#f4efe6] text-gray-700 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-sm border border-black/10">
-          <User size={32} />
-        </div>
+        <div className="w-16 h-16 bg-[#f4efe6] text-gray-700 rounded-3xl mx-auto flex items-center justify-center mb-6 border border-black/10"><User size={32} /></div>
         <h2 className="text-3xl font-black text-gray-800 mb-4">Provide Your Resume</h2>
-        <p className="text-gray-500 mb-8 max-w-md mx-auto">
-          To make this mock interview truly adaptive, our AI will parse your resume and generate strategic, personalized questions.
-        </p>
-
-        <div className="bg-white rounded-[32px] shadow-xl shadow-gray-100 border border-black/10 p-8 mb-8 text-left">
-          <label className="block text-sm font-bold text-gray-700 mb-2">Upload Resume (PDF)</label>
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={(e) => setResumeFile(e.target.files[0])}
-            className="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#f4efe6] file:text-gray-700 hover:file:bg-[#ebe3d6] mb-6 cursor-pointer"
-          />
-
-          <div className="flex items-center gap-4 mb-6">
-            <div className="h-px bg-gray-200 flex-1"></div>
-            <span className="text-xs font-bold text-gray-400 uppercase">OR</span>
-            <div className="h-px bg-gray-200 flex-1"></div>
-          </div>
-
-          <label className="block text-sm font-bold text-gray-700 mb-2">Paste Resume Text</label>
-          <textarea
-            className="w-full h-40 border border-black/10 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#f4efe6] focus:border-black/20 transition-all resize-none bg-[#fcfaf6]"
-            placeholder="Paste your skills, experience, and projects here..."
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-          ></textarea>
+        <div className="bg-white rounded-[32px] shadow-xl p-8 mb-8 text-left border border-black/10">
+          <input type="file" accept=".pdf" onChange={(e) => setResumeFile(e.target.files[0])} className="w-full text-sm text-gray-500 mb-6" />
+          <textarea value={resumeText} onChange={(e) => setResumeText(e.target.value)} placeholder="Or paste your resume text here..." className="w-full h-40 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm" />
+          <button onClick={handleStartSession} disabled={loading} className="w-full mt-6 py-4 bg-gray-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black transition-all">
+            {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={18} />} Start Interview
+          </button>
         </div>
-
-        <button
-          onClick={handleStartSession}
-          disabled={loading || (!resumeFile && !resumeText.trim())}
-          className="w-full py-5 bg-black text-white rounded-[24px] font-bold hover:bg-gray-800 transition-all shadow-xl shadow-black/10 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
-        >
-          {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
-          {loading ? "Analyzing Profile..." : "Start Adaptive Interview"}
-        </button>
       </div>
     );
   }
 
   if (phase === "complete") {
-    let parsedEval = null;
+    const rawJson = evaluation?.evaluation || "{}";
+    let parsedEval = {};
     try {
-      // Robust JSON extraction
-      let rawJson = evaluation?.evaluation || "";
-      
-      // Remove markdown blocks
-      if (rawJson.includes('```')) {
-        const match = rawJson.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (match) rawJson = match[1];
-      }
-
-      // Extract only the object part
-      const firstBrace = rawJson.indexOf('{');
-      const lastBrace = rawJson.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        rawJson = rawJson.substring(firstBrace, lastBrace + 1);
-      }
-
-      parsedEval = JSON.parse(rawJson.trim());
+      parsedEval = JSON.parse(rawJson);
     } catch (e) {
-      console.error("Failed to parse evaluation JSON:", e);
+      console.error("Parse error:", e);
     }
 
-    // Fallback if parsing fails or structure is old
     if (!parsedEval || !parsedEval.categories) {
-      return (
-        <div className="max-w-3xl mx-auto px-6 py-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden"
-          >
-            <div className="bg-violet-600 px-8 py-10 text-white">
-              <h2 className="text-3xl font-bold mb-2">Interview Conclusion</h2>
-              <p className="opacity-90">{roleName} · Generated Evaluation</p>
-            </div>
-            <div className="p-8">
-              <div className="bg-violet-50 rounded-2xl p-6 mb-8 text-gray-800 leading-relaxed italic border-l-4 border-violet-400">
-                "{evaluation?.evaluation}"
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="p-4 bg-gray-50 rounded-xl text-center">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Duration</p>
-                  <p className="font-semibold text-gray-800">{evaluation?.duration}</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-xl text-center">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Status</p>
-                  <p className="font-semibold text-green-600">Completed</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setPhase("select"); setMessages([]); setEvaluation(null); }}
-                className="w-full py-4 bg-violet-600 text-white rounded-2xl font-semibold hover:bg-violet-700 transition-all shadow-lg shadow-violet-200"
-              >
-                Start Another Session
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      );
+       return (
+         <div className="max-w-4xl mx-auto p-10 text-center">
+           <h2 className="text-2xl font-bold mb-4">Interview Complete</h2>
+           <p className="text-gray-600 mb-8">We are processing your final evaluation. Please refresh if it doesn't appear.</p>
+           <pre className="text-left bg-gray-100 p-4 rounded-xl text-xs overflow-auto max-h-96">{rawJson}</pre>
+           <button onClick={() => window.location.reload()} className="mt-8 px-8 py-3 bg-violet-600 text-white rounded-xl font-bold">Refresh Results</button>
+         </div>
+       );
     }
 
     return (
       <div className="max-w-7xl mx-auto px-6 py-12">
+        <style>{`
+          @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .bg-gradient-to-br { background: #7c3aed !important; color: white !important; }
+            .shadow-2xl, .shadow-xl { box-shadow: none !important; }
+            .rounded-[40px] { border-radius: 12px !important; }
+          }
+          @page { size: A4; margin: 10mm; }
+        `}</style>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
-          {/* Main Content Column */}
           <div className="lg:col-span-8 space-y-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[40px] shadow-2xl shadow-violet-100 overflow-hidden border border-gray-50"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-br from-violet-600 to-indigo-700 p-10 text-white">
+            <div className="bg-white rounded-[40px] shadow-2xl overflow-hidden border border-gray-50">
+              <div className="bg-gradient-to-br from-violet-600 to-indigo-700 p-10 text-white relative">
                 <div className="flex justify-between items-center mb-6">
-                  <span className="px-4 py-1.5 bg-white/10 rounded-full text-xs font-bold tracking-widest uppercase border border-white/20">
-                    Candidate Report
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs font-bold text-violet-200">VERIFIED BY AI</span>
+                  <span className="px-4 py-1.5 bg-white/10 rounded-full text-xs font-bold tracking-widest uppercase border border-white/20">Report</span>
+                  <div className="flex items-center gap-3 no-print">
+                    <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/10 font-bold text-xs"><Printer size={14}/> PDF</button>
                   </div>
                 </div>
-                <h2 className="text-4xl font-black mb-2 leading-tight">{roleName} Interview</h2>
-                <p className="text-violet-100/80 font-medium">Detailed competency assessment for the role.</p>
+                <h2 className="text-4xl font-black mb-2">{roleName} Interview</h2>
               </div>
-
               <div className="p-10">
-                {/* Summary */}
                 <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
-                      <MessageCircle size={18} />
-                    </div>
-                    <h3 className="font-bold text-gray-800 text-lg">Executive Summary</h3>
-                  </div>
-                  <p className="text-lg text-gray-600 leading-relaxed italic border-l-4 border-violet-200 pl-6">
-                    "{parsedEval.summary}"
+                  <h3 className="font-bold text-gray-800 text-lg mb-4">Executive Summary</h3>
+                  <p className="text-lg text-gray-600 italic border-l-4 border-violet-200 pl-6">
+                    "{typeof parsedEval?.summary === 'string' ? parsedEval.summary : 'Summary unavailable.'}"
                   </p>
                 </div>
-
-                {/* Score Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {parsedEval.categories.map((cat, idx) => (
-                    <motion.div
-                      key={idx}
-                      whileHover={{ scale: 1.02 }}
-                      className="p-6 rounded-[24px] bg-gray-50 border border-transparent hover:border-violet-100 hover:bg-white hover:shadow-xl hover:shadow-violet-100/40 transition-all flex gap-5"
-                    >
-                      <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center text-violet-600 font-black text-xl">
-                        {cat.score}
-                      </div>
+                  {(parsedEval?.categories || []).map((cat, idx) => (
+                    <div key={idx} className="p-6 rounded-[24px] bg-gray-50 border border-transparent flex gap-5">
+                      <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center text-violet-600 font-black text-xl">{cat.score || 0}</div>
                       <div>
-                        <h4 className="font-bold text-gray-800 mb-1">{cat.label}</h4>
-                        <p className="text-xs text-gray-400 leading-relaxed font-medium mb-2">{cat.feedback}</p>
-                        <div className="h-1 bg-gray-200 rounded-full overflow-hidden w-24">
-                          <div className="h-full bg-violet-600" style={{ width: `${cat.score * 10}%` }}></div>
-                        </div>
+                        <h4 className="font-bold text-gray-800 mb-1">{cat.label || 'Metric'}</h4>
+                        <p className="text-xs text-gray-400 mb-2">{cat.feedback || 'N/A'}</p>
+                        <div className="h-1 bg-gray-200 rounded-full w-24 overflow-hidden"><div className="h-full bg-violet-600" style={{width:`${(cat.score||0)*10}%`}}></div></div>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
+                </div>
+                <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div>
+                     <h4 className="font-bold text-gray-800 mb-4">Strengths</h4>
+                     {(parsedEval?.strengths || []).map((s,i)=>(<div key={i} className="text-sm text-gray-600 mb-2">✓ {typeof s === 'string' ? s : JSON.stringify(s)}</div>))}
+                   </div>
+                   <div>
+                     <h4 className="font-bold text-gray-800 mb-4">Improvements</h4>
+                     {(parsedEval?.improvements || []).map((s,i)=>(<div key={i} className="text-sm text-gray-600 mb-2">! {typeof s === 'string' ? s : JSON.stringify(s)}</div>))}
+                   </div>
                 </div>
               </div>
-            </motion.div>
-
-            {/* Bottom Grid for Strengths/Improvements */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-[32px] p-8 shadow-xl shadow-gray-100 border border-gray-50"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><Sparkles size={20} /></div>
-                  <h4 className="font-bold text-gray-800 text-lg">Peak Competencies</h4>
-                </div>
-                <div className="space-y-3">
-                  {parsedEval.strengths.map((s, i) => (
-                    <div key={i} className="flex gap-3 text-sm font-medium text-gray-600 p-3 bg-emerald-50/20 rounded-2xl border border-emerald-50/50">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white rounded-[32px] p-8 shadow-xl shadow-gray-100 border border-gray-50"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl"><Target size={20} /></div>
-                  <h4 className="font-bold text-gray-800 text-lg">Growth Areas</h4>
-                </div>
-                <div className="space-y-3">
-                  {parsedEval.improvements.map((s, i) => (
-                    <div key={i} className="flex gap-3 text-sm font-medium text-gray-600 p-3 bg-amber-50/20 rounded-2xl border border-amber-50/50">
-                      <span className="text-amber-500 font-bold">!</span>
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
             </div>
 
-            {/* Suggested Learning Path */}
-            {parsedEval.suggested_learning_path && parsedEval.suggested_learning_path.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mt-8 bg-[#111] rounded-[32px] p-8 shadow-2xl shadow-gray-200/50"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-violet-500/20 text-violet-400 rounded-xl"><Target size={20} /></div>
-                  <h4 className="font-bold text-white text-lg">Suggested Learning Path</h4>
+            {evaluation?.transcript && (
+              <div className="bg-white rounded-[32px] p-8 shadow-xl border border-gray-50">
+                <h4 className="font-bold text-gray-800 text-lg mb-8 flex items-center gap-2"><FileText size={20}/> Detailed Transcript</h4>
+                <div className="space-y-8">
+                  {evaluation.transcript.filter(m=>m.role==='assistant').map((msg,i)=>{
+                    const evalItem = evaluation.perQuestionEval?.[i];
+                    return (
+                      <div key={i} className="pl-6 border-l-2 border-gray-100">
+                        <p className="text-sm font-bold text-gray-800 mb-2">Q: {msg.content}</p>
+                        {evalItem && <p className="text-xs text-violet-600 font-bold mb-2">AI Feedback (Score: {evalItem.score}/10): {evalItem.feedback}</p>}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="space-y-4">
-                  {parsedEval.suggested_learning_path.map((path, i) => (
-                    <div key={i} className="flex gap-4 items-center">
-                      <span className="text-violet-400 font-bold text-lg">→</span>
-                      <span className="text-sm font-medium text-gray-300 leading-relaxed">{path}</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
+              </div>
             )}
-
           </div>
 
-          {/* Sidebar Area - Visualization */}
-          <div className="lg:col-span-4 space-y-8">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white rounded-[40px] p-8 shadow-2xl shadow-violet-100 border border-gray-50 sticky top-8"
-            >
-              <div className="text-center mb-8">
-                <p className="text-[10px] uppercase font-black tracking-widest text-violet-400 mb-2">Technical Persona</p>
-                <h3 className="font-black text-2xl text-gray-800">Skill Graph</h3>
-              </div>
-
+          <div className="lg:col-span-4 no-print">
+            <div className="bg-white rounded-[40px] p-8 shadow-2xl border border-gray-50 sticky top-8">
+              <h3 className="font-black text-2xl text-gray-800 text-center mb-8">Skill Graph</h3>
               <RadarChart categories={parsedEval.categories} />
-
               <div className="mt-8 pt-8 border-t border-gray-50">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">Benchmarked Score</span>
-                  <span className="px-3 py-1 bg-violet-600 text-white rounded-full text-sm font-black italic shadow-lg shadow-violet-200">
-                    TOP {Math.round(100 - parsedEval.overallScore * 8)}%
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-4 p-4 bg-violet-50 rounded-[28px] border border-violet-100">
-                  <div className="w-16 h-16 rounded-2xl bg-white flex flex-col items-center justify-center shadow-inner">
-                    <span className="text-2xl font-black text-violet-600 leading-none">{parsedEval.overallScore}</span>
-                    <span className="text-[10px] font-bold text-gray-300">/10</span>
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-gray-800 text-sm">Overall Rank</h5>
-                    <p className="text-[11px] text-gray-500 font-medium">Exceeds domain averages</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => { setPhase("select"); setMessages([]); setEvaluation(null); }}
-                  className="w-full mt-8 py-5 bg-gray-900 text-white rounded-[28px] font-bold hover:bg-black transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 group"
-                >
-                  <Sparkles size={18} className="text-violet-400 group-hover:animate-spin" />
-                  Try New Session
-                </button>
+                 <div className="flex items-center gap-4 p-4 bg-violet-50 rounded-[28px]">
+                    <div className="w-16 h-16 rounded-2xl bg-white flex flex-col items-center justify-center shadow-inner">
+                      <span className="text-2xl font-black text-violet-600">{parsedEval.overallScore}</span>
+                      <span className="text-[10px] font-bold text-gray-300">/10</span>
+                    </div>
+                    <div><h5 className="font-bold text-gray-800 text-sm">Overall Score</h5></div>
+                 </div>
+                 <button onClick={()=>window.location.reload()} className="w-full mt-8 py-5 bg-gray-900 text-white rounded-[28px] font-bold hover:bg-black transition-all">Try New Session</button>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
@@ -643,134 +405,46 @@ export default function AgentInterview() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto px-4 bg-white">
-      {/* Header */}
+    <div className="flex flex-col h-screen max-w-4xl mx-auto px-4 bg-white">
       <div className="py-6 flex items-center justify-between border-b border-gray-100">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center text-violet-600">
-            <Cpu size={24} />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">{roleName}</h2>
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-blue-400 animate-pulse' : loading ? 'bg-amber-400' : 'bg-green-400'}`}></span>
-              <span className="text-[10px] text-gray-400 uppercase tracking-widest font-medium">
-                {isSpeaking ? 'Agent Speaking' : loading ? 'Agent Thinking' : 'Live Session'}
-              </span>
+        <h2 className="text-xl font-black text-gray-800">{roleName || "Mock Interview"}</h2>
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1 bg-violet-100 text-violet-600 rounded-full text-xs font-bold tracking-tighter uppercase">Question {messages.filter(m=>m.role==='assistant').length + 1}/10</div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[80%] p-4 rounded-2xl ${m.role === "user" ? "bg-violet-600 text-white shadow-lg" : "bg-gray-100 text-gray-800 shadow-sm"}`}>
+              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{m.text}</p>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-6">
-          <button
-            onClick={() => setPhase("select")}
-            className="text-gray-400 hover:text-gray-600 transition p-3 bg-gray-50 rounded-full border border-gray-100 hover:bg-gray-100"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        </div>
-      </div>
-
-      {/* Chat Display */}
-      <div className="flex-1 overflow-y-auto py-8 space-y-6 px-2 custom-scrollbar">
-        <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: msg.role === "user" ? 20 : -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center
-                ${msg.role === "user" ? "bg-violet-600 text-white" : "bg-gray-200 text-gray-500"}`}>
-                  {msg.role === "user" ? <User size={14} /> : <Cpu size={14} />}
-                </div>
-                <div className={`px-5 py-4 rounded-3xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm
-                ${msg.role === "user"
-                    ? "bg-violet-600 text-white rounded-tr-sm"
-                    : "bg-white text-gray-800 border border-gray-100 rounded-tl-sm"}`}>
-                  {msg.text}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-
-          {(displayText || isSpeaking) && (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex justify-start"
-            >
-              <div className="flex gap-3 max-w-[85%]">
-                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-violet-100 text-violet-600 animate-pulse">
-                  <Cpu size={14} />
-                </div>
-                <div className="px-5 py-4 rounded-3xl rounded-tl-sm text-sm leading-relaxed whitespace-pre-wrap bg-white border border-violet-100 text-gray-800 shadow-md shadow-violet-50">
-                  {displayText || "..."}
-                  {isSpeaking && <span className="inline-block w-1.5 h-4 bg-violet-400 ml-1 animate-pulse" />}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {loading && !isSpeaking && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex justify-start pl-11"
-            >
-              <div className="flex gap-1.5 py-4">
-                <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce"></span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        ))}
+        {displayText && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] p-4 rounded-2xl bg-gray-50 border border-violet-100 text-gray-800 shadow-sm">
+              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{displayText}</p>
+            </div>
+          </div>
+        )}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">AI Agent is thinking...</span>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
-
-      {/* Input Area */}
-      <div className="py-8 border-t border-gray-100 bg-white">
-        {transcript && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 p-4 bg-violet-50 rounded-2xl text-sm text-violet-700 italic border border-violet-100"
-          >
-            "{transcript}"
-          </motion.div>
-        )}
-        <div className="flex items-end gap-3 bg-gray-50 p-2 rounded-3xl border border-gray-200 focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-400/5 transition-all">
-          <button
-            onClick={toggleRecording}
-            className={`p-3 rounded-2xl transition-all ${recording ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-400 hover:text-violet-600 shadow-sm'}`}
-          >
-            {recording ? <StopCircle size={20} /> : <Mic size={20} />}
-          </button>
-
-          <textarea
-            className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-3 px-2 resize-none max-h-32"
-            placeholder={recording ? "Listening..." : "Type your answer..."}
-            rows={1}
-            value={input || transcript}
-            onChange={e => setInput(e.target.value)}
-            disabled={loading || isSpeaking}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          />
-
-          <button
-            onClick={() => handleSend()}
-            disabled={loading || isSpeaking || (!input.trim() && !transcript.trim())}
-            className="p-3 bg-violet-600 text-white rounded-2xl hover:bg-violet-700 disabled:opacity-30 disabled:hover:bg-violet-600 shadow-lg shadow-violet-200 transition-all font-medium"
-          >
-            {loading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
-          </button>
+      <div className="p-6 border-t border-gray-100">
+        <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-[32px] border border-gray-200">
+          <button onClick={toggleRecording} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${recording ? "bg-red-500 text-white animate-pulse" : "bg-white text-gray-700 shadow-sm"}`}><Mic size={24} /></button>
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder={recording ? "Listening..." : "Type your answer..."} className="flex-1 bg-transparent border-none outline-none text-sm font-medium px-2" />
+          <button onClick={() => handleSend()} disabled={loading || isSpeaking} className="w-14 h-14 bg-violet-600 text-white rounded-full flex items-center justify-center hover:bg-violet-700 transition-all shadow-lg shadow-violet-200 disabled:opacity-50"><Send size={24} /></button>
         </div>
-        <p className="text-[10px] text-gray-400 mt-3 text-center uppercase tracking-widest font-medium">
-          Powered by TalentEco AI • Voice Optimized
-        </p>
       </div>
+      <audio ref={audioPlayerRef} className="hidden" />
     </div>
   );
 }

@@ -961,7 +961,7 @@ router.post('/next', async (req, res) => {
                 // Final Score is simply the sum of all components (max 20 + 30 + 50 = 100)
                 app.finalScore = r + a + i;
 
-                if (app.finalScore >= 60) app.status = 'SHORTLISTED';
+                if (app.finalScore >= 55) app.status = 'SHORTLISTED';
 
                 await app.save();
                 console.log(`[INTERVIEW-EVAL] Application Updated. Final Score: ${app.finalScore}`);

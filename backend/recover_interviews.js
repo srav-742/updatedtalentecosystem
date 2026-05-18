@@ -115,7 +115,7 @@ async function recoverApplication(appId) {
             if (job.mockInterview?.enabled) { totalScore += newInterviewScore; numModules++; }
         }
         if (numModules > 0) app.finalScore = Math.round(totalScore / numModules);
-        app.status = app.finalScore >= 60 ? 'SHORTLISTED' : 'APPLIED';
+        app.status = app.finalScore >= 55 ? 'SHORTLISTED' : 'APPLIED';
 
         await app.save();
         console.log(`[RECOVERY] SUCCESS for ${app.applicantName}. New Score: ${newInterviewScore}`);

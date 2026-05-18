@@ -52,7 +52,57 @@ const CandidateTranscriptPage=()=>{
     :{l:'Not Recommended',c:'text-red-400',b:'bg-red-500/20 border-red-500/30'};
   return(
     <div className='min-h-screen bg-[#0c0f16] text-white'>
-      <style>{'@media print{.no-print{display:none!important;}'}</style>
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { 
+            background-color: #0c0f16 !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            color: white !important;
+          }
+          .min-h-screen { background-color: #0c0f16 !important; min-height: auto !important; }
+          .max-w-5xl { max-width: 100% !important; padding: 0 !important; margin: 0 auto !important; }
+          
+          /* Force colors and backgrounds for all elements */
+          * { 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+          }
+
+          /* Preserve gradients and borders */
+          .bg-gradient-to-br, .bg-gradient-to-r {
+            background-image: inherit !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          }
+
+          /* Ensure sections and cards don't break across pages */
+          .mb-8, .mb-10, .rounded-3xl, .rounded-2xl, .p-8, .p-5, .p-4 {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            display: block !important;
+          }
+
+          /* Disable sticky headers during print */
+          .sticky { position: relative !important; top: 0 !important; }
+
+          /* Layout adjustments for A4 */
+          .grid { display: grid !important; }
+          .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .md\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+          /* Ensure animations are finished */
+          .motion-div, [style*="opacity"] {
+            opacity: 1 !important;
+            transform: none !important;
+          }
+        }
+        @page {
+          size: auto;
+          margin: 15mm 10mm;
+        }
+      `}</style>
       <div className='no-print sticky top-0 z-50 bg-[#0c0f16]/95 backdrop-blur border-b border-white/10 px-6 py-4 flex items-center justify-between'>
         <button onClick={()=>navigate('/admin')} className='flex items-center gap-2 text-gray-400 hover:text-white font-bold text-sm'><ArrowLeft size={18}/>Back to Admin</button>
         <button onClick={()=>window.print()} className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform'><Printer size={15}/>Download PDF</button>

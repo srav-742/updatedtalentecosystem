@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
-import Webcam from "react-webcam";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapper';
 
@@ -36,14 +35,13 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
-    const fullSessionChunksRef = useRef([]);
     const fullSessionStreamRef = useRef(null);
+    const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
-    const [timeLeft, setTimeLeft] = useState(90);
-    const timerRef = useRef(null);
+    const latestTranscriptRef = useRef('');
 
     // --- AI Webcam Detection State ---
     const [model, setModel] = useState(null);
@@ -148,7 +146,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             }
             setDisplayText(textToSpeak);
             setCoreState('idle');
-            setTimeLeft(90); // Reset timer when question finishes
         };
 
         const speakInBrowser = () => {
@@ -197,45 +194,46 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         return candidates.find(type => window.MediaRecorder?.isTypeSupported?.(type)) || '';
     };
 
-    const startFullSessionRecording = async () => {
-        if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+    const startFullSessionRecording = async (activeSessionId, activeRecordingSessionId) => {
+        if (!fullSessionStreamRef.current) {
+            setRecordingNotice('Hardware not initialized. Please restart setup.');
             return;
         }
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true
-                },
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 20, max: 24 }
-                }
-            });
-
             const mimeType = getRecordingMimeType();
             const recorderOptions = mimeType
                 ? { mimeType, videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 }
                 : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
 
-            const fullSessionRecorder = new MediaRecorder(stream, recorderOptions);
-
-            fullSessionStreamRef.current = stream;
+            const fullSessionRecorder = new MediaRecorder(fullSessionStreamRef.current, recorderOptions);
             fullSessionRecorderRef.current = fullSessionRecorder;
-            fullSessionChunksRef.current = [];
+            chunkIndexRef.current = 0;
 
-            fullSessionRecorder.ondataavailable = (event) => {
-                if (event.data?.size) {
-                    fullSessionChunksRef.current.push(event.data);
+            fullSessionRecorder.ondataavailable = async (event) => {
+                if (event.data?.size > 0) {
+                    const chunk = event.data;
+                    const currentIndex = chunkIndexRef.current;
+                    chunkIndexRef.current++;
+
+                    const formData = new FormData();
+                    formData.append('chunk', chunk);
+                    formData.append('sessionId', activeRecordingSessionId || activeSessionId);
+                    formData.append('chunkIndex', currentIndex);
+
+                    try {
+                        await axios.post(`${API_URL}/upload-recording-chunk`, formData);
+                    } catch (err) {
+                        console.error("Chunk upload failed", err);
+                    }
                 }
             };
 
-            fullSessionRecorder.start(1000);
+            // Start recording in 30-second chunks
+            fullSessionRecorder.start(30000);
             setRecordingNotice('');
         } catch (err) {
-            setRecordingNotice('Interview continued, but full video recording could not start on this device.');
+            setRecordingNotice('Interview continued, but full video recording could not start.');
         }
     };
 
@@ -264,46 +262,26 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     const stopAndUploadFullSessionRecording = async () => {
         const recorder = fullSessionRecorderRef.current;
-        const recordingId = recordingSessionId;
+        if (!recorder) return null;
 
-        if (!recorder) {
-            return null;
-        }
-
-        if (recorder.state === 'inactive') {
-            stopStreamTracks(fullSessionStreamRef.current);
-            fullSessionStreamRef.current = null;
-            fullSessionRecorderRef.current = null;
-            fullSessionChunksRef.current = [];
-            return null;
-        }
-
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             recorder.onstop = async () => {
-                const mimeType = recorder.mimeType || 'video/webm';
-                const blob = new Blob(fullSessionChunksRef.current, { type: mimeType });
-
-                stopStreamTracks(fullSessionStreamRef.current);
-                fullSessionStreamRef.current = null;
-                fullSessionRecorderRef.current = null;
-                fullSessionChunksRef.current = [];
-
                 try {
-                    const uploadResponse = await uploadFullSessionRecording(blob, recordingId);
-                    resolve(uploadResponse);
-                } catch (uploadError) {
-                    reject(uploadError);
+                    const response = await axios.post(`${API_URL}/finalize-recording`, {
+                        sessionId: recordingSessionId || sessionId,
+                        userId: user.uid,
+                        jobId: job._id
+                    });
+                    resolve(response.data);
+                } catch (err) {
+                    console.error("Finalization failed", err);
+                    resolve(null);
+                } finally {
+                    stopStreamTracks(fullSessionStreamRef.current);
+                    fullSessionStreamRef.current = null;
+                    fullSessionRecorderRef.current = null;
                 }
             };
-
-            recorder.onerror = (event) => {
-                stopStreamTracks(fullSessionStreamRef.current);
-                fullSessionStreamRef.current = null;
-                fullSessionRecorderRef.current = null;
-                fullSessionChunksRef.current = [];
-                reject(event?.error || new Error('Failed to stop session recording.'));
-            };
-
             recorder.stop();
         });
     };
@@ -316,14 +294,15 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 userId: user.uid
             });
             const firstQuestion = normalizeQuestionText(res.data.question);
-            setSessionId(res.data.sessionId);
-            setRecordingSessionId(res.data.recordingSessionId || null);
+            const activeSessionId = res.data.sessionId;
+            const activeRecordingSessionId = res.data.recordingSessionId || null;
+            setSessionId(activeSessionId);
+            setRecordingSessionId(activeRecordingSessionId);
             setCurrentQuestion(firstQuestion);
             setCurrentQNum(1);
-            await startFullSessionRecording();
+            await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
             setStep('interview');
             playAudio(res.data.audio, firstQuestion);
-            setTimeLeft(90);
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -377,40 +356,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
     };
 
-    const handleSkip = () => {
-        if (recording) {
-            if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-            if (recognitionRef.current) recognitionRef.current.stop();
-            setRecording(false);
-        }
-        submitUserAnswer("");
-    };
+    // Skip button removed by request
 
-    useEffect(() => {
-        // Timer should run whenever we are in 'interview' step and not already processing a response
-        if (step === 'interview' && !processing) {
-            timerRef.current = setInterval(() => {
-                setTimeLeft((prev) => {
-                    if (prev <= 1) {
-                        clearInterval(timerRef.current);
-                        // If we were recording, stop it first to trigger the transcription
-                        if (recording) {
-                            toggleRecording();
-                        } else {
-                            submitUserAnswer(""); 
-                        }
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        } else {
-            if (timerRef.current) clearInterval(timerRef.current);
-        }
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        };
-    }, [step, processing, recording]);
+    // Question timer removed by request to prevent auto-skips
 
     const toggleRecording = async () => {
         if (recording) {
@@ -423,7 +371,19 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setTranscript('');
+            latestTranscriptRef.current = '';
+
+            let stream;
+            const existingAudioTracks = fullSessionStreamRef.current?.getAudioTracks();
+            if (existingAudioTracks && existingAudioTracks.length > 0) {
+                // Reuse the active audio track from the webcam/interview session stream to avoid device/resource conflicts
+                stream = new MediaStream([existingAudioTracks[0]]);
+            } else {
+                // Fallback to requesting mic access if not already active
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+
             const recorder = new MediaRecorder(stream);
             mediaRecorderRef.current = recorder;
             answerStreamRef.current = stream;
@@ -446,7 +406,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     formData.append('interviewId', sessionId); // Append BEFORE audio
                     formData.append('audio', blob, 'answer.wav');
 
-                    let answerText = transcript;
+                    let answerText = latestTranscriptRef.current;
                     try {
                         const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
                         if (trRes.data?.text) answerText = trRes.data.text;
@@ -472,12 +432,14 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (SpeechRec) {
                 const rec = new SpeechRec();
+                rec.lang = 'en-US';
                 rec.continuous = true;
                 rec.interimResults = true;
                 rec.onresult = (e) => {
                     let full = '';
                     for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
                     setTranscript(full);
+                    latestTranscriptRef.current = full;
                 };
                 recognitionRef.current = rec;
                 rec.start();
@@ -534,7 +496,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         stopStreamTracks(fullSessionStreamRef.current);
         fullSessionStreamRef.current = null;
         fullSessionRecorderRef.current = null;
-        fullSessionChunksRef.current = [];
 
         await onSecurityReset?.({
             stage: 'interview',
@@ -633,10 +594,116 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 </div>
 
                 <button
-                    onClick={startInterviewTrigger}
+                    onClick={() => setStep('lobby')}
                     className="w-full py-6 bg-black text-white font-black text-xs uppercase tracking-[0.2em] rounded-[2rem] hover:bg-gray-800 transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95"
                 >
-                    Begin Interview Session <ChevronRight size={18} />
+                    Begin Setup <ChevronRight size={18} />
+                </button>
+            </div>
+        );
+    }
+
+    if (step === 'lobby') {
+        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => t.label.toLowerCase().includes('screen') || t.label.toLowerCase().includes('monitor'));
+
+        return (
+            <div className="max-w-4xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl">
+                <h2 className="text-3xl font-black text-gray-900 mb-6 tracking-tight text-center">Interview Hardware Setup</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-full aspect-video bg-gray-900 rounded-3xl overflow-hidden relative border-2 border-gray-100 shadow-inner">
+                            {hasCamera ? (
+                                <video 
+                                    autoPlay 
+                                    muted 
+                                    playsInline 
+                                    ref={el => { 
+                                        if(el) {
+                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+                                            if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                        }
+                                    }}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-3">
+                                    <User size={40} className="opacity-20" />
+                                    <span className="text-xs font-bold uppercase tracking-widest opacity-40">Camera Inactive</span>
+                                </div>
+                            )}
+                        </div>
+                        <button 
+                            onClick={async () => {
+                                try {
+                                    const camStream = await navigator.mediaDevices.getUserMedia({ 
+                                        video: { width: 1280, height: 720 },
+                                        audio: { echoCancellation: true, noiseSuppression: true }
+                                    });
+                                    if (!fullSessionStreamRef.current) {
+                                        fullSessionStreamRef.current = new MediaStream();
+                                    }
+                                    camStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
+                                } catch (e) { setError("Camera access denied."); }
+                            }}
+                            className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${hasCamera ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                            {hasCamera ? 'Camera Enabled' : 'Enable Camera'}
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-full aspect-video bg-gray-900 rounded-3xl overflow-hidden relative border-2 border-gray-100 shadow-inner">
+                            {hasScreen ? (
+                                <video 
+                                    autoPlay 
+                                    muted 
+                                    playsInline 
+                                    ref={el => { 
+                                        if(el) {
+                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => t.label.toLowerCase().includes('screen') || t.label.toLowerCase().includes('monitor'));
+                                            if (screenTrack) el.srcObject = new MediaStream([screenTrack]);
+                                        }
+                                    }}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-3">
+                                    <StopCircle size={40} className="opacity-20" />
+                                    <span className="text-xs font-bold uppercase tracking-widest opacity-40">Screen Share Inactive</span>
+                                </div>
+                            )}
+                        </div>
+                        <button 
+                            onClick={async () => {
+                                try {
+                                    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                                    if (!fullSessionStreamRef.current) {
+                                        fullSessionStreamRef.current = new MediaStream();
+                                    }
+                                    screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
+                                } catch (e) { setError("Screen share denied."); }
+                            }}
+                            className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${hasScreen ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                            {hasScreen ? 'Screen Sharing' : 'Share Screen'}
+                        </button>
+                    </div>
+                </div>
+
+                {error && <p className="text-red-500 text-center mb-6 text-sm font-bold uppercase tracking-wider">{error}</p>}
+
+                <button
+                    disabled={!hasCamera || !hasScreen}
+                    onClick={startInterviewTrigger}
+                    className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95 ${
+                        (hasCamera && hasScreen) ? 'bg-black text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                >
+                    Start Interview <ChevronRight size={18} />
                 </button>
             </div>
         );
@@ -697,13 +764,19 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     )}
                                 </AnimatePresence>
                                 <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-gray-200 shadow-md">
-                                    <Webcam
-                                        ref={webcamRef}
-                                        audio={false}
-                                        className="w-full h-full object-cover"
-                                        mirrored={true}
+                                    <video 
+                                        autoPlay 
+                                        muted 
+                                        playsInline 
+                                        ref={el => { 
+                                            if(el && fullSessionStreamRef.current) {
+                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+                                                if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            }
+                                        }}
+                                        className="w-full h-full object-cover mirrored"
                                     />
-                                    {!model && (
+                                    {!fullSessionStreamRef.current && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>
@@ -772,22 +845,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
                                 </span>
                             </div>
-
-                            <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Time Remaining</span>
-                                <span className={`text-xl font-black ${timeLeft < 20 ? 'text-red-500 animate-pulse' : 'text-indigo-600'}`}>
-                                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                                </span>
-                            </div>
-
-                            <motion.button
-                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                                onClick={handleSkip}
-                                disabled={processing || !displayText}
-                                className="px-6 py-3 rounded-full border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest"
-                            >
-                                Skip
-                            </motion.button>
                         </div>
 
                         {/* Transcript Preview */}

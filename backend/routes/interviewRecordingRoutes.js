@@ -10,11 +10,15 @@ const { getInterviewDetails } = require("../controllers/interviewController");
 
 const router = express.Router();
 const tempRecordingDir = path.join(__dirname, "..", "private_storage", "interview-recordings-temp");
+const chunksDir = path.join(__dirname, "..", "private_storage", "temp_chunks");
+
+// Ensure directories exist
+fs.mkdirSync(tempRecordingDir, { recursive: true });
+fs.mkdirSync(chunksDir, { recursive: true });
 
 const recordingUpload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
-            fs.mkdirSync(tempRecordingDir, { recursive: true });
             cb(null, tempRecordingDir);
         },
         filename: (req, file, cb) => {
@@ -26,6 +30,21 @@ const recordingUpload = multer({
         // Full interview videos are much larger than single-answer audio snippets.
         fileSize: 300 * 1024 * 1024
     }
+});
+
+const chunkUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => {
+            const sessionId = req.body.sessionId || "unknown";
+            const sessionDir = path.join(chunksDir, sessionId);
+            fs.mkdirSync(sessionDir, { recursive: true });
+            cb(null, sessionDir);
+        },
+        filename: (req, file, cb) => {
+            const chunkIndex = req.body.chunkIndex || "0";
+            cb(null, `part_${chunkIndex.padStart(5, '0')}.webm`);
+        }
+    })
 });
 
 function sanitizeRecordingSegment(value) {
@@ -65,6 +84,9 @@ function buildPlaybackUrl(publicId) {
 }
 
 function uploadRecordingToCloudinary(file, options) {
+    if (typeof file === 'string') {
+        return cloudinary.uploader.upload(file, options);
+    }
     if (file?.path) {
         return cloudinary.uploader.upload(file.path, options);
     }
@@ -83,7 +105,9 @@ function uploadRecordingToCloudinary(file, options) {
 }
 
 async function cleanupTemporaryRecording(file) {
-    if (file?.path) {
+    if (typeof file === 'string') {
+        await fs.promises.unlink(file).catch(() => null);
+    } else if (file?.path) {
         await fs.promises.unlink(file.path).catch(() => null);
     }
 }
@@ -144,7 +168,7 @@ async function uploadInterviewRecording(req, res) {
                 recordingPlaybackUrl: playbackUrl,
                 recordingFormat: uploadResult.format,
                 recordingDuration: uploadResult.duration,
-                recordingBytes: uploadResult.bytes || file.size,
+                recordingBytes: uploadResult.bytes || (typeof file === 'string' ? 0 : file.size),
                 recordingUploadedAt: new Date()
             },
             { upsert: true, new: true }
@@ -179,6 +203,55 @@ async function uploadInterviewRecording(req, res) {
         await cleanupTemporaryRecording(file);
     }
 }
+
+// --- NEW CHUNKED RECORDING ENDPOINTS ---
+
+router.post("/upload-recording-chunk", chunkUpload.single("chunk"), (req, res) => {
+    res.status(200).json({ success: true, message: "Chunk uploaded" });
+});
+
+router.post("/finalize-recording", async (req, res) => {
+    const { sessionId, userId, jobId } = req.body;
+
+    if (!sessionId || !userId || !jobId) {
+        return res.status(400).json({ error: "sessionId, userId, and jobId are required" });
+    }
+
+    const sessionDir = path.join(chunksDir, sessionId);
+    if (!fs.existsSync(sessionDir)) {
+        return res.status(404).json({ error: "Recording chunks not found" });
+    }
+
+    try {
+        const chunkFiles = fs.readdirSync(sessionDir).sort();
+        if (chunkFiles.length === 0) {
+            return res.status(400).json({ error: "No chunks found to finalize" });
+        }
+
+        const mergedFilePath = path.join(tempRecordingDir, `${sessionId}_merged.webm`);
+        const writeStream = fs.createWriteStream(mergedFilePath);
+
+        for (const file of chunkFiles) {
+            const filePath = path.join(sessionDir, file);
+            const chunkData = fs.readFileSync(filePath);
+            writeStream.write(chunkData);
+        }
+        writeStream.end();
+
+        await new Promise((resolve) => writeStream.on('finish', resolve));
+
+        // Now upload the merged file to Cloudinary
+        // Reuse uploadInterviewRecording logic but passing the file path
+        req.file = { path: mergedFilePath, originalname: `${sessionId}.webm` };
+        await uploadInterviewRecording(req, res);
+
+        // Cleanup chunks directory
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+    } catch (error) {
+        console.error("[FINALIZE-RECORDING] Error:", error);
+        res.status(500).json({ error: "Finalization failed", message: error.message });
+    }
+});
 
 router.get("/interview-details/:applicationId", getInterviewDetails);
 
