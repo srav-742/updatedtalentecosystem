@@ -38,6 +38,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const fullSessionStreamRef = useRef(null);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
+    const chunkUploadsRef = useRef([]);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -208,7 +209,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             // Create a clean record stream with 1 video track and 1 audio track to prevent MediaRecorder multiple video track errors
             const recordTracks = [];
-            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
             const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
 
             if (camVideoTrack) recordTracks.push(camVideoTrack);
@@ -219,6 +220,23 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
+            chunkUploadsRef.current = [];
+
+            const uploadChunkWithRetry = async (formData, index, retries = 3) => {
+                for (let attempt = 1; attempt <= retries; attempt++) {
+                    try {
+                        await axios.post(`${API_URL}/upload-recording-chunk`, formData);
+                        return;
+                    } catch (err) {
+                        console.warn(`Chunk ${index} upload attempt ${attempt} failed:`, err);
+                        if (attempt === retries) {
+                            console.error(`Chunk ${index} upload failed after ${retries} attempts.`);
+                            throw err;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                }
+            };
 
             fullSessionRecorder.ondataavailable = async (event) => {
                 if (event.data?.size > 0) {
@@ -227,15 +245,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     chunkIndexRef.current++;
 
                     const formData = new FormData();
-                    formData.append('chunk', chunk);
                     formData.append('sessionId', activeRecordingSessionId || activeSessionId);
                     formData.append('chunkIndex', currentIndex);
+                    formData.append('chunk', chunk);
 
-                    try {
-                        await axios.post(`${API_URL}/upload-recording-chunk`, formData);
-                    } catch (err) {
-                        console.error("Chunk upload failed", err);
-                    }
+                    const uploadPromise = uploadChunkWithRetry(formData, currentIndex);
+                    chunkUploadsRef.current.push(uploadPromise);
                 }
             };
 
@@ -277,6 +292,10 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         return new Promise((resolve) => {
             recorder.onstop = async () => {
                 try {
+                    // Wait for all chunk uploads to complete before finalizing (using allSettled to be robust to single failures)
+                    if (chunkUploadsRef.current.length > 0) {
+                        await Promise.allSettled(chunkUploadsRef.current);
+                    }
                     const response = await axios.post(`${API_URL}/finalize-recording`, {
                         sessionId: recordingSessionId || sessionId,
                         userId: user.uid,
@@ -290,6 +309,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     stopStreamTracks(fullSessionStreamRef.current);
                     fullSessionStreamRef.current = null;
                     fullSessionRecorderRef.current = null;
+                    chunkUploadsRef.current = [];
                 }
             };
             recorder.stop();
@@ -388,9 +408,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             let isReusedStream = false;
             const existingAudioTracks = fullSessionStreamRef.current?.getAudioTracks();
             if (existingAudioTracks && existingAudioTracks.length > 0) {
-                // Reuse the active audio track from the webcam/interview session stream to avoid device/resource conflicts
-                stream = new MediaStream([existingAudioTracks[0]]);
-                isReusedStream = true;
+                // Clone the active audio track from the webcam/interview session stream to avoid device/resource conflicts
+                stream = new MediaStream([existingAudioTracks[0].clone()]);
+                isReusedStream = false;
             } else {
                 // Fallback to requesting mic access if not already active
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -418,14 +438,39 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     const formData = new FormData();
                     formData.append('interviewId', sessionId); // Append BEFORE audio
                     formData.append('audio', blob, 'answer.wav');
+                    formData.append('localTranscript', latestTranscriptRef.current || '');
 
-                    let answerText = latestTranscriptRef.current;
+                    let answerText = latestTranscriptRef.current || "";
                     try {
                         const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
-                        if (trRes.data?.text) answerText = trRes.data.text;
-                    } catch (e) { }
+                        if (trRes.data?.text) {
+                            const whisperText = trRes.data.text.trim();
+                            const normalizedWhisper = whisperText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+                            
+                            // Check for standard Whisper hallucinations/fallbacks
+                            const invalidWhisperPhrases = [
+                                "thank you", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí",
+                                "i am describing my technical experience and relevant skills for this specific role"
+                            ];
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
 
-                    if (!answerText || answerText.length < 2) {
+                            if (!isWhisperInvalid) {
+                                // Prefer Whisper unless local transcript is significantly longer for short Whisper results
+                                if (answerText && answerText.length > whisperText.length * 2 && whisperText.length < 15) {
+                                    console.log("Using local transcript as Whisper returned an extremely short output:", whisperText);
+                                } else {
+                                    answerText = whisperText;
+                                }
+                            } else {
+                                console.log("Whisper result is invalid/hallucinated, using local SpeechRecognition:", answerText);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Audio upload/STT failed:", e);
+                    }
+
+                    if (!answerText || answerText.trim().length < 2) {
                         // If it's too short, we still submit it but it will get 0 score
                         // The user wanted: empty -> backend gives 0
                         answerText = "";
@@ -619,8 +664,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     }
 
     if (step === 'lobby') {
-        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
-        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => t.label.toLowerCase().includes('screen') || t.label.toLowerCase().includes('monitor'));
+        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
 
         return (
             <div className="max-w-4xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl">
@@ -636,7 +681,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
                                             if (camTrack) el.srcObject = new MediaStream([camTrack]);
                                         }
                                     }}
@@ -678,7 +723,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => t.label.toLowerCase().includes('screen') || t.label.toLowerCase().includes('monitor'));
+                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
                                             if (screenTrack) el.srcObject = new MediaStream([screenTrack]);
                                         }
                                     }}
@@ -785,7 +830,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         playsInline 
                                         ref={el => { 
                                             if(el && fullSessionStreamRef.current) {
-                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !t.label.toLowerCase().includes('screen') && !t.label.toLowerCase().includes('monitor'));
+                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
                                                 if (camTrack) el.srcObject = new MediaStream([camTrack]);
                                             }
                                         }}

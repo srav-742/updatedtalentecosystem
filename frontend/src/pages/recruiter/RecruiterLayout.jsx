@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown } from 'lucide-react';
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
 
@@ -132,8 +132,15 @@ const RecruiterLayout = () => {
                                     user.name?.[0]?.toUpperCase() || 'R'
                                 )}
                             </div>
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-gray-900">{profile?.name || user.name || 'Recruiter'}</p>
+                             <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="truncate text-sm font-semibold text-gray-900">{profile?.name || user.name || 'Recruiter'}</p>
+                                    {(profile?.hiringPattern === "Premium Recruiter" || profile?.isPro === true) && (
+                                        <span className="flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-black shadow-sm">
+                                            <Crown size={8} className="fill-black" /> PRO
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">{profile?.designation || 'Hiring Lead'}</p>
                             </div>
                         </div>

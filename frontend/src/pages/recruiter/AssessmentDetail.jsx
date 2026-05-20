@@ -13,7 +13,7 @@ import {
     Briefcase
 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 
 const AssessmentDetail = ({ applicationId, onClose }) => {
     const [loading, setLoading] = useState(true);
@@ -25,7 +25,8 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
             setLoading(true);
             setError(null);
             try {
-                const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`);
+                const headers = await getAuthHeaders();
+                const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`, { headers });
                 setData(res.data);
             } catch (err) {
                 console.error("Failed to fetch assessment details:", err);
@@ -53,15 +54,39 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
     }
 
     if (error || !data) {
+        const isUpgradeError = error?.includes('Pro Recruiter') || error?.includes('Forbidden') || error?.includes('Unauthorized');
         return (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-12 text-center max-w-md w-full">
-                    <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Error Loading Assessment</h3>
-                    <p className="text-gray-500 mb-6">{error || 'Assessment data not found'}</p>
+                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+                    {isUpgradeError ? (
+                        <>
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/10">
+                                <Award className="w-8 h-8 text-black" />
+                            </div>
+                            <h3 className="text-2xl font-black mb-3 text-white">Pro Access Required</h3>
+                            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                                Detailed candidate skill assessments are exclusive to premium recruiters. Upgrade your plan to view full candidate answers.
+                            </p>
+                            <button
+                                onClick={() => {
+                                    onClose();
+                                    window.location.href = '/recruiter/upgrade';
+                                }}
+                                className="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-extrabold px-6 py-3.5 rounded-xl transition-transform hover:scale-102 hover:shadow-lg shadow-amber-500/20 mb-3"
+                            >
+                                Upgrade to Pro
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold mb-2">Error Loading Assessment</h3>
+                            <p className="text-gray-400 mb-6">{error || 'Assessment data not found'}</p>
+                        </>
+                    )}
                     <button
                         onClick={onClose}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-bold"
+                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl border border-white/10 transition-colors"
                     >
                         Close
                     </button>

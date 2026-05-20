@@ -18,6 +18,7 @@ const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDas
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
 const TalentSearch = lazy(() => import('./pages/recruiter/TalentSearch'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
+const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
 const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
 const SeekerDashboard = lazy(() => import('./pages/seeker/SeekerDashboard'));
 const BrowseJobs = lazy(() => import('./pages/seeker/BrowseJobs'));
@@ -79,6 +80,7 @@ function App() {
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="onboarding-kit" element={<OnboardingKit />} />
           <Route path="ai-search" element={<TalentSearch />} />
+          <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
 
         {/* Seeker Routes */}

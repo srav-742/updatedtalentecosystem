@@ -59,6 +59,7 @@ const teamFitRoutes = require('./routes/teamFitRoutes');
 const insightRoutes = require('./routes/insightRoutes');
 const aiSearchRoutes = require('./routes/aiSearchRoutes');
 const voiceAgentRoutes = require('./routes/voiceAgentRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 
 
@@ -88,6 +89,8 @@ app.use('/api/insights', insightRoutes);
 app.use('/api/ai-search', aiSearchRoutes);
 app.use('/api/voice-agent', voiceAgentRoutes);
 app.use('/api/transcripts', require('./routes/transcriptRoutes'));
+app.use('/api', paymentRoutes);
+
 
 
 

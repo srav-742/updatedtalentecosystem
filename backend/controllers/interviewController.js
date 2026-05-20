@@ -52,6 +52,36 @@ const getInterviewDetails = async (req, res) => {
     try {
         const { applicationId } = req.params;
 
+        // 🔒 Pro recruiter validation check
+        const recruiterId = req.headers['x-user-id'];
+        if (!recruiterId) {
+            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+        }
+        const User = require('../models/User');
+        const recruiter = await User.findOne({ uid: recruiterId });
+        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
+            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+        }
+
+        if (recruiter.role === 'recruiter') {
+            const Transaction = require('../models/Transaction');
+            const paidTransactions = await Transaction.countDocuments({
+                userId: recruiter._id,
+                status: 'paid'
+            });
+
+            const shouldBePro = paidTransactions > 0;
+            if (recruiter.isPro !== shouldBePro || (shouldBePro && recruiter.hiringPattern !== "Premium Recruiter") || (!shouldBePro && recruiter.hiringPattern === "Premium Recruiter")) {
+                recruiter.isPro = shouldBePro;
+                recruiter.hiringPattern = shouldBePro ? "Premium Recruiter" : "";
+                await recruiter.save();
+            }
+
+            if (!shouldBePro) {
+                return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+            }
+        }
+
         if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
             return res.status(400).json({ message: 'Invalid application ID' });
         }

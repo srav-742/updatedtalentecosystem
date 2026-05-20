@@ -50,6 +50,23 @@ const getUserProfile = async (req, res) => {
         }
         // ──────────────────────────────
 
+        // ─── DYNAMIC SELF-HEALING RECRUITER STATUS ───
+        if (user.role === 'recruiter') {
+            const Transaction = require('../models/Transaction');
+            const paidTransactions = await Transaction.countDocuments({
+                userId: user._id,
+                status: 'paid'
+            });
+            const shouldBePro = paidTransactions > 0;
+            if (user.isPro !== shouldBePro || (shouldBePro && user.hiringPattern !== "Premium Recruiter") || (!shouldBePro && user.hiringPattern === "Premium Recruiter")) {
+                user.isPro = shouldBePro;
+                user.hiringPattern = shouldBePro ? "Premium Recruiter" : "";
+                await user.save();
+            }
+        }
+        // ─────────────────────────────────────────────
+
+
         const resumeProfile = await ResumeProfile.findOne({ userId: user.uid || String(user._id) }).lean();
         const mergedUser = user.toObject();
 
@@ -89,6 +106,8 @@ const updateUserProfile = async (req, res) => {
         const { userId } = req.params;
         const updateData = req.body;
         delete updateData._id;
+        delete updateData.isPro;
+        delete updateData.hiringPattern;
         let query = {};
         if (mongoose.Types.ObjectId.isValid(userId)) {
             query = { _id: userId };

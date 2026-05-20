@@ -44,6 +44,7 @@ const userSchema = new mongoose.Schema({
     githubUrl: String,
     linkedinUrl: String,
     hiringPattern: { type: String, default: "" },
+    isPro: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model('User', userSchema);

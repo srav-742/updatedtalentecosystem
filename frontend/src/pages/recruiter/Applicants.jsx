@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles, XCircle } from 'lucide-react';
 import axios from 'axios';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
 import TeamFitBadge from '../../components/TeamFitBadge';
 
 const Applicants = () => {
+    const navigate = useNavigate();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    const [isPro, setIsPro] = useState(() => {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [applicants, setApplicants] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -37,6 +42,20 @@ const Applicants = () => {
             setLoading(true);
             try {
                 const userId = user.uid || user._id || user.id;
+                
+                // Fetch fresh recruiter profile to check isPro status
+                try {
+                    const profileRes = await axios.get(`${API_URL}/profile/${userId}`);
+                    if (profileRes.data) {
+                        const isPremium = profileRes.data.hiringPattern === "Premium Recruiter" || profileRes.data.isPro === true;
+                        setIsPro(isPremium);
+                        const updatedUser = { ...user, ...profileRes.data, isPro: isPremium };
+                        localStorage.setItem('user', JSON.stringify(updatedUser));
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch fresh recruiter profile:", err);
+                }
+
                 const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
                 let mapped = res.data.map(app => ({
                     id: app._id,
@@ -101,12 +120,20 @@ const Applicants = () => {
 
     // Handle View Assessment
     const handleViewAssessment = (applicationId) => {
+        if (!isPro) {
+            navigate('/recruiter/upgrade');
+            return;
+        }
         setSelectedApplicationId(applicationId);
         setShowAssessmentDetail(true);
     };
 
     // Handle View Interview
     const handleViewInterview = (applicationId) => {
+        if (!isPro) {
+            navigate('/recruiter/upgrade');
+            return;
+        }
         setSelectedInterviewApplicationId(applicationId);
         setShowInterviewDetail(true);
     };

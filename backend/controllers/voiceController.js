@@ -7,10 +7,25 @@ const uploadAudio = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No audio file uploaded" });
         const audioPath = path.resolve(req.file.path);
-        console.log(`[STT] Processing: ${audioPath}`);
+        const localTranscript = req.body?.localTranscript || "";
+        console.log(`[STT] Processing: ${audioPath}. Local transcript: "${localTranscript}"`);
 
-        const transcript = await transcriptionService.transcribeAudio(audioPath);
-        console.log(`[STT] Result: ${transcript}`);
+        let transcript = await transcriptionService.transcribeAudio(audioPath);
+        console.log(`[STT] Whisper Result: "${transcript}"`);
+
+        // Check if Whisper result is a hallucination or empty, and we have a local transcript
+        const normalizedWhisper = String(transcript || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+        const invalidWhisperPhrases = [
+            "thank you", "e ai", "legend by", "watching", "by subtitle", 
+            "subtitles by", "english subtitles", "you", "e aí",
+            "i am describing my technical experience and relevant skills for this specific role"
+        ];
+        const isWhisperInvalid = !transcript || invalidWhisperPhrases.includes(normalizedWhisper);
+
+        if (isWhisperInvalid && localTranscript && localTranscript.trim().length > 0) {
+            console.log(`[STT] Whisper returned invalid/empty. Falling back to local transcript: "${localTranscript}"`);
+            transcript = localTranscript.trim();
+        }
 
         // Cleanup only if NOT in private_storage (regular uploads)
         if (!audioPath.includes('private_storage')) {
