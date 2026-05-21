@@ -17,7 +17,7 @@ const {
 
 // In-memory session store
 const interviewSessions = new Map();
-const MAX_INTERVIEW_QUESTIONS = 10;
+const MAX_INTERVIEW_QUESTIONS = 15;
 
 async function saveInterviewSession(sessionId, session) {
     interviewSessions.set(sessionId, session);
@@ -215,7 +215,7 @@ function buildSystemPrompt(roleInfo, job) {
 You are a Lead MLOps Engineer conducting a technical interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus on the intersection of Machine Learning and DevOps. 80% of questions must come from the JD — CI/CD for ML, model monitoring, feature stores, data versioning (DVC), and model deployment (Kubernetes/SageMaker).
+- Focus on the intersection of Machine Learning and DevOps. 95% of questions must come from the JD — CI/CD for ML, model monitoring, feature stores, data versioning (DVC), and model deployment (Kubernetes/SageMaker).
 - DIVERSITY RULE: Use the session context to ensure every user gets a unique starting question. Rotate between: 1. Model Deployment strategies, 2. Data drift & Monitoring, 3. Infrastructure as Code for ML, 4. Scalability & Performance.
 - Evaluate: production mindset, automation skills, understanding of the ML lifecycle, and system reliability.
 
@@ -235,8 +235,8 @@ You are a principal AI/ML engineer and technical interviewer conducting a rigoro
 
 INTERVIEW PHILOSOPHY:
 - You are interviewing for an AI/ML engineering role. Focus primarily on the job description requirements.
-- 80% of your questions MUST be derived directly from the job description — AI/ML frameworks, model architectures, data pipelines, deployment strategies, and domain-specific AI challenges.
-- 20% of your questions should reference the candidate's resume to validate their claimed AI/ML experience.
+- 95% of your questions MUST be derived directly from the job description — AI/ML frameworks, model architectures, data pipelines, deployment strategies, and domain-specific AI challenges.
+- 5% of your questions should reference the candidate's resume to validate their claimed AI/ML experience.
 - Ask about model selection and trade-offs, RAG pipeline design, LLM fine-tuning strategies, prompt engineering techniques, vector database architecture, MLOps practices, and production AI system challenges relevant to the job.
 - Dive into implementation details: tokenization, embedding strategies, chunking strategies, context window management, hallucination mitigation, latency optimisation, and cost management for LLM-based systems.
 - Probe their understanding of evaluation metrics: BLEU, ROUGE, BERTScore, faithfulness, relevance, and human evaluation for generative AI systems.
@@ -259,8 +259,8 @@ You are a senior technical interviewer conducting a professional interview for t
 
 INTERVIEW PHILOSOPHY:
 - You are interviewing for a TECHNICAL role. Focus primarily on the job description requirements.
-- 80% of your questions MUST be derived directly from the job description — responsibilities, required technologies, and domain knowledge.
-- 20% of your questions should reference the candidate's resume to validate their claimed experience relevant to this role.
+- 95% of your questions MUST be derived directly from the job description — responsibilities, required technologies, and domain knowledge.
+- 5% of your questions should reference the candidate's resume to validate their claimed experience relevant to this role.
 - Ask about system design, architecture decisions, debugging approaches, and code-level trade-offs relevant to the job.
 - Dive into implementation details specific to the technologies mentioned in the job description.
 
@@ -282,8 +282,8 @@ INTERVIEW CONDUCT:
 You are a senior sales/business development interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% of questions must come from the JD — target market, sales methodology, pipeline management, revenue targets, and client engagement strategies described.
-- Only 10% of questions should reference the candidate's resume (e.g., verifying past achievements or industry experience).
+- Focus ENTIRELY on the job description. 95% of questions must come from the JD — target market, sales methodology, pipeline management, revenue targets, and client engagement strategies described.
+- Only 5% of questions should reference the candidate's resume (e.g., verifying past achievements or industry experience).
 - Evaluate: negotiation skills, objection handling, relationship building, market knowledge, and commercial acumen.
 - Ask situational and behavioral questions: "Tell me about a time when..." or "How would you handle..."
 `,
@@ -291,8 +291,8 @@ INTERVIEW PHILOSOPHY:
 You are a senior marketing interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — campaigns, channels, metrics, brand strategy, and growth targets described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — campaigns, channels, metrics, brand strategy, and growth targets described.
+- Only 5% from the candidate's resume.
 - Evaluate: strategic thinking, campaign planning, analytics mindset, creativity, and ROI focus.
 - Ask about real scenarios: "Walk me through how you would plan a campaign for..." or "How do you measure success for..."
 `,
@@ -300,48 +300,48 @@ INTERVIEW PHILOSOPHY:
 You are a senior HR/People Operations interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — talent acquisition, employee engagement, compliance, HRIS, and people strategy described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — talent acquisition, employee engagement, compliance, HRIS, and people strategy described.
+- Only 5% from the candidate's resume.
 - Evaluate: empathy, conflict resolution, labor law knowledge, organizational development, and strategic HR thinking.
 `,
         finance: `
 You are a senior finance interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — financial analysis, reporting, compliance, budgeting, and forecasting requirements described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — financial analysis, reporting, compliance, budgeting, and forecasting requirements described.
+- Only 5% from the candidate's resume.
 - Evaluate: analytical rigor, attention to detail, regulatory knowledge, and financial modeling skills.
 `,
         operations: `
 You are a senior operations interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — process optimization, supply chain, vendor management, and KPIs described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — process optimization, supply chain, vendor management, and KPIs described.
+- Only 5% from the candidate's resume.
 - Evaluate: process thinking, problem-solving under constraints, efficiency mindset, and cross-functional collaboration.
 `,
         design: `
 You are a senior design interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — design systems, user research, wireframing, prototyping, and brand guidelines described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — design systems, user research, wireframing, prototyping, and brand guidelines described.
+- Only 5% from the candidate's resume.
 - Evaluate: design thinking, user empathy, visual communication skills, and ability to iterate based on feedback.
 `,
         management: `
 You are a senior interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions from the JD — team leadership, strategic planning, stakeholder management, and KPIs described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions from the JD — team leadership, strategic planning, stakeholder management, and KPIs described.
+- Only 5% from the candidate's resume.
 - Evaluate: leadership style, decision-making under pressure, team building, conflict resolution, and strategic vision.
 `,
         general: `
 You are a senior professional interviewer conducting a formal interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
-- Focus ENTIRELY on the job description. 90% questions must come from the JD — role responsibilities, required qualifications, and key deliverables described.
-- Only 10% from the candidate's resume.
+- Focus ENTIRELY on the job description. 95% questions must come from the JD — role responsibilities, required qualifications, and key deliverables described.
+- Only 5% from the candidate's resume.
 - Evaluate: domain knowledge, problem-solving, communication skills, and cultural fit for the role.
 `
     };
@@ -367,8 +367,8 @@ INTERVIEW CONDUCT:
  */
 function buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions) {
     const { isTech, roleCategory } = roleInfo;
-    const resumeWeight = isTech ? '20%' : '10%';
-    const jdWeight = isTech ? '80%' : '90%';
+    const resumeWeight = '5%';
+    const jdWeight = '95%';
 
     const isAiRole = roleCategory === 'ai_engineer';
 
@@ -414,27 +414,23 @@ RULES:
 function buildNextQuestionPrompt(session, questionNumber) {
     const { roleInfo, specialInstructions, resumeProfile } = session;
     const { isTech, roleCategory } = roleInfo;
-    const resumeWeight = isTech ? '20%' : '10%';
-    const jdWeight = isTech ? '80%' : '90%';
-    const totalQuestions = session.totalQuestions; // ─── CHANGE 5: use session's count
+    const resumeWeight = '5%';
+    const jdWeight = '95%';
+    const totalQuestions = session.totalQuestions;
 
     const isAiRole = roleCategory === 'ai_engineer';
 
-    // ─── OWNERSHIP VETTING SCORE LOGIC: Designated Question Slots ────────────
-    // Questions 8, 9, and 10 are reserved for testing Ownership Mindset
-    const isOwnershipPhase = questionNumber >= 8;
-    // ──────────────────────────────────────────────────────────────────────────
-
     // Resume question slots scale with totalQuestions
-    // For 5 questions: slot 4 (tech/ai) or slot 4 (non-tech)
-    // For 6 questions: slots 4 and 6 (tech/ai) or slot 5 (non-tech)
+    // For 15 questions, exactly 1 question (approx 5%) is resume-based (specifically slot 8)
     let resumeQuestionSlots;
-    if (isTech) {
+    if (totalQuestions === 15) {
+        resumeQuestionSlots = [8];
+    } else if (isTech) {
         resumeQuestionSlots = totalQuestions === 5 ? [4] : [4, 6];
     } else {
         resumeQuestionSlots = totalQuestions === 5 ? [4] : [5];
     }
-    const isResumeQuestion = !isOwnershipPhase && resumeQuestionSlots.includes(questionNumber);
+    const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
 
     const askedQuestions = session.history
         .filter(h => h.role === 'interviewer')
@@ -444,19 +440,7 @@ function buildNextQuestionPrompt(session, questionNumber) {
     const thread = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
 
     let questionDirective;
-    if (isOwnershipPhase) {
-        // ─── OWNERSHIP VETTING SCORE LOGIC: Scenarios ───────────────────────────
-        questionDirective = `
-THIS IS AN OWNERSHIP-MINDSET VETTING QUESTION.
-- The goal is to see if the candidate takes responsibility beyond their basic tasks.
-- Pick ONE of these scenarios to adapt for Question ${questionNumber}:
-  1. (Urgency) Finding a critical production bug at 2 AM.
-  2. (Integrity) Disagreeing with a manager's technical decision for the good of the project.
-  3. (Initiative) Identifying an inefficiency or problem that isn't their "job" and fixing it anyway.
-- Ensure the question is situational: "How would you handle..." or "Tell me about a time when..."
-`;
-        // ──────────────────────────────────────────────────────────────────────────
-    } else if (isResumeQuestion) {
+    if (isResumeQuestion) {
         questionDirective = `
 THIS IS A RESUME-BASED QUESTION (${resumeWeight} allocation).
 - Ask a question that VALIDATES something specific from the candidate's resume.
@@ -875,9 +859,9 @@ router.post('/next', async (req, res) => {
         }
         // ───────────────────────────────────────────
 
-        // End after exactly 10 questions
+        // End after exactly 15 questions
         if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
-            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${session.totalQuestions} questions`);
+            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${MAX_INTERVIEW_QUESTIONS} questions`);
             const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
 
@@ -913,7 +897,7 @@ router.post('/next', async (req, res) => {
             await Application.findOneAndUpdate(
                 { userId: session.userId, jobId: session.jobId },
                 {
-                    interviewScore: Math.round(evaluation.score * 0.50),
+                    interviewScore: Math.round(evaluation.score * 0.70),
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
                     // ─── OWNERSHIP VETTING SCORE LOGIC: Persistence ──────────────────
@@ -970,7 +954,7 @@ router.post('/next', async (req, res) => {
             await deleteInterviewSession(sessionId);
             return res.json({
                 hasNext: false,
-                finalScore: Math.round(evaluation.score * 0.50),
+                finalScore: Math.round(evaluation.score * 0.70),
                 ownershipScore: ownershipScore, // ─── Added for frontend display
                 feedback: evaluation.feedback,
                 answerEvaluation

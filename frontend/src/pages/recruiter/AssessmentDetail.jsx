@@ -97,8 +97,8 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
 
     const { application, job, assessment } = data;
     
-    // Calculate weighted points per question based on the 30-point maximum
-    const pointsPerQuestion = assessment?.totalQuestions > 0 ? (30 / assessment.totalQuestions) : 0;
+    // Calculate weighted points per question based on the 20-point maximum
+    const pointsPerQuestion = assessment?.totalQuestions > 0 ? (20 / assessment.totalQuestions) : 0;
     const formattedPoints = Number.isInteger(pointsPerQuestion) ? pointsPerQuestion : pointsPerQuestion.toFixed(1);
 
     return (

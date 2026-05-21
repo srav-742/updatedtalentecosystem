@@ -64,10 +64,10 @@ const deriveCandidateState = (application) => {
     if (assessmentScore !== null && assessmentScore !== undefined && (interviewScore === null || interviewScore === undefined)) {
         return 'interview_pending';
     }
-    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && status === 'APPLIED') {
+    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 7 && status === 'APPLIED') {
         return 'resume_selected';
     }
-    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && (assessmentScore === null || assessmentScore === undefined)) {
+    if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 7 && (assessmentScore === null || assessmentScore === undefined)) {
         return 'skill_pending';
     }
 

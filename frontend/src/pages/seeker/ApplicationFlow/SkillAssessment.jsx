@@ -115,7 +115,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
             });
         });
 
-        const finalScore = Math.round((correct / questions.length) * 30);
+        const finalScore = Math.round((correct / questions.length) * 20);
 
         try {
             const submitRes = await axios.post(`${API_URL}/submit-assessment`, {
@@ -326,7 +326,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                     <div className="mt-8 grid gap-4 md:grid-cols-3">
                         <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
                             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Score</p>
-                            <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{score}/30</p>
+                            <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{score}/20</p>
                         </div>
                         <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
                             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Questions completed</p>

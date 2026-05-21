@@ -13,7 +13,6 @@ const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
 const MyJobs = lazy(() => import('./pages/recruiter/MyJobs'));
 const Applicants = lazy(() => import('./pages/recruiter/Applicants'));
 const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile'));
-const AdminContentPage = lazy(() => import('./pages/AdminContentPage'));
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
 const TalentSearch = lazy(() => import('./pages/recruiter/TalentSearch'));
@@ -38,7 +37,6 @@ const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftwa
 const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
 const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
-const CandidateTranscriptPage = lazy(() => import('./pages/admin/CandidateTranscriptPage'));
 
 function App() {
   return (
@@ -62,13 +60,6 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/contact" element={<Contact />} />
-
-        {/* Admin Routes */}
-        <Route path="/admin" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
-        <Route path="/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
-        <Route path="/recruiter/admin-content" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
-        <Route path="/recruiter/AdminContentPage" element={<ProtectedRoute role="admin"><AdminContentPage /></ProtectedRoute>} />
-        <Route path="/admin/transcript/:applicationId" element={<ProtectedRoute role="admin"><CandidateTranscriptPage /></ProtectedRoute>} />
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>

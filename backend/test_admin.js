@@ -1,11 +1,17 @@
 require('dotenv').config();
 const connectDB = require('./config/db');
-const User = require('./models/User');
+const Application = require('./models/Application');
 
 async function check() {
     await connectDB();
-    const admins = await User.find({ role: 'admin' });
-    console.log('Admins in DB:', admins.map(a => ({ email: a.email, role: a.role, password: a.password })));
+    const app = await Application.findById('69ff66b4d3b0387884a4ce09');
+    console.log('Application for Piyush Anand:', {
+        resumeMatchPercent: app?.resumeMatchPercent,
+        assessmentScore: app?.assessmentScore,
+        interviewScore: app?.interviewScore,
+        finalScore: app?.finalScore,
+        status: app?.status
+    });
     process.exit(0);
 }
 check();

@@ -147,7 +147,7 @@ const Applicants = () => {
     const getInterviewMeta = (app) => {
         if (app.interviewScore !== null && app.interviewScore !== undefined) {
             return {
-                label: `${app.interviewScore}/50`,
+                label: `${app.interviewScore}/70`,
                 statusText: 'Completed',
                 canView: true,
                 pillClass: 'bg-purple-500/5 border-purple-500/10 text-purple-400'
@@ -317,7 +317,7 @@ const Applicants = () => {
                                         <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
-                                                    {app.resumeScore}/20
+                                                    {app.resumeScore}/10
                                                 </div>
                                                 {app.resumeUrl && (
                                                     <a 
@@ -347,7 +347,7 @@ const Applicants = () => {
                                         <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
                                             <div className="flex items-center justify-center gap-2">
                                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
-                                                    {app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/30` : '-'}
+                                                    {app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}
                                                 </div>
                                                 {app.assessmentScore !== null && app.assessmentScore !== undefined && (
                                                     <button

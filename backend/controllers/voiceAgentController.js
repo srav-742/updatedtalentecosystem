@@ -114,8 +114,8 @@ const analyzeAllCandidates = async (req, res) => {
 
                 if (status === 'HIRED' || status === 'ELIGIBLE') state = 'completed';
                 else if (assessmentScore !== null && assessmentScore !== undefined && (interviewScore === null || interviewScore === undefined)) state = 'interview_pending';
-                else if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && status === 'APPLIED') state = 'resume_selected';
-                else if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 70 && (assessmentScore === null || assessmentScore === undefined)) state = 'skill_pending';
+                else if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 7 && status === 'APPLIED') state = 'resume_selected';
+                else if (resumeMatchPercent !== null && resumeMatchPercent !== undefined && resumeMatchPercent >= 7 && (assessmentScore === null || assessmentScore === undefined)) state = 'skill_pending';
                 else state = 'applied';
             }
 

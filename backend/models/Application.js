@@ -55,7 +55,15 @@ const applicationSchema = new mongoose.Schema({
     },
     status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED'], default: 'APPLIED' },
     resultsVisibleAt: { type: Date },
-    appliedAt: { type: Date, default: Date.now }
+    appliedAt: { type: Date, default: Date.now },
+    recommendationSummary: {
+        keyStrengths: [String],
+        weaknesses: [String],
+        areasToImprove: [String],
+        communication: String,
+        overallSummary: String,
+        calculatedAt: Date
+    }
 });
 
 applicationSchema.set('toJSON', { virtuals: true });

@@ -196,22 +196,22 @@ ${specialInstructions || 'None'}
 Resume Content:
 ${resumeText ? resumeText.substring(0, 10000) : ''}
 
-SCORING ALGORITHM (STRICT - MAX 20 POINTS TOTAL):
-1. Skills Match (0-20 Points):
-   - 0 Missing Skills: 20 points
-   - 1 or 2 Missing Skills: 18 points
-   - exactly 3 Missing Skills: 15 points
-   - more than 3 Missing Skills: 12 points or lower (Failing)
+SCORING ALGORITHM (STRICT - MAX 10 POINTS TOTAL):
+1. Skills Match (0-10 Points):
+   - 0 Missing Skills: 10 points
+   - 1 or 2 Missing Skills: 9 points
+   - exactly 3 Missing Skills: 7 points
+   - more than 3 Missing Skills: 6 points or lower (Failing)
 
 2. Experience Penalty:
-   - Deduct 1-3 points from the Skills Match if the candidate's years of experience or role progression severely falls short of requirements.
+   - Deduct 1-2 points from the Skills Match if the candidate's years of experience or role progression severely falls short of requirements.
 
 3. Final Match Percentage:
-   - The final 'matchPercentage' MUST be a number between 0 and 20. 
+   - The final 'matchPercentage' MUST be a number between 0 and 10. 
    - NEVER output a number out of 100.
 
 OUTPUT REQUIREMENTS:
-- Provide high-fidelity feedback that explains EXACTLY why the candidate scored this out of 20.
+- Provide high-fidelity feedback that explains EXACTLY why the candidate scored this out of 10.
 - Be critical and professional.
 - Return ONLY valid JSON.
 
@@ -264,15 +264,15 @@ JSON STRUCTURE:
                 });
             }
 
-            let skillsScore = 20;
+            let skillsScore = 10;
             if (missing.length === 0) {
-                skillsScore = 20;
+                skillsScore = 10;
             } else if (missing.length <= 2) {
-                skillsScore = 18;
+                skillsScore = 9;
             } else if (missing.length === 3) {
-                skillsScore = 15;
+                skillsScore = 7;
             } else {
-                skillsScore = Math.max(8, 12 - (missing.length - 3));
+                skillsScore = Math.max(4, 6 - (missing.length - 3));
             }
 
             let experienceYears = 0;
@@ -288,7 +288,7 @@ JSON STRUCTURE:
                 }
             }
 
-            let experienceScore = 18; // Standard heuristic match score
+            let experienceScore = 9; // Standard heuristic match score
 
             const skillsFeedback = matched.length > 0 
                 ? `Extracted matching skills: ${matched.join(', ')}. Missing skills: ${missing.length > 0 ? missing.join(', ') : 'None'}.`
@@ -365,11 +365,11 @@ JSON STRUCTURE:
 
                 // 3. Ensure all required fields exist and are the correct type
                 // CRITICAL FIX: Ensure the scores are strictly bounded
-                analysis.skillsScore = Math.max(0, Math.min(20, Number(analysis.skillsScore) || 0));
-                analysis.experienceScore = Math.max(0, Math.min(20, Number(analysis.experienceScore) || 0));
+                analysis.skillsScore = Math.max(0, Math.min(10, Number(analysis.skillsScore) || 0));
+                analysis.experienceScore = Math.max(0, Math.min(10, Number(analysis.experienceScore) || 0));
 
-                // Force matchPercentage out of 20 (we take the skillsScore as primary, minus any experience penalty if the AI applied one)
-                analysis.matchPercentage = Math.max(0, Math.min(20, Number(analysis.matchPercentage) || analysis.skillsScore));
+                // Force matchPercentage out of 10 (we take the skillsScore as primary, minus any experience penalty if the AI applied one)
+                analysis.matchPercentage = Math.max(0, Math.min(10, Number(analysis.matchPercentage) || analysis.skillsScore));
 
                 analysis.skillsFeedback = String(analysis.skillsFeedback || "Analysis derived from extracted skills.");
                 analysis.experienceFeedback = String(analysis.experienceFeedback || "Analysis derived from extracted experience.");

@@ -34,7 +34,7 @@ async function deeplyAnalyzeDatabase() {
                 categories["Interview Completed / Hired"].push(user.name + ` (${user.email}) | App: ${latest._id}`);
             } else if (assessmentScore != null) {
                 categories["Skill Assessment Complete (Interview Pending)"].push(user.name + ` (${user.email}) | App: ${latest._id}`);
-            } else if (resumeMatchPercent >= 70) {
+            } else if (resumeMatchPercent >= 7) {
                 categories["Resume Selected (Skill Pending)"].push(user.name + ` (${user.email}) | App: ${latest._id}`);
             } else {
                 categories["Applied (Pending Resume Check)"].push(user.name + ` (${user.email}) | App: ${latest._id}`);
