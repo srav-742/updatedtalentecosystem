@@ -38,7 +38,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
                     }
                 ],
                 generationConfig: {
-                    maxOutputTokens: maxTokens,
+                    maxOutputTokens: Math.max(maxTokens, 2048),
                     temperature: temperature,
                     responseMimeType: isJsonMode ? "application/json" : "text/plain"
                 }

@@ -134,16 +134,131 @@ Provide the output ONLY as a JSON object with the following structure:
 
         // Parse JSON safely
         let parsed = null;
+        let rawCleaned = String(rawResponse || '').trim();
+
+        console.log('[RECOMMENDATION] Raw AI Response:', rawCleaned);
+
+        // Remove markdown code blocks if present
+        if (rawCleaned.startsWith('```')) {
+            rawCleaned = rawCleaned.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+        }
+
+        // Extract raw JSON block { ... } if wrapped in conversational text
+        if (!rawCleaned.startsWith('{')) {
+            const firstBrace = rawCleaned.indexOf('{');
+            const lastBrace = rawCleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                rawCleaned = rawCleaned.substring(firstBrace, lastBrace + 1).trim();
+            }
+        }
+
+        // Try standard parsing first
         try {
-            parsed = JSON.parse(rawResponse);
+            parsed = JSON.parse(rawCleaned);
         } catch (_) {
-            const match = rawResponse.match(/\{[\s\S]*\}/);
-            if (match) {
-                try {
-                    parsed = JSON.parse(match[0]);
-                } catch (e) {
-                    console.error('[RECOMMENDATION] Regex parse error:', e);
+            console.warn('[RECOMMENDATION] Direct JSON.parse failed. Attempting robust fixes...');
+            try {
+                let fixedCleaned = rawCleaned;
+                // Simple trailing comma removal: replace , followed by whitespace and } or ]
+                fixedCleaned = fixedCleaned.replace(/,\s*([}\]])/g, '$1');
+                parsed = JSON.parse(fixedCleaned);
+            } catch (e2) {
+                console.warn('[RECOMMENDATION] Robust JSON syntax fixes failed, falling back to delimiter-based parser.');
+            }
+        }
+
+        // Delimiter-based parsing fallback
+        if (!parsed || !parsed.overallSummary) {
+            console.log('[RECOMMENDATION] Standard/fixed parsing failed or missing overallSummary. Utilizing delimiter-based parser...');
+            try {
+                const delimiterParsed = {};
+                const schemaFields = ['keyStrengths', 'weaknesses', 'areasToImprove', 'communication', 'overallSummary'];
+                
+                // Helper to escape regex special characters
+                const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                for (const field of schemaFields) {
+                    // Try to find the field key (case-insensitive, optional quotes/smart quotes)
+                    const keyRegex = new RegExp(`["'“‘]?${escapeRegExp(field)}["'”’]?\\s*:\\s*`, 'i');
+                    const keyMatch = rawCleaned.match(keyRegex);
+                    if (!keyMatch) {
+                        delimiterParsed[field] = field === 'communication' || field === 'overallSummary' ? '' : [];
+                        continue;
+                    }
+
+                    const startIndex = keyMatch.index + keyMatch[0].length;
+                    
+                    // Find where this value ends. It ends when we encounter another field's key,
+                    // or the end of the JSON object (closing brace `}`).
+                    let endIndex = rawCleaned.length;
+                    for (const otherField of schemaFields) {
+                        if (otherField === field) continue;
+                        const otherKeyRegex = new RegExp(`["'“‘]?${escapeRegExp(otherField)}["'”’]?\\s*:\\s*`, 'i');
+                        const otherKeyMatch = rawCleaned.substring(startIndex).match(otherKeyRegex);
+                        if (otherKeyMatch) {
+                            const foundIndex = startIndex + otherKeyMatch.index;
+                            if (foundIndex < endIndex) {
+                                endIndex = foundIndex;
+                            }
+                        }
+                    }
+
+                    // Also limit by the closing brace `}` at the end of the JSON if no other field is found
+                    const closingBraceIdx = rawCleaned.lastIndexOf('}');
+                    if (closingBraceIdx !== -1 && closingBraceIdx > startIndex && closingBraceIdx < endIndex) {
+                        endIndex = closingBraceIdx;
+                    }
+
+                    let rawValue = rawCleaned.substring(startIndex, endIndex).trim();
+
+                    if (field === 'keyStrengths' || field === 'weaknesses' || field === 'areasToImprove') {
+                        // Extract array elements
+                        // Remove leading '[' and trailing ']' if present
+                        rawValue = rawValue.replace(/^\s*\[/, '').replace(/\]\s*,?\s*$/, '').trim();
+                        
+                        // Split by newlines or commas
+                        const lines = rawValue.split(/\n|,/);
+                        const items = [];
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed) continue;
+                            
+                            // Strip leading/trailing quotes, smart quotes, and brackets
+                            let cleanedItem = trimmed
+                                .replace(/^[\["'“‘\s]+/, '')
+                                .replace(/[\]"'”’,\s\n\r;]+$/, '')
+                                .trim();
+                            
+                            // Unescape quotes and slashes
+                            cleanedItem = cleanedItem.replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+                            if (cleanedItem) {
+                                items.push(cleanedItem);
+                            }
+                        }
+                        delimiterParsed[field] = items;
+                    } else {
+                        // Extract string elements
+                        // Remove leading quote if present
+                        let cleanedStr = rawValue.trim();
+                        cleanedStr = cleanedStr.replace(/^["'“‘\s]+/, '').replace(/["'”’,\s\n\r;]+$/, '').trim();
+                        
+                        // Unescape quotes, newlines, and slashes
+                        cleanedStr = cleanedStr
+                            .replace(/\\"/g, '"')
+                            .replace(/\\'/g, "'")
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\\\/g, '\\');
+                        
+                        delimiterParsed[field] = cleanedStr;
+                    }
                 }
+
+                if (delimiterParsed.overallSummary) {
+                    parsed = delimiterParsed;
+                    console.log('[RECOMMENDATION] Successfully parsed AI response via delimiter-based fallback!');
+                }
+            } catch (err) {
+                console.error('[RECOMMENDATION] Delimiter-based fallback parser also failed:', err);
             }
         }
 
