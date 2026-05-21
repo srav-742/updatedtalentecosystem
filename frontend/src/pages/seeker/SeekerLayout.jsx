@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Briefcase, Clock, LayoutDashboard, LogOut, Star, UserCircle, Zap } from 'lucide-react';
+import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap } from 'lucide-react';
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
 
@@ -8,7 +8,6 @@ const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/seeker' },
     { label: 'Browse Jobs', icon: Briefcase, path: '/seeker/jobs' },
     { label: 'My Applications', icon: Clock, path: '/seeker/applications' },
-    { label: 'Elite Community', icon: Star, path: '/seeker/community' },
     { label: 'Profile', icon: UserCircle, path: '/seeker/profile' }
 ];
 
@@ -33,7 +32,7 @@ const SeekerLayout = () => {
                 const profileData = await getUserProfile(uid);
                 if (profileData) {
                     setProfile(profileData);
-                    localStorage.setItem('user', JSON.stringify({ ...user, ...profileData }));
+                    localStorage.setItem('user', JSON.stringify({ ...user, ...profileData, role: user.role }));
                 }
             } catch (error) {
                 console.error('Layout profile fetch failed:', error);

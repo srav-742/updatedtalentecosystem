@@ -101,6 +101,20 @@ const SignupPage = () => {
             // 1. Authenticate (Immediate)
             const googleUser = await signInWithGoogle();
 
+            // 1.5 Check for role mismatch
+            const existingProfile = await getUserProfile(googleUser.uid);
+            if (existingProfile && existingProfile.role) {
+                const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                const targetIsStaff  = role === 'recruiter' || role === 'admin';
+                if (existingIsStaff !== targetIsStaff) {
+                    const friendlyExisting = existingProfile.role === 'seeker' ? 'Candidate' : 'Recruiter / Admin';
+                    throw new Error(
+                        `This email is already registered as a ${existingProfile.role}. ` +
+                        `Please go to the Login page and select "${friendlyExisting}".`
+                    );
+                }
+            }
+
             // 2. Prepare Profile (Optimistic)
             const newProfile = {
                 uid: googleUser.uid,

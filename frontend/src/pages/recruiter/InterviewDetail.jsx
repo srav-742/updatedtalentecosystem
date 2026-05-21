@@ -122,34 +122,34 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                 <h2 className="text-3xl font-black">Interview Details</h2>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-black">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
-                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Overall Score' : 'Interview Status'}</div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-white">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
+                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Overall Score' : 'Interview Status'}</div>
                                 </div>
                                 {/* ─── OWNERSHIP V VETTING SCORE ─── */}
-                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-purple-100">
-                                    <div className="text-3xl font-black text-purple-600">{application.ownershipScore || 0}%</div>
-                                    <div className="text-xs text-purple-800 font-bold uppercase tracking-widest italic">Ownership %</div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/20">
+                                    <div className="text-3xl font-black text-white">{application.ownershipScore || 0}%</div>
+                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest italic">Ownership %</div>
                                 </div>
-                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-black">{hasCompletedInterview ? `${formatMarks(interview.marks)}/10` : '--'}</div>
-                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Average Marks</div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-white">{hasCompletedInterview ? `${formatMarks(interview.marks)}/10` : '--'}</div>
+                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">Average Marks</div>
                                 </div>
-                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-black">{interview.totalQuestions}</div>
-                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">Questions</div>
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-3xl font-black text-white">{interview.totalQuestions}</div>
+                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">Questions</div>
                                 </div>
-                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-sm font-black text-black">
+                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                                    <div className="text-sm font-black text-white">
                                         {new Date(interview.completedAt).toLocaleDateString()}
                                     </div>
-                                    <div className="text-xs text-gray-700 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Completed' : 'Last Update'}</div>
+                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Completed' : 'Last Update'}</div>
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
+                            className="bg-white/15 hover:bg-white/25 rounded-full p-3 transition-colors"
                         >
                             <X className="w-6 h-6" />
                         </button>

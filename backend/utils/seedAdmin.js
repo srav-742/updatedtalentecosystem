@@ -4,13 +4,13 @@ const admin = require('../config/firebase');
 
 const seedAdmin = async () => {
     const adminAccounts = [
-        { email: 'sravyadhadi@gmail.com', name: 'Sravya', password: 'Sravya@123' },
-        { email: 'hemangi@web3today.io', name: 'Hemangi', password: 'hemangi@123' }
+        { email: 'sravyaadmin@gmail.com', name: 'Sravya', password: 'Sravya@123', fallbackUid: 'admin-sravya' },
+        { email: 'hemangi@web3today.io', name: 'Hemangi', password: 'hemangi@123', fallbackUid: 'admin-hemangi' }
     ];
 
     for (const account of adminAccounts) {
         try {
-            const { email: adminEmail, password: adminPassword, name: adminName } = account;
+            const { email: adminEmail, password: adminPassword, name: adminName, fallbackUid: adminFallbackUid } = account;
 
             // 1. Firebase Check & Create/Update (Primary Authority)
             let firebaseUid = null;
@@ -50,7 +50,7 @@ const seedAdmin = async () => {
                     email: adminEmail,
                     password: hashedPassword,
                     role: 'admin',
-                    uid: firebaseUid || 'admin-pending-sync'
+                    uid: firebaseUid || adminFallbackUid
                 });
 
                 await adminUser.save();
@@ -59,7 +59,12 @@ const seedAdmin = async () => {
                 // Update existing record to match Firebase and Roles
                 existingAdmin.role = 'admin';
                 existingAdmin.password = hashedPassword;
-                if (firebaseUid) existingAdmin.uid = firebaseUid;
+                // Update UID: use Firebase UID if available, else use stable fallback (never set to pending-sync)
+                if (firebaseUid) {
+                    existingAdmin.uid = firebaseUid;
+                } else if (!existingAdmin.uid || existingAdmin.uid === 'admin-pending-sync') {
+                    existingAdmin.uid = adminFallbackUid;
+                }
                 await existingAdmin.save();
                 console.log(`[SEED] Synced Admin record for: ${adminEmail}`);
             }

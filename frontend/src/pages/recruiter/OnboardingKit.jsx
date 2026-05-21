@@ -35,6 +35,14 @@ const OnboardingKit = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const renderInlineMarkdown = (text) => {
+        if (!text.includes('**')) return text;
+        const parts = text.split('**');
+        return parts.map((p, i) => 
+            i % 2 === 1 ? <strong key={i} className="font-black text-blue-700 bg-blue-50 px-1 rounded">{p}</strong> : p
+        );
+    };
+
     const renderPreview = () => {
         let content = activeTemplate.content;
         const placeholders = activeTemplate.fields;
@@ -49,42 +57,72 @@ const OnboardingKit = () => {
 
         // Simple Markdown-ish to HTML conversion for preview
         return content.split('\n').map((line, idx) => {
-            if (line.startsWith('# ')) return <h1 key={idx} className="text-3xl font-black uppercase mb-6 text-black border-b-2 border-black pb-2">{line.replace('# ', '')}</h1>;
-            if (line.startsWith('### ')) return <h3 key={idx} className="text-lg font-bold mt-6 mb-2 text-black">{line.replace('### ', '')}</h3>;
-            if (line.startsWith('**')) {
-                const parts = line.split('**');
-                return <p key={idx} className="mb-4 text-gray-800">{parts.map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)}</p>;
-            }
-            if (line.startsWith('* ')) return <li key={idx} className="ml-4 mb-2 text-gray-800 list-disc">{line.replace('* ', '')}</li>;
+            if (line.startsWith('# ')) return <h1 key={idx} className="text-3xl font-black uppercase mb-6 text-black border-b-2 border-black pb-2">{renderInlineMarkdown(line.replace('# ', ''))}</h1>;
+            if (line.startsWith('### ')) return <h3 key={idx} className="text-lg font-bold mt-6 mb-2 text-black">{renderInlineMarkdown(line.replace('### ', ''))}</h3>;
+            if (line.startsWith('* ')) return <li key={idx} className="ml-4 mb-2 text-gray-800 list-disc">{renderInlineMarkdown(line.replace('* ', ''))}</li>;
             if (line.trim() === '') return <div key={idx} className="h-4" />;
-            return <p key={idx} className="mb-4 text-gray-800 leading-relaxed">{line}</p>;
+            return <p key={idx} className="mb-4 text-gray-800 leading-relaxed">{renderInlineMarkdown(line)}</p>;
         });
     };
 
     const handlePrint = () => {
-        window.print();
+        const printWindow = window.open('', '_blank');
+        let content = activeTemplate.content;
+        
+        activeTemplate.fields.forEach(field => {
+            const val = formData[field] || `[${field.toUpperCase()}]`;
+            content = content.replaceAll(`{{${field}}}`, val);
+        });
+        content = content.replaceAll('{{currentDate}}', new Date().toLocaleDateString());
+        
+        let htmlContent = content.split('\n').map(line => {
+            if (line.startsWith('# ')) return `<h1 style="font-size: 24pt; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 20px; font-weight: 900; color: #000;">${line.replace('# ', '')}</h1>`;
+            if (line.startsWith('### ')) return `<h3 style="font-size: 14pt; font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #000;">${line.replace('### ', '')}</h3>`;
+            
+            let processedLine = line;
+            if (processedLine.includes('**')) {
+                const parts = processedLine.split('**');
+                processedLine = parts.map((p, i) => i % 2 === 1 ? `<strong>${p}</strong>` : p).join('');
+            }
+
+            if (processedLine.startsWith('* ')) return `<li style="margin-left: 20px; margin-bottom: 8px;">${processedLine.replace('* ', '')}</li>`;
+            if (processedLine.trim() === '') return `<div style="height: 16px;"></div>`;
+            return `<p style="margin-bottom: 15px; color: #222; line-height: 1.6;">${processedLine}</p>`;
+        }).join('\n');
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>${activeTemplate.title}</title>
+                <style>
+                    @page { margin: 1in; }
+                    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; }
+                    strong { font-weight: 900; color: #000; }
+                </style>
+            </head>
+            <body>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 1px solid #ddd; padding-bottom: 20px;">
+                    <div style="font-size: 18pt; font-weight: 900; text-transform: uppercase;">${formData.companyName}</div>
+                    <div style="text-align: right; font-size: 9pt; color: #555;">
+                        <strong>OFFICIAL DOCUMENT</strong><br/>
+                        ${activeTemplate.title} Ref #GEN-${Math.floor(Math.random() * 9000) + 1000}
+                    </div>
+                </div>
+                ${htmlContent}
+                <div style="margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 8pt; color: #777; text-align: center;">
+                    Copyright © ${new Date().getFullYear()} ${formData.companyName} | Generated via hire1percent Zero-Admin Suite
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 250);
     };
 
     return (
         <div className="space-y-8 min-h-screen pb-20">
-            <style>
-                {`
-                @media print {
-                    body * { visibility: hidden; }
-                    #print-area, #print-area * { visibility: visible; }
-                    #print-area { 
-                        position: absolute; 
-                        left: 0; 
-                        top: 0; 
-                        width: 100%; 
-                        padding: 40px;
-                        background: white !important;
-                        color: black !important;
-                    }
-                    .no-print { display: none !important; }
-                }
-                `}
-            </style>
+
 
             <header className="no-print">
                 <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Zero Admin <span className="text-blue-500">Kit</span></h1>

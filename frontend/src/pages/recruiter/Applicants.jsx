@@ -6,6 +6,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
+import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 
 const Applicants = () => {
@@ -36,6 +37,10 @@ const Applicants = () => {
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
 
+    // Generated Resume Modal
+    const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
+    const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
+
 
     useEffect(() => {
         const fetchApplicants = async () => {
@@ -49,7 +54,7 @@ const Applicants = () => {
                     if (profileRes.data) {
                         const isPremium = profileRes.data.hiringPattern === "Premium Recruiter" || profileRes.data.isPro === true;
                         setIsPro(isPremium);
-                        const updatedUser = { ...user, ...profileRes.data, isPro: isPremium };
+                        const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
                         localStorage.setItem('user', JSON.stringify(updatedUser));
                     }
                 } catch (err) {
@@ -59,6 +64,7 @@ const Applicants = () => {
                 const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
                 let mapped = res.data.map(app => ({
                     id: app._id,
+                    userId: app.userId,
                     jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
                     name: app.applicantName || app.user?.name || 'Anonymous',
                     email: app.applicantEmail || 'No Email',
@@ -320,11 +326,22 @@ const Applicants = () => {
                                                         rel="noopener noreferrer" 
                                                         onClick={(e) => e.stopPropagation()}
                                                         className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
-                                                        title="View Resume"
+                                                        title="View Original Resume"
                                                     >
                                                         <FileText size={16} />
                                                     </a>
                                                 )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedResumeUserId(app.userId);
+                                                        setShowGeneratedResumeModal(true);
+                                                    }}
+                                                    className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors"
+                                                    title="View AI Parsed Resume"
+                                                >
+                                                    <Eye size={16} />
+                                                </button>
                                             </div>
                                         </td>
                                         <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
@@ -509,6 +526,17 @@ const Applicants = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Generated Resume Modal */}
+            {showGeneratedResumeModal && (
+                <GeneratedResumeModal
+                    userId={selectedResumeUserId}
+                    onClose={() => {
+                        setShowGeneratedResumeModal(false);
+                        setSelectedResumeUserId(null);
+                    }}
+                />
             )}
         </div>
 

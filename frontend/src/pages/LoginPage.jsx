@@ -86,27 +86,29 @@ const LoginPage = () => {
                     throw new Error("User profile not found. Please signup first.");
                 }
 
-                if (profile.role !== role) {
+                // Rule: recruiter and admin share the same email — allow crossing between them.
+                // Only block if the account is seeker trying to use a recruiter/admin login or vice versa.
+                const profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
+                const selectedIsStaff = role === 'recruiter' || role === 'admin';
+                if (profileIsStaff !== selectedIsStaff) {
                     throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
                 }
             }
 
             setMessage({ type: 'success', text: "Login successful!" });
 
-            // Store in local storage
-            localStorage.setItem('user', JSON.stringify(profile));
+            // Store using the SELECTED role (not the DB role) so the session matches what the user chose.
+            // e.g. an admin email logging in as Recruiter should land on /recruiter, not /admin.
+            localStorage.setItem('user', JSON.stringify({ ...profile, role: role }));
 
-            // Navigate to intended page or default dashboard based on profile role
+            // Navigate based on what the user selected, not what the DB says
             const from = location.state?.from?.pathname;
-            
-            // Explicitly handle admin redirect to dashboard
-            if (profile.role === 'admin') {
-                console.log("[LOGIN] Admin detected, redirecting to /admin");
-                navigate('/admin', { replace: true });
-            } else if (from) {
+            if (from) {
                 navigate(from, { replace: true });
+            } else if (role === 'admin') {
+                navigate('/admin', { replace: true });
             } else {
-                navigate(profile.role === 'recruiter' ? '/recruiter' : '/seeker', { replace: true });
+                navigate(role === 'recruiter' ? '/recruiter' : '/seeker', { replace: true });
             }
         } catch (error) {
             console.error("[LOGIN-ERROR]", error);
@@ -133,21 +135,43 @@ const LoginPage = () => {
     const processGoogleUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
-            // 2. Setup a basic profile immediately so the user doesn't wait
+            // Step 1: Check if this Google account already has a profile in the backend.
+            // Rule: recruiter and admin share the same email space (same person can be both).
+            // Only block if the existing role is 'seeker' and they're trying to log in as
+            // recruiter/admin, OR if they're a recruiter/admin trying to log in as 'seeker'.
+            const existingProfile = await getUserProfile(googleUser.uid);
+            if (existingProfile && existingProfile.role) {
+                const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
+                // Mismatch = one is seeker and the other is staff
+                if (existingIsStaff !== targetIsStaff) {
+                    const friendlyExisting = existingProfile.role === 'seeker' ? 'Candidate' : 'Recruiter / Admin';
+                    throw new Error(
+                        `This Google account is registered as a "${existingProfile.role}". ` +
+                        `Please go back and select "${friendlyExisting}" login.`
+                    );
+                }
+            }
+
+            // Step 2: Build the profile — use DB data if available, otherwise build from Google.
+            // IMPORTANT: role: targetRole is placed LAST (after the spread) so it always overrides
+            // any role from the DB. This prevents esbuild duplicate-key issues and ensures the
+            // session role matches what the user selected on the login screen.
+            const baseProfile = existingProfile || {};
             const basicProfile = {
                 uid: googleUser.uid,
                 name: googleUser.displayName,
                 email: googleUser.email,
                 profilePic: googleUser.photoURL,
-                role: targetRole,
-                isBasic: true
+                isBasic: !existingProfile,
+                ...baseProfile,
+                role: targetRole  // single occurrence, placed last to override DB role
             };
 
-            // 3. Store and Navigate IMMEDIATELY for Instant UX
+            // Step 3: Store and navigate immediately
             localStorage.setItem('user', JSON.stringify(basicProfile));
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
-            // Navigate right away
             const from = location.state?.from?.pathname;
             if (from) {
                 navigate(from, { replace: true });
@@ -159,34 +183,30 @@ const LoginPage = () => {
                 navigate('/seeker', { replace: true });
             }
 
-            // 4. Background Sync
-            getUserProfile(googleUser.uid).then(async (profile) => {
-                if (!profile) {
+            // Step 4: If it's a brand-new user, save their profile to the backend
+            if (!existingProfile) {
+                try {
                     await saveUserProfile(googleUser.uid, {
                         ...basicProfile,
                         createdAt: new Date().toISOString()
                     });
-                    try {
-                        await fetch(`${API_URL}/users/sync`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                uid: googleUser.uid,
-                                email: googleUser.email,
-                                name: googleUser.displayName,
-                                profilePic: googleUser.photoURL,
-                                role: targetRole
-                            })
-                        });
-                    } catch (e) { console.error("Backend sync error", e); }
-                } else {
-                    localStorage.setItem('user', JSON.stringify({ ...basicProfile, ...profile }));
-                }
-            }).catch(err => console.warn("Background profile sync delayed:", err.message));
+                    await fetch(`${API_URL}/users/sync`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uid: googleUser.uid,
+                            email: googleUser.email,
+                            name: googleUser.displayName,
+                            profilePic: googleUser.photoURL,
+                            role: targetRole
+                        })
+                    });
+                } catch (e) { console.error("Backend sync error", e); }
+            }
 
         } catch (err) {
             console.error(err);
-            setMessage({ type: 'error', text: "Profile setup failed." });
+            setMessage({ type: 'error', text: err.message || "Profile setup failed." });
         } finally {
             setLoading(false);
         }

@@ -140,6 +140,27 @@ const updateUserProfile = async (req, res) => {
 
 
 
+const getAnalyticsData = async (req, res) => {
+    try {
+        const users = await User.find({}, 'name email role company designation skills phone isPro createdAt');
+        
+        const recruiters = users.filter(u => u.role === 'recruiter');
+        const candidates = users.filter(u => u.role === 'seeker');
+        
+        res.json({
+            recruiters,
+            candidates,
+            stats: {
+                totalRecruiters: recruiters.length,
+                totalCandidates: candidates.length,
+            }
+        });
+    } catch (error) {
+        console.error("[GET-ANALYTICS] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getSampleSeekers = async (req, res) => {
     try {
         const seekers = await User.find({ role: 'seeker' }, 'name skills experience bio profilePic education designation')
@@ -151,4 +172,4 @@ const getSampleSeekers = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, getUserProfile, updateUserProfile, getSampleSeekers };
+module.exports = { getAllUsers, getUserProfile, updateUserProfile, getSampleSeekers, getAnalyticsData };

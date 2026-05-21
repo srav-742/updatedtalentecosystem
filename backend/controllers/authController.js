@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
-const ALLOWED_ADMIN_EMAILS = ['sravyadhadi@gmail.com', 'hemangi@web3today.io'];
+const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
 
 
 const syncUser = async (req, res) => {
@@ -21,6 +21,10 @@ const syncUser = async (req, res) => {
             // Check if someone is trying to sync to admin who shouldn't
             if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
+            }
+            // Check for role mismatch
+            if (role && user.role !== role) {
+                return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
             }
             if (user.uid !== uid) {
                 const oldUid = user.uid;
@@ -77,7 +81,7 @@ const signup = async (req, res) => {
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             console.log(`[AUTH-SIGNUP] User already exists: ${email}`);
-            return res.status(400).json({ message: "User already exists" });
+            return res.status(400).json({ message: `This email is already registered as a ${existingUser.role}. Please log in with that role.` });
         }
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = new User({ name, email, password: hashedPassword, role });
@@ -99,6 +103,11 @@ const login = async (req, res) => {
         console.log(`[AUTH-LOGIN] Start for ${normalizedEmail}`);
         const user = await User.findOne({ email: normalizedEmail, role });
         if (!user) {
+            const existingUserAnyRole = await User.findOne({ email: normalizedEmail });
+            if (existingUserAnyRole) {
+                console.log(`[AUTH-LOGIN] Role mismatch: ${normalizedEmail} tried ${role} but is ${existingUserAnyRole.role}`);
+                return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in with that role.` });
+            }
             console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
         }
@@ -122,6 +131,9 @@ const googleAuth = async (req, res) => {
         if (user) {
             if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
                 return res.status(403).json({ message: "Unauthorized. Admin access is restricted." });
+            }
+            if (role && user.role !== role) {
+                return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
             }
             if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {
                 user.profilePic = profilePic;

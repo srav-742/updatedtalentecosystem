@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, RefreshCw, Layers, Settings, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, LogOut, FileText } from "lucide-react";
+import { Zap, RefreshCw, Layers, Briefcase, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, Loader2, LogOut, FileText, BarChart } from "lucide-react";
 import { getAllContent, generateContent } from "../services/contentService";
 import ContentList from "../components/ContentList";
 import ContentDetail from "../components/ContentDetail";
-import CommunitySettingsModal from "../components/CommunitySettingsModal";
 import axios from "axios";
 import { API_URL, getAuthHeaders } from "../firebase";
 import TranscriptListPanel from "./admin/TranscriptListPanel";
+import AnalyticsPanel from "./admin/AnalyticsPanel";
 
 // ─── Job Approval Panel ──────────────────────────────────────────────────────
 const JobRequestsPanel = () => {
@@ -351,12 +351,11 @@ const JobRequestsPanel = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AdminContentPage = () => {
-    const [activeTab, setActiveTab] = useState("content"); // "content" | "jobs" | "transcripts"
+    const [activeTab, setActiveTab] = useState("content"); // "content" | "jobs" | "transcripts" | "analytics"
     const [content, setContent] = useState([]);
     const [selected, setSelected] = useState(null);
     const [loading, setLoading] = useState(false);
     const [statusMsg, setStatusMsg] = useState("");
-    const [showCommunitySettings, setShowCommunitySettings] = useState(false);
     const navigate = useNavigate();
 
     const handleLogout = () => {
@@ -412,13 +411,21 @@ const AdminContentPage = () => {
                         <h1 className="text-4xl font-semibold tracking-tight text-gray-900">
                             {activeTab === "content"
                                 ? <>Content <span className="text-gray-500">Dashboard</span></>
-                                : <>Job <span className="text-gray-500">Approvals</span></>
+                                : activeTab === "jobs"
+                                ? <>Job <span className="text-gray-500">Approvals</span></>
+                                : activeTab === "analytics"
+                                ? <>Analytics <span className="text-gray-500">Dashboard</span></>
+                                : <>Candidate <span className="text-gray-500">Transcripts</span></>
                             }
                         </h1>
                         <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-500">
                             {activeTab === "content"
                                 ? "Manage AI-generated viral content for multi-channel growth."
-                                : "Review, approve, or reject recruiter job posting requests."
+                                : activeTab === "jobs"
+                                ? "Review, approve, or reject recruiter job posting requests."
+                                : activeTab === "analytics"
+                                ? "Platform statistics, recruiters, and candidates overview."
+                                : "Review candidate interview transcripts."
                             }
                         </p>
                     </div>
@@ -426,13 +433,6 @@ const AdminContentPage = () => {
                     <div className="flex items-center gap-4">
                         {activeTab === "content" && (
                             <>
-                                <button
-                                    onClick={() => setShowCommunitySettings(true)}
-                                    className="rounded-2xl border border-black/10 bg-white p-4 text-gray-600 shadow-sm transition hover:bg-[#faf7f1] hover:text-gray-900"
-                                    title="Community Settings"
-                                >
-                                    <Settings size={20} />
-                                </button>
                                 <button
                                     onClick={handleGenerate}
                                     disabled={loading}
@@ -484,6 +484,15 @@ const AdminContentPage = () => {
                         <FileText size={14} />
                         Candidate Transcripts
                     </button>
+                    <button
+                        onClick={() => setActiveTab("analytics")}
+                        className={`flex items-center gap-2.5 rounded-2xl px-6 py-3 text-xs font-semibold uppercase tracking-[0.22em] transition-all ${activeTab === "analytics"
+                            ? "bg-black text-white shadow-lg"
+                            : "text-gray-500 hover:bg-[#faf7f1] hover:text-gray-900"}`}
+                    >
+                        <BarChart size={14} />
+                        Analytics
+                    </button>
                 </div>
 
                 {/* ── Tab Content ─────────────────────────────────────────── */}
@@ -529,6 +538,18 @@ const AdminContentPage = () => {
                                 <JobRequestsPanel />
                             </div>
                         </motion.div>
+                    ) : activeTab === "analytics" ? (
+                        <motion.div
+                            key="analytics"
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <div className="mx-auto max-w-5xl rounded-[2.5rem] border border-black/10 bg-[#fcfaf6] p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+                                <AnalyticsPanel />
+                            </div>
+                        </motion.div>
                     ) : (
                         <motion.div
                             key="transcripts"
@@ -544,8 +565,6 @@ const AdminContentPage = () => {
                     )}
                 </AnimatePresence>
             </main>
-
-            {showCommunitySettings && <CommunitySettingsModal onClose={() => setShowCommunitySettings(false)} />}
         </div>
     );
 };

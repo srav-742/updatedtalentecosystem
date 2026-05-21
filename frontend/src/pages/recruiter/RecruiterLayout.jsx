@@ -33,17 +33,20 @@ const RecruiterLayout = () => {
             const uid = user.uid || user._id || user.id;
             if (!uid) return;
 
-            // Optional: Only fetch if the cached profile is missing some details
             try {
                 const profileData = await getUserProfile(uid);
                 if (profileData) {
                     setProfile(profileData);
-                    // Sync back to label storage if different
-                    localStorage.setItem('user', JSON.stringify({ ...user, ...profileData }));
+                    // IMPORTANT: Always preserve the session role (set at login time).
+                    // Never let a background DB fetch overwrite the role — if the DB has
+                    // a stale or mismatched role, the user would get silently redirected
+                    // to /seeker when clicking sidebar links like 'Post Job'.
+                    localStorage.setItem('user', JSON.stringify({
+                        ...user,
+                        ...profileData,
+                        role: user.role  // ← pin to login-session role
+                    }));
                 }
-
-
-
             } catch (error) {
                 console.error("Layout profile fetch failed from Firebase:", error);
             }
