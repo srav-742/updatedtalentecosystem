@@ -154,7 +154,7 @@ const MyJobs = () => {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative overflow-hidden"
+                        className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative"
                     >
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full" />
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 relative z-10">
@@ -265,7 +265,7 @@ const MyJobs = () => {
                                                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                                        className="absolute right-0 bottom-full mb-3 w-56 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/10 p-2 shadow-2xl z-50 flex flex-col gap-1"
+                                                        className="absolute right-0 top-full mt-3 w-56 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/10 p-2 shadow-2xl z-50 flex flex-col gap-1"
                                                     >
                                                         <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 mb-1">
                                                             Share Campaign

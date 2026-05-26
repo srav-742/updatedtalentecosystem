@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
     Building2,
@@ -10,7 +10,11 @@ import {
     MapPin,
     Sparkles,
     Wand2,
-    Share2
+    Share2,
+    Mail,
+    Linkedin,
+    Twitter,
+    Copy
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -55,17 +59,49 @@ const JobDetails = () => {
         );
     }
 
-    const handleShare = async () => {
-        const shareUrl = `${window.location.origin}/job/${job._id}`;
-        
+    const [showShareMenu, setShowShareMenu] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showShareMenu && !event.target.closest('.share-container')) {
+                setShowShareMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showShareMenu]);
+
+    const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
+
+    const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(shareUrl);
-            const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareUrl)}`;
-            window.open(whatsappUrl, '_blank');
+            await navigator.clipboard.writeText(getShareUrl());
+            setCopiedLink(true);
+            setTimeout(() => setCopiedLink(false), 2000);
         } catch (error) {
             console.error('Failed to copy link:', error);
-            alert('Failed to copy link.');
         }
+    };
+
+    const handleShareWhatsApp = () => {
+        const text = `Check out this job opportunity: ${job.title} — ${getShareUrl()}`;
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleShareLinkedIn = () => {
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(getShareUrl())}`, '_blank');
+    };
+
+    const handleShareTwitter = () => {
+        const text = `Check out this job opportunity: ${job.title}`;
+        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(getShareUrl())}&text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleShareEmail = () => {
+        const subject = `Job Opportunity: ${job.title}`;
+        const body = `Hi,\n\nCheck out this exciting job opportunity:\n\n${job.title}\nLocation: ${job.location || 'Remote'}\n\nView details and apply here:\n${getShareUrl()}\n\nBest regards`;
+        window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_self');
     };
 
     return (
@@ -78,13 +114,78 @@ const JobDetails = () => {
                     <ChevronLeft size={16} />
                     Back to jobs
                 </button>
-                <button
-                    onClick={handleShare}
-                    className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
-                >
-                    <Share2 size={16} />
-                    Share Job
-                </button>
+                <div className="share-container relative">
+                    <button
+                        onClick={() => setShowShareMenu(!showShareMenu)}
+                        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
+                    >
+                        <Share2 size={16} />
+                        Share Job
+                    </button>
+
+                    <AnimatePresence>
+                        {showShareMenu && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white border border-black/10 p-2 shadow-[0_20px_60px_rgba(15,23,42,0.12)] z-50 flex flex-col gap-1"
+                            >
+                                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 border-b border-black/5 mb-1">
+                                    Share this job
+                                </div>
+
+                                <button
+                                    onClick={handleCopyLink}
+                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-[#fbf8f3] transition-all text-left relative"
+                                >
+                                    <Copy size={16} className="text-gray-400" />
+                                    <span>Copy Link</span>
+                                    {copiedLink && (
+                                        <span className="absolute right-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
+                                            Copied!
+                                        </span>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={handleShareWhatsApp}
+                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-emerald-50 transition-all text-left"
+                                >
+                                    <svg className="w-4 h-4 text-emerald-500 fill-current" viewBox="0 0 24 24">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.114-2.905-6.99C16.558 1.874 14.088.843 11.45.843 6.012.843 1.587 5.263 1.584 10.707c-.001 1.677.447 3.312 1.3 4.747l-.996 3.636 3.727-.977z" />
+                                    </svg>
+                                    <span>WhatsApp</span>
+                                </button>
+
+                                <button
+                                    onClick={handleShareEmail}
+                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-purple-50 transition-all text-left"
+                                >
+                                    <Mail size={16} className="text-purple-500" />
+                                    <span>Email</span>
+                                </button>
+
+                                <button
+                                    onClick={handleShareLinkedIn}
+                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-blue-50 transition-all text-left"
+                                >
+                                    <Linkedin size={16} className="text-blue-600" />
+                                    <span>LinkedIn</span>
+                                </button>
+
+                                <button
+                                    onClick={handleShareTwitter}
+                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-sky-50 transition-all text-left"
+                                >
+                                    <Twitter size={16} className="text-sky-500" />
+                                    <span>Twitter / X</span>
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
             <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
