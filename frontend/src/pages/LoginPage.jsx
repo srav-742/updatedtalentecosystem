@@ -9,7 +9,12 @@ import Navbar from '../components/Navbar';
 const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [role, setRole] = useState(null); // 'recruiter', 'seeker', or 'admin'
+    const [role, setRole] = useState(() => {
+        const fromPath = location.state?.from?.pathname || '';
+        if (fromPath.startsWith('/seeker')) return 'seeker';
+        if (fromPath.startsWith('/recruiter')) return 'recruiter';
+        return null;
+    }); // 'recruiter', 'seeker', or 'admin'
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });

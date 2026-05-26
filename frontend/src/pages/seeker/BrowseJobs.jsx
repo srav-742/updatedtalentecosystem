@@ -42,7 +42,8 @@ const BrowseJobs = () => {
         
         try {
             await navigator.clipboard.writeText(shareUrl);
-            alert('Job link copied to clipboard! You can now paste and share it anywhere, like WhatsApp.');
+            const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareUrl)}`;
+            window.open(whatsappUrl, '_blank');
         } catch (error) {
             console.error('Failed to copy link:', error);
             alert('Failed to copy link.');
