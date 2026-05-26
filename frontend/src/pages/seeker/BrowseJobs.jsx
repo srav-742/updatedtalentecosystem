@@ -40,24 +40,12 @@ const BrowseJobs = () => {
         e.stopPropagation();
         const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
         
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: job.title,
-                    text: `Check out this job: ${job.title}`,
-                    url: shareUrl
-                });
-            } catch (error) {
-                console.error('Error sharing:', error);
-            }
-        } else {
-            try {
-                await navigator.clipboard.writeText(shareUrl);
-                alert('Link copied to clipboard!');
-            } catch (error) {
-                console.error('Failed to copy link:', error);
-                alert('Failed to copy link.');
-            }
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            alert('Job link copied to clipboard! You can now paste and share it anywhere, like WhatsApp.');
+        } catch (error) {
+            console.error('Failed to copy link:', error);
+            alert('Failed to copy link.');
         }
     };
 
