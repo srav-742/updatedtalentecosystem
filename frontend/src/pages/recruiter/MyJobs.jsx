@@ -45,7 +45,7 @@ const MyJobs = () => {
     );
 
     const handleShare = async (job) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/recruiter/applicants?jobId=${job._id}`;
         
         try {
             await navigator.clipboard.writeText(shareUrl);
@@ -209,7 +209,7 @@ const MyJobs = () => {
                                             <button
                                                 onClick={() => handleShare(job)}
                                                 className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-emerald-500/10 transition-all group/btn"
-                                                title="Share Candidate Link"
+                                                title="Share Recruiter Link"
                                             >
                                                 <Share2 size={20} className="text-gray-400 group-hover/btn:text-emerald-400" />
                                             </button>
