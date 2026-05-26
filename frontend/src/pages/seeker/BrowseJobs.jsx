@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3 } from 'lucide-react';
+import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -34,6 +34,32 @@ const BrowseJobs = () => {
             );
         });
     }, [jobs, searchTerm]);
+
+    const handleShare = async (e, job) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: job.title,
+                    text: `Check out this job: ${job.title}`,
+                    url: shareUrl
+                });
+            } catch (error) {
+                console.error('Error sharing:', error);
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('Link copied to clipboard!');
+            } catch (error) {
+                console.error('Failed to copy link:', error);
+                alert('Failed to copy link.');
+            }
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -79,9 +105,18 @@ const BrowseJobs = () => {
                                 <div className="flex h-14 w-14 items-center justify-center rounded-[1.5rem] bg-[#f4efe6] text-gray-700">
                                     <Building2 size={24} />
                                 </div>
-                                <span className="rounded-full border border-black/10 bg-[#f8f4ed] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
-                                    {job.type}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="rounded-full border border-black/10 bg-[#f8f4ed] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
+                                        {job.type}
+                                    </span>
+                                    <button 
+                                        onClick={(e) => handleShare(e, job)}
+                                        className="rounded-full border border-black/10 bg-[#f8f4ed] p-1.5 text-gray-500 hover:bg-black hover:text-white transition-colors"
+                                        title="Share Job"
+                                    >
+                                        <Share2 size={14} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="mt-6">

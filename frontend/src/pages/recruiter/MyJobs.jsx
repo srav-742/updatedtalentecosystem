@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2 } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -43,6 +43,30 @@ const MyJobs = () => {
         (job.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (job.location || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const handleShare = async (job) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: job.title,
+                    text: `Check out this job: ${job.title}`,
+                    url: shareUrl
+                });
+            } catch (error) {
+                console.error('Error sharing:', error);
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('Link copied to clipboard!');
+            } catch (error) {
+                console.error('Failed to copy link:', error);
+                alert('Failed to copy link.');
+            }
+        }
+    };
 
     const getStatusBadge = (job) => {
         if (job.status === 'approved') {
@@ -192,6 +216,15 @@ const MyJobs = () => {
                                         Manage Applicants
                                     </Link>
                                     <div className="flex gap-2">
+                                        {job.status === 'approved' && (
+                                            <button
+                                                onClick={() => handleShare(job)}
+                                                className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-emerald-500/10 transition-all group/btn"
+                                                title="Share Candidate Link"
+                                            >
+                                                <Share2 size={20} className="text-gray-400 group-hover/btn:text-emerald-400" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => navigate(`/recruiter/post-job?edit=${job._id}`)}
                                             className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group/btn"

@@ -9,7 +9,8 @@ import {
     GraduationCap,
     MapPin,
     Sparkles,
-    Wand2
+    Wand2,
+    Share2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -53,15 +54,48 @@ const JobDetails = () => {
         );
     }
 
+    const handleShare = async () => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: job.title,
+                    text: `Check out this job: ${job.title}`,
+                    url: shareUrl
+                });
+            } catch (error) {
+                console.error('Error sharing:', error);
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('Link copied to clipboard!');
+            } catch (error) {
+                console.error('Failed to copy link:', error);
+                alert('Failed to copy link.');
+            }
+        }
+    };
+
     return (
         <div className="space-y-8">
-            <button
-                onClick={() => navigate(-1)}
-                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
-            >
-                <ChevronLeft size={16} />
-                Back to jobs
-            </button>
+            <div className="flex items-center justify-between">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
+                >
+                    <ChevronLeft size={16} />
+                    Back to jobs
+                </button>
+                <button
+                    onClick={handleShare}
+                    className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-[#faf7f1]"
+                >
+                    <Share2 size={16} />
+                    Share Job
+                </button>
+            </div>
 
             <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
                 <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
