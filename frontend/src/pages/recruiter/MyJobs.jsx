@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2 } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -11,6 +11,7 @@ const MyJobs = () => {
     const [loading, setLoading] = useState(true);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [searchTerm, setSearchTerm] = useState('');
+    const [copiedJobId, setCopiedJobId] = useState(null);
 
     const fetchJobs = async () => {
         try {
@@ -36,6 +37,20 @@ const MyJobs = () => {
         } catch (error) {
             console.error('Error deleting job:', error);
             alert('Failed to delete job.');
+        }
+    };
+
+    const handleShare = async (jobId) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${jobId}`;
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setCopiedJobId(jobId);
+            setTimeout(() => setCopiedJobId(null), 2000);
+            const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareUrl)}`;
+            window.open(whatsappUrl, '_blank');
+        } catch (error) {
+            console.error('Failed to copy link:', error);
+            alert('Failed to copy link.');
         }
     };
 
@@ -191,6 +206,18 @@ const MyJobs = () => {
                                         Manage Applicants
                                     </Link>
                                     <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleShare(job._id)}
+                                            className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-teal-500/10 transition-all group/btn relative"
+                                            title="Share job link"
+                                        >
+                                            <Share2 size={20} className="text-gray-400 group-hover/btn:text-teal-400" />
+                                            {copiedJobId === job._id && (
+                                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg bg-teal-500 text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    Copied!
+                                                </span>
+                                            )}
+                                        </button>
                                         <button
                                             onClick={() => navigate(`/recruiter/post-job?edit=${job._id}`)}
                                             className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group/btn"
