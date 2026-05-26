@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2, Mail, Linkedin, Twitter, Copy } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -12,6 +12,17 @@ const MyJobs = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [searchTerm, setSearchTerm] = useState('');
     const [copiedJobId, setCopiedJobId] = useState(null);
+    const [activeShareJobId, setActiveShareJobId] = useState(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (activeShareJobId && !event.target.closest('.share-container')) {
+                setActiveShareJobId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [activeShareJobId]);
 
     const fetchJobs = async () => {
         try {
@@ -40,18 +51,47 @@ const MyJobs = () => {
         }
     };
 
-    const handleShare = async (jobId) => {
+    const toggleShareMenu = (jobId) => {
+        setActiveShareJobId(activeShareJobId === jobId ? null : jobId);
+    };
+
+    const handleCopyLink = async (jobId) => {
         const shareUrl = `${window.location.origin}/seeker/job/${jobId}`;
         try {
             await navigator.clipboard.writeText(shareUrl);
             setCopiedJobId(jobId);
             setTimeout(() => setCopiedJobId(null), 2000);
-            const whatsappUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareUrl)}`;
-            window.open(whatsappUrl, '_blank');
         } catch (error) {
             console.error('Failed to copy link:', error);
-            alert('Failed to copy link.');
         }
+    };
+
+    const handleShareWhatsApp = (job) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const text = `Check out this job posting for ${job.title}: ${shareUrl}`;
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
+    };
+
+    const handleShareLinkedIn = (job) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+        window.open(linkedinUrl, '_blank');
+    };
+
+    const handleShareTwitter = (job) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const text = `We are hiring for ${job.title}! Apply here:`;
+        const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
+        window.open(twitterUrl, '_blank');
+    };
+
+    const handleShareEmail = (job) => {
+        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const subject = `Job Opportunity: ${job.title}`;
+        const body = `Hi,\n\nWe are looking for a ${job.title} in ${job.location}.\n\nView details and apply here:\n${shareUrl}\n\nBest regards,\n${user.name || 'Recruiter'}`;
+        const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(mailtoUrl, '_self');
     };
 
     const filteredJobs = jobs.filter(job =>
@@ -206,18 +246,81 @@ const MyJobs = () => {
                                         Manage Applicants
                                     </Link>
                                     <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleShare(job._id)}
-                                            className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-teal-500/10 transition-all group/btn relative"
-                                            title="Share job link"
-                                        >
-                                            <Share2 size={20} className="text-gray-400 group-hover/btn:text-teal-400" />
-                                            {copiedJobId === job._id && (
-                                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg bg-teal-500 text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                                                    Copied!
-                                                </span>
-                                            )}
-                                        </button>
+                                        <div className="share-container relative">
+                                            <button
+                                                onClick={() => toggleShareMenu(job._id)}
+                                                className={`p-3.5 rounded-2xl border transition-all group/btn relative ${
+                                                    activeShareJobId === job._id 
+                                                        ? 'bg-teal-500/10 border-teal-500/30' 
+                                                        : 'bg-white/5 border-white/5 hover:bg-teal-500/10'
+                                                }`}
+                                                title="Share job link"
+                                            >
+                                                <Share2 size={20} className={activeShareJobId === job._id ? 'text-teal-400' : 'text-gray-400 group-hover/btn:text-teal-400'} />
+                                            </button>
+
+                                            <AnimatePresence>
+                                                {activeShareJobId === job._id && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                        className="absolute right-0 bottom-full mb-3 w-56 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/10 p-2 shadow-2xl z-50 flex flex-col gap-1"
+                                                    >
+                                                        <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 mb-1">
+                                                            Share Campaign
+                                                        </div>
+                                                        
+                                                        <button
+                                                            onClick={() => handleCopyLink(job._id)}
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all text-left relative"
+                                                        >
+                                                            <Copy size={16} className="text-blue-400" />
+                                                            <span>Copy Link</span>
+                                                            {copiedJobId === job._id && (
+                                                                <span className="absolute right-2 px-1.5 py-0.5 rounded bg-teal-500 text-white text-[9px] font-bold uppercase tracking-wider">
+                                                                    Copied!
+                                                                </span>
+                                                            )}
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleShareWhatsApp(job)}
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left"
+                                                        >
+                                                            <svg className="w-4 h-4 text-emerald-400 fill-current" viewBox="0 0 24 24">
+                                                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.114-2.905-6.99C16.558 1.874 14.088.843 11.45.843 6.012.843 1.587 5.263 1.584 10.707c-.001 1.677.447 3.312 1.3 4.747l-.996 3.636 3.727-.977zM17.47 14.8c-.322-.16-.1.9-.3-.54-.16-.32-.64-.515-.96-.68-.32-.16-1.9-.8-3.08-1.87-.92-.82-1.5-1.747-1.72-2.12-.22-.38-.02-.58.17-.77.17-.17.38-.44.57-.66.19-.22.25-.38.38-.63.13-.25.06-.47-.03-.66-.09-.19-.8-1.92-1.1-2.64-.29-.71-.59-.61-.8-.61-.2-.01-.44-.01-.68-.01-.24 0-.64.09-.98.47-.34.37-1.3 1.27-1.3 3.1 0 1.83 1.33 3.6 1.51 3.85.19.25 2.62 4.003 6.35 5.61.89.38 1.58.61 2.12.78.89.28 1.7.24 2.34.14.71-.1 1.47-.61 1.68-1.2.21-.59.21-1.09.15-1.2-.06-.11-.22-.2-.54-.36z" />
+                                                            </svg>
+                                                            <span>WhatsApp</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleShareLinkedIn(job)}
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-blue-500/10 transition-all text-left"
+                                                        >
+                                                            <Linkedin size={16} className="text-blue-400" />
+                                                            <span>LinkedIn</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleShareTwitter(job)}
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-sky-500/10 transition-all text-left"
+                                                        >
+                                                            <Twitter size={16} className="text-sky-400" />
+                                                            <span>Twitter / X</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleShareEmail(job)}
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-purple-500/10 transition-all text-left"
+                                                        >
+                                                            <Mail size={16} className="text-purple-400" />
+                                                            <span>Email</span>
+                                                        </button>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
                                         <button
                                             onClick={() => navigate(`/recruiter/post-job?edit=${job._id}`)}
                                             className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group/btn"
