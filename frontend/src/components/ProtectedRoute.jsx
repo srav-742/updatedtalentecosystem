@@ -48,7 +48,7 @@ const ProtectedRoute = ({ children, role }) => {
 
     if (role && user.role !== role) {
         console.log(`[ProtectedRoute] Role mismatch: Expected ${role}, got ${user.role}. Redirecting...`);
-        const redirectPath = user.role === 'recruiter' ? '/recruiter' : '/seeker';
+        const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker';
         
         // Hard fallback if Navigate seems to be ignored
         if (window.location.pathname.includes('AdminContentPage') && user.role !== 'admin') {

@@ -114,12 +114,12 @@ const LoginPage = () => {
 
             // Navigate based on what the user selected, not what the DB says
             const from = location.state?.from?.pathname;
-            if (from) {
+            if (from && from !== '/recruiter') {
                 navigate(from, { replace: true });
             } else if (role === 'admin') {
                 navigate('/admin', { replace: true });
             } else {
-                navigate(role === 'recruiter' ? '/recruiter' : '/seeker', { replace: true });
+                navigate(role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker', { replace: true });
             }
         } catch (error) {
             console.error("[LOGIN-ERROR]", error);
@@ -184,12 +184,12 @@ const LoginPage = () => {
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
             const from = location.state?.from?.pathname;
-            if (from) {
+            if (from && from !== '/recruiter') {
                 navigate(from, { replace: true });
             } else if (targetRole === 'admin') {
                 navigate('/admin', { replace: true });
             } else if (targetRole === 'recruiter') {
-                navigate('/recruiter', { replace: true });
+                navigate('/recruiter/my-jobs', { replace: true });
             } else {
                 navigate('/seeker', { replace: true });
             }
