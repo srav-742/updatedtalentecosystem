@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
+import Navbar from './components/Navbar';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -60,6 +61,16 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/contact" element={<Contact />} />
+
+        {/* Public Job Details Route — accessible without login */}
+        <Route path="/job/:id" element={
+          <div className="min-h-screen bg-[#f7f4ee]">
+            <Navbar theme="light" />
+            <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
+              <JobDetails />
+            </main>
+          </div>
+        } />
 
         {/* Recruiter Routes */}
         <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>

@@ -20,6 +20,7 @@ const JobDetails = () => {
     const navigate = useNavigate();
     const [job, setJob] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showApplyOptions, setShowApplyOptions] = useState(false);
 
     useEffect(() => {
         const fetchJob = async () => {
@@ -55,7 +56,7 @@ const JobDetails = () => {
     }
 
     const handleShare = async () => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/job/${job._id}`;
         
         try {
             await navigator.clipboard.writeText(shareUrl);
@@ -123,20 +124,32 @@ const JobDetails = () => {
                         </p>
 
                         <div className="mt-6 space-y-3">
-                            <Link
-                                to={`/seeker/apply/${job._id}`}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                            >
-                                <FileUp size={18} />
-                                Upload and analyze resume
-                            </Link>
-                            <Link
-                                to={`/seeker/apply/${job._id}?method=create`}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
-                            >
-                                <Wand2 size={18} />
-                                Create resume
-                            </Link>
+                            {!showApplyOptions ? (
+                                <button
+                                    onClick={() => setShowApplyOptions(true)}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                >
+                                    <Sparkles size={18} />
+                                    Apply
+                                </button>
+                            ) : (
+                                <>
+                                    <Link
+                                        to={`/seeker/apply/${job._id}`}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                    >
+                                        <FileUp size={18} />
+                                        Upload and analyze resume
+                                    </Link>
+                                    <Link
+                                        to={`/seeker/apply/${job._id}?method=create`}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                                    >
+                                        <Wand2 size={18} />
+                                        Create resume
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
