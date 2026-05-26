@@ -273,7 +273,7 @@ const MyJobs = () => {
                                                         
                                                         <button
                                                             onClick={() => handleCopyLink(job._id)}
-                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all text-left relative"
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-all text-left relative"
                                                         >
                                                             <Copy size={16} className="text-blue-400" />
                                                             <span>Copy Link</span>
@@ -286,7 +286,7 @@ const MyJobs = () => {
 
                                                         <button
                                                             onClick={() => handleShareWhatsApp(job)}
-                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left"
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-zinc-100 hover:bg-emerald-500/10 transition-all text-left"
                                                         >
                                                             <svg className="w-4 h-4 text-emerald-400 fill-current" viewBox="0 0 24 24">
                                                                 <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.114-2.905-6.99C16.558 1.874 14.088.843 11.45.843 6.012.843 1.587 5.263 1.584 10.707c-.001 1.677.447 3.312 1.3 4.747l-.996 3.636 3.727-.977zM17.47 14.8c-.322-.16-.1.9-.3-.54-.16-.32-.64-.515-.96-.68-.32-.16-1.9-.8-3.08-1.87-.92-.82-1.5-1.747-1.72-2.12-.22-.38-.02-.58.17-.77.17-.17.38-.44.57-.66.19-.22.25-.38.38-.63.13-.25.06-.47-.03-.66-.09-.19-.8-1.92-1.1-2.64-.29-.71-.59-.61-.8-.61-.2-.01-.44-.01-.68-.01-.24 0-.64.09-.98.47-.34.37-1.3 1.27-1.3 3.1 0 1.83 1.33 3.6 1.51 3.85.19.25 2.62 4.003 6.35 5.61.89.38 1.58.61 2.12.78.89.28 1.7.24 2.34.14.71-.1 1.47-.61 1.68-1.2.21-.59.21-1.09.15-1.2-.06-.11-.22-.2-.54-.36z" />
@@ -296,7 +296,7 @@ const MyJobs = () => {
 
                                                         <button
                                                             onClick={() => handleShareLinkedIn(job)}
-                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-blue-500/10 transition-all text-left"
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-zinc-100 hover:bg-blue-500/10 transition-all text-left"
                                                         >
                                                             <Linkedin size={16} className="text-blue-400" />
                                                             <span>LinkedIn</span>
@@ -304,7 +304,7 @@ const MyJobs = () => {
 
                                                         <button
                                                             onClick={() => handleShareTwitter(job)}
-                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-sky-500/10 transition-all text-left"
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-zinc-100 hover:bg-sky-500/10 transition-all text-left"
                                                         >
                                                             <Twitter size={16} className="text-sky-400" />
                                                             <span>Twitter / X</span>
@@ -312,7 +312,7 @@ const MyJobs = () => {
 
                                                         <button
                                                             onClick={() => handleShareEmail(job)}
-                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-purple-500/10 transition-all text-left"
+                                                            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-zinc-100 hover:bg-purple-500/10 transition-all text-left"
                                                         >
                                                             <Mail size={16} className="text-purple-400" />
                                                             <span>Email</span>
