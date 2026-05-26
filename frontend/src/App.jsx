@@ -38,6 +38,7 @@ const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftwa
 const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
 const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
+const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
 
 function App() {
   return (
@@ -84,6 +85,9 @@ function App() {
           <Route path="ai-search" element={<TalentSearch />} />
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
+
+        {/* Public Seeker Job Details — accessible without login */}
+        <Route path="/seeker/job/:id" element={<PublicJobDetails />} />
 
         {/* Seeker Routes */}
         <Route path="/seeker" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
