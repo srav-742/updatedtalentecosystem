@@ -10,6 +10,12 @@ const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [role, setRole] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        const roleParam = params.get('role');
+        if (roleParam === 'recruiter' || roleParam === 'seeker' || roleParam === 'admin') {
+            return roleParam;
+        }
+        
         const fromPath = location.state?.from?.pathname || '';
         if (fromPath.startsWith('/seeker')) return 'seeker';
         if (fromPath.startsWith('/recruiter')) return 'recruiter';
