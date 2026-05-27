@@ -3,7 +3,7 @@ const openai = require('../config/openai');
 /**
  * Service for OpenAI Text-to-Speech synthesis.
  */
-const generateSpeech = async (text, voice = "alloy") => {
+const generateSpeech = async (text, voice = "onyx") => {
     try {
         if (!process.env.OPENAI_API_KEY) {
             console.warn("[TTS] OPENAI_API_KEY missing. Returning null.");

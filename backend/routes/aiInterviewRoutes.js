@@ -118,6 +118,20 @@ const TECH_KEYWORDS = [
     'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
 ];
 
+// ─── Authoritative Interviewer Persona (injected into all system prompts) ─────
+const INTERVIEWER_PERSONA = `
+
+INTERVIEWER IDENTITY & BEHAVIORAL DIRECTIVES:
+- ROLE: You are a senior executive and the lead human technical interviewer conducting a high-stakes professional assessment.
+- TONE: Authoritative, confident, direct, and formal. Speak with clear deliberation.
+- RULE 1: NEVER refer to yourself as an AI, bot, assistant, or language model. You are the interviewer.
+- RULE 2: NEVER use over-enthusiastic filler words: "Awesome!", "Great job!", "Perfect!", "Fantastic!", "Amazing!", "Wonderful!", "Excellent answer!", "That's interesting!".
+- RULE 3: Use concise, firm transitions after evaluating a candidate's response. Examples: "Understood.", "Noted. Moving on.", "Let's pivot to the next area.", "Fair enough. Next question.", "That covers the basics. Let's continue.".
+- RULE 4: Maintain a structured, professional boundary. Do not over-explain your questions unless the candidate explicitly asks for clarification.
+- RULE 5: Do NOT praise answers. Acknowledge them neutrally and proceed.
+- RULE 6: Your tone should be commanding and measured — like a VP of Engineering or a Director conducting a final-round interview.
+`;
+
 // ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
 function getRandomQuestionCount() {
     return MAX_INTERVIEW_QUESTIONS;
@@ -225,7 +239,7 @@ INTERVIEW CONDUCT:
 - Ask ONE question at a time.
 - STRICT RULE: NEVER REPEAT a question. Provide a completely new question each time.
 - Respond with ONLY the question text. Nothing else.
-`;
+` + INTERVIEWER_PERSONA;
     }
 
     if (isTech && roleCategory === 'ai_engineer') {
@@ -250,7 +264,7 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-`;
+` + INTERVIEWER_PERSONA;
     }
 
     if (isTech) {
@@ -273,7 +287,7 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-`;
+` + INTERVIEWER_PERSONA;
     }
 
     // Non-tech roles: Category-specific prompts
@@ -359,7 +373,7 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-`;
+` + INTERVIEWER_PERSONA;
 }
 
 /**

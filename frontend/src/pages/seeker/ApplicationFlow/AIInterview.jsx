@@ -153,6 +153,19 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             window.speechSynthesis.cancel();
             typeText(textToSpeak);
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            // Select a deep male English voice for authoritative persona
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v =>
+                v.lang.startsWith('en') && v.name.toLowerCase().includes('male')
+            ) || voices.find(v =>
+                v.lang.startsWith('en') && (
+                    v.name.includes('Daniel') || v.name.includes('James') ||
+                    v.name.includes('David') || v.name.includes('Google UK English Male')
+                )
+            ) || voices.find(v => v.lang.startsWith('en'));
+            if (preferredVoice) utterance.voice = preferredVoice;
+            utterance.rate = 0.95;   // slightly slower for deliberate delivery
+            utterance.pitch = 0.85;  // deeper pitch for authority
             utterance.onend = finishQuestionPlayback;
             utterance.onerror = finishQuestionPlayback;
             window.speechSynthesis.speak(utterance);
