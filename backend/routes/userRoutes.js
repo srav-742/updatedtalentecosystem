@@ -8,4 +8,7 @@ router.get('/profile/:userId', userController.getUserProfile);
 router.put('/profile/:userId', userController.updateUserProfile);
 router.get('/sample-seekers', userController.getSampleSeekers);
 
+router.post('/admin/users', userController.addUser);
+router.delete('/admin/users/:userId', userController.deleteUser);
+
 module.exports = router;

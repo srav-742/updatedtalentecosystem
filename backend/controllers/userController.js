@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const ResumeProfile = require('../models/ResumeProfile');
+const Recruiter = require('../models/Recruiter');
+const Candidate = require('../models/Candidate');
 const mongoose = require('mongoose');
 
 
@@ -142,11 +144,66 @@ const updateUserProfile = async (req, res) => {
 
 const getAnalyticsData = async (req, res) => {
     try {
-        const users = await User.find({}, 'name email role company designation skills phone isPro createdAt');
+        const users = await User.find({}, 'name email role company designation skills phone isPro createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
-        const candidates = users.filter(u => u.role === 'seeker');
+        const seekers = users.filter(u => u.role === 'seeker');
         
+        // Fetch ResumeProfiles in one batch for seekers to enrich their location and skills
+        const seekerUids = seekers.map(u => u.uid).filter(Boolean);
+        const seekerIds = seekers.map(u => String(u._id));
+        const resumeProfiles = await ResumeProfile.find({
+            userId: { $in: [...seekerUids, ...seekerIds] }
+        }).lean();
+
+        // Create a fast lookup map
+        const resumeProfileMap = new Map();
+        for (const rp of resumeProfiles) {
+            resumeProfileMap.set(rp.userId, rp);
+        }
+
+        const candidates = [];
+        for (const s of seekers) {
+            const candidateObj = s.toObject();
+            const rp = resumeProfileMap.get(candidateObj.uid) || resumeProfileMap.get(String(candidateObj._id));
+            
+            // Enrich location from ResumeProfile
+            candidateObj.location = rp?.basics?.location || '';
+            
+            // Enrich phone if not present in User
+            candidateObj.phone = candidateObj.phone || rp?.basics?.phone || '';
+
+            // Enrich skills from ResumeProfile if not present or empty in User
+            if (!candidateObj.skills || candidateObj.skills.length === 0) {
+                candidateObj.skills = rp ? [
+                    ...(rp.skills?.programming || []),
+                    ...(rp.skills?.frameworks || []),
+                    ...(rp.skills?.databases || []),
+                    ...(rp.skills?.tools || []),
+                    ...(rp.skills?.soft || [])
+                ] : [];
+            }
+            
+            candidates.push(candidateObj);
+        }
+        
+        // Sync to separate collections (as requested: store recruiters data separately and separate for candidate)
+        for (const r of recruiters) {
+            await Recruiter.findOneAndUpdate({ userId: r._id }, {
+                name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, createdAt: r.createdAt
+            }, { upsert: true });
+        }
+        for (const c of candidates) {
+            await Candidate.findOneAndUpdate({ userId: c._id }, {
+                name: c.name,
+                email: c.email,
+                phone: c.phone,
+                skills: c.skills,
+                location: c.location,
+                createdAt: c.createdAt
+            }, { upsert: true });
+        }
+
         res.json({
             recruiters,
             candidates,
@@ -157,6 +214,48 @@ const getAnalyticsData = async (req, res) => {
         });
     } catch (error) {
         console.error("[GET-ANALYTICS] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const addUser = async (req, res) => {
+    try {
+        const { name, email, role, phone, designation, companyName, skills, location } = req.body;
+        const newUser = new User({
+            name, email, role, phone, designation, company: { name: companyName }, skills, location,
+            uid: new mongoose.Types.ObjectId().toString(), // Generate a fake uid since they are added manually
+        });
+        await newUser.save();
+        
+        if (role === 'recruiter') {
+            await Recruiter.create({
+                userId: newUser._id, name, email, phone, designation, company: { name: companyName }
+            });
+        } else if (role === 'seeker') {
+            await Candidate.create({
+                userId: newUser._id, name, email, phone, skills, location
+            });
+        }
+        
+        res.json(newUser);
+    } catch (error) {
+        console.error("[ADD-USER] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (user) {
+            if (user.role === 'recruiter') await Recruiter.deleteOne({ userId: user._id });
+            if (user.role === 'seeker') await Candidate.deleteOne({ userId: user._id });
+            await User.findByIdAndDelete(userId);
+        }
+        res.json({ message: "User deleted successfully" });
+    } catch (error) {
+        console.error("[DELETE-USER] Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -172,4 +271,4 @@ const getSampleSeekers = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, getUserProfile, updateUserProfile, getSampleSeekers, getAnalyticsData };
+module.exports = { getAllUsers, getUserProfile, updateUserProfile, getSampleSeekers, getAnalyticsData, addUser, deleteUser };

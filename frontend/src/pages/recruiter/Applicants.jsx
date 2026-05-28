@@ -22,6 +22,16 @@ const Applicants = () => {
     const [searchParams] = useSearchParams();
     const targetJobId = searchParams.get('jobId');
 
+    // Filter & Sorting State
+    const [showFilters, setShowFilters] = useState(false);
+    const [filterJob, setFilterJob] = useState('All');
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [filterVideo, setFilterVideo] = useState('All');
+    const [minResumeScore, setMinResumeScore] = useState(0);
+    const [minAssessmentScore, setMinAssessmentScore] = useState(0);
+    const [sortBy, setSortBy] = useState('none');
+    const [sortOrder, setSortOrder] = useState('desc');
+
     // Menu State
     const [activeMenuId, setActiveMenuId] = useState(null);
 
@@ -99,15 +109,50 @@ const Applicants = () => {
         fetchApplicants();
     }, [targetJobId]);
 
-    // Handle Search Filter
-    const filteredApplicants = applicants.filter(app => {
-        const term = searchTerm.toLowerCase();
-        return (
-            app.name.toLowerCase().includes(term) ||
-            app.job.toLowerCase().includes(term) ||
-            app.email.toLowerCase().includes(term)
-        );
-    });
+    // Extract unique jobs from applicants list
+    const uniqueJobs = Array.from(new Set(applicants.map(app => app.job))).filter(Boolean);
+
+    // Handle Filters and Sorting
+    const filteredApplicants = applicants
+        .filter(app => {
+            // 1. Text Search Filter
+            const term = searchTerm.toLowerCase();
+            const matchesSearch = !term ||
+                app.name.toLowerCase().includes(term) ||
+                app.job.toLowerCase().includes(term) ||
+                app.email.toLowerCase().includes(term);
+
+            // 2. Job Filter
+            const matchesJob = filterJob === 'All' || app.job === filterJob;
+
+            // 3. Status Filter
+            const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
+
+            // 4. Video Intro Filter
+            const matchesVideo = filterVideo === 'All' ||
+                (filterVideo === 'Yes' && app.videoIntroUrl) ||
+                (filterVideo === 'No' && !app.videoIntroUrl);
+
+            // 5. Resume Score Filter
+            const matchesResume = app.resumeScore >= minResumeScore;
+
+            // 6. Assessment Score Filter
+            const matchesAssessment = minAssessmentScore === 0 ||
+                (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
+
+            return matchesSearch && matchesJob && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
+        })
+        .sort((a, b) => {
+            if (sortBy === 'none') return 0;
+            
+            let valA = a[sortBy];
+            let valB = b[sortBy];
+            
+            if (valA === null || valA === undefined) valA = -1;
+            if (valB === null || valB === undefined) valB = -1;
+            
+            return sortOrder === 'desc' ? valB - valA : valA - valB;
+        });
 
     // Handle Status Update
     const handleStatusUpdate = async (id, newStatus) => {
@@ -208,8 +253,162 @@ const Applicants = () => {
                             className="pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all w-64 text-sm font-medium"
                         />
                     </div>
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm border transition-all ${
+                            showFilters
+                                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:border-white/20'
+                        }`}
+                    >
+                        <Filter size={16} />
+                        Filters
+                    </button>
                 </div>
             </div>
+
+            {/* Expandable Filter Panel */}
+            {showFilters && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="p-6 rounded-[2rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden"
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* 1. Job Role Dropdown */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Filter by Job Role</label>
+                            <select
+                                value={filterJob}
+                                onChange={(e) => setFilterJob(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl bg-[#1e222b] border border-white/10 focus:border-blue-500/50 outline-none text-sm text-white font-medium cursor-pointer"
+                            >
+                                <option value="All" className="bg-[#1a1d24] text-white">All Jobs</option>
+                                {uniqueJobs.map((job) => (
+                                    <option key={job} value={job} className="bg-[#1a1d24] text-white">
+                                        {job}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 2. Status Dropdown */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Application Status</label>
+                            <select
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl bg-[#1e222b] border border-white/10 focus:border-blue-500/50 outline-none text-sm text-white font-medium cursor-pointer"
+                            >
+                                <option value="All" className="bg-[#1a1d24] text-white">All Statuses</option>
+                                <option value="ELIGIBLE" className="bg-[#1a1d24] text-white">Eligible</option>
+                                <option value="SHORTLISTED" className="bg-[#1a1d24] text-white">Shortlisted</option>
+                                <option value="HIRED" className="bg-[#1a1d24] text-white">Hired</option>
+                                <option value="REJECTED" className="bg-[#1a1d24] text-white">Rejected</option>
+                            </select>
+                        </div>
+
+                        {/* 3. Video Intro Dropdown */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Video Introduction</label>
+                            <select
+                                value={filterVideo}
+                                onChange={(e) => setFilterVideo(e.target.value)}
+                                className="w-full px-4 py-3 rounded-xl bg-[#1e222b] border border-white/10 focus:border-blue-500/50 outline-none text-sm text-white font-medium cursor-pointer"
+                            >
+                                <option value="All" className="bg-[#1a1d24] text-white">All Candidates</option>
+                                <option value="Yes" className="bg-[#1a1d24] text-white">Has Video Introduction</option>
+                                <option value="No" className="bg-[#1a1d24] text-white">No Video Introduction</option>
+                            </select>
+                        </div>
+
+                        {/* 4. Sorting Options */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Sort Candidates</label>
+                            <div className="flex gap-2">
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-[#1e222b] border border-white/10 focus:border-blue-500/50 outline-none text-sm text-white font-medium cursor-pointer"
+                                >
+                                    <option value="none" className="bg-[#1a1d24] text-white">None (Standard)</option>
+                                    <option value="resumeScore" className="bg-[#1a1d24] text-white">Resume Score</option>
+                                    <option value="assessmentScore" className="bg-[#1a1d24] text-white">Assessment Score</option>
+                                    <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
+                                    <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
+                                </select>
+                                {sortBy !== 'none' && (
+                                    <button
+                                        onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                        className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-bold text-gray-300 transition-colors"
+                                        title={sortOrder === 'desc' ? 'Sorting Descending' : 'Sorting Ascending'}
+                                    >
+                                        {sortOrder === 'desc' ? '↓' : '↑'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6 pt-6 border-t border-white/10 items-end">
+                        {/* Minimum Resume Score Slider */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Min Resume Score</label>
+                                <span className="text-xs font-bold text-blue-400">{minResumeScore}/10</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="10"
+                                value={minResumeScore}
+                                onChange={(e) => setMinResumeScore(Number(e.target.value))}
+                                className="w-full accent-blue-500 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                            />
+                        </div>
+
+                        {/* Minimum Assessment Score Slider */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Min Assessment Score</label>
+                                <span className="text-xs font-bold text-orange-400">{minAssessmentScore}/20</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="20"
+                                value={minAssessmentScore}
+                                onChange={(e) => setMinAssessmentScore(Number(e.target.value))}
+                                className="w-full accent-orange-500 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                            />
+                        </div>
+
+                        {/* Reset Filters & Count */}
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="text-xs text-gray-500 font-bold uppercase tracking-wide">
+                                Found: <span className="text-white font-black">{filteredApplicants.length}</span> candidates
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setFilterJob('All');
+                                    setFilterStatus('All');
+                                    setFilterVideo('All');
+                                    setMinResumeScore(0);
+                                    setMinAssessmentScore(0);
+                                    setSortBy('none');
+                                    setSortOrder('desc');
+                                    setSearchTerm('');
+                                }}
+                                className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-bold text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider"
+                            >
+                                Reset Filters
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
 
             <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
                 <div className="min-h-[400px]">

@@ -16,20 +16,24 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import GeneratedResumeModal from './GeneratedResumeModal';
 
 const TalentSearch = () => {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [candidates, setCandidates] = useState([]);
     const [analysis, setAnalysis] = useState(null);
+    const [showResumeModal, setShowResumeModal] = useState(false);
+    const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
 
-    const handleSearch = async (e) => {
+    const handleSearch = async (e, customQuery) => {
         if (e) e.preventDefault();
-        if (!query.trim()) return;
+        const searchQuery = customQuery !== undefined ? customQuery : query;
+        if (!searchQuery.trim()) return;
 
         setLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/ai-search/candidates`, { query });
+            const res = await axios.post(`${API_URL}/ai-search/candidates`, { query: searchQuery });
             setCandidates(res.data.candidates || []);
             setAnalysis(res.data.analysis);
         } catch (err) {
@@ -95,7 +99,10 @@ const TalentSearch = () => {
                         {suggestions.map((s, idx) => (
                             <button
                                 key={idx}
-                                onClick={() => { setQuery(s); }}
+                                onClick={() => { 
+                                    setQuery(s); 
+                                    handleSearch(null, s);
+                                }}
                                 className="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-500 text-sm hover:border-blue-500/30 hover:text-blue-400 hover:bg-blue-500/5 transition-all"
                             >
                                 {s}
@@ -168,7 +175,9 @@ const TalentSearch = () => {
 
                                     <div className="space-y-2 mb-6">
                                         <h3 className="text-xl font-black uppercase tracking-tight text-white group-hover:text-blue-400 transition-colors">{can.name}</h3>
-                                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{can.designation || 'Tech Explorer'}</p>
+                                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                                            { (typeof can.designation === 'string' && can.designation.trim()) ? can.designation : 'Tech Explorer' }
+                                        </p>
                                     </div>
 
                                     <div className="flex flex-wrap gap-2 mb-8">
@@ -183,7 +192,13 @@ const TalentSearch = () => {
                                         {can.bio || "Crafting professional brilliance with every line of code..."}
                                     </p>
 
-                                    <button className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 group-hover:border-blue-600 transition-all flex items-center justify-center gap-2">
+                                    <button 
+                                        onClick={() => {
+                                            setSelectedResumeUserId(can.uid || can._id);
+                                            setShowResumeModal(true);
+                                        }}
+                                        className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 group-hover:border-blue-600 transition-all flex items-center justify-center gap-2"
+                                    >
                                         View Full Profile <ArrowRight size={14} />
                                     </button>
 
@@ -202,6 +217,17 @@ const TalentSearch = () => {
                     </div>
                 )}
             </div>
+
+            {/* Generated Resume Modal */}
+            {showResumeModal && selectedResumeUserId && (
+                <GeneratedResumeModal
+                    userId={selectedResumeUserId}
+                    onClose={() => {
+                        setShowResumeModal(false);
+                        setSelectedResumeUserId(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

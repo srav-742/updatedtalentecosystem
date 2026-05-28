@@ -97,10 +97,91 @@ const searchCandidates = async (req, res) => {
 
         console.log("[AI-SEARCH] Executing Filter:", JSON.stringify(finalFilter));
 
-        const candidates = await User.find(finalFilter)
-            .select('name email profilePic skills designation bio experience githubUrl linkedinUrl')
-            .limit(10)
-            .lean();
+        // Use unified aggregation lookup pipeline to join User and ResumeProfile
+        const candidates = await User.aggregate([
+            { $match: { role: "seeker" } },
+            {
+                $lookup: {
+                    from: "resumeprofiles",
+                    localField: "uid",
+                    foreignField: "userId",
+                    as: "resumeDoc"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$resumeDoc",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    uid: "$uid",
+                    name: { $ifNull: [ "$name", "$resumeDoc.basics.name" ] },
+                    email: { $ifNull: [ "$email", "$resumeDoc.basics.email" ] },
+                    profilePic: "$profilePic",
+                    githubUrl: "$githubUrl",
+                    linkedinUrl: "$linkedinUrl",
+                    role: "$role",
+                    skills: {
+                        $setUnion: [
+                            { $ifNull: [ "$skills", [] ] },
+                            { $ifNull: [ "$resumeDoc.skills.programming", [] ] },
+                            { $ifNull: [ "$resumeDoc.skills.frameworks", [] ] },
+                            { $ifNull: [ "$resumeDoc.skills.databases", [] ] },
+                            { $ifNull: [ "$resumeDoc.skills.tools", [] ] },
+                            { $ifNull: [ "$resumeDoc.skills.soft", [] ] }
+                        ]
+                    },
+                    bio: { $ifNull: [ "$bio", "$resumeDoc.summary", "" ] },
+                    designation: {
+                        $cond: {
+                            if: {
+                                $and: [
+                                    { $eq: [ { $type: "$designation" }, "string" ] },
+                                    { $ne: [ "$designation", "" ] }
+                                ]
+                            },
+                            then: "$designation",
+                            else: {
+                                $ifNull: [
+                                    {
+                                        $let: {
+                                            vars: {
+                                                firstExp: { $arrayElemAt: [ { $ifNull: [ "$resumeDoc.workExperience", [] ] }, 0 ] }
+                                            },
+                                            in: "$$firstExp.position"
+                                        }
+                                    },
+                                    "$resumeDoc.basics.location",
+                                    ""
+                                ]
+                            }
+                        }
+                    },
+                    experience: {
+                        $cond: {
+                            if: { $gt: [ { $size: { $ifNull: [ "$experience", [] ] } }, 0 ] },
+                            then: "$experience",
+                            else: {
+                                $map: {
+                                    input: { $ifNull: [ "$resumeDoc.workExperience", [] ] },
+                                    as: "exp",
+                                    in: {
+                                        company: "$$exp.company",
+                                        role: "$$exp.position",
+                                        duration: { $concat: [ "$$exp.startYear", " - ", { $ifNull: [ "$$exp.endYear", "Present" ] } ] },
+                                        description: "$$exp.description"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            { $match: finalFilter },
+            { $limit: 10 }
+        ]);
 
         res.json({
             candidates,
