@@ -1,15 +1,13 @@
 const axios = require('axios');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const openai = require('../config/openai');
 
-// Initialize Gemini (Fallback)
+// Initialize Gemini (Primary for Interviews)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Log API key status on module load
 console.log('[AI-CLIENT] API Keys loaded:', {
     hasGemini: !!process.env.GEMINI_API_KEY,
-    hasGroq: !!process.env.GROQ_API_KEY,
-    hasOpenAI: !!process.env.OPENAI_API_KEY
+    hasGroq: !!process.env.GROQ_API_KEY
 });
 
 // Direct API implementation as requested
@@ -20,7 +18,7 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
             return null;
         }
 
-        const MODEL = "gemini-flash-latest";
+        const MODEL = "gemini-2.5-flash";
         console.log(`[AI-CLIENT] Attempting Gemini (${MODEL})...`);
 
         const finalPrompt = systemPrompt ? `System: ${systemPrompt}\n\nUser: ${prompt}` : prompt;
@@ -82,55 +80,21 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
     return null;
 };
 
-const callOpenAI = async (prompt, maxTokens = 2000, isJsonMode = false, systemPrompt = null, temperature = 0.9) => {
-    try {
-        if (!process.env.OPENAI_API_KEY) {
-            console.warn("[AI-CLIENT] OpenAI API key not configured");
-            return null;
-        }
-
-        console.log(`[AI-CLIENT] Attempting OpenAI (gpt-4o-mini)...`);
-        
-        const messages = [];
-        if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-        messages.push({ role: "user", content: prompt });
-
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: messages,
-            temperature: temperature,
-            max_tokens: maxTokens,
-            // If the prompt asks for a JSON array, we don't use json_object mode as it requires a specific schema or object root
-            ...(isJsonMode && !prompt.toLowerCase().includes("array") ? { response_format: { type: "json_object" } } : {})
-        });
-
-        let text = response.choices[0].message.content;
-        if (text) {
-            console.log("[AI-CLIENT] OpenAI Success.");
-            return text.trim();
-        }
-    } catch (err) {
-        if (err.message.includes('quota')) {
-            console.warn("[AI-CLIENT] OpenAI Quota Exceeded. Check billing.");
-        } else if (err.message.includes('429')) {
-            console.warn("[AI-CLIENT] OpenAI Rate Limited (429).");
-        } else {
-            console.warn("[AI-CLIENT] OpenAI Error:", err.message);
-        }
-    }
-    return null;
-};
+// OpenAI removed — using Gemini for interviews, Groq for skill/resume
 
 const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, systemPrompt = null, temperature = 0.7) => {
-    // 1. Try Groq (Primary for stability & no quota issues)
+    // 1. Primary: Gemini 2.5 Flash (for interview purpose)
+    const geminiText = await callGemini(prompt, maxTokens, isJsonMode, systemPrompt, temperature);
+    if (geminiText) return geminiText;
+
+    // 2. Fallback: Groq
     try {
         if (process.env.GROQ_API_KEY) {
-            console.log("[AI-CLIENT] Attempting Groq (llama-3.3-70b)...");
+            console.log("[AI-CLIENT] Gemini failed, falling back to Groq (llama-3.3-70b)...");
             const messages = [];
             if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
             messages.push({ role: "user", content: prompt });
 
-            // Dynamic clamp to safely fit prompt + max_tokens under Groq's free-tier TPM limits (6,000 max)
             const groqMaxTokens = Math.min(maxTokens, 2000);
 
             try {
@@ -192,7 +156,6 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
     } catch (groqErr) {
         const msg = groqErr.response?.data?.error?.message || groqErr.message;
         if (msg.includes('Rate limit')) {
-            // Log a clean, one-line rate limit warning
             const retryMatch = msg.match(/try again in ([\d.]+s)/);
             const retryMsg = retryMatch ? ` (Retry in ${retryMatch[1]})` : "";
             console.warn(`[AI-CLIENT] Groq Rate Limited${retryMsg}.`);
@@ -201,20 +164,83 @@ const callInterviewAI = async (prompt, maxTokens = 500, isJsonMode = false, syst
         }
     }
 
-    // 2. Fallback to OpenAI
-    const openAiText = await callOpenAI(prompt, maxTokens, isJsonMode, systemPrompt, temperature);
-    if (openAiText) return openAiText;
-
-    // 3. Fallback to Gemini
-    const geminiText = await callGemini(prompt, maxTokens, isJsonMode, systemPrompt, temperature);
-    if (geminiText) return geminiText;
-
     console.error("[AI-CLIENT] All AI providers failed");
     return null;
 };
 
 const callSkillAI = async (prompt, maxTokens = 2000, temperature = 0.7) => {
-    return await callInterviewAI(prompt, maxTokens, prompt.toLowerCase().includes("json"), null, temperature);
+    // Skill assessment & resume analysis use Groq directly
+    const isJsonMode = prompt.toLowerCase().includes("json");
+    try {
+        if (process.env.GROQ_API_KEY) {
+            console.log("[AI-CLIENT] callSkillAI: Using Groq (llama-3.3-70b)...");
+            const messages = [{ role: "user", content: prompt }];
+            const groqMaxTokens = Math.min(maxTokens, 2000);
+
+            try {
+                const response = await axios.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    {
+                        model: "llama-3.3-70b-versatile",
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: groqMaxTokens,
+                        ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                let text = response.data?.choices?.[0]?.message?.content || null;
+                if (text && text.startsWith('```')) {
+                    text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+                }
+                if (text) {
+                    console.log("[AI-CLIENT] callSkillAI: Groq 70B Success.");
+                    return text;
+                }
+            } catch (groq70bErr) {
+                const msg = groq70bErr.response?.data?.error?.message || groq70bErr.message;
+                console.warn("[AI-CLIENT] callSkillAI: Groq 70B Failed:", msg);
+                console.log("[AI-CLIENT] callSkillAI: Attempting Groq 8B fallback...");
+
+                const response = await axios.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    {
+                        model: "llama-3.1-8b-instant",
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: groqMaxTokens,
+                        ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                let text = response.data?.choices?.[0]?.message?.content || null;
+                if (text && text.startsWith('```')) {
+                    text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+                }
+                if (text) {
+                    console.log("[AI-CLIENT] callSkillAI: Groq 8B Success.");
+                    return text;
+                }
+            }
+        }
+    } catch (groqErr) {
+        const msg = groqErr.response?.data?.error?.message || groqErr.message;
+        console.warn("[AI-CLIENT] callSkillAI: Groq Error:", msg);
+    }
+
+    // Fallback to Gemini if Groq fails entirely
+    console.log("[AI-CLIENT] callSkillAI: Groq failed, falling back to Gemini...");
+    return await callGemini(prompt, maxTokens, isJsonMode, null, temperature);
 };
 
 module.exports = { callInterviewAI, callSkillAI, callGemini };

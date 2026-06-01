@@ -92,8 +92,7 @@ NO extra text, explanations, or markdown.
                 message: "AI service unavailable. Please ensure API keys are configured and try again.",
                 debug: process.env.NODE_ENV === 'development' ? {
                     hasGeminiKey: !!process.env.GEMINI_API_KEY,
-                    hasGroqKey: !!process.env.GROQ_API_KEY,
-                    hasOpenAIKey: !!process.env.OPENAI_API_KEY
+                    hasGroqKey: !!process.env.GROQ_API_KEY
                 } : undefined
             });
         }

@@ -3,19 +3,19 @@ const fs = require('fs');
 const FormData = require('form-data');
 
 /**
- * Service for direct OpenAI Whisper API calls.
+ * Service for Groq Whisper API calls (previously OpenAI Whisper).
  */
 const transcribeAudio = async (filePath) => {
     try {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) throw new Error("OPENAI_API_KEY is not defined");
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("GROQ_API_KEY is not defined");
 
         const formData = new FormData();
         formData.append('file', fs.createReadStream(filePath));
-        formData.append('model', 'whisper-1');
+        formData.append('model', 'whisper-large-v3');
 
         const response = await axios.post(
-            'https://api.openai.com/v1/audio/transcriptions',
+            'https://api.groq.com/openai/v1/audio/transcriptions',
             formData,
             {
                 headers: {

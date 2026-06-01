@@ -2,7 +2,7 @@ const Application = require('../models/Application');
 const User = require('../models/User'); // For inactive candidate case
 const mongoose = require('mongoose');
 const twilio = require('twilio');
-const { callOpenAI, callSkillAI } = require('../utils/aiClients');
+const { callSkillAI } = require('../utils/aiClients');
 
 // Initialize Twilio Client
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -125,7 +125,7 @@ const getStageContext = (name, jobRole, stage) => {
 
 /**
  * 4. DYNAMIC PROMPT SYSTEM (AI Brain)
- * Uses OpenAI to generate the natural opening and response strategy.
+ * Uses Groq AI to generate the natural opening and response strategy.
  */
 const generateDynamicPrompt = async (context) => {
     const { name, jobRole, stage } = context;
