@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown } from 'lucide-react';
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import CreatePasswordModal from '../../components/CreatePasswordModal';
 
 const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/recruiter' },
@@ -163,6 +164,7 @@ const RecruiterLayout = () => {
                     <Outlet />
                 </div>
             </main>
+            <CreatePasswordModal />
         </div>
     );
 };

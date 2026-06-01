@@ -401,5 +401,29 @@ const resetPassword = async (req, res) => {
     }
 };
 
-module.exports = { syncUser, signup, login, googleAuth, forgotPassword, verifyOtp, resetPassword };
+const linkPassword = async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ message: "Password is required" });
+        }
+
+        if (!req.user) {
+            return res.status(401).json({ message: "Unauthorized: User not found in request context" });
+        }
+
+        const user = req.user;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        console.log(`[AUTH-LINK-PASSWORD] Securely synced linked password for user: ${user.email}`);
+        res.json({ message: "Password linked successfully in MongoDB." });
+    } catch (error) {
+        console.error("[AUTH-LINK-PASSWORD] Failure:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { syncUser, signup, login, googleAuth, forgotPassword, verifyOtp, resetPassword, linkPassword };
 

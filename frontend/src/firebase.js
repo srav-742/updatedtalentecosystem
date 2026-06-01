@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
 
 const firebaseConfig = {
@@ -71,6 +71,13 @@ export const signInWithGithub = async () => {
     } catch (error) {
         throw error;
     }
+};
+
+export const linkFirebasePassword = async (email, password) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("No authenticated user found");
+    const credential = EmailAuthProvider.credential(email, password);
+    return await linkWithCredential(user, credential);
 };
 
 // Database Helpers - Redirected to MongoDB Backend

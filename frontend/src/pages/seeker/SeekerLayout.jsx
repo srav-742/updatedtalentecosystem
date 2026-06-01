@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap } from 'lucide-react';
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import CreatePasswordModal from '../../components/CreatePasswordModal';
 
 const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/seeker' },
@@ -163,6 +164,7 @@ const SeekerLayout = () => {
                     <Outlet />
                 </div>
             </main>
+            <CreatePasswordModal />
         </div>
     );
 };
