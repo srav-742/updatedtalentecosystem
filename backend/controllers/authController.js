@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const PasswordResetOtp = require('../models/PasswordResetOtp');
 const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
 
 
@@ -165,16 +166,57 @@ const forgotPassword = async (req, res) => {
             return res.status(400).json({ message: "Email and role are required" });
         }
         const normalizedEmail = email.toLowerCase().trim();
+        
+        // 1. Check local database user profile first
         const user = await User.findOne({ email: normalizedEmail, role });
         if (!user) {
             return res.status(404).json({ message: "No account found with this email and role" });
         }
 
-        // Generate 6-digit OTP
+        // 2. Direct Google users: check if this is a Google OAuth-only account
+        // A: Check local DB (no password, but uid exists)
+        if (!user.password && user.uid) {
+            return res.status(400).json({
+                message: "This account uses Google Sign-In. Please continue with Google to access your account."
+            });
+        }
+
+        // B: Check live Firebase Auth record if available
+        try {
+            const admin = require('../config/firebase');
+            if (admin && admin.apps.length > 0) {
+                const fbUser = await admin.auth().getUserByEmail(normalizedEmail);
+                if (fbUser && fbUser.providerData) {
+                    const providers = fbUser.providerData.map(p => p.providerId);
+                    const hasGoogle = providers.includes('google.com');
+                    const hasPassword = providers.includes('password');
+                    
+                    if (hasGoogle && !hasPassword) {
+                        return res.status(400).json({
+                            message: "This account uses Google Sign-In. Please continue with Google to access your account."
+                        });
+                    }
+                }
+            }
+        } catch (fbErr) {
+            console.log(`[AUTH-FORGOT] Firebase lookup bypassed or user not in Firebase: ${fbErr.message}`);
+        }
+
+        // 3. Generate 6-digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        user.resetPasswordToken = otp;
-        user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 mins expiry
-        await user.save();
+        const hashedOtp = await bcrypt.hash(otp, 10);
+        
+        const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES || '10');
+        const expiresAt = new Date(Date.now() + (expiryMinutes * 60 * 1000));
+
+        // 4. Save hashed OTP to password_reset_otps collection, clean old ones first
+        await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+        await PasswordResetOtp.create({
+            email: normalizedEmail,
+            otp: hashedOtp,
+            expiresAt,
+            verified: false
+        });
 
         console.log(`\n==============================================`);
         console.log(`[AUTH-FORGOT] Generated OTP for ${normalizedEmail}: ${otp}`);
@@ -182,7 +224,6 @@ const forgotPassword = async (req, res) => {
 
         let emailSent = false;
         try {
-            // Check if nodemailer can be dynamically loaded
             const nodemailer = require('nodemailer');
             if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
                 const transporter = nodemailer.createTransport({
@@ -198,14 +239,14 @@ const forgotPassword = async (req, res) => {
                     from: `"Talent Ecosystem Support" <${process.env.SMTP_USER}>`,
                     to: normalizedEmail,
                     subject: "Password Reset Verification Code",
-                    text: `Your password reset verification code is: ${otp}. It will expire in 15 minutes.`,
+                    text: `Your Hire1Percent verification code is: ${otp}. Expires in ${expiryMinutes} minutes.`,
                     html: `<div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #e4e4e7; border-radius: 12px; background: #fff;">
                         <h2 style="color: #0f172a; margin-bottom: 8px;">Password Reset Request</h2>
-                        <p style="color: #64748b; font-size: 14px;">You requested to reset your password on Talent Ecosystem. Please use the following 6-digit verification code:</p>
+                        <p style="color: #64748b; font-size: 14px;">Your Hire1Percent verification code is:</p>
                         <div style="font-size: 32px; font-weight: bold; background: #f1f5f9; padding: 16px; text-align: center; border-radius: 8px; margin: 24px 0; color: #3b82f6; letter-spacing: 6px;">
                             ${otp}
                         </div>
-                        <p style="color: #64748b; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not request this, you can safely ignore this email.</p>
+                        <p style="color: #64748b; font-size: 12px; margin-top: 24px;">Expires in ${expiryMinutes} minutes. If you did not request this, you can safely ignore this email.</p>
                     </div>`
                 });
                 emailSent = true;
@@ -221,8 +262,8 @@ const forgotPassword = async (req, res) => {
                 : "Reset code generated successfully."
         };
 
-        // For local development or when SMTP is not configured, send OTP in the response
-        if (process.env.NODE_ENV !== 'production' || !emailSent) {
+        // For local development, only show plain devOtp when explicitly in development
+        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
             responseData.devOtp = otp;
         }
 
@@ -233,32 +274,110 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-const resetPassword = async (req, res) => {
+const verifyOtp = async (req, res) => {
     try {
-        const { email, role, otp, newPassword } = req.body;
-        if (!email || !role || !otp || !newPassword) {
-            return res.status(400).json({ message: "All fields are required" });
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Email and verification code are required" });
         }
         const normalizedEmail = email.toLowerCase().trim();
-        const user = await User.findOne({
+        
+        // Find active unverified codes
+        const otpRecords = await PasswordResetOtp.find({
             email: normalizedEmail,
-            role,
-            resetPasswordToken: otp,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
+            expiresAt: { $gt: Date.now() },
+            verified: false
+        }).sort({ createdAt: -1 });
 
-        if (!user) {
+        if (otpRecords.length === 0) {
             return res.status(400).json({ message: "Invalid or expired verification code" });
         }
 
-        // Hash new password using bcrypt
+        // Compare OTPs using bcrypt
+        let matchedRecord = null;
+        for (const record of otpRecords) {
+            const isMatch = await bcrypt.compare(otp, record.otp);
+            if (isMatch) {
+                matchedRecord = record;
+                break;
+            }
+        }
+
+        if (!matchedRecord) {
+            return res.status(400).json({ message: "Invalid or expired verification code" });
+        }
+
+        // Mark OTP as verified!
+        matchedRecord.verified = true;
+        await matchedRecord.save();
+
+        res.json({ message: "Verification code verified successfully." });
+    } catch (error) {
+        console.error("[AUTH-VERIFY] Failure:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { email, role, otp, newPassword } = req.body;
+        if (!email || !role || !newPassword) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // 1. Verify OTP record.
+        // If otp is provided directly in request, compare and verify it on the fly (for backwards compatibility)
+        let verifiedOtp = null;
+        if (otp) {
+            const otpRecords = await PasswordResetOtp.find({
+                email: normalizedEmail,
+                expiresAt: { $gt: Date.now() },
+                verified: false
+            }).sort({ createdAt: -1 });
+
+            let matchedRecord = null;
+            for (const record of otpRecords) {
+                const isMatch = await bcrypt.compare(otp, record.otp);
+                if (isMatch) {
+                    matchedRecord = record;
+                    break;
+                }
+            }
+            if (matchedRecord) {
+                matchedRecord.verified = true;
+                await matchedRecord.save();
+                verifiedOtp = matchedRecord;
+            }
+        }
+
+        // Otherwise fallback to searching for a record already verified in Step 3
+        if (!verifiedOtp) {
+            verifiedOtp = await PasswordResetOtp.findOne({
+                email: normalizedEmail,
+                verified: true,
+                updatedAt: { $gt: new Date(Date.now() - 15 * 60 * 1000) } // 15 mins window
+            });
+        }
+
+        if (!verifiedOtp) {
+            return res.status(400).json({ message: "Verification code not verified or session expired. Please verify again." });
+        }
+
+        // 2. Find local user
+        const user = await User.findOne({ email: normalizedEmail, role });
+        if (!user) {
+            return res.status(404).json({ message: "No account found with this email and role" });
+        }
+
+        // 3. Hash and update password in local DB
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
         await user.save();
 
-        // Also update in Firebase Auth if user has a uid
+        // 4. Update in Firebase Auth via Admin SDK if user has a uid
         if (user.uid) {
             try {
                 const admin = require('../config/firebase');
@@ -271,6 +390,9 @@ const resetPassword = async (req, res) => {
             }
         }
 
+        // 5. Clean up all OTP records for this email after successful reset
+        await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+
         console.log(`[AUTH-RESET] Password successfully reset for ${role}: ${normalizedEmail}`);
         res.json({ message: "Password reset successful! Please log in with your new password." });
     } catch (error) {
@@ -279,5 +401,5 @@ const resetPassword = async (req, res) => {
     }
 };
 
-module.exports = { syncUser, signup, login, googleAuth, forgotPassword, resetPassword };
+module.exports = { syncUser, signup, login, googleAuth, forgotPassword, verifyOtp, resetPassword };
 

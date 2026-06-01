@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase } from '../firebase';
 import Navbar from '../components/Navbar';
 
 const LoginPage = () => {
@@ -133,10 +133,16 @@ const LoginPage = () => {
         setForgotMessage({ type: '', text: '' });
 
         try {
+            // Step 3: Verify OTP first
+            await axios.post(`${API_URL}/verify-otp`, {
+                email: forgotEmail,
+                otp
+            });
+
+            // Step 4: Reset password
             const response = await axios.post(`${API_URL}/reset-password`, {
                 email: forgotEmail,
                 role: role,
-                otp,
                 newPassword
             });
             
@@ -199,20 +205,33 @@ const LoginPage = () => {
                             });
                             
                             if (backendRes.data && backendRes.data.user) {
-                                // Password matched! Silently create the Firebase account to migrate them
-                                const newFbUser = await signupWithEmail(formData.email, formData.password);
-                                user = newFbUser.user;
-                                
-                                // Sync new UID to MongoDB to link the old profile
-                                await fetch(`${API_URL}/users/sync`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        uid: user.uid,
-                                        email: formData.email,
-                                        role: role
-                                    })
-                                });
+                                // Password matched in backend! 
+                                // Try to silently create the Firebase account to migrate them
+                                try {
+                                    const newFbUser = await signupWithEmail(formData.email, formData.password);
+                                    user = newFbUser.user;
+                                    
+                                    // Sync new UID to MongoDB to link the old profile
+                                    await fetch(`${API_URL}/users/sync`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            uid: user.uid,
+                                            email: formData.email,
+                                            role: role
+                                        })
+                                    });
+                                } catch (signupErr) {
+                                    // If email is already in use by Google Auth in Firebase, we can't create it here.
+                                    // But since the backend verified the password, we can ALLOW them to login 
+                                    // using the local storage fallback!
+                                    if (signupErr.code === 'auth/email-already-in-use') {
+                                        console.log("Firebase user exists, bypassing Firebase login and using backend session.");
+                                        user = backendRes.data.user; 
+                                    } else {
+                                        throw signupErr;
+                                    }
+                                }
                             } else {
                                 throw error;
                             }
@@ -225,7 +244,8 @@ const LoginPage = () => {
                     }
                 }
 
-                // 2. Fetch Profile Data from Backend
+                // 2. Fetch Profile Data from Backend using UID
+                // For backend-only fallback sessions, user object might already be the mongo document with a 'uid' field
                 profile = await getUserProfile(user.uid);
 
                 if (!profile) {
