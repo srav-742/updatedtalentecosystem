@@ -735,9 +735,11 @@ const LoginPage = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-end">
-                                        <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
-                                    </div>
+                                    {role === 'admin' && (
+                                        <div className="flex items-center justify-end">
+                                            <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
+                                        </div>
+                                    )}
 
                                     <button
                                         type="submit"
