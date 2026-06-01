@@ -38,10 +38,7 @@ export const loginWithEmail = async (email, password) => {
     return res;
 };
 
-export const resetPasswordWithFirebase = async (email) => {
-    const res = await withTimeout(sendPasswordResetEmail(auth, email));
-    return res;
-};
+
 
 export const signInWithGoogle = async () => {
     try {

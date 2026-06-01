@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, resetPasswordWithFirebase } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail } from '../firebase';
 import Navbar from '../components/Navbar';
 
 const LoginPage = () => {
@@ -96,20 +96,21 @@ const LoginPage = () => {
         setDevOtpText('');
 
         try {
-            // Backend OTP flow for all roles
             const response = await axios.post(`${API_URL}/forgot-password`, {
                 email: forgotEmail,
                 role: role
             });
             
-            setForgotMessage({ type: 'success', text: response.data.message });
             if (response.data.devOtp) {
                 setDevOtpText(response.data.devOtp);
             }
+            
+            setForgotMessage({ type: 'success', text: response.data.message || "Verification code sent to your email." });
             setForgotStep(2);
+            
         } catch (error) {
             console.error("[FORGOT-PASSWORD-ERROR]", error);
-            let errMsg = "Failed to request password reset. Please try again.";
+            let errMsg = "Failed to send reset code. Please ensure the email is correct.";
             if (error.response?.data?.message) {
                 errMsg = error.response.data.message;
             } else if (error.message) {
@@ -123,36 +124,35 @@ const LoginPage = () => {
 
     const handleResetPasswordSubmit = async (e) => {
         e.preventDefault();
-        setForgotLoading(true);
-        setForgotMessage({ type: '', text: '' });
-
         if (newPassword !== confirmNewPassword) {
             setForgotMessage({ type: 'error', text: "Passwords do not match." });
-            setForgotLoading(false);
             return;
         }
+
+        setForgotLoading(true);
+        setForgotMessage({ type: '', text: '' });
 
         try {
             const response = await axios.post(`${API_URL}/reset-password`, {
                 email: forgotEmail,
                 role: role,
-                otp: otp,
-                newPassword: newPassword
+                otp,
+                newPassword
             });
-
-            setForgotMessage({ type: 'success', text: response.data.message });
             
-            // Wait 2.5 seconds, then return to login
+            setForgotMessage({ type: 'success', text: response.data.message || "Password reset successfully!" });
+            
+            // Wait 2 seconds, then return to login
             setTimeout(() => {
                 setForgotPasswordMode(false);
                 setFormData({ email: forgotEmail, password: '' });
                 setForgotMessage({ type: '', text: '' });
                 setDevOtpText('');
-            }, 2500);
-
+            }, 2000);
+            
         } catch (error) {
             console.error("[RESET-PASSWORD-ERROR]", error);
-            let errMsg = "Failed to reset password. Please verify the code.";
+            let errMsg = "Failed to reset password. The code might be expired or incorrect.";
             if (error.response?.data?.message) {
                 errMsg = error.response.data.message;
             } else if (error.message) {
@@ -183,9 +183,47 @@ const LoginPage = () => {
                 profile = response.data.user;
                 if (!profile) throw new Error("Invalid response from server.");
             } else {
-                // 1. Firebase Auth Login for others
-                const userCredential = await loginWithEmail(formData.email, formData.password);
-                const user = userCredential.user;
+                let user;
+                try {
+                    // 1. Firebase Auth Login for others
+                    const userCredential = await loginWithEmail(formData.email, formData.password);
+                    user = userCredential.user;
+                } catch (error) {
+                    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+                        // MIGRATION FLOW: Try backend login to check old hashed passwords
+                        try {
+                            const backendRes = await axios.post(`${API_URL}/login`, {
+                                email: formData.email,
+                                password: formData.password,
+                                role: role
+                            });
+                            
+                            if (backendRes.data && backendRes.data.user) {
+                                // Password matched! Silently create the Firebase account to migrate them
+                                const newFbUser = await signupWithEmail(formData.email, formData.password);
+                                user = newFbUser.user;
+                                
+                                // Sync new UID to MongoDB to link the old profile
+                                await fetch(`${API_URL}/users/sync`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        uid: user.uid,
+                                        email: formData.email,
+                                        role: role
+                                    })
+                                });
+                            } else {
+                                throw error;
+                            }
+                        } catch (backendError) {
+                            // If backend login fails, throw original Firebase error
+                            throw error;
+                        }
+                    } else {
+                        throw error; // Other Firebase errors
+                    }
+                }
 
                 // 2. Fetch Profile Data from Backend
                 profile = await getUserProfile(user.uid);
@@ -425,7 +463,7 @@ const LoginPage = () => {
                             className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {forgotLoading ? 'Requesting Code...' : 'Request Verification Code'}
+                            {forgotLoading ? 'Sending Code...' : 'Send Verification Code'}
                         </button>
 
                         <button
@@ -437,51 +475,48 @@ const LoginPage = () => {
                         </button>
                     </form>
                 ) : (
-                    // Step 2
                     <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
                         {devOtpText && (
-                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl text-xs text-center flex flex-col gap-1">
-                                <span className="font-semibold uppercase tracking-wider text-[10px]">Developer Sandbox Mode</span>
-                                <span>Generated OTP: <strong className="text-sm font-mono tracking-wider select-all">{devOtpText}</strong></span>
+                            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-sm rounded-xl mb-4 text-center">
+                                DEV OTP: <span className="font-bold text-yellow-400 tracking-widest">{devOtpText}</span>
                             </div>
                         )}
-
-                        <div className="space-y-3">
-                            <div className="relative group">
-                                <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
-                                <input
-                                    type="text"
-                                    value={otp}
-                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="6-Digit Verification Code"
-                                    required
-                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm tracking-widest font-semibold`}
-                                />
-                            </div>
-
-                            <div className="relative group">
-                                <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
-                                <input
-                                    type="password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="Choose New Password"
-                                    required
-                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
-                                />
-                            </div>
-
-                            <div className="relative group">
-                                <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
-                                <input
-                                    type="password"
-                                    value={confirmNewPassword}
-                                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                                    placeholder="Confirm New Password"
-                                    required
-                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
-                                />
-                            </div>
+                        
+                        <div className="relative group">
+                            <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <input
+                                type="text"
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                                placeholder="6-digit Verification Code"
+                                required
+                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm tracking-widest`}
+                                maxLength={6}
+                            />
+                        </div>
+                        
+                        <div className="relative group">
+                            <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="New Password"
+                                required
+                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                            />
+                        </div>
+                        
+                        <div className="relative group">
+                            <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <input
+                                type="password"
+                                value={confirmNewPassword}
+                                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                placeholder="Confirm New Password"
+                                required
+                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                            />
                         </div>
 
                         <button
@@ -490,15 +525,18 @@ const LoginPage = () => {
                             className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {forgotLoading ? 'Resetting Password...' : 'Reset Password'}
+                            {forgotLoading ? 'Resetting...' : 'Reset Password'}
                         </button>
 
                         <button
                             type="button"
-                            onClick={() => setForgotStep(1)}
+                            onClick={() => {
+                                setForgotStep(1);
+                                setForgotMessage({ type: '', text: '' });
+                            }}
                             className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors"
                         >
-                            Request a new code
+                            Back to Request Code
                         </button>
                     </form>
                 )}
