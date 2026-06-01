@@ -46,7 +46,7 @@ const tts = async (req, res) => {
         const { text, voice = "alloy" } = req.body;
         if (!text) return res.status(400).json({ message: "Text is required" });
 
-        console.log(`[TTS-OPENAI] Generating speech for text: ${text.substring(0, 50)}...`);
+        console.log(`[TTS] Generating speech for text: ${text.substring(0, 50)}...`);
         const audioBuffer = await ttsService.generateSpeech(text, voice);
 
         if (!audioBuffer) {
@@ -57,7 +57,7 @@ const tts = async (req, res) => {
         const audioBase64 = audioBuffer.toString('base64');
         res.json({ success: true, audio: audioBase64 });
     } catch (error) {
-        console.error("[TTS-OPENAI ERROR]:", error.message);
+        console.error("[TTS ERROR]:", error.message);
         res.json({ success: true, audio: null }); // Still allow fallback
     }
 };

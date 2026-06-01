@@ -232,6 +232,53 @@ const submitAssessment = async (req, res) => {
 
         console.log(`[ASSESSMENT] ✅ Submission saved for user ${userId} - Score: ${finalScore}%`);
 
+        // Update/Upsert the Application document
+        let resolvedName;
+        let resolvedEmail;
+        let resolvedPic;
+        const seeker = await User.findOne({ uid: userId });
+        if (seeker) {
+            resolvedName = seeker.name;
+            resolvedEmail = seeker.email;
+            resolvedPic = seeker.profilePic;
+        }
+
+        const appQuery = { jobId: new mongoose.Types.ObjectId(jobId), userId };
+        const existingApp = await Application.findOne(appQuery);
+
+        const appUpdate = {
+            assessmentScore: finalScore,
+            assessmentSubmissionId: submission._id,
+            assessmentAnswers: processedAnswers
+        };
+
+        if (!existingApp) {
+            if (resolvedName) appUpdate.applicantName = resolvedName;
+            if (resolvedEmail) appUpdate.applicantEmail = resolvedEmail;
+            if (resolvedPic) appUpdate.applicantPic = resolvedPic;
+        } else {
+            if (!existingApp.applicantName && resolvedName) appUpdate.applicantName = resolvedName;
+            if (!existingApp.applicantEmail && resolvedEmail) appUpdate.applicantEmail = resolvedEmail;
+            if (!existingApp.applicantPic && resolvedPic) appUpdate.applicantPic = resolvedPic;
+        }
+
+        const application = await Application.findOneAndUpdate(
+            appQuery,
+            { $set: appUpdate },
+            { new: true, upsert: true }
+        ).populate('jobId');
+
+        // Recalculate Application final score
+        const r = application.resumeMatchPercent || 0;
+        const a = application.assessmentScore || 0;
+        const i = application.interviewScore || 0;
+        application.finalScore = r + a + i;
+
+        if (application.finalScore >= 55) {
+            application.status = 'SHORTLISTED';
+        }
+        await application.save();
+
         res.json({
             success: true,
             submissionId: submission._id,

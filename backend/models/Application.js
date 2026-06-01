@@ -56,6 +56,17 @@ const applicationSchema = new mongoose.Schema({
     status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED'], default: 'APPLIED' },
     resultsVisibleAt: { type: Date },
     appliedAt: { type: Date, default: Date.now },
+    assessmentAnswers: [
+        {
+            question: String,
+            questionType: String,
+            skill: String,
+            userAnswer: mongoose.Schema.Types.Mixed,
+            correctAnswer: mongoose.Schema.Types.Mixed,
+            isCorrect: Boolean,
+            score: Number
+        }
+    ],
     recommendationSummary: {
         keyStrengths: [String],
         weaknesses: [String],

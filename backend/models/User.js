@@ -45,6 +45,8 @@ const userSchema = new mongoose.Schema({
     linkedinUrl: String,
     hiringPattern: { type: String, default: "" },
     isPro: { type: Boolean, default: false },
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
 });
 
 module.exports = mongoose.model('User', userSchema);

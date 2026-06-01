@@ -262,8 +262,7 @@ const deleteUser = async (req, res) => {
 
 const getSampleSeekers = async (req, res) => {
     try {
-        const seekers = await User.find({ role: 'seeker' }, 'name skills experience bio profilePic education designation')
-            .limit(6);
+        const seekers = await User.find({ role: 'seeker' }, '-password');
         res.json(seekers);
     } catch (error) {
         console.error("[GET-SAMPLE-SEEKERS] Error:", error);

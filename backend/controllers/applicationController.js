@@ -1,5 +1,6 @@
 const Application = require('../models/Application');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
+const User = require('../models/User');
 const mongoose = require('mongoose');
 const { updateRecruiterPattern } = require('./teamFitController');
 
@@ -11,13 +12,30 @@ const submitApplication = async (req, res) => {
             return res.status(400).json({ message: "Invalid or Missing Job ID" });
         }
         const query = { jobId: new mongoose.Types.ObjectId(jobId), userId: userId };
+
+        // Resolve seeker details from User model if not explicitly provided
+        let resolvedName = applicantName;
+        let resolvedEmail = applicantEmail;
+        let resolvedPic = applicantPic;
+
+        if (!resolvedName || !resolvedEmail) {
+            const seeker = await User.findOne({ uid: userId });
+            if (seeker) {
+                if (!resolvedName) resolvedName = seeker.name;
+                if (!resolvedEmail) resolvedEmail = seeker.email;
+                if (!resolvedPic) resolvedPic = seeker.profilePic;
+            }
+        }
+
         const update = {
             ...updateData,
-            ...query,
-            applicantName,
-            applicantEmail,
-            applicantPic
+            ...query
         };
+
+        if (resolvedName !== undefined) update.applicantName = resolvedName;
+        if (resolvedEmail !== undefined) update.applicantEmail = resolvedEmail;
+        if (resolvedPic !== undefined) update.applicantPic = resolvedPic;
+
         if (!updateData.interviewAnswers || updateData.interviewAnswers.length === 0) {
             delete update.interviewAnswers;
         }

@@ -158,4 +158,126 @@ const googleAuth = async (req, res) => {
     }
 };
 
-module.exports = { syncUser, signup, login, googleAuth };
+const forgotPassword = async (req, res) => {
+    try {
+        const { email, role } = req.body;
+        if (!email || !role) {
+            return res.status(400).json({ message: "Email and role are required" });
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail, role });
+        if (!user) {
+            return res.status(404).json({ message: "No account found with this email and role" });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.resetPasswordToken = otp;
+        user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 mins expiry
+        await user.save();
+
+        console.log(`\n==============================================`);
+        console.log(`[AUTH-FORGOT] Generated OTP for ${normalizedEmail}: ${otp}`);
+        console.log(`==============================================\n`);
+
+        let emailSent = false;
+        try {
+            // Check if nodemailer can be dynamically loaded
+            const nodemailer = require('nodemailer');
+            if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST,
+                    port: parseInt(process.env.SMTP_PORT || '587'),
+                    secure: process.env.SMTP_PORT === '465',
+                    auth: {
+                        user: process.env.SMTP_USER,
+                        pass: process.env.SMTP_PASS
+                    }
+                });
+                await transporter.sendMail({
+                    from: `"Talent Ecosystem Support" <${process.env.SMTP_USER}>`,
+                    to: normalizedEmail,
+                    subject: "Password Reset Verification Code",
+                    text: `Your password reset verification code is: ${otp}. It will expire in 15 minutes.`,
+                    html: `<div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 500px; margin: auto; border: 1px solid #e4e4e7; border-radius: 12px; background: #fff;">
+                        <h2 style="color: #0f172a; margin-bottom: 8px;">Password Reset Request</h2>
+                        <p style="color: #64748b; font-size: 14px;">You requested to reset your password on Talent Ecosystem. Please use the following 6-digit verification code:</p>
+                        <div style="font-size: 32px; font-weight: bold; background: #f1f5f9; padding: 16px; text-align: center; border-radius: 8px; margin: 24px 0; color: #3b82f6; letter-spacing: 6px;">
+                            ${otp}
+                        </div>
+                        <p style="color: #64748b; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not request this, you can safely ignore this email.</p>
+                    </div>`
+                });
+                emailSent = true;
+                console.log(`[AUTH-FORGOT] Email sent successfully to ${normalizedEmail}`);
+            }
+        } catch (mailErr) {
+            console.warn("[AUTH-FORGOT] SMTP mailing skipped or nodemailer not installed:", mailErr.message);
+        }
+
+        const responseData = {
+            message: emailSent 
+                ? "A verification code has been sent to your email." 
+                : "Reset code generated successfully."
+        };
+
+        // For local development or when SMTP is not configured, send OTP in the response
+        if (process.env.NODE_ENV !== 'production' || !emailSent) {
+            responseData.devOtp = otp;
+        }
+
+        res.json(responseData);
+    } catch (error) {
+        console.error("[AUTH-FORGOT] Failure:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { email, role, otp, newPassword } = req.body;
+        if (!email || !role || !otp || !newPassword) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({
+            email: normalizedEmail,
+            role,
+            resetPasswordToken: otp,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "Invalid or expired verification code" });
+        }
+
+        // Hash new password using bcrypt
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        // Also update in Firebase Auth if user has a uid
+        if (user.uid) {
+            try {
+                const admin = require('../config/firebase');
+                if (admin && admin.apps.length > 0) {
+                    await admin.auth().updateUser(user.uid, { password: newPassword });
+                    console.log(`[AUTH-RESET] Firebase password successfully updated for: ${normalizedEmail}`);
+                }
+            } catch (fbErr) {
+                console.warn("[AUTH-RESET] Failed to update Firebase password:", fbErr.message);
+            }
+        }
+
+        console.log(`[AUTH-RESET] Password successfully reset for ${role}: ${normalizedEmail}`);
+        res.json({ message: "Password reset successful! Please log in with your new password." });
+    } catch (error) {
+        console.error("[AUTH-RESET] Failure:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { syncUser, signup, login, googleAuth, forgotPassword, resetPassword };
+

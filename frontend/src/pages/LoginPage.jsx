@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, resetPasswordWithFirebase } from '../firebase';
 import Navbar from '../components/Navbar';
 
 const LoginPage = () => {
@@ -24,6 +24,17 @@ const LoginPage = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Forgot Password States
+    const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [forgotStep, setForgotStep] = useState(1);
+    const [otp, setOtp] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [forgotLoading, setForgotLoading] = useState(false);
+    const [forgotMessage, setForgotMessage] = useState({ type: '', text: '' });
+    const [devOtpText, setDevOtpText] = useState('');
 
     // Handle Redirect Result (for when Popup fails)
     React.useEffect(() => {
@@ -65,6 +76,92 @@ const LoginPage = () => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleForgotPasswordClick = () => {
+        setForgotPasswordMode(true);
+        setForgotStep(1);
+        setForgotEmail(formData.email);
+        setForgotMessage({ type: '', text: '' });
+        setOtp('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setDevOtpText('');
+    };
+
+    const handleForgotRequestSubmit = async (e) => {
+        e.preventDefault();
+        setForgotLoading(true);
+        setForgotMessage({ type: '', text: '' });
+        setDevOtpText('');
+
+        try {
+            // Backend OTP flow for all roles
+            const response = await axios.post(`${API_URL}/forgot-password`, {
+                email: forgotEmail,
+                role: role
+            });
+            
+            setForgotMessage({ type: 'success', text: response.data.message });
+            if (response.data.devOtp) {
+                setDevOtpText(response.data.devOtp);
+            }
+            setForgotStep(2);
+        } catch (error) {
+            console.error("[FORGOT-PASSWORD-ERROR]", error);
+            let errMsg = "Failed to request password reset. Please try again.";
+            if (error.response?.data?.message) {
+                errMsg = error.response.data.message;
+            } else if (error.message) {
+                errMsg = error.message;
+            }
+            setForgotMessage({ type: 'error', text: errMsg });
+        } finally {
+            setForgotLoading(false);
+        }
+    };
+
+    const handleResetPasswordSubmit = async (e) => {
+        e.preventDefault();
+        setForgotLoading(true);
+        setForgotMessage({ type: '', text: '' });
+
+        if (newPassword !== confirmNewPassword) {
+            setForgotMessage({ type: 'error', text: "Passwords do not match." });
+            setForgotLoading(false);
+            return;
+        }
+
+        try {
+            const response = await axios.post(`${API_URL}/reset-password`, {
+                email: forgotEmail,
+                role: role,
+                otp: otp,
+                newPassword: newPassword
+            });
+
+            setForgotMessage({ type: 'success', text: response.data.message });
+            
+            // Wait 2.5 seconds, then return to login
+            setTimeout(() => {
+                setForgotPasswordMode(false);
+                setFormData({ email: forgotEmail, password: '' });
+                setForgotMessage({ type: '', text: '' });
+                setDevOtpText('');
+            }, 2500);
+
+        } catch (error) {
+            console.error("[RESET-PASSWORD-ERROR]", error);
+            let errMsg = "Failed to reset password. Please verify the code.";
+            if (error.response?.data?.message) {
+                errMsg = error.response.data.message;
+            } else if (error.message) {
+                errMsg = error.message;
+            }
+            setForgotMessage({ type: 'error', text: errMsg });
+        } finally {
+            setForgotLoading(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -259,7 +356,155 @@ const LoginPage = () => {
         }
     };
 
+    const renderForgotPasswordForm = () => {
+        const isRecruiter = role === 'recruiter';
+        
+        let focusBorderClass = "focus:border-teal-500/50";
+        let buttonClass = "bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10";
+        let iconClass = "group-focus-within:text-teal-400";
+        let borderClass = "border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-white";
 
+        if (role === 'admin') {
+            focusBorderClass = "focus:border-purple-500/50";
+            buttonClass = "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10";
+            iconClass = "group-focus-within:text-purple-400";
+            borderClass = "border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-white";
+        } else if (isRecruiter) {
+            focusBorderClass = "focus:border-blue-500/50";
+            buttonClass = "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10";
+            iconClass = "group-focus-within:text-blue-400";
+            borderClass = "border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white";
+        }
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="w-full space-y-6 animate-in fade-in slide-in-from-right-4 duration-300"
+            >
+                <div>
+                    <h3 className="text-2xl font-bold mb-1">
+                        {role === 'admin' ? 'Admin Reset' : 'Reset Password'}
+                    </h3>
+                    <p className="text-gray-400/80 text-sm">
+                        {role === 'admin' 
+                            ? 'Verify your admin identity via one-time pass code.' 
+                            : 'Receive a secure login link to change your password.'
+                        }
+                    </p>
+                </div>
+
+                {forgotMessage.text && (
+                    <div className={`p-3.5 rounded-2xl text-sm border transition-all ${
+                        forgotMessage.type === 'success' 
+                            ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                        {forgotMessage.text}
+                    </div>
+                )}
+
+                {forgotStep === 1 ? (
+                    <form onSubmit={handleForgotRequestSubmit} className="space-y-4">
+                        <div className="relative group">
+                            <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <input
+                                type="email"
+                                value={forgotEmail}
+                                onChange={(e) => setForgotEmail(e.target.value)}
+                                placeholder="Enter Your Registered Email"
+                                required
+                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={forgotLoading}
+                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                            {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {forgotLoading ? 'Requesting Code...' : 'Request Verification Code'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setForgotPasswordMode(false)}
+                            className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors"
+                        >
+                            Back to Sign In
+                        </button>
+                    </form>
+                ) : (
+                    // Step 2
+                    <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                        {devOtpText && (
+                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl text-xs text-center flex flex-col gap-1">
+                                <span className="font-semibold uppercase tracking-wider text-[10px]">Developer Sandbox Mode</span>
+                                <span>Generated OTP: <strong className="text-sm font-mono tracking-wider select-all">{devOtpText}</strong></span>
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            <div className="relative group">
+                                <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                                <input
+                                    type="text"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="6-Digit Verification Code"
+                                    required
+                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm tracking-widest font-semibold`}
+                                />
+                            </div>
+
+                            <div className="relative group">
+                                <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="Choose New Password"
+                                    required
+                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                                />
+                            </div>
+
+                            <div className="relative group">
+                                <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                                <input
+                                    type="password"
+                                    value={confirmNewPassword}
+                                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                    placeholder="Confirm New Password"
+                                    required
+                                    className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={forgotLoading}
+                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                            {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {forgotLoading ? 'Resetting Password...' : 'Reset Password'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setForgotStep(1)}
+                            className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors"
+                        >
+                            Request a new code
+                        </button>
+                    </form>
+                )}
+            </motion.div>
+        );
+    };
 
     const renderRoleSelection = () => (
         <motion.div
@@ -390,96 +635,100 @@ const LoginPage = () => {
                 {/* Right Side: Form */}
                 <div className="lg:w-1/2 p-10 flex flex-col justify-center">
                     <div className="max-w-md mx-auto w-full">
-                        <div className="mb-6">
-                            <h3 className="text-2xl font-bold mb-1">Login to Account</h3>
-                            <p className="text-gray-500 text-sm">Enter your credentials to continue.</p>
-                        </div>
-
-                        {message.text && (
-                            <div className={`mb-4 p-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
-                                {message.text}
-                            </div>
-                        )}
-
-                        <form className="space-y-4" onSubmit={handleSubmit}>
-                            <div className="space-y-3">
-                                <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        placeholder="Work Email"
-                                        required
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
-                                    />
+                        {forgotPasswordMode ? renderForgotPasswordForm() : (
+                            <>
+                                <div className="mb-6">
+                                    <h3 className="text-2xl font-bold mb-1">Login to Account</h3>
+                                    <p className="text-gray-500 text-sm">Enter your credentials to continue.</p>
                                 </div>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
-                                    <input
-                                        type="password"
-                                        name="password"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        placeholder="Password"
-                                        required
-                                        autoComplete="current-password"
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="flex items-center justify-end">
-                                <button type="button" className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
-                            </div>
+                                {message.text && (
+                                    <div className={`mb-4 p-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                                        {message.text}
+                                    </div>
+                                )}
 
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
-                                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
-                                    : isRecruiter
-                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                        : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                                    } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                            >
-
-                                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                {loading ? 'Signing In...' : 'Sign In'}
-                            </button>
-
-                            {role !== 'admin' && (
-                                <>
-                                    <div className="relative flex items-center gap-2 py-1">
-                                        <div className="flex-1 h-px bg-white/10" />
-                                        <span className="text-[10px] text-gray-500 uppercase tracking-widest text-center">Or continue with</span>
-                                        <div className="flex-1 h-px bg-white/10" />
+                                <form className="space-y-4" onSubmit={handleSubmit}>
+                                    <div className="space-y-3">
+                                        <div className="relative group">
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleChange}
+                                                placeholder="Work Email"
+                                                required
+                                                className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                            />
+                                        </div>
+                                        <div className="relative group">
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                            <input
+                                                type="password"
+                                                name="password"
+                                                value={formData.password}
+                                                onChange={handleChange}
+                                                placeholder="Password"
+                                                required
+                                                autoComplete="current-password"
+                                                className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={handleGoogleLogin}
-                                            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs"
-                                        >
-                                            <svg className="w-4 h-4" viewBox="0 0 24 24">
-                                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-                                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                            </svg>
-                                            Google
-                                        </button>
+                                    <div className="flex items-center justify-end">
+                                        <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
                                     </div>
-                                </>
-                            )}
-                        </form>
 
-                        {role !== 'admin' && (
-                            <p className="mt-8 text-center text-gray-500 text-sm">
-                                New here? <Link to="/signup" className="text-white hover:underline cursor-pointer font-medium">Create an account</Link>
-                            </p>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
+                                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
+                                            : isRecruiter
+                                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
+                                                : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
+                                            } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    >
+
+                                        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {loading ? 'Signing In...' : 'Sign In'}
+                                    </button>
+
+                                    {role !== 'admin' && (
+                                        <>
+                                            <div className="relative flex items-center gap-2 py-1">
+                                                <div className="flex-1 h-px bg-white/10" />
+                                                <span className="text-[10px] text-gray-500 uppercase tracking-widest text-center">Or continue with</span>
+                                                <div className="flex-1 h-px bg-white/10" />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleGoogleLogin}
+                                                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs"
+                                                >
+                                                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                                    </svg>
+                                                    Google
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </form>
+
+                                {role !== 'admin' && (
+                                    <p className="mt-8 text-center text-gray-500 text-sm">
+                                        New here? <Link to="/signup" className="text-white hover:underline cursor-pointer font-medium">Create an account</Link>
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
