@@ -88,6 +88,21 @@ const PublicJobDetails = () => {
     };
 
     const handleResumeAnalysis = () => {
+        // Check if user is already logged in as a seeker
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            try {
+                const parsedUser = JSON.parse(storedUser);
+                if (parsedUser && parsedUser.uid && parsedUser.role === 'seeker') {
+                    // Navigate directly to the application flow without prompt
+                    navigate(`/seeker/apply/${job._id}`);
+                    return;
+                }
+            } catch (e) {
+                console.error('Failed to parse user session:', e);
+            }
+        }
+
         // Navigate to login page with seeker role pre-selected and return URL to the application flow
         navigate('/login?role=seeker', {
             state: { from: { pathname: `/seeker/apply/${job._id}` } }
