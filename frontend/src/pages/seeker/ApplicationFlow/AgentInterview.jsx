@@ -138,7 +138,7 @@ export default function AgentInterview() {
         clearInterval(typewriterIntervalRef.current);
         if (onFinish) onFinish();
       }
-    }, 25);
+    }, 10);
   };
 
   const playAudioAndType = (audioBase64, text) => {
@@ -158,7 +158,7 @@ export default function AgentInterview() {
         charIdx++;
         setDisplayText(text.substring(0, charIdx));
         if (charIdx >= text.length) clearInterval(interval);
-      }, 30);
+      }, 12);
       window.speechSynthesis.speak(utterance);
     };
 
@@ -227,7 +227,7 @@ export default function AgentInterview() {
 
   async function handleSend(manualText = "") {
     const userText = (manualText || input || transcript).trim();
-    if (!userText || loading || isSpeaking) return;
+    if (!userText || loading) return;
 
     setInput("");
     setTranscript("");

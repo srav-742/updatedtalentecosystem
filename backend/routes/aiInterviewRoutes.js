@@ -130,6 +130,7 @@ INTERVIEWER IDENTITY & BEHAVIORAL DIRECTIVES:
 - RULE 4: Maintain a structured, professional boundary. Do not over-explain your questions unless the candidate explicitly asks for clarification.
 - RULE 5: Do NOT praise answers. Acknowledge them neutrally and proceed.
 - RULE 6: Your tone should be commanding and measured — like a VP of Engineering or a Director conducting a final-round interview.
+- RULE 7: MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
 `;
 
 // ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
@@ -876,7 +877,9 @@ router.post('/next', async (req, res) => {
         // End after exactly 15 questions
         if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
             console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${MAX_INTERVIEW_QUESTIONS} questions`);
-            const calculatedOverallScore = averageInterviewScore(session.answerEvaluations) || 70;
+            const calculatedOverallScore = session.answerEvaluations.length > 0
+                ? averageInterviewScore(session.answerEvaluations)
+                : 0;
             const evalPrompt = buildEvalPrompt(session, session.answerEvaluations, calculatedOverallScore);
 
             let evaluation = {
