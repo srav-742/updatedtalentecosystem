@@ -153,19 +153,28 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             window.speechSynthesis.cancel();
             typeText(textToSpeak);
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            // Select a deep male English voice for authoritative persona
+            // Select the most natural-sounding English voice available
             const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v =>
-                v.lang.startsWith('en') && v.name.toLowerCase().includes('male')
-            ) || voices.find(v =>
-                v.lang.startsWith('en') && (
-                    v.name.includes('Daniel') || v.name.includes('James') ||
-                    v.name.includes('David') || v.name.includes('Google UK English Male')
-                )
-            ) || voices.find(v => v.lang.startsWith('en'));
+            // Priority order: premium voices first, then generic English
+            const voicePreferences = [
+                'Google UK English Male', 'Google US English', 'Microsoft Mark',
+                'Microsoft David', 'Daniel', 'James', 'Alex', 'Fred',
+                'Samantha', 'Karen', 'Moira', 'Rishi', 'Google UK English Female'
+            ];
+            let preferredVoice = null;
+            for (const pref of voicePreferences) {
+                preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes(pref));
+                if (preferredVoice) break;
+            }
+            if (!preferredVoice) {
+                preferredVoice = voices.find(v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('compact'));
+            }
+            if (!preferredVoice) {
+                preferredVoice = voices.find(v => v.lang.startsWith('en'));
+            }
             if (preferredVoice) utterance.voice = preferredVoice;
-            utterance.rate = 0.95;   // slightly slower for deliberate delivery
-            utterance.pitch = 0.85;  // deeper pitch for authority
+            utterance.rate = 0.92;   // slightly slower for natural, deliberate delivery
+            utterance.pitch = 0.90;  // natural pitch range
             utterance.onend = finishQuestionPlayback;
             utterance.onerror = finishQuestionPlayback;
             window.speechSynthesis.speak(utterance);

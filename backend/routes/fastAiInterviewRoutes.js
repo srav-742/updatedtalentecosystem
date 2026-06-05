@@ -612,11 +612,23 @@ router.post('/next-fast', async (req, res) => {
         session.history.push({ role: 'interviewer', content: nextQuestion });
         await saveSession(sessionId, session);
 
+        // Voice generation (TTS) using ElevenLabs service
+        let audioBase64 = null;
+        try {
+            const { generateSpeech } = require('../services/tts.service');
+            const buffer = await generateSpeech(nextQuestion);
+            if (buffer) {
+                audioBase64 = buffer.toString('base64');
+            }
+        } catch (e) {
+            console.warn("[FAST-NEXT] TTS generation failed:", e.message);
+        }
+
         // 6. Return immediately (Total server time: ~2-4s)
         res.json({
             hasNext: true,
             question: nextQuestion,
-            audio: null, // TTS is handled by browser-side synthesis
+            audio: audioBase64,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions
         });

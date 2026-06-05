@@ -665,4 +665,32 @@ const extractPdf = async (req, res) => {
     }
 };
 
-module.exports = { analyzeResume, parseResumeStructured, getResumeStructuredProfile, extractPdf };
+const saveResumeStructuredProfile = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const profileData = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+
+        const normalizedProfile = normalizeStructuredProfile(profileData);
+
+        const updatedProfile = await ResumeProfile.findOneAndUpdate(
+            { userId },
+            {
+                ...normalizedProfile,
+                userId,
+                lastUpdated: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ success: true, profile: updatedProfile });
+    } catch (error) {
+        console.error("[SAVE-RESUME-PROFILE] Error:", error.message);
+        res.status(500).json({ message: "Failed to save resume profile" });
+    }
+};
+
+module.exports = { analyzeResume, parseResumeStructured, getResumeStructuredProfile, extractPdf, saveResumeStructuredProfile };
