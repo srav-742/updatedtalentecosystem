@@ -565,18 +565,18 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                             </div>
                         </div>
 
-                        <label className="block cursor-pointer rounded-[2rem] border-2 border-dashed border-black/10 bg-[#fcfaf6] px-8 py-14 text-center transition hover:border-black/20 hover:bg-[#faf7f1]">
+                        <label className="block cursor-pointer rounded-[1.5rem] border-2 border-dashed border-black/10 bg-[#fcfaf6] px-6 py-8 text-center transition hover:border-black/20 hover:bg-[#faf7f1]">
                             <input
                                 type="file"
                                 accept=".pdf"
                                 onChange={handleFileChange}
                                 className="hidden"
                             />
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-white text-gray-600 shadow-sm">
-                                <Upload size={30} />
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[1rem] bg-white text-gray-600 shadow-sm">
+                                <Upload size={22} />
                             </div>
-                            <h3 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Drag and drop your resume here, or browse</h3>
-                            <p className="mt-3 text-sm text-gray-500">PDF files only, up to 5MB. The file will be analyzed against this job&apos;s requirements.</p>
+                            <h3 className="mt-4 text-xl font-semibold tracking-tight text-gray-900">Drag and drop your resume here, or browse</h3>
+                            <p className="mt-2 text-xs text-gray-500">PDF files only, up to 5MB. The file will be analyzed against this job&apos;s requirements.</p>
                         </label>
                     </div>
                 </DetailCard>
@@ -1073,31 +1073,33 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
             animate={{ opacity: 1, y: 0 }}
             className="grid gap-8 lg:grid-cols-[380px_1fr]"
         >
-            <aside className="h-fit space-y-6">
-                <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-black text-white shadow-xl">
-                        <Sparkles size={28} />
+            <aside className="h-fit space-y-4">
+                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-black text-white shadow-lg">
+                            <Sparkles size={20} />
+                        </div>
+                        <h2 className="text-xl font-bold tracking-tight text-gray-900">Analysis Center</h2>
                     </div>
-                    <h2 className="mt-6 text-3xl font-black tracking-tight text-gray-900">Analysis Center</h2>
-                    <p className="mt-4 text-[13px] leading-relaxed text-gray-500">
+                    <p className="mt-2 text-[12px] leading-relaxed text-gray-500">
                         Our AI engine scans your resume against the recruiter&apos;s requirements to ensure a perfect match for {job.title}.
                     </p>
 
-                    <div className="mt-8 space-y-4">
-                        <div className="rounded-[1.75rem] border border-amber-100 bg-amber-50/50 p-5">
+                    <div className="mt-5 space-y-3">
+                        <div className="rounded-[1.25rem] border border-amber-100 bg-amber-50/50 p-4">
                             <div className="flex items-center gap-3 text-amber-900">
-                                <AlertCircle size={18} />
-                                <h3 className="text-xs font-black uppercase tracking-widest">Pro Tips</h3>
+                                <AlertCircle size={16} />
+                                <h3 className="text-[10px] font-black uppercase tracking-widest">Pro Tips</h3>
                             </div>
-                            <ul className="mt-4 space-y-2 text-[11px] leading-normal text-amber-800/70 font-medium">
-                                <li className="flex gap-2"><span>â€¢</span> Ensure your resume is a readable PDF.</li>
-                                <li className="flex gap-2"><span>â€¢</span> Review and correct extracted data manually.</li>
-                                <li className="flex gap-2"><span>â€¢</span> Missing skills can be added before final submission.</li>
-                                <li className="flex gap-2"><span>â€¢</span> A match above {threshold}% is recommended.</li>
+                            <ul className="mt-2.5 space-y-1.5 text-[10px] leading-normal text-amber-800/70 font-medium">
+                                <li className="flex gap-2"><span>•</span> Ensure your resume is a readable PDF.</li>
+                                <li className="flex gap-2"><span>•</span> Review and correct extracted data manually.</li>
+                                <li className="flex gap-2"><span>•</span> Missing skills can be added before final submission.</li>
+                                <li className="flex gap-2"><span>•</span> A match above {threshold}% is recommended.</li>
                             </ul>
                         </div>
 
-                        <nav className="space-y-2">
+                        <nav className="space-y-1.5">
                             {sectionConfig.map((section) => {
                                 const Icon = section.icon;
                                 const isActive = activeSection === section.id;
@@ -1107,25 +1109,25 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                     <button
                                         key={section.id}
                                         onClick={() => setActiveSection(section.id)}
-                                        className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 transition-all duration-300 ${isActive
-                                            ? 'bg-black text-white shadow-lg'
+                                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-3 transition-all duration-300 ${isActive
+                                            ? 'bg-black text-white shadow-md'
                                             : isCompleted
                                                 ? 'bg-emerald-50/50 text-emerald-900 border border-emerald-100'
                                                 : 'bg-gray-50/50 text-gray-600 border border-gray-100 hover:bg-gray-100'
                                             }`}
                                     >
-                                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? 'bg-white/10' : 'bg-white'}`}>
-                                            <Icon size={18} />
+                                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-white/10' : 'bg-white'}`}>
+                                            <Icon size={16} />
                                         </div>
                                         <div className="text-left">
-                                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest opacity-60">
                                                 {section.id === 'resume' ? 'Step 1' : 'Profile'}
                                             </p>
-                                            <p className="text-xs font-black tracking-tight">{section.label}</p>
+                                            <p className="text-xs font-bold tracking-tight">{section.label}</p>
                                         </div>
                                         {isCompleted && !isActive && (
                                             <div className="ml-auto text-emerald-600">
-                                                <CheckCircle2 size={18} />
+                                                <CheckCircle2 size={16} />
                                             </div>
                                         )}
                                     </button>
@@ -1149,33 +1151,29 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                                 setError('Failed to save manual changes.');
                             }
                         }}
-                        className="flex w-full items-center justify-center gap-3 rounded-[2rem] border border-black bg-white px-6 py-5 text-sm font-black uppercase tracking-widest text-black transition-all hover:bg-gray-50 active:scale-95"
+                        className="flex w-full items-center justify-center gap-2.5 rounded-[1.25rem] border border-black bg-white px-5 py-4 text-xs font-black uppercase tracking-widest text-black transition-all hover:bg-gray-50 active:scale-95"
                     >
-                        <ShieldCheck size={20} />
+                        <ShieldCheck size={18} />
                         Save All Changes
                     </button>
                 )}
 
-                <div className="rounded-[2rem] border border-black/5 bg-[#fbf8f3] p-6 text-center shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Minimum match</p>
-                    <p className="mt-2 text-2xl font-black text-gray-900">{threshold}% Required</p>
+                <div className="rounded-[1.25rem] border border-black/5 bg-[#fbf8f3] p-4 text-center shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400">Minimum match</p>
+                    <p className="mt-1.5 text-xl font-black text-gray-900">{threshold}% Required</p>
                 </div>
             </aside>
 
             <div className="space-y-6">
-                <header className="rounded-[2.5rem] border border-black/10 bg-white/80 p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-                    <p className="text-xs font-black uppercase tracking-[0.4em] text-gray-400">Analysis workflow</p>
-                    <div className="mt-4 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-                        <div>
-                            <h1 className="text-4xl font-black tracking-tight text-gray-900 leading-tight">Apply for {job.title}</h1>
-                            <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-gray-500 font-medium">
-                                Complete your profile assessment to unlock the next stage of the application process.
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-3 rounded-2xl border border-black/5 bg-[#fbf8f3] px-5 py-3 text-xs font-bold text-gray-700">
-                            <span className="opacity-50 uppercase tracking-widest">Stage</span>
-                            <span className="text-lg">1/4</span>
-                        </div>
+                <header className="rounded-[1.5rem] border border-black/10 bg-white/80 px-6 py-4 shadow-[0_12px_40px_rgba(15,23,42,0.04)] backdrop-blur-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Analysis workflow</p>
+                        <h1 className="text-xl font-bold tracking-tight text-gray-900 mt-0.5">Apply for {job.title}</h1>
+                        <p className="text-xs text-gray-500 font-medium mt-1">Complete your profile assessment to unlock the next stage.</p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-xl border border-black/5 bg-[#fbf8f3] px-3 py-1.5 text-xs font-bold text-gray-700 self-start sm:self-auto">
+                        <span className="opacity-50 uppercase tracking-widest">Stage</span>
+                        <span className="text-sm font-black">1/4</span>
                     </div>
                 </header>
 
