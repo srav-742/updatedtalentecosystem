@@ -30,21 +30,29 @@ const CandidateDeck = ({ job, user, onComplete }) => {
     }, []);
 
     const startRecording = () => {
+        const stream = webcamRef.current?.stream || webcamRef.current?.video?.srcObject;
+        
+        if (!stream) {
+            setError("Camera stream is not ready. Please wait a moment or ensure camera permissions are granted.");
+            return;
+        }
+
         setStep('recording');
         setRecording(true);
         setTimeLeft(60);
         chunksRef.current = [];
+        setError(null);
 
-        const stream = webcamRef.current.stream;
-        const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/webm;codecs=vp8,opus'
-        });
+        try {
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp8,opus'
+            });
 
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-                chunksRef.current.push(e.data);
-            }
-        };
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                }
+            };
 
         mediaRecorder.onstop = () => {
             const blob = new Blob(chunksRef.current, { type: 'video/webm' });
@@ -55,8 +63,35 @@ const CandidateDeck = ({ job, user, onComplete }) => {
             setRecording(false);
         };
 
-        mediaRecorderRef.current = mediaRecorder;
-        mediaRecorder.start();
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start();
+        } catch (err) {
+            console.error("Failed to start MediaRecorder:", err);
+            // Fallback for browsers that don't support the specific mimeType (e.g. Safari)
+            try {
+                const fallbackRecorder = new MediaRecorder(stream);
+                fallbackRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunksRef.current.push(e.data);
+                    }
+                };
+                fallbackRecorder.onstop = () => {
+                    const blob = new Blob(chunksRef.current, { type: fallbackRecorder.mimeType || 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    setVideoBlob(blob);
+                    setVideoUrl(url);
+                    setStep('reviewing');
+                    setRecording(false);
+                };
+                mediaRecorderRef.current = fallbackRecorder;
+                fallbackRecorder.start();
+            } catch (fallbackErr) {
+                setError("Recording is not supported in this browser.");
+                setStep('ready');
+                setRecording(false);
+                return;
+            }
+        }
 
         timerRef.current = setInterval(() => {
             setTimeLeft((prev) => {

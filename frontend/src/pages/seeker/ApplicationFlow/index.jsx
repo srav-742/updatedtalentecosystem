@@ -6,7 +6,7 @@ import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import ResumeAnalyzer from './ResumeAnalyzer';
 import SkillAssessment from './SkillAssessment';
-import AIInterview from './AIInterview';
+import AIInterview from './AIInterviewFast';
 import CandidateDeck from './CandidateDeck';
 
 

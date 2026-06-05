@@ -74,6 +74,8 @@ app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/interview', aiInterviewRoutes);
+app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX: overrides /next-fast with corrected maxTokens + question cleaning
+app.use('/api/interview', require('./routes/fastAiInterviewRoutes'));
 app.use('/api', aiInterviewUploadRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
 app.use('/api', calibrationRoutes);

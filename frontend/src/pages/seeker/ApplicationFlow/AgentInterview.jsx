@@ -138,16 +138,26 @@ export default function AgentInterview() {
         clearInterval(typewriterIntervalRef.current);
         if (onFinish) onFinish();
       }
-    }, 25);
+    }, 10);
   };
 
   const playAudioAndType = (audioBase64, text) => {
     setIsSpeaking(true);
     setDisplayText("");
 
+    // Last-resort fallback: browser TTS (only if ElevenLabs audio completely unavailable)
     const speakInBrowser = () => {
+      console.warn("[TTS-FALLBACK] Using browser speechSynthesis (robotic voice)");
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
+      // Try to pick a more natural voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => 
+        v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Neural")
+      ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
+      if (preferredVoice) utterance.voice = preferredVoice;
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
       utterance.onend = () => {
         setIsSpeaking(false);
         setMessages(prev => [...prev, { role: "agent", text }]);
@@ -158,7 +168,7 @@ export default function AgentInterview() {
         charIdx++;
         setDisplayText(text.substring(0, charIdx));
         if (charIdx >= text.length) clearInterval(interval);
-      }, 30);
+      }, 12);
       window.speechSynthesis.speak(utterance);
     };
 
@@ -170,24 +180,47 @@ export default function AgentInterview() {
       });
     };
 
+    // If no ElevenLabs audio received from backend, fall back to browser TTS
     if (!audioBase64 || audioBase64.length < 100) {
+      console.warn("[TTS] No ElevenLabs audio received from backend, falling back to browser TTS");
       speakInBrowser();
       return;
     }
 
+    // Play ElevenLabs audio (high-quality human voice)
     try {
       const audioBlob = new Blob(
         [Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))],
         { type: "audio/mpeg" }
       );
       const url = URL.createObjectURL(audioBlob);
-      audioPlayerRef.current.src = url;
-      audioPlayerRef.current.onplay = () => startTyping();
-      audioPlayerRef.current.onended = () => setIsSpeaking(false);
-      audioPlayerRef.current.onerror = () => speakInBrowser();
-      audioPlayerRef.current.play().catch(() => speakInBrowser());
+      const player = audioPlayerRef.current;
+      player.src = url;
+      player.onplay = () => {
+        console.log("[TTS] ✓ ElevenLabs audio playing");
+        startTyping();
+      };
+      player.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(url);
+      };
+      player.onerror = (e) => {
+        console.error("[TTS] Audio element error:", e);
+        // Only fallback to browser TTS if audio element truly fails
+        startTyping();
+        setTimeout(() => setIsSpeaking(false), text.length * 12 + 500);
+      };
+      player.play().catch((playErr) => {
+        console.warn("[TTS] Autoplay blocked, trying with user gesture:", playErr.message);
+        // If autoplay is blocked, just type without audio rather than robotic voice
+        startTyping();
+        setTimeout(() => setIsSpeaking(false), text.length * 12 + 500);
+      });
     } catch (e) {
-      speakInBrowser();
+      console.error("[TTS] Audio decode error:", e);
+      // Silent typing fallback instead of robotic voice
+      startTyping();
+      setTimeout(() => setIsSpeaking(false), text.length * 12 + 500);
     }
   };
 
@@ -227,7 +260,7 @@ export default function AgentInterview() {
 
   async function handleSend(manualText = "") {
     const userText = (manualText || input || transcript).trim();
-    if (!userText || loading || isSpeaking) return;
+    if (!userText || loading) return;
 
     setInput("");
     setTranscript("");

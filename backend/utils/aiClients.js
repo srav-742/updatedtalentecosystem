@@ -36,20 +36,26 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
                     }
                 ],
                 generationConfig: {
-                    maxOutputTokens: Math.max(maxTokens, 2048),
+                    maxOutputTokens: maxTokens,
                     temperature: temperature,
                     responseMimeType: isJsonMode ? "application/json" : "text/plain"
+                },
+                thinkingConfig: {
+                    thinkingBudget: 0
                 }
             },
             {
                 headers: {
                     "Content-Type": "application/json"
-                }
+                },
+                timeout: 30000
             }
         );
 
         // Safely extract and combine all parts to prevent halving questions
+        // Filter out thought parts (gemini-2.5-flash thinking model) to only get actual response text
         const aiText = response.data.candidates[0].content.parts
+            .filter(p => !p.thought && p.text)
             .map(p => p.text)
             .join("");
 

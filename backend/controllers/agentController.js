@@ -232,7 +232,7 @@ async function respondToAgent(req, res) {
 10. COMPLETION: If Current Question Number is greater than 10, set is_complete to true and STOP asking questions.
 
 CRITICAL UNIQUENESS RULE:
-Avoid any topic already covered in: ${session.messages.filter(m => m.role === 'assistant').map(m => m.content).join(' | ')}
+Avoid any topic already covered in: ${session.messages.filter(m => m.role === 'assistant').slice(-3).map(m => m.content.substring(0, 80)).join(' | ')}
 
 
 RULES FOR JSON OUTPUT (STRICT):
@@ -262,8 +262,9 @@ STRICT RULES:
     let rawText = "";
 
     try {
-      const prompt = `Current conversation:\n${session.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}\n\nUSER_MESSAGE: ${userMessage}`;
-      rawText = await callInterviewAI(prompt, 1000, true, systemPrompt);
+      const recentMessages = session.messages.slice(-4);
+      const prompt = `Recent conversation:\n${recentMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}\n\nUSER_MESSAGE: ${userMessage}`;
+      rawText = await callInterviewAI(prompt, 500, true, systemPrompt);
       
       if (!rawText) throw new Error("No response from AI providers");
 

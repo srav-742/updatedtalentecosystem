@@ -274,7 +274,13 @@ const submitAssessment = async (req, res) => {
         const i = application.interviewScore || 0;
         application.finalScore = r + a + i;
 
-        if (application.finalScore >= 55) {
+        // Ensure all enabled modules are fully completed before shortlisting
+        const job = application.jobId;
+        const isResumeDone = !job || job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
+        const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+        const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+
+        if (isResumeDone && isAssessmentDone && isInterviewDone && application.finalScore >= 55) {
             application.status = 'SHORTLISTED';
         }
         await application.save();
@@ -343,6 +349,40 @@ const getAssessmentDetails = async (req, res) => {
         }).sort({ submittedAt: -1 });
 
         if (!submission) {
+            // Fallback: use assessmentAnswers stored directly in the Application document
+            if (application.assessmentAnswers && application.assessmentAnswers.length > 0) {
+                const appAnswers = application.assessmentAnswers;
+                const correctCount = appAnswers.filter(a => a.isCorrect).length;
+
+                return res.json({
+                    application: {
+                        id: application._id,
+                        applicantName: application.applicantName,
+                        applicantEmail: application.applicantEmail
+                    },
+                    job: {
+                        title: application.jobId?.title,
+                        skills: application.jobId?.skills
+                    },
+                    assessment: {
+                        score: application.assessmentScore || 0,
+                        totalQuestions: appAnswers.length,
+                        correctAnswers: correctCount,
+                        submittedAt: application.appliedAt,
+                        questions: appAnswers.map((a, idx) => ({
+                            type: a.questionType || 'mcq',
+                            skill: a.skill || 'General',
+                            question: a.question,
+                            options: [],
+                            correctAnswer: a.correctAnswer,
+                            starterCode: null,
+                            userAnswer: a.userAnswer,
+                            isCorrect: a.isCorrect,
+                            answerScore: a.score
+                        }))
+                    }
+                });
+            }
             return res.status(404).json({ message: "No assessment submission found for this application" });
         }
 

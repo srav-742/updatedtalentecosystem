@@ -222,6 +222,7 @@ const Textarea = ({ className = '', ...props }) => (
 const ResumeAnalyzer = ({ job, user, onComplete }) => {
     const navigate = useNavigate();
     const userId = user.uid || user._id || user.id;
+    const jobId = job?._id || job?.id;
 
     const [file, setFile] = useState(null);
     const [analyzing, setAnalyzing] = useState(false);
@@ -279,6 +280,93 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
 
         loadStoredResumeProfile();
     }, [userId]);
+
+    const handleAnalyzeSyncedResume = async () => {
+        setAnalyzing(true);
+        setError(null);
+        try {
+            const response = await axios.get(`${API_URL}/resume-profile/${userId}`);
+            const profileData = normalizeStructuredProfile(response.data);
+            setStructuredProfile(profileData);
+
+            const skillsFlat = [
+                ...profileData.skills.programming,
+                ...profileData.skills.frameworks,
+                ...profileData.skills.databases,
+                ...profileData.skills.tools,
+                ...profileData.skills.soft
+            ].join(', ');
+
+            const experienceFlat = profileData.workExperience.map(exp => 
+                `${exp.position} at ${exp.company} (${exp.startMonth} ${exp.startYear} - ${exp.currentlyWorking ? 'Present' : `${exp.endMonth} ${exp.endYear}`}): ${exp.description}`
+            ).join('\n');
+
+            const educationFlat = profileData.education.map(edu => 
+                `${edu.degree} in ${edu.field} from ${edu.institution} (${edu.startYear} - ${edu.currentlyStudying ? 'Present' : edu.endYear})`
+            ).join('\n');
+
+            const projectsFlat = profileData.projects.map(proj => 
+                `${proj.name} (${proj.tech.join(', ')}): ${proj.description}`
+            ).join('\n');
+
+            const resumeText = `
+Candidate Name: ${profileData.basics?.name || ''}
+Email: ${profileData.basics?.email || ''}
+Phone: ${profileData.basics?.phone || ''}
+Location: ${profileData.basics?.location || ''}
+Professional Summary: ${profileData.summary || ''}
+Skills: ${skillsFlat}
+Work Experience:
+${experienceFlat}
+Education:
+${educationFlat}
+Projects:
+${projectsFlat}
+            `.trim();
+
+            const analysisRes = await axios.post(`${API_URL}/analyze-resume`, {
+                resumeText,
+                jobSkills: job.skills,
+                jobExperience: job.experienceLevel,
+                jobEducation: job.education,
+                userId,
+                jobId: job._id,
+                specialInstructions: job.specialInstructions
+            });
+
+            const { data } = analysisRes;
+            const normalizedData = {
+                matchPercentage: typeof data.matchPercentage === 'number' ? data.matchPercentage : parseInt(data.matchPercentage, 10) || 0,
+                skillsScore: typeof data.skillsScore === 'number' ? data.skillsScore : parseInt(data.skillsScore, 10) || 0,
+                experienceScore: typeof data.experienceScore === 'number' ? data.experienceScore : parseInt(data.experienceScore, 10) || 0,
+                skillsFeedback: data.skillsFeedback || 'No skills feedback provided.',
+                experienceFeedback: data.experienceFeedback || 'No experience feedback provided.',
+                explanation: data.explanation || 'No detailed explanation provided.'
+            };
+
+            setAnalysisResult({
+                text: resumeText,
+                data: normalizedData,
+                structuredProfile: profileData
+            });
+
+            setActiveSection('basic');
+        } catch (err) {
+            console.error("Failed to analyze synced resume:", err);
+            setError(err.response?.data?.message || 'Failed to process synced resume. Please try direct upload.');
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
+    useEffect(() => {
+        const queryParams = new URLSearchParams(window.location.search);
+        if (queryParams.get('synced') === 'true') {
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, newUrl);
+            handleAnalyzeSyncedResume();
+        }
+    }, [userId, jobId]);
 
     const sectionStatus = useMemo(() => ({
         resume: Boolean(file),
@@ -578,6 +666,28 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
                             <h3 className="mt-4 text-xl font-semibold tracking-tight text-gray-900">Drag and drop your resume here, or browse</h3>
                             <p className="mt-2 text-xs text-gray-500">PDF files only, up to 5MB. The file will be analyzed against this job&apos;s requirements.</p>
                         </label>
+
+                        {/* CTA to Redirect to Resume Builder */}
+                        <div className="mt-6 rounded-[2rem] border border-[#e2dcd0] bg-[#fbf8f3] p-8 text-center shadow-sm">
+                            <h3 className="text-xl font-bold text-gray-900">Don't have a PDF resume ready?</h3>
+                            <p className="mt-2 text-sm text-gray-500 max-w-lg mx-auto">
+                                Create an ATS-optimized, professional resume instantly using our AI Resume Builder platform to fast-track your application.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const builderBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                                        ? 'http://localhost:3000'
+                                        : 'https://resume-builder-delta-seven.vercel.app';
+                                    const builderUrl = `${builderBase}/login?from=hire1percent&userId=${userId}&jobId=${job._id}&backendUrl=${encodeURIComponent(API_URL)}&redirectUrl=${encodeURIComponent(window.location.href)}`;
+                                    window.location.href = builderUrl;
+                                }}
+                                className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800 shadow-md"
+                            >
+                                <Sparkles size={16} />
+                                Build Resume with AI
+                            </button>
+                        </div>
                     </div>
                 </DetailCard>
             );

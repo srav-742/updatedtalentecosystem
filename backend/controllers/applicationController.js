@@ -71,14 +71,17 @@ const submitApplication = async (req, res) => {
         // Final Score is the direct sum of the components (max 20 + 30 + 50 = 100)
         const finalScore = r + a + i;
         application.finalScore = finalScore;
-        await application.save();
 
-        if (application.finalScore >= 55) {
+        // Ensure all enabled modules are fully completed before shortlisting
+        const isResumeDone = !job || job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
+        const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+        const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+
+        if (isResumeDone && isAssessmentDone && isInterviewDone && application.finalScore >= 55) {
             console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${application.finalScore})`);
-            const recruiterId = application.jobId?.recruiterId;
             application.status = 'SHORTLISTED';
-            await application.save();
         }
+        await application.save();
         res.status(201).json(application);
     } catch (error) {
         console.error("[LEDGER-FINAL] Error:", error);
