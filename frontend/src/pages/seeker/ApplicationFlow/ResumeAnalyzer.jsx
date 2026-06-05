@@ -676,7 +676,10 @@ ${projectsFlat}
                             <button
                                 type="button"
                                 onClick={() => {
-                                    const builderUrl = `https://resume-builder-delta-seven.vercel.app/login?from=hire1percent&userId=${userId}&jobId=${job._id}&redirectUrl=${encodeURIComponent(window.location.href)}`;
+                                    const builderBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                                        ? 'http://localhost:3000'
+                                        : 'https://resume-builder-delta-seven.vercel.app';
+                                    const builderUrl = `${builderBase}/login?from=hire1percent&userId=${userId}&jobId=${job._id}&backendUrl=${encodeURIComponent(API_URL)}&redirectUrl=${encodeURIComponent(window.location.href)}`;
                                     window.location.href = builderUrl;
                                 }}
                                 className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800 shadow-md"
