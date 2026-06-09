@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Share2, Mail, Linkedin, Twitter, Copy } from 'lucide-react';
+import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -11,6 +11,8 @@ const BrowseJobs = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [copiedJobId, setCopiedJobId] = useState(null);
+    const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    const [userApplications, setUserApplications] = useState([]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -23,19 +25,56 @@ const BrowseJobs = () => {
     }, [activeShareJobId]);
 
     useEffect(() => {
-        const fetchJobs = async () => {
+        const fetchJobsAndApps = async () => {
             try {
-                const res = await axios.get(`${API_URL}/jobs`);
-                setJobs(res.data);
+                const [jobsRes, appsRes] = await Promise.all([
+                    axios.get(`${API_URL}/jobs`),
+                    user.uid || user._id || user.id
+                        ? axios.get(`${API_URL}/applications/seeker/${user.uid || user._id || user.id}`)
+                        : Promise.resolve({ data: [] })
+                ]);
+                setJobs(jobsRes.data);
+                setUserApplications(appsRes.data);
             } catch (error) {
-                console.error('Failed to fetch jobs:', error);
+                console.error('Failed to fetch jobs/applications:', error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchJobs();
-    }, []);
+        fetchJobsAndApps();
+    }, [user.uid, user._id, user.id]);
+
+    const handleToggleSaveJob = async (e, jobId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const userId = user.uid || user._id || user.id;
+        if (!userId) {
+            alert("Please log in to save jobs.");
+            return;
+        }
+
+        const existingApp = userApplications.find(app => (app.jobId?._id || app.jobId) === jobId);
+        
+        try {
+            if (existingApp) {
+                if (existingApp.status === 'SAVED') {
+                    await axios.delete(`${API_URL}/applications/${existingApp._id || existingApp.id}`);
+                    setUserApplications(prev => prev.filter(app => app._id !== (existingApp._id || existingApp.id)));
+                }
+            } else {
+                const res = await axios.post(`${API_URL}/applications`, {
+                    jobId,
+                    userId,
+                    status: 'SAVED'
+                });
+                setUserApplications(prev => [...prev, res.data]);
+            }
+        } catch (error) {
+            console.error('Failed to toggle save job:', error);
+        }
+    };
 
     const filteredJobs = useMemo(() => {
         return jobs.filter((job) => {
@@ -137,6 +176,29 @@ const BrowseJobs = () => {
                                     <span className="rounded-full border border-black/10 bg-[#f8f4ed] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
                                         {job.type}
                                     </span>
+
+                                    {(() => {
+                                        const app = userApplications.find(a => (a.jobId?._id || a.jobId) === job._id);
+                                        const isSaved = app?.status === 'SAVED';
+                                        const isApplied = app && app.status !== 'SAVED';
+
+                                        if (isApplied) return null;
+
+                                        return (
+                                            <button
+                                                onClick={(e) => handleToggleSaveJob(e, job._id)}
+                                                className={`rounded-full border p-1.5 transition-colors ${
+                                                    isSaved 
+                                                        ? 'bg-amber-500 border-amber-500 text-white' 
+                                                        : 'border-black/10 bg-[#f8f4ed] text-gray-500 hover:bg-black hover:text-white'
+                                                }`}
+                                                title={isSaved ? "Unsave Job" : "Save Job"}
+                                            >
+                                                <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} />
+                                            </button>
+                                        );
+                                    })()}
+
                                     <div className="share-container relative">
                                         <button 
                                             onClick={(e) => {

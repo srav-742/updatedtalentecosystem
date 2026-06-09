@@ -53,7 +53,7 @@ const applicationSchema = new mongoose.Schema({
         reason: { type: String, default: "" },
         lastCalculated: { type: Date }
     },
-    status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED'], default: 'APPLIED' },
+    status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED', 'SAVED'], default: 'APPLIED' },
     resultsVisibleAt: { type: Date },
     appliedAt: { type: Date, default: Date.now },
     assessmentAnswers: [

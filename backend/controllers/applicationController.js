@@ -44,6 +44,11 @@ const submitApplication = async (req, res) => {
         }
         const application = await Application.findOneAndUpdate(query, update, { new: true, upsert: true }).populate('jobId');
 
+        // Transition from SAVED to APPLIED if user is now submitting application details
+        if (application.status === 'SAVED' && req.body.status !== 'SAVED') {
+            application.status = 'APPLIED';
+        }
+
         // Calculate Final Score dynamically based on Job settings
         const r = application.resumeMatchPercent || 0;
         const a = application.assessmentScore || 0;
@@ -177,9 +182,23 @@ const resetApplicationAfterProctoring = async (req, res) => {
     }
 };
 
+const deleteApplication = async (req, res) => {
+    try {
+        const app = await Application.findByIdAndDelete(req.params.id);
+        if (!app) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+        res.json({ message: "Application removed successfully" });
+    } catch (error) {
+        console.error("[DELETE-APP] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     submitApplication,
     getSeekerApplications,
     updateApplicationStatus,
-    resetApplicationAfterProctoring
+    resetApplicationAfterProctoring,
+    deleteApplication
 };

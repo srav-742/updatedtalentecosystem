@@ -34,7 +34,7 @@ const getRecruiterDashboard = async (req, res) => {
         const jobIds = jobs.map((job) => job._id);
 
         const [applicationCount, shortlistedCount] = await Promise.all([
-            Application.countDocuments({ jobId: { $in: jobIds } }),
+            Application.countDocuments({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } }),
             Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' })
         ]);
 
@@ -52,7 +52,7 @@ const getRecruiterApplications = async (req, res) => {
         const jobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = jobs.map((job) => job._id);
 
-        const apps = await Application.find({ jobId: { $in: jobIds } })
+        const apps = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
             .populate('jobId')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
             .sort({ createdAt: -1 });
@@ -108,7 +108,7 @@ const getRecruiterJobs = async (req, res) => {
         const jobIds = jobs.map((job) => job._id);
 
         const counts = await Application.aggregate([
-            { $match: { jobId: { $in: jobIds } } },
+            { $match: { jobId: { $in: jobIds }, status: { $ne: 'SAVED' } } },
             { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
         ]);
 

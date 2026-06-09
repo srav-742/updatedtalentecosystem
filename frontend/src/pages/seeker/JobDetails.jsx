@@ -25,22 +25,62 @@ const JobDetails = () => {
     const [job, setJob] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showApplyOptions, setShowApplyOptions] = useState(false);
+    const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    const [application, setApplication] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        const fetchJob = async () => {
+        const fetchJobAndApp = async () => {
             try {
-                const res = await axios.get(`${API_URL}/jobs`);
-                const found = res.data.find((item) => item._id === id);
-                setJob(found);
+                const [jobRes, appsRes] = await Promise.all([
+                    axios.get(`${API_URL}/jobs`),
+                    user.uid || user._id || user.id
+                        ? axios.get(`${API_URL}/applications/seeker/${user.uid || user._id || user.id}`)
+                        : Promise.resolve({ data: [] })
+                ]);
+                const foundJob = jobRes.data.find((item) => item._id === id);
+                setJob(foundJob);
+
+                const foundApp = appsRes.data.find((app) => (app.jobId?._id || app.jobId) === id);
+                setApplication(foundApp);
             } catch (error) {
-                console.error('Failed to fetch job details:', error);
+                console.error('Failed to fetch job details/application:', error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchJob();
-    }, [id]);
+        fetchJobAndApp();
+    }, [id, user.uid, user._id, user.id]);
+
+    const handleToggleSaveJob = async () => {
+        const userId = user.uid || user._id || user.id;
+        if (!userId) {
+            alert("Please log in to save jobs.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            if (application) {
+                if (application.status === 'SAVED') {
+                    await axios.delete(`${API_URL}/applications/${application._id || application.id}`);
+                    setApplication(null);
+                }
+            } else {
+                const res = await axios.post(`${API_URL}/applications`, {
+                    jobId: id,
+                    userId,
+                    status: 'SAVED'
+                });
+                setApplication(res.data);
+            }
+        } catch (error) {
+            console.error('Failed to toggle save job:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -217,42 +257,73 @@ const JobDetails = () => {
                         </div>
                     </div>
 
-                    <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
-                        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
-                        <p className="mt-3 text-sm leading-7 text-gray-600">
-                            Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
-                        </p>
-
-                        <div className="mt-6 space-y-3">
-                            {!showApplyOptions ? (
-                                <button
-                                    onClick={() => setShowApplyOptions(true)}
+                    {application && application.status !== 'SAVED' ? (
+                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
+                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Application status</p>
+                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Already Applied</h2>
+                            <p className="mt-3 text-sm leading-7 text-gray-600">
+                                You have an active application for this role. Current status: <span className="font-bold text-gray-900 uppercase">{application.status}</span>.
+                            </p>
+                            <div className="mt-6">
+                                <Link
+                                    to="/seeker/applications"
                                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                                 >
-                                    <Sparkles size={18} />
-                                    Apply
-                                </button>
-                            ) : (
-                                <>
-                                    <Link
-                                        to={`/seeker/apply/${job._id}`}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                                    >
-                                        <FileUp size={18} />
-                                        Upload and analyze resume
-                                    </Link>
-                                    <Link
-                                        to={`/seeker/apply/${job._id}?method=create`}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
-                                    >
-                                        <Wand2 size={18} />
-                                        Create resume
-                                    </Link>
-                                </>
-                            )}
+                                    Track your application
+                                </Link>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
+                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
+                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
+                            <p className="mt-3 text-sm leading-7 text-gray-600">
+                                Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
+                            </p>
+
+                            <div className="mt-6 space-y-3">
+                                {!showApplyOptions ? (
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={() => setShowApplyOptions(true)}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800 shadow-sm"
+                                        >
+                                            <Sparkles size={18} />
+                                            Apply
+                                        </button>
+                                        <button
+                                            onClick={handleToggleSaveJob}
+                                            disabled={isSaving}
+                                            className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-5 py-4 text-sm font-semibold transition shadow-sm ${
+                                                application?.status === 'SAVED'
+                                                    ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100/75'
+                                                    : 'border-black/10 bg-white text-gray-700 hover:bg-[#faf7f1]'
+                                            }`}
+                                        >
+                                            {application?.status === 'SAVED' ? 'Saved' : 'Save for Later'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Link
+                                            to={`/seeker/apply/${job._id}`}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                        >
+                                            <FileUp size={18} />
+                                            Upload and analyze resume
+                                        </Link>
+                                        <Link
+                                            to={`/seeker/apply/${job._id}?method=create`}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                                        >
+                                            <Wand2 size={18} />
+                                            Create resume
+                                        </Link>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </header>
 

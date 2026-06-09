@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Archive,
     BriefcaseBusiness,
@@ -23,6 +24,8 @@ const getStatusTone = (status) => {
             return 'bg-[#eef4ff] text-blue-700 border-blue-200';
         case 'REJECTED':
             return 'bg-[#fff1f1] text-red-700 border-red-200';
+        case 'SAVED':
+            return 'bg-[#fef9c3] text-amber-700 border-amber-200';
         default:
             return 'bg-[#f8f4ed] text-gray-700 border-black/10';
     }
@@ -87,7 +90,7 @@ const TimelineRow = ({ step, isCurrent }) => (
     </div>
 );
 
-const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, onToggle, emptyMessage }) => (
+const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, onToggle, emptyMessage, onUnsave }) => (
     <section className="rounded-[2.25rem] border border-black/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
         <button
             onClick={onToggle}
@@ -139,24 +142,46 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                     </div>
                                 </div>
 
-                                <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-                                    <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
-                                        {timeline.map((step, index) => (
-                                            <TimelineRow
-                                                key={`${application._id}-${step.label}`}
-                                                step={step}
-                                                isCurrent={index === currentIndex}
-                                            />
-                                        ))}
+                                {application.status === 'SAVED' ? (
+                                    <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-[1.75rem] border border-black/10 bg-white p-5">
+                                        <p className="text-sm text-gray-600">
+                                            You saved this job. You can start your AI application whenever you have time.
+                                        </p>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <button
+                                                onClick={() => onUnsave(application._id)}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold text-gray-500 transition hover:bg-[#faf7f1]"
+                                            >
+                                                Remove
+                                            </button>
+                                            <Link
+                                                to={`/seeker/job/${application.jobId?._id}`}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
+                                            >
+                                                Apply Now
+                                            </Link>
+                                        </div>
                                     </div>
+                                ) : (
+                                    <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                                        <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
+                                            {timeline.map((step, index) => (
+                                                <TimelineRow
+                                                    key={`${application._id}-${step.label}`}
+                                                    step={step}
+                                                    isCurrent={index === currentIndex}
+                                                />
+                                            ))}
+                                        </div>
 
-                                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                        <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
-                                        <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
-                                        <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
-                                        <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
+                                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                            <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
+                                            <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
+                                            <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
+                                            <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </article>
                         );
                     })
@@ -196,14 +221,23 @@ const MyApplications = () => {
     }, [user.uid, user._id, user.id]);
 
     const submittedApplications = useMemo(
-        () => applications.filter((application) => application.status !== 'REJECTED'),
+        () => applications.filter((application) => application.status !== 'REJECTED' && application.status !== 'SAVED'),
         [applications]
     );
 
     const archivedApplications = useMemo(
-        () => applications.filter((application) => application.status === 'REJECTED'),
+        () => applications.filter((application) => application.status === 'REJECTED' || application.status === 'SAVED'),
         [applications]
     );
+
+    const handleUnsave = async (appId) => {
+        try {
+            await axios.delete(`${API_URL}/applications/${appId}`);
+            setApplications((prev) => prev.filter((app) => app._id !== appId));
+        } catch (error) {
+            console.error('Failed to unsave job:', error);
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -251,6 +285,7 @@ const MyApplications = () => {
                         open={archivedOpen}
                         onToggle={() => setArchivedOpen((value) => !value)}
                         emptyMessage="No archived applications right now."
+                        onUnsave={handleUnsave}
                     />
                 </>
             )}
