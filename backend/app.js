@@ -105,6 +105,48 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// 🔍 TTS Debug Diagnostics Endpoint
+app.get('/api/tts-debug', async (req, res) => {
+    try {
+        const apiKey = process.env.ELEVENLABS_API_KEY;
+        const exists = !!apiKey;
+        const length = apiKey ? apiKey.length : 0;
+        const prefix = apiKey ? apiKey.substring(0, 5) : '';
+        
+        let testSuccess = false;
+        let testError = null;
+        let audioLength = 0;
+        
+        if (exists) {
+            try {
+                const ttsService = require('./services/tts.service');
+                const buffer = await ttsService.generateSpeech("Test debug audio generation.");
+                if (buffer) {
+                    testSuccess = true;
+                    audioLength = buffer.length;
+                } else {
+                    testError = "generateSpeech returned null (ElevenLabs API call returned empty response or fell back)";
+                }
+            } catch (err) {
+                testError = err.message;
+            }
+        } else {
+            testError = "ELEVENLABS_API_KEY environment variable is not defined on the server host.";
+        }
+        
+        res.json({
+            elevenLabsApiKeyExists: exists,
+            elevenLabsApiKeyLength: length,
+            elevenLabsApiKeyPrefix: prefix,
+            testSuccess,
+            audioLength,
+            testError
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Root health check (for Render ping)
 app.get('/', (req, res) => {
     res.json({ status: "OK", message: "hire1percent API is live." });
