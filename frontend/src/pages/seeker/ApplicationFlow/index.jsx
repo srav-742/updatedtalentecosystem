@@ -149,55 +149,37 @@ const ApplicationFlow = () => {
 
     return (
         <div className="min-h-screen bg-[#fbf8f3] flex flex-col">
-            <div className="sticky top-0 z-40 border-b border-black/10 bg-[#fbf8f3]/90 backdrop-blur">
-                <div className="mx-auto max-w-[1320px] px-4 py-5 md:px-6">
-                    <div className="rounded-[2rem] border border-black/10 bg-white px-6 py-5 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Candidate workflow</p>
-                                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">Application for {job.title}</h1>
-                                <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
-                                    Move from resume analysis to assessment and interview without losing your current progress.
-                                </p>
-                            </div>
+            <div className="sticky top-0 z-40 border-b border-black/10 bg-[#fcfbf8]/95 backdrop-blur-md">
+                <div className="mx-auto max-w-[1320px] px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Candidate workflow</p>
+                        <h1 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">Application for {job.title}</h1>
+                    </div>
 
-                            <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
-                                Step {stepIndex + 1} of {enabledSteps.length}
-                            </div>
-                        </div>
-
-                        <div className="mt-6 h-2 overflow-hidden rounded-full bg-black/10">
-                            <motion.div
-                                className="h-full rounded-full bg-black"
-                                initial={{ width: '0%' }}
-                                animate={{ width: `${((stepIndex + 1) / enabledSteps.length) * 100}%` }}
-                                transition={{ duration: 0.5 }}
-                            />
-                        </div>
-
-                        <div className="mt-5 grid gap-3 md:grid-cols-4">
-                            {enabledSteps.map((step, index) => (
-                                <div
-                                    key={step.id}
-                                    className={`rounded-[1.5rem] border px-4 py-4 transition ${stepIndex === index
-                                        ? 'border-black bg-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]'
-                                        : stepIndex > index
-                                            ? 'border-black/10 bg-[#f8f4ed] text-gray-800'
-                                            : 'border-black/10 bg-[#fbf8f3] text-gray-500'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${stepIndex === index ? 'bg-white text-black' : 'bg-white text-gray-600'}`}>
-                                            {step.icon}
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] opacity-60">Stage {index + 1}</p>
-                                            <p className="mt-1 text-sm font-semibold">{step.label}</p>
-                                        </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        {enabledSteps.map((step, index) => (
+                            <React.Fragment key={step.id}>
+                                {index > 0 && <ChevronRight size={14} className="text-gray-300 hidden sm:inline" />}
+                                <div className="flex items-center gap-2">
+                                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all ${
+                                        stepIndex === index
+                                            ? 'bg-black text-white shadow-md'
+                                            : stepIndex > index
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : 'bg-gray-100 text-gray-400'
+                                    }`}>
+                                        {stepIndex > index ? <CheckCircle className="w-3 h-3 text-emerald-700" /> : index + 1}
                                     </div>
+                                    <span className={`text-xs font-semibold transition-all ${
+                                        stepIndex === index
+                                            ? 'text-gray-900'
+                                            : 'text-gray-400'
+                                    }`}>
+                                        {step.label}
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
+                            </React.Fragment>
+                        ))}
                     </div>
                 </div>
             </div>
