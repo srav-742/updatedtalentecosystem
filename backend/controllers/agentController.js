@@ -8,6 +8,23 @@ const { generateSpeech } = require("../services/tts.service");
 const { callInterviewAI } = require("../utils/aiClients");
 const pdfParse = require("pdf-parse");
 
+// Mapping of agent roles to suitable podcast-host/conversational voices
+const AGENT_VOICE_MAP = {
+  ai_engineer: "professional_interviewer",
+  business_development: "professional_interviewer",
+  product_manager: "professional_interviewer",
+  data_scientist: "professional_interviewer",
+  sales_executive: "professional_interviewer",
+  frontend_engineer: "professional_interviewer",
+  backend_engineer: "professional_interviewer",
+  devops_engineer: "professional_interviewer",
+  ux_designer: "professional_interviewer",
+  marketing_manager: "professional_interviewer",
+  hr_manager: "professional_interviewer",
+  finance_analyst: "professional_interviewer",
+  cybersecurity_analyst: "professional_interviewer"
+};
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const modelName = "gemini-flash-latest"; // Fast and supports JSON mode well
 
@@ -100,6 +117,7 @@ async function startSession(req, res) {
     const session = sessionManager.getSession(sessionId);
     session.sessionSeed = sessionSeed;
     session.interviewStyle = interviewStyle;
+    session.voice = AGENT_VOICE_MAP[agentRole] || "podcast_host";
 
     const config = agentConfigs[agentRole];
     
@@ -170,7 +188,7 @@ STRICT RULES:
     // Generate audio
     let audioBase64 = null;
     try {
-      const audioBuffer = await generateSpeech(assistantMessage);
+      const audioBuffer = await generateSpeech(assistantMessage, session.voice);
       if (audioBuffer) audioBase64 = audioBuffer.toString("base64");
     } catch (err) {
       console.warn("TTS generation failed:", err.message);
@@ -316,7 +334,7 @@ STRICT RULES:
 
     let audioBase64 = null;
     try {
-      const audioBuffer = await generateSpeech(assistantMessage);
+      const audioBuffer = await generateSpeech(assistantMessage, session.voice);
       if (audioBuffer) audioBase64 = audioBuffer.toString("base64");
     } catch (err) {
       console.warn("TTS generation failed:", err.message);

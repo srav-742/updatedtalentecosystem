@@ -19,6 +19,21 @@ const {
 const interviewSessions = new Map();
 const MAX_INTERVIEW_QUESTIONS = 15;
 
+// Mapping of candidate job categories to premium curated voice personas
+const CATEGORY_VOICE_MAP = {
+    mlops: "senior_engineering_manager",
+    ai_engineer: "principal_ai_engineer",
+    technical: "senior_engineering_manager",
+    sales: "vp_sales",
+    marketing: "vp_sales",
+    hr: "director_vp",
+    finance: "director_vp",
+    operations: "director_vp",
+    design: "director_vp",
+    management: "director_vp",
+    general: "director_vp"
+};
+
 async function saveInterviewSession(sessionId, session) {
     interviewSessions.set(sessionId, session);
 
@@ -38,6 +53,7 @@ async function saveInterviewSession(sessionId, session) {
                 jobSkills: session.jobSkills,
                 experienceLevel: session.experienceLevel,
                 systemPrompt: session.systemPrompt,
+                interviewerVoice: session.interviewerVoice,
                 totalQuestions: Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
                 history: session.history || [],
                 answerEvaluations: session.answerEvaluations || []
@@ -71,6 +87,7 @@ async function loadInterviewSession(sessionId) {
         jobSkills: storedSession.jobSkills || [],
         experienceLevel: storedSession.experienceLevel || '',
         systemPrompt: storedSession.systemPrompt,
+        interviewerVoice: storedSession.interviewerVoice,
         totalQuestions: Math.min(storedSession.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
         history: storedSession.history || [],
         answerEvaluations: storedSession.answerEvaluations || []
@@ -118,19 +135,57 @@ const TECH_KEYWORDS = [
     'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
 ];
 
-// ─── Authoritative Interviewer Persona (injected into all system prompts) ─────
+// ─── HIRE1PERCENT INTERVIEWER CORE PROMPT V2 (injected into all system prompts) ─────
 const INTERVIEWER_PERSONA = `
 
-INTERVIEWER IDENTITY & BEHAVIORAL DIRECTIVES:
-- ROLE: You are a senior executive and the lead human technical interviewer conducting a high-stakes professional assessment.
-- TONE: Authoritative, confident, direct, and formal. Speak with clear deliberation.
-- RULE 1: NEVER refer to yourself as an AI, bot, assistant, or language model. You are the interviewer.
-- RULE 2: NEVER use over-enthusiastic filler words: "Awesome!", "Great job!", "Perfect!", "Fantastic!", "Amazing!", "Wonderful!", "Excellent answer!", "That's interesting!".
-- RULE 3: Use concise, firm transitions after evaluating a candidate's response. Examples: "Understood.", "Noted. Moving on.", "Let's pivot to the next area.", "Fair enough. Next question.", "That covers the basics. Let's continue.".
-- RULE 4: Maintain a structured, professional boundary. Do not over-explain your questions unless the candidate explicitly asks for clarification.
-- RULE 5: Do NOT praise answers. Acknowledge them neutrally and proceed.
-- RULE 6: Your tone should be commanding and measured — like a VP of Engineering or a Director conducting a final-round interview.
-- RULE 7: MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
+HIRE1PERCENT INTERVIEWER CORE PROMPT V2:
+You are a senior human interviewer conducting a real hiring interview.
+You are NOT an AI assistant.
+You are a hiring manager, principal engineer, director, VP, or domain expert evaluating a candidate for employment.
+
+INTERVIEW OBJECTIVES:
+1. Evaluate technical competence.
+2. Evaluate decision making.
+3. Evaluate communication.
+4. Evaluate ownership.
+5. Evaluate problem solving.
+6. Evaluate real-world experience.
+
+CONVERSATION RULES:
+- Speak naturally.
+- Sound like a human interviewer.
+- Never sound scripted.
+- Never praise answers excessively.
+- Never say "Great answer", "Excellent", "Perfect", or similar phrases.
+- Acknowledge responses professionally.
+- Ask exactly one question at a time.
+
+FOLLOW-UP INTELLIGENCE:
+For every candidate response:
+- STRONG ANSWER: Drill deeper. Ask 2–4 follow-up questions before changing topics. Explore architecture decisions, trade-offs, scaling considerations, and production challenges.
+- MODERATE ANSWER: Request clarification. Explore missing details. Ask for examples.
+- WEAK ANSWER: Ask one clarification question. Attempt to uncover partial understanding. If still weak, move to another topic.
+
+REAL INTERVIEW FLOW:
+- A human interviewer does not jump topics after every answer.
+- Stay on a topic until: sufficient depth is reached, the candidate cannot explain further, or the topic has been thoroughly assessed.
+
+QUESTION GENERATION:
+- Questions must be: context aware, based on previous answers, based on the job description, based on interview history, and non-repetitive.
+
+DIFFICULTY ADAPTATION:
+- If candidate performs strongly: increase difficulty gradually.
+- If candidate struggles: simplify the next question and assess fundamentals.
+
+QUESTION QUALITY:
+- Avoid generic questions.
+- Never ask: "Tell me about yourself", "What are your strengths?", "Why should we hire you?".
+- Instead ask: scenario-based questions, architecture questions, trade-off questions, behavioral ownership questions, and real-world problem-solving questions.
+
+OUTPUT RULE:
+- Return ONLY the next interview question.
+- No explanations. No feedback. No notes. Only the question.
+- MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
 `;
 
 // ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
@@ -225,8 +280,9 @@ function buildSystemPrompt(roleInfo, job) {
     const { isTech, roleCategory } = roleInfo;
     const jobTitle = job?.title || 'the role';
 
+    let basePrompt = '';
     if (isTech && roleCategory === 'mlops') {
-        return `
+        basePrompt = `
 You are a Lead MLOps Engineer conducting a technical interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -240,12 +296,9 @@ INTERVIEW CONDUCT:
 - Ask ONE question at a time.
 - STRICT RULE: NEVER REPEAT a question. Provide a completely new question each time.
 - Respond with ONLY the question text. Nothing else.
-` + INTERVIEWER_PERSONA;
-    }
-
-    if (isTech && roleCategory === 'ai_engineer') {
-        // ─── CHANGE 4: New AI Engineer system prompt ──────────────────────────
-        return `
+`;
+    } else if (isTech && roleCategory === 'ai_engineer') {
+        basePrompt = `
 You are a principal AI/ML engineer and technical interviewer conducting a rigorous interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -265,11 +318,9 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-` + INTERVIEWER_PERSONA;
-    }
-
-    if (isTech) {
-        return `
+`;
+    } else if (isTech) {
+        basePrompt = `
 You are a senior technical interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -288,12 +339,11 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-` + INTERVIEWER_PERSONA;
-    }
-
-    // Non-tech roles: Category-specific prompts
-    const categoryPrompts = {
-        sales: `
+`;
+    } else {
+        // Non-tech roles: Category-specific prompts
+        const categoryPrompts = {
+            sales: `
 You are a senior sales/business development interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -302,7 +352,7 @@ INTERVIEW PHILOSOPHY:
 - Evaluate: negotiation skills, objection handling, relationship building, market knowledge, and commercial acumen.
 - Ask situational and behavioral questions: "Tell me about a time when..." or "How would you handle..."
 `,
-        marketing: `
+            marketing: `
 You are a senior marketing interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -311,7 +361,7 @@ INTERVIEW PHILOSOPHY:
 - Evaluate: strategic thinking, campaign planning, analytics mindset, creativity, and ROI focus.
 - Ask about real scenarios: "Walk me through how you would plan a campaign for..." or "How do you measure success for..."
 `,
-        hr: `
+            hr: `
 You are a senior HR/People Operations interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -319,7 +369,7 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: empathy, conflict resolution, labor law knowledge, organizational development, and strategic HR thinking.
 `,
-        finance: `
+            finance: `
 You are a senior finance interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -327,7 +377,7 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: analytical rigor, attention to detail, regulatory knowledge, and financial modeling skills.
 `,
-        operations: `
+            operations: `
 You are a senior operations interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -335,7 +385,7 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: process thinking, problem-solving under constraints, efficiency mindset, and cross-functional collaboration.
 `,
-        design: `
+            design: `
 You are a senior design interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -343,7 +393,7 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: design thinking, user empathy, visual communication skills, and ability to iterate based on feedback.
 `,
-        management: `
+            management: `
 You are a senior interviewer conducting a professional interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -351,7 +401,7 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: leadership style, decision-making under pressure, team building, conflict resolution, and strategic vision.
 `,
-        general: `
+            general: `
 You are a senior professional interviewer conducting a formal interview for the role of "${jobTitle}".
 
 INTERVIEW PHILOSOPHY:
@@ -359,11 +409,10 @@ INTERVIEW PHILOSOPHY:
 - Only 5% from the candidate's resume.
 - Evaluate: domain knowledge, problem-solving, communication skills, and cultural fit for the role.
 `
-    };
+        };
 
-    const basePrompt = categoryPrompts[roleCategory] || categoryPrompts.general;
-
-    return basePrompt + `
+        const categoryBase = categoryPrompts[roleCategory] || categoryPrompts.general;
+        basePrompt = categoryBase + `
 INTERVIEW CONDUCT:
 - Be professional, structured, and rigorous — like a real interview panel at a reputable organization.
 - Each question should naturally flow from the candidate's previous answer.
@@ -374,7 +423,38 @@ INTERVIEW CONDUCT:
 - STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
 - Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
 - Respond with ONLY the question text. Nothing else.
-` + INTERVIEWER_PERSONA;
+`;
+    }
+
+    // Determine voice style instruction to append to persona
+    let voiceStyleInstruction = '';
+    if (roleCategory === 'mlops' || roleCategory === 'technical') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Senior Engineering Manager.
+- Your voice style is calm, confident, and authoritative. Speak with clear deliberation.
+`;
+    } else if (roleCategory === 'ai_engineer') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Principal AI Engineer.
+- Your voice style is deep technical with thoughtful pauses. Discuss advanced technical AI architectures and considerations naturally.
+`;
+    } else if (roleCategory === 'sales' || roleCategory === 'marketing') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a VP of Sales.
+- Your voice style is energetic, professional, and engaging.
+`;
+    } else {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Director / VP.
+- Your voice style is executive tone, measured, formal, and direct.
+`;
+    }
+
+    return basePrompt + voiceStyleInstruction + INTERVIEWER_PERSONA;
 }
 
 /**
@@ -424,28 +504,151 @@ RULES:
 }
 
 /**
+ * Dynamic interview partitioning helper to divide 70% of questions as follow-ups.
+ */
+function getInterviewStructure(T) {
+    const numFollowups = Math.round(T * 0.70);
+    const numMains = T - numFollowups;
+    const baseFollowups = Math.floor(numFollowups / numMains);
+    const remainder = numFollowups % numMains;
+    
+    const structure = [];
+    let currentQ = 1;
+    for (let i = 0; i < numMains; i++) {
+        const followupsForThisMain = baseFollowups + (i < remainder ? 1 : 0);
+        const mainIndex = currentQ;
+        const followUpIndices = [];
+        for (let j = 0; j < followupsForThisMain; j++) {
+            followUpIndices.push(currentQ + 1 + j);
+        }
+        structure.push({
+            mainIndex,
+            followUpIndices
+        });
+        currentQ += 1 + followupsForThisMain;
+    }
+    return structure;
+}
+
+/**
  * Build the follow-up question prompt with conversation context and question tracking.
  */
 function buildNextQuestionPrompt(session, questionNumber) {
     const { roleInfo, specialInstructions, resumeProfile } = session;
     const { isTech, roleCategory } = roleInfo;
-    const resumeWeight = '5%';
-    const jdWeight = '95%';
     const totalQuestions = session.totalQuestions;
-
     const isAiRole = roleCategory === 'ai_engineer';
 
-    // Resume question slots scale with totalQuestions
-    // For 15 questions, exactly 1 question (approx 5%) is resume-based (specifically slot 8)
+    // Resume question slots scale with totalQuestions and align with main question slots where possible
     let resumeQuestionSlots;
     if (totalQuestions === 15) {
-        resumeQuestionSlots = [8];
-    } else if (isTech) {
-        resumeQuestionSlots = totalQuestions === 5 ? [4] : [4, 6];
+        resumeQuestionSlots = [9]; // Align with main question 3
+    } else if (totalQuestions === 10) {
+        resumeQuestionSlots = [8]; // Align with main question 3
     } else {
-        resumeQuestionSlots = totalQuestions === 5 ? [4] : [5];
+        resumeQuestionSlots = [Math.max(1, totalQuestions - 1)];
     }
     const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
+
+    // Analyze block evaluations to guide follow-up behavior
+    const structure = getInterviewStructure(totalQuestions);
+    const block = structure.find(b => b.mainIndex === questionNumber || b.followUpIndices.includes(questionNumber));
+    
+    const blockEvals = [];
+    if (block) {
+        const evals = session.answerEvaluations || [];
+        for (const e of evals) {
+            if (e.questionNumber === block.mainIndex || block.followUpIndices.includes(e.questionNumber)) {
+                blockEvals.push(e);
+            }
+        }
+    }
+
+    let isPivot = false;
+    let quality = 'N/A';
+    let lastFeedback = '';
+
+    if (blockEvals.length > 0) {
+        const lastEval = blockEvals[blockEvals.length - 1];
+        lastFeedback = lastEval.feedback || '';
+        const score = lastEval.score || 0;
+
+        if (score >= 70) {
+            quality = 'Strong';
+        } else if (score >= 40) {
+            quality = 'Moderate';
+        } else {
+            quality = 'Weak';
+        }
+
+        // Pivot early guard: if last two answers in this block were both weak
+        if (blockEvals.length >= 2) {
+            const secondLastEval = blockEvals[blockEvals.length - 2];
+            if ((lastEval.score || 0) < 40 && (secondLastEval.score || 0) < 40) {
+                isPivot = true;
+            }
+        }
+    }
+
+    let followUpDirective = '';
+    if (isPivot || questionNumber === block?.mainIndex) {
+        followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: NEW TOPIC / PIVOT ===
+- You must select and pivot to a brand new topic from the Job Description.
+- Do NOT continue the previous thread or ask follow-ups on the last answer.
+- ${isPivot ? "Reason: The candidate has struggled to clarify their understanding of the previous topic. Acknowledge the response neutrally and pivot to a completely new area of the JD." : "Reason: You are starting a new topic block."}
+`;
+    } else {
+        if (quality === 'Strong') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: DRILL DEEPER (STRONG ANSWER) ===
+- The candidate's last answer was evaluated as STRONG.
+- Drill deeper on the SAME topic. Ask a deep follow-up to explore trade-offs, scalability, or production challenges.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else if (quality === 'Moderate') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: REQUEST CLARIFICATION (MODERATE ANSWER) ===
+- The candidate's last answer was MODERATE (some details missing).
+- Request clarification or explore missing details. Ask them to elaborate, walk through implementation, or explain challenges.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else if (quality === 'Weak') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: ATTEMPT ONE CLARIFICATION (WEAK ANSWER) ===
+- The candidate's last answer was WEAK.
+- Attempt exactly ONE clarification question to uncover partial understanding. Ask them to explain it in a simpler way, provide an example, or outline their first step.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: DRILL DEEPER ===
+- Follow up on the candidate's last answer to explore the topic further.
+`;
+        }
+    }
+
+    let questionDirective;
+    if (isResumeQuestion) {
+        questionDirective = `
+THIS IS A RESUME-BASED QUESTION (5% allocation).
+- Ask a question that VALIDATES something specific from the candidate's resume.
+- Connect it to the job description when possible.
+- Focus on verifying claimed skills/experience that are relevant to the job.
+` + followUpDirective;
+    } else {
+        questionDirective = `
+THIS IS A JOB-DESCRIPTION-BASED QUESTION (95% allocation).
+- Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
+- ${roleCategory === 'mlops'
+                ? 'For MLOps roles: ask about model deployment patterns, model monitoring for drift, feature store implementation, CI/CD pipelines for ML, Kubernetes for ML, data versioning, or serving latency optimizations.'
+                : isAiRole
+                ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
+                : isTech
+                    ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
+                    : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities.'}
+` + followUpDirective;
+    }
 
     const askedQuestions = session.history
         .filter(h => h.role === 'interviewer')
@@ -453,29 +656,6 @@ function buildNextQuestionPrompt(session, questionNumber) {
         .join('\n');
 
     const thread = session.history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`).join('\n');
-
-    let questionDirective;
-    if (isResumeQuestion) {
-        questionDirective = `
-THIS IS A RESUME-BASED QUESTION (${resumeWeight} allocation).
-- Ask a question that VALIDATES something specific from the candidate's resume.
-- Connect it to the job description when possible — e.g., "I see you've worked with X technology. In this role, we need Y. How would your experience with X translate?"
-- Focus on verifying claimed skills/experience that are relevant to the job.
-`;
-    } else {
-        questionDirective = `
-THIS IS A JOB-DESCRIPTION-BASED QUESTION (${jdWeight} allocation).
-- Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
-- Base the question on the candidate's PREVIOUS ANSWER — if they mentioned something relevant, drill deeper; if they struggled, pivot to another JD topic.
-- ${roleCategory === 'mlops'
-                ? 'For MLOps roles: ask about model deployment patterns (Canary/Blue-Green), model monitoring for drift, feature store implementation, CI/CD pipelines for ML, Kubernetes for ML, data versioning, or serving latency optimizations.'
-                : isAiRole
-                ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
-                : isTech
-                    ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
-                    : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities — "How would you handle...", "Walk me through how you would approach..."'}
-`;
-    }
 
     return `
 === JOB CONTEXT ===
@@ -507,9 +687,8 @@ ${askedQuestions}
 Based on the interview flow above, ask the NEXT interview question (Question ${questionNumber}).
 - CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
 - Make it flow naturally from the candidate's last answer.
-- If the candidate gave a strong answer, go deeper. If they were weak, gracefully shift to another relevant topic from the JD.
 - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
-- Return ONLY the question. Nothing else. Ensure the question flows from the previous answer and is complete.
+- Return ONLY the question. Nothing else. Ensure the question flows from the previous answer, is complete, and ends with a question mark (?).
 `;
 }
 

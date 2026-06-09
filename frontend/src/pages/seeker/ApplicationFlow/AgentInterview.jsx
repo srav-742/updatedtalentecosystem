@@ -145,31 +145,15 @@ export default function AgentInterview() {
     setIsSpeaking(true);
     setDisplayText("");
 
-    // Last-resort fallback: browser TTS (only if ElevenLabs audio completely unavailable)
+    // Last-resort fallback: type the response only. Do not use browser TTS because it sounds robotic.
     const speakInBrowser = () => {
-      console.warn("[TTS-FALLBACK] Using browser speechSynthesis (robotic voice)");
+      console.warn("[TTS-FALLBACK] ElevenLabs audio unavailable; showing text without browser speech.");
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      // Try to pick a more natural voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => 
-        v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Neural")
-      ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
-      if (preferredVoice) utterance.voice = preferredVoice;
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.onend = () => {
+      typeText(text, () => {
         setIsSpeaking(false);
         setMessages(prev => [...prev, { role: "agent", text }]);
         setDisplayText("");
-      };
-      let charIdx = 0;
-      const interval = setInterval(() => {
-        charIdx++;
-        setDisplayText(text.substring(0, charIdx));
-        if (charIdx >= text.length) clearInterval(interval);
-      }, 12);
-      window.speechSynthesis.speak(utterance);
+      });
     };
 
     const startTyping = () => {
@@ -180,9 +164,9 @@ export default function AgentInterview() {
       });
     };
 
-    // If no ElevenLabs audio received from backend, fall back to browser TTS
+    // If no ElevenLabs audio is received from backend, show text without robotic browser voice.
     if (!audioBase64 || audioBase64.length < 100) {
-      console.warn("[TTS] No ElevenLabs audio received from backend, falling back to browser TTS");
+      console.warn("[TTS] No ElevenLabs audio received from backend; browser TTS disabled.");
       speakInBrowser();
       return;
     }
@@ -206,7 +190,7 @@ export default function AgentInterview() {
       };
       player.onerror = (e) => {
         console.error("[TTS] Audio element error:", e);
-        // Only fallback to browser TTS if audio element truly fails
+        // Keep the UI moving if the audio element fails.
         startTyping();
         setTimeout(() => setIsSpeaking(false), text.length * 12 + 500);
       };

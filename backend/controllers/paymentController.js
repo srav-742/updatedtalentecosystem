@@ -121,9 +121,14 @@ exports.verifyPayment = async (req, res) => {
 
             // Here we can unlock the premium plan / upgrade recruiter credits
             // For modularity, we will also update the user's role/plan if applicable
-            await User.findByIdAndUpdate(transaction.userId, {
+            const updatedUser = await User.findByIdAndUpdate(transaction.userId, {
                 $set: { hiringPattern: "Premium Recruiter", isPro: true } // Updates status safely without breaking userSchema fields
-            });
+            }, { new: true });
+
+            if (updatedUser) {
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(updatedUser);
+            }
 
             return res.status(200).json({
                 success: true,

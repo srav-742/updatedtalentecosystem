@@ -46,7 +46,11 @@ const updateRecruiterPattern = async (recruiterId) => {
         const result = await model.generateContent(prompt);
         const pattern = result.response.text().trim();
 
-        await User.findOneAndUpdate({ uid: recruiterId }, { hiringPattern: pattern });
+        const updatedUser = await User.findOneAndUpdate({ uid: recruiterId }, { hiringPattern: pattern }, { new: true });
+        if (updatedUser) {
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(updatedUser);
+        }
         console.log(`[TeamFit] Pattern updated for recruiter ${recruiterId}`);
     } catch (error) {
         console.error("[TeamFit] updatePattern Error:", error);

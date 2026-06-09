@@ -14,6 +14,7 @@ const interviewSessionSchema = new mongoose.Schema(
         jobSkills: [String],
         experienceLevel: String,
         systemPrompt: String,
+        interviewerVoice: String,
         totalQuestions: { type: Number, default: 10 },
         history: [
             {

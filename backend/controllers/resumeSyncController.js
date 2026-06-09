@@ -236,6 +236,20 @@ const syncFromBuilder = async (req, res) => {
         );
 
         console.log(`[RESUME-SYNC] Synced successfully for user UID: ${uid}`);
+
+        // Sync candidate profile with new parsed ResumeProfile details (skills/location)
+        const User = require('../models/User');
+        const user = await User.findOne({
+            $or: [
+                { uid: uid },
+                { _id: require('mongoose').Types.ObjectId.isValid(uid) ? uid : null }
+            ]
+        });
+        if (user) {
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(user);
+        }
+
         return res.status(200).json({ success: true, profile: updatedProfile });
     } catch (error) {
         console.error("[RESUME-SYNC-ERROR] Failure:", error);

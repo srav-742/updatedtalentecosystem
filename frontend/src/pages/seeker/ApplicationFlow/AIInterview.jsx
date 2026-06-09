@@ -152,32 +152,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         const speakInBrowser = () => {
             window.speechSynthesis.cancel();
             typeText(textToSpeak);
-            const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            // Select the most natural-sounding English voice available
-            const voices = window.speechSynthesis.getVoices();
-            // Priority order: premium voices first, then generic English
-            const voicePreferences = [
-                'Google UK English Male', 'Google US English', 'Microsoft Mark',
-                'Microsoft David', 'Daniel', 'James', 'Alex', 'Fred',
-                'Samantha', 'Karen', 'Moira', 'Rishi', 'Google UK English Female'
-            ];
-            let preferredVoice = null;
-            for (const pref of voicePreferences) {
-                preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes(pref));
-                if (preferredVoice) break;
-            }
-            if (!preferredVoice) {
-                preferredVoice = voices.find(v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('compact'));
-            }
-            if (!preferredVoice) {
-                preferredVoice = voices.find(v => v.lang.startsWith('en'));
-            }
-            if (preferredVoice) utterance.voice = preferredVoice;
-            utterance.rate = 0.92;   // slightly slower for natural, deliberate delivery
-            utterance.pitch = 0.90;  // natural pitch range
-            utterance.onend = finishQuestionPlayback;
-            utterance.onerror = finishQuestionPlayback;
-            window.speechSynthesis.speak(utterance);
+            window.setTimeout(finishQuestionPlayback, Math.max(textToSpeak.length * 22, 1200));
         };
 
         if (!base64 || base64 === "") {

@@ -130,6 +130,10 @@ const updateUserProfile = async (req, res) => {
             }
         }
         const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
+        if (user) {
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(user);
+        }
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
@@ -227,15 +231,8 @@ const addUser = async (req, res) => {
         });
         await newUser.save();
         
-        if (role === 'recruiter') {
-            await Recruiter.create({
-                userId: newUser._id, name, email, phone, designation, company: { name: companyName }
-            });
-        } else if (role === 'seeker') {
-            await Candidate.create({
-                userId: newUser._id, name, email, phone, skills, location
-            });
-        }
+        const { syncUserToProfile } = require('../utils/dbSync');
+        await syncUserToProfile(newUser);
         
         res.json(newUser);
     } catch (error) {

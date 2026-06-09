@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
     profilePic: String,
     designation: String,
     phone: String,
+    location: String,
     company: {
         name: String,
         website: String,

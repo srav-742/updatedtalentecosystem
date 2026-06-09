@@ -607,6 +607,19 @@ ${resumeText.substring(0, 8000)}
                 { ...structuredData, lastUpdated: new Date() },
                 { upsert: true, new: true }
             );
+
+            // Sync updated candidate profile
+            const User = require('../models/User');
+            const user = await User.findOne({
+                $or: [
+                    { uid: userId },
+                    { _id: require('mongoose').Types.ObjectId.isValid(userId) ? userId : null }
+                ]
+            });
+            if (user) {
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(user);
+            }
         }
 
         res.json(structuredData);
@@ -685,6 +698,19 @@ const saveResumeStructuredProfile = async (req, res) => {
             },
             { upsert: true, new: true }
         );
+
+        // Sync updated candidate profile
+        const User = require('../models/User');
+        const user = await User.findOne({
+            $or: [
+                { uid: userId },
+                { _id: require('mongoose').Types.ObjectId.isValid(userId) ? userId : null }
+            ]
+        });
+        if (user) {
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(user);
+        }
 
         res.json({ success: true, profile: updatedProfile });
     } catch (error) {

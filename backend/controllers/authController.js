@@ -62,6 +62,8 @@ const syncUser = async (req, res) => {
                 }
             }
         }
+        const { syncUserToProfile } = require('../utils/dbSync');
+        await syncUserToProfile(user);
         res.json(user);
     } catch (error) {
         console.error("[AUTH-SYNC] Critical Failure:", error);
@@ -87,6 +89,9 @@ const signup = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = new User({ name, email, password: hashedPassword, role });
         await user.save();
+
+        const { syncUserToProfile } = require('../utils/dbSync');
+        await syncUserToProfile(user);
 
         console.log(`[AUTH-SIGNUP] Success for ${email} in ${Date.now() - start}ms`);
         res.status(201).json({ message: "User created successfully", userId: user._id });
@@ -139,6 +144,8 @@ const googleAuth = async (req, res) => {
             if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {
                 user.profilePic = profilePic;
                 await user.save();
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(user);
             }
             return res.json({ message: "Login successful", user });
         } else {
@@ -150,6 +157,8 @@ const googleAuth = async (req, res) => {
 
             user = new User({ name, email, profilePic, role });
             await user.save();
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(user);
 
             return res.json({ message: "Signup successful", user });
         }

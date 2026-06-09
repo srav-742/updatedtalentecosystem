@@ -65,6 +65,7 @@ async function loadSession(sessionId) {
         jobSkills: stored.jobSkills || [],
         experienceLevel: stored.experienceLevel || '',
         systemPrompt: stored.systemPrompt,
+        interviewerVoice: stored.interviewerVoice,
         totalQuestions: Math.min(stored.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
         history: stored.history || [],
         answerEvaluations: stored.answerEvaluations || []
@@ -93,6 +94,7 @@ async function saveSession(sessionId, session) {
                 jobSkills: session.jobSkills,
                 experienceLevel: session.experienceLevel,
                 systemPrompt: session.systemPrompt,
+                interviewerVoice: session.interviewerVoice,
                 totalQuestions: Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
                 history: session.history || [],
                 answerEvaluations: session.answerEvaluations || []
@@ -200,21 +202,152 @@ INTERVIEWER IDENTITY & BEHAVIORAL DIRECTIVES:
 - RULE 7: MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
 `;
 
+/**
+ * Dynamic interview partitioning helper to divide 70% of questions as follow-ups.
+ */
+function getInterviewStructure(T) {
+    const numFollowups = Math.round(T * 0.70);
+    const numMains = T - numFollowups;
+    const baseFollowups = Math.floor(numFollowups / numMains);
+    const remainder = numFollowups % numMains;
+    
+    const structure = [];
+    let currentQ = 1;
+    for (let i = 0; i < numMains; i++) {
+        const followupsForThisMain = baseFollowups + (i < remainder ? 1 : 0);
+        const mainIndex = currentQ;
+        const followUpIndices = [];
+        for (let j = 0; j < followupsForThisMain; j++) {
+            followUpIndices.push(currentQ + 1 + j);
+        }
+        structure.push({
+            mainIndex,
+            followUpIndices
+        });
+        currentQ += 1 + followupsForThisMain;
+    }
+    return structure;
+}
+
+/**
+ * Build the follow-up question prompt with conversation context and question tracking.
+ */
 function buildNextQuestionPrompt(session, questionNumber) {
     const { roleInfo, specialInstructions, resumeProfile } = session;
     const { isTech, roleCategory } = roleInfo;
     const totalQuestions = session.totalQuestions;
     const isAiRole = roleCategory === 'ai_engineer';
 
+    // Resume question slots scale with totalQuestions and align with main question slots where possible
     let resumeQuestionSlots;
     if (totalQuestions === 15) {
-        resumeQuestionSlots = [8];
-    } else if (isTech) {
-        resumeQuestionSlots = totalQuestions === 5 ? [4] : [4, 6];
+        resumeQuestionSlots = [9]; // Align with main question 3
+    } else if (totalQuestions === 10) {
+        resumeQuestionSlots = [8]; // Align with main question 3
     } else {
-        resumeQuestionSlots = totalQuestions === 5 ? [4] : [5];
+        resumeQuestionSlots = [Math.max(1, totalQuestions - 1)];
     }
     const isResumeQuestion = resumeQuestionSlots.includes(questionNumber);
+
+    // Analyze block evaluations to guide follow-up behavior
+    const structure = getInterviewStructure(totalQuestions);
+    const block = structure.find(b => b.mainIndex === questionNumber || b.followUpIndices.includes(questionNumber));
+    
+    const blockEvals = [];
+    if (block) {
+        const evals = session.answerEvaluations || [];
+        for (const e of evals) {
+            if (e.questionNumber === block.mainIndex || block.followUpIndices.includes(e.questionNumber)) {
+                blockEvals.push(e);
+            }
+        }
+    }
+
+    let isPivot = false;
+    let quality = 'N/A';
+    let lastFeedback = '';
+
+    if (blockEvals.length > 0) {
+        const lastEval = blockEvals[blockEvals.length - 1];
+        lastFeedback = lastEval.feedback || '';
+        const score = lastEval.score || 0;
+
+        if (score >= 70) {
+            quality = 'Strong';
+        } else if (score >= 40) {
+            quality = 'Moderate';
+        } else {
+            quality = 'Weak';
+        }
+
+        // Pivot early guard: if last two answers in this block were both weak
+        if (blockEvals.length >= 2) {
+            const secondLastEval = blockEvals[blockEvals.length - 2];
+            if ((lastEval.score || 0) < 40 && (secondLastEval.score || 0) < 40) {
+                isPivot = true;
+            }
+        }
+    }
+
+    let followUpDirective = '';
+    if (isPivot || questionNumber === block?.mainIndex) {
+        followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: NEW TOPIC / PIVOT ===
+- You must select and pivot to a brand new topic from the Job Description.
+- Do NOT continue the previous thread or ask follow-ups on the last answer.
+- ${isPivot ? "Reason: The candidate has struggled to clarify their understanding of the previous topic. Acknowledge the response neutrally and pivot to a completely new area of the JD." : "Reason: You are starting a new topic block."}
+`;
+    } else {
+        if (quality === 'Strong') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: DRILL DEEPER (STRONG ANSWER) ===
+- The candidate's last answer was evaluated as STRONG.
+- Drill deeper on the SAME topic. Ask a deep follow-up to explore trade-offs, scalability, or production challenges.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else if (quality === 'Moderate') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: REQUEST CLARIFICATION (MODERATE ANSWER) ===
+- The candidate's last answer was MODERATE (some details missing).
+- Request clarification or explore missing details. Ask them to elaborate, walk through implementation, or explain challenges.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else if (quality === 'Weak') {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: ATTEMPT ONE CLARIFICATION (WEAK ANSWER) ===
+- The candidate's last answer was WEAK.
+- Attempt exactly ONE clarification question to uncover partial understanding. Ask them to explain it in a simpler way, provide an example, or outline their first step.
+- Last answer feedback: "${lastFeedback}"
+`;
+        } else {
+            followUpDirective = `
+=== FOLLOW-UP FRAMEWORK: DRILL DEEPER ===
+- Follow up on the candidate's last answer to explore the topic further.
+`;
+        }
+    }
+
+    let questionDirective;
+    if (isResumeQuestion) {
+        questionDirective = `
+THIS IS A RESUME-BASED QUESTION (5% allocation).
+- Ask a question that VALIDATES something specific from the candidate's resume.
+- Connect it to the job description when possible.
+- Focus on verifying claimed skills/experience that are relevant to the job.
+` + followUpDirective;
+    } else {
+        questionDirective = `
+THIS IS A JOB-DESCRIPTION-BASED QUESTION (95% allocation).
+- Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
+- ${roleCategory === 'mlops'
+                ? 'For MLOps roles: ask about model deployment patterns, model monitoring for drift, feature store implementation, CI/CD pipelines for ML, Kubernetes for ML, data versioning, or serving latency optimizations.'
+                : isAiRole
+                ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
+                : isTech
+                    ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
+                    : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities.'}
+` + followUpDirective;
+    }
 
     const askedQuestions = session.history
         .filter(h => h.role === 'interviewer')
@@ -225,29 +358,6 @@ function buildNextQuestionPrompt(session, questionNumber) {
     const thread = recentMessages.map(h =>
         `${h.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${h.content}`
     ).join('\n');
-
-    let questionDirective;
-    if (isResumeQuestion) {
-        questionDirective = `
-THIS IS A RESUME-BASED QUESTION (5% allocation).
-- Ask a question that VALIDATES something specific from the candidate's resume.
-- Connect it to the job description when possible.
-- Focus on verifying claimed skills/experience that are relevant to the job.
-`;
-    } else {
-        questionDirective = `
-THIS IS A JOB-DESCRIPTION-BASED QUESTION (95% allocation).
-- Ask a question directly related to the responsibilities, requirements, or challenges described in the job description.
-- Base the question on the candidate's PREVIOUS ANSWER — if they mentioned something relevant, drill deeper; if they struggled, pivot to another JD topic.
-- ${roleCategory === 'mlops'
-                ? 'For MLOps roles: ask about model deployment patterns, model monitoring for drift, feature store implementation, CI/CD pipelines for ML, Kubernetes for ML, data versioning, or serving latency optimizations.'
-                : isAiRole
-                ? 'For AI/ML engineering roles: ask about LLM architecture trade-offs, RAG pipeline design, chunking strategies, embedding models, vector store selection, fine-tuning vs. prompting, evaluation frameworks, hallucination mitigation, latency/cost optimisation, or MLOps practices described in the JD.'
-                : isTech
-                    ? 'For technical roles: focus on implementation, system design, debugging, performance optimization, or architectural decisions related to the JD.'
-                    : 'For non-technical roles: use situational/behavioral questions tied to the JD responsibilities.'}
-`;
-    }
 
     return `
 === JOB CONTEXT ===
@@ -279,7 +389,6 @@ ${askedQuestions}
 Based on the interview flow above, ask the NEXT interview question (Question ${questionNumber}).
 - CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
 - Make it flow naturally from the candidate's last answer.
-- If the candidate gave a strong answer, go deeper. If they were weak, gracefully shift to another relevant topic from the JD.
 - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
 - Return ONLY the question. Nothing else. Ensure the question is a complete sentence ending with a question mark (?). Do not include any trailing text, explanations, or cut off mid-sentence.
 `;
@@ -693,7 +802,7 @@ router.post('/next-fast', async (req, res) => {
         let audioBase64 = null;
         try {
             const { generateSpeech } = require('../services/tts.service');
-            const buffer = await generateSpeech(nextQuestion);
+            const buffer = await generateSpeech(nextQuestion, session.interviewerVoice);
             if (buffer) {
                 audioBase64 = buffer.toString('base64');
             }
