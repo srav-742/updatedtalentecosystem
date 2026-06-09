@@ -147,13 +147,36 @@ export default function AgentInterview() {
 
     // Last-resort fallback: type the response only. Do not use browser TTS because it sounds robotic.
     const speakInBrowser = () => {
-      console.warn("[TTS-FALLBACK] ElevenLabs audio unavailable; showing text without browser speech.");
+      console.warn("[TTS-FALLBACK] ElevenLabs audio unavailable; using browser SpeechSynthesis.");
       window.speechSynthesis.cancel();
-      typeText(text, () => {
-        setIsSpeaking(false);
-        setMessages(prev => [...prev, { role: "agent", text }]);
-        setDisplayText("");
-      });
+      try {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural')));
+        if (preferredVoice) utterance.voice = preferredVoice;
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          setMessages(prev => [...prev, { role: "agent", text }]);
+          setDisplayText("");
+        };
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+          setMessages(prev => [...prev, { role: "agent", text }]);
+          setDisplayText("");
+        };
+
+        typeText(text);
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.error("[TTS-BROWSER-FALLBACK] Browser TTS fallback failed:", err);
+        typeText(text, () => {
+          setIsSpeaking(false);
+          setMessages(prev => [...prev, { role: "agent", text }]);
+          setDisplayText("");
+        });
+      }
     };
 
     const startTyping = () => {

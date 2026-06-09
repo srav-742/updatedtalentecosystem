@@ -152,7 +152,22 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         const speakInBrowser = () => {
             window.speechSynthesis.cancel();
             typeText(textToSpeak);
-            window.setTimeout(finishQuestionPlayback, Math.max(textToSpeak.length * 22, 1200));
+            try {
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.lang = 'en-US';
+                const voices = window.speechSynthesis.getVoices();
+                const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural')));
+                if (preferredVoice) utterance.voice = preferredVoice;
+                utterance.onend = finishQuestionPlayback;
+                utterance.onerror = () => {
+                    console.warn("[TTS-BROWSER-FALLBACK] Playback failed, ending playback.");
+                    finishQuestionPlayback();
+                };
+                window.speechSynthesis.speak(utterance);
+            } catch (err) {
+                console.error("[TTS-BROWSER-FALLBACK] SpeechSynthesis error:", err);
+                window.setTimeout(finishQuestionPlayback, Math.max(textToSpeak.length * 22, 1200));
+            }
         };
 
         if (!base64 || base64 === "") {

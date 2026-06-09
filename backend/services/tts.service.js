@@ -48,7 +48,7 @@ const VOICE_LIBRARY = {
 };
 
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || PROFESSIONAL_INTERVIEWER_VOICE_ID;
-const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v3';
+const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
 const ELEVENLABS_OUTPUT_FORMAT = process.env.ELEVENLABS_OUTPUT_FORMAT || 'mp3_44100_128';
 
 const PROFESSIONAL_VOICE_SETTINGS = {
