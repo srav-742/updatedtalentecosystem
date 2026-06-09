@@ -24,7 +24,6 @@ const Applicants = () => {
 
     // Filter & Sorting State
     const [showFilters, setShowFilters] = useState(false);
-    const [filterJob, setFilterJob] = useState('All');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterVideo, setFilterVideo] = useState('All');
     const [minResumeScore, setMinResumeScore] = useState(0);
@@ -109,9 +108,6 @@ const Applicants = () => {
         fetchApplicants();
     }, [targetJobId]);
 
-    // Extract unique jobs from applicants list
-    const uniqueJobs = Array.from(new Set(applicants.map(app => app.job))).filter(Boolean);
-
     // Handle Filters and Sorting
     const filteredApplicants = applicants
         .filter(app => {
@@ -122,13 +118,10 @@ const Applicants = () => {
                 app.job.toLowerCase().includes(term) ||
                 app.email.toLowerCase().includes(term);
 
-            // 2. Job Filter
-            const matchesJob = filterJob === 'All' || app.job === filterJob;
-
-            // 3. Status Filter
+            // 2. Status Filter
             const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
 
-            // 4. Video Intro Filter
+            // 3. Video Intro Filter
             const matchesVideo = filterVideo === 'All' ||
                 (filterVideo === 'Yes' && app.videoIntroUrl) ||
                 (filterVideo === 'No' && !app.videoIntroUrl);
@@ -140,7 +133,7 @@ const Applicants = () => {
             const matchesAssessment = minAssessmentScore === 0 ||
                 (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
 
-            return matchesSearch && matchesJob && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
+            return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
         })
         .sort((a, b) => {
             if (sortBy === 'none') return 0;
@@ -153,6 +146,16 @@ const Applicants = () => {
             
             return sortOrder === 'desc' ? valB - valA : valA - valB;
         });
+
+    // Group filtered applicants by job title
+    const groupedApplicants = filteredApplicants.reduce((acc, app) => {
+        const jobTitle = app.job || 'Unknown Job';
+        if (!acc[jobTitle]) {
+            acc[jobTitle] = [];
+        }
+        acc[jobTitle].push(app);
+        return acc;
+    }, {});
 
     // Handle Status Update
     const handleStatusUpdate = async (id, newStatus) => {
@@ -276,25 +279,8 @@ const Applicants = () => {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                     className="p-6 rounded-[2rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden"
                 >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {/* 1. Job Role Dropdown */}
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Filter by Job Role</label>
-                            <select
-                                value={filterJob}
-                                onChange={(e) => setFilterJob(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl bg-[#1e222b] border border-white/10 focus:border-blue-500/50 outline-none text-sm text-white font-medium cursor-pointer"
-                            >
-                                <option value="All" className="bg-[#1a1d24] text-white">All Jobs</option>
-                                {uniqueJobs.map((job) => (
-                                    <option key={job} value={job} className="bg-[#1a1d24] text-white">
-                                        {job}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* 2. Status Dropdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* 1. Status Dropdown */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Application Status</label>
                             <select
@@ -310,7 +296,7 @@ const Applicants = () => {
                             </select>
                         </div>
 
-                        {/* 3. Video Intro Dropdown */}
+                        {/* 2. Video Intro Dropdown */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Video Introduction</label>
                             <select
@@ -324,7 +310,7 @@ const Applicants = () => {
                             </select>
                         </div>
 
-                        {/* 4. Sorting Options */}
+                        {/* 3. Sorting Options */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Sort Candidates</label>
                             <div className="flex gap-2">
@@ -392,7 +378,6 @@ const Applicants = () => {
                             </div>
                             <button
                                 onClick={() => {
-                                    setFilterJob('All');
                                     setFilterStatus('All');
                                     setFilterVideo('All');
                                     setMinResumeScore(0);
@@ -410,267 +395,239 @@ const Applicants = () => {
                 </motion.div>
             )}
 
-            <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
-                <div className="min-h-[400px]">
-                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                        <Users size={200} />
+            {loading ? (
+                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
+                    <div className="min-h-[400px] flex items-center justify-center">
+                        <div className="flex items-center justify-center gap-2 text-gray-500 italic">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+                            Reading Applicant Ledger...
+                        </div>
                     </div>
-                    <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
-                        <colgroup>
-                            <col style={{ width: '4%' }} />
-                            <col style={{ width: '22%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '11%' }} />
-                            <col style={{ width: '7%' }} />
-                        </colgroup>
-                        <thead>
-                            <tr className="border-b border-white/10 text-gray-400 text-[10px] uppercase font-bold tracking-widest">
-                                <th className="pb-6 pt-4 pl-4 text-center border border-white/10">S.No</th>
-                                <th className="pb-6 pt-4 pl-4 text-left border border-white/10">Candidate Info</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Video Intro</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Resume Match</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Assessment</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Interview</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Final Score</th>
-                                <th className="pb-6 pt-4 text-center border border-white/10">Status</th>
-                                <th className="pb-6 pt-4 text-right pr-4 border border-white/10">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan="9" className="py-20 text-center text-gray-500 italic border border-white/10">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
-                                            Reading Applicant Ledger...
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : filteredApplicants.length > 0 ? (
-                                filteredApplicants.map((app, index) => {
-                                    const interviewMeta = getInterviewMeta(app);
-                                    return (
-                                    <tr key={app.id} className="group transition-all hover:bg-white/[0.02]" style={{ verticalAlign: 'middle' }}>
-                                        <td className="py-4 text-center border border-white/10 text-xs font-bold text-gray-400">
-                                            {index + 1}
-                                        </td>
-                                        <td className="py-4 pl-4 border border-white/10" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            <div className="flex items-center gap-4">
-                                                {app.profilePic ? (
-                                                    <img
-                                                        src={app.profilePic}
-                                                        alt={app.name}
-                                                        className="w-10 h-10 rounded-full object-cover border border-white/10"
-                                                        onError={(e) => { e.target.src = ''; e.target.style.display = 'none'; }}
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center font-bold text-sm text-blue-400">
-                                                        {app.name[0]}
+                </div>
+            ) : filteredApplicants.length > 0 ? (
+                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => (
+                    <div key={jobTitle} className="space-y-4 mb-10">
+                        <h2 className="text-xl font-bold uppercase tracking-tight text-white flex items-center gap-3">
+                            <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
+                            {jobTitle}
+                            <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-xl border border-blue-500/20">
+                                {jobApplicants.length} {jobApplicants.length === 1 ? 'Candidate' : 'Candidates'}
+                            </span>
+                        </h2>
+                        
+                        <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-hidden relative">
+                            <div className="absolute top-0 right-0 p-8 opacity-[0.01] pointer-events-none">
+                                <Users size={150} />
+                            </div>
+                            <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
+                                <colgroup>
+                                    <col style={{ width: '5%' }} />
+                                    <col style={{ width: '23%' }} />
+                                    <col style={{ width: '9%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '10%' }} />
+                                    <col style={{ width: '5%' }} />
+                                </colgroup>
+                                <thead>
+                                    <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase font-bold tracking-wider bg-white/[0.01]">
+                                        <th className="pb-4 pt-4 text-center">S.No</th>
+                                        <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
+                                        <th className="pb-4 pt-4 text-center">Video Intro</th>
+                                        <th className="pb-4 pt-4 text-center">Resume Match</th>
+                                        <th className="pb-4 pt-4 text-center">Assessment</th>
+                                        <th className="pb-4 pt-4 text-center">Interview</th>
+                                        <th className="pb-4 pt-4 text-center">Final Score</th>
+                                        <th className="pb-4 pt-4 text-center">Status</th>
+                                        <th className="pb-4 pt-4 text-right pr-6">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {jobApplicants.map((app, index) => {
+                                        const interviewMeta = getInterviewMeta(app);
+                                        return (
+                                            <tr key={app.id} className="group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0" style={{ verticalAlign: 'middle' }}>
+                                                <td className="py-5 text-center text-xs font-semibold text-gray-500">
+                                                    {index + 1}
+                                                </td>
+                                                <td className="py-5 pl-4" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
+                                                            {/* ─── SOCIAL INTEGRATIONS ─── */}
+                                                            {app.githubUrl && (
+                                                                <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
+                                                                    <Github size={14} />
+                                                                </a>
+                                                            )}
+                                                            {app.linkedinUrl && (
+                                                                <a href={app.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
+                                                                    <Linkedin size={14} />
+                                                                </a>
+                                                            )}
+                                                            {app.resumeUrl && (
+                                                                <a href={app.resumeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-emerald-400 transition-colors" title="View Resume">
+                                                                    <FileText size={14} />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 font-medium lowercase tracking-normal">{app.email}</p>
                                                     </div>
-                                                )}
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                        <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
-                                                        {/* ─── SOCIAL INTEGRATIONS ─── */}
-                                                        {app.githubUrl && (
-                                                            <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
-                                                                <Github size={14} />
-                                                            </a>
-                                                        )}
-                                                        {app.linkedinUrl && (
-                                                            <a href={app.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
-                                                                <Linkedin size={14} />
-                                                            </a>
-                                                        )}
-                                                        {app.resumeUrl && (
-                                                            <a href={app.resumeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-emerald-400 transition-colors" title="View Resume">
-                                                                <FileText size={14} />
-                                                            </a>
+                                                </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <div className="flex items-center justify-center">
+                                                        {app.videoIntroUrl ? (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedVideoUrl(app.videoIntroUrl);
+                                                                    setShowVideoModal(true);
+                                                                }}
+                                                                className="w-10 h-10 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/5 group/video"
+                                                                title="Watch Candidate Introduction"
+                                                            >
+                                                                <Video size={16} className="group-hover/video:scale-110 transition-transform" />
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">N/A</span>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{app.job}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            {app.videoIntroUrl ? (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedVideoUrl(app.videoIntroUrl);
-                                                        setShowVideoModal(true);
-                                                    }}
-                                                    className="w-12 h-12 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/10 flex items-center justify-center transition-all group/video"
-                                                    title="Watch Candidate Introduction"
-                                                >
-                                                    <Video size={20} className="group-hover/video:scale-110 transition-transform" />
-                                                </button>
-                                            ) : (
-                                                <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">N/A</span>
-                                            )}
-                                        </td>
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <div className="flex items-center justify-center gap-2">
-                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-bold text-sm">
-                                                    {app.resumeScore}/10
-                                                </div>
-                                                {app.resumeUrl && (
-                                                    <a 
-                                                        href={app.resumeUrl} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer" 
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
-                                                        title="View Original Resume"
-                                                    >
-                                                        <FileText size={16} />
-                                                    </a>
-                                                )}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedResumeUserId(app.userId);
-                                                        setShowGeneratedResumeModal(true);
-                                                    }}
-                                                    className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors"
-                                                    title="View AI Parsed Resume"
-                                                >
-                                                    <Eye size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <div className="flex items-center justify-center gap-2">
-                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-bold text-sm">
-                                                    {app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}
-                                                </div>
-                                                {app.assessmentScore !== null && app.assessmentScore !== undefined && (
+                                                </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                     <div className="flex items-center justify-center">
+                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-base shadow-sm">
+                                                             <span>{app.resumeScore}/10</span>
+                                                             <button
+                                                                 onClick={(e) => {
+                                                                     e.stopPropagation();
+                                                                     setSelectedResumeUserId(app.userId);
+                                                                     setShowGeneratedResumeModal(true);
+                                                                 }}
+                                                                 className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                 title="View AI Parsed Resume"
+                                                             >
+                                                                 <Eye size={15} />
+                                                             </button>
+                                                         </div>
+                                                     </div>
+                                                 </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                     <div className="flex items-center justify-center">
+                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-base shadow-sm">
+                                                             <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
+                                                             {app.assessmentScore !== null && app.assessmentScore !== undefined && (
+                                                                 <button
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         handleViewAssessment(app.id);
+                                                                     }}
+                                                                     className="text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     title="View Assessment Details"
+                                                                 >
+                                                                     <Eye size={15} />
+                                                                 </button>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                     <div className="flex items-center justify-center">
+                                                         <div className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${interviewMeta.pillClass} shadow-sm`}>
+                                                             <span>{interviewMeta.label}</span>
+                                                             {interviewMeta.canView && (
+                                                                 <button
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         handleViewInterview(app.id);
+                                                                     }}
+                                                                     className="opacity-80 hover:opacity-100 hover:bg-white/5 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     title="View Interview Status"
+                                                                 >
+                                                                     <Eye size={15} />
+                                                                 </button>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
+                                                        {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${app.status === 'SHORTLISTED'
+                                                        ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5'
+                                                        : app.status === 'REJECTED'
+                                                            ? 'bg-red-500/5 text-red-400 border-red-500/20 shadow-sm shadow-red-500/5'
+                                                            : app.status === 'HIRED'
+                                                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30 shadow-sm shadow-blue-500/5'
+                                                                : 'bg-gray-500/5 text-gray-400 border-gray-500/20'
+                                                        }`}>
+                                                        {app.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-5 text-right pr-6 relative" style={{ whiteSpace: 'nowrap' }}>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleViewAssessment(app.id);
+                                                            setActiveMenuId(activeMenuId === app.id ? null : app.id);
                                                         }}
-                                                        className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors"
-                                                        title="View Assessment Details"
+                                                        className={`p-2 rounded-xl transition-all hover:scale-105 active:scale-95 ${activeMenuId === app.id ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                                                     >
-                                                        <Eye size={16} />
+                                                        <MoreVertical size={16} />
                                                     </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <div className="flex items-center justify-center gap-2">
-                                                <div className={`inline-flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${interviewMeta.pillClass}`}>
-                                                    <span className="font-bold text-[11px]">{interviewMeta.label}</span>
-                                                    <span className="text-[6px] font-black uppercase tracking-tighter opacity-70">Tech</span>
-                                                </div>
-                                                <div className="min-w-[82px] text-left">
-                                                    <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                                        {interviewMeta.statusText}
-                                                    </div>
-                                                    {app.interviewAnswerCount > 0 && (
-                                                        <div className="text-[9px] text-gray-600 font-bold uppercase tracking-wider">
-                                                            {app.interviewAnswerCount} saved
+                                                    {activeMenuId === app.id && (
+                                                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
+                                                            <div className="py-1">
+                                                                <button
+                                                                    onClick={() => handleStatusUpdate(app.id, 'SHORTLISTED')}
+                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-400 hover:bg-white/5 flex items-center gap-2"
+                                                                >
+                                                                    <CheckCircle2 size={14} /> Mark Shortlisted
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
+                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
+                                                                >
+                                                                    <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleStatusUpdate(app.id, 'HIRED')}
+                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                >
+                                                                    <Sparkles size={14} /> Mark Hired (AI Learn)
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
+                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                >
+                                                                    <Filter size={14} /> Reset Status
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     )}
-                                                </div>
-                                                {interviewMeta.canView && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleViewInterview(app.id);
-                                                        }}
-                                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 transition-colors"
-                                                        title="View Interview Status"
-                                                    >
-                                                        <Eye size={16} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-lg">
-                                                {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 text-center border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${app.status === 'SHORTLISTED'
-                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                : app.status === 'REJECTED'
-                                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    : app.status === 'HIRED'
-                                                        ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                                                        : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                                                }`}>
-                                                {app.status}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 text-right pr-4 relative border border-white/10" style={{ whiteSpace: 'nowrap' }}>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveMenuId(activeMenuId === app.id ? null : app.id);
-                                                }}
-                                                className={`p-2 rounded-xl transition-all ${activeMenuId === app.id ? 'bg-white text-black' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
-                                            >
-                                                <MoreVertical size={18} />
-                                            </button>
-
-                                            {/* Dropdown Menu */}
-                                            {activeMenuId === app.id && (
-                                                <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
-                                                    <div className="py-1">
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(app.id, 'SHORTLISTED')}
-                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-400 hover:bg-white/5 flex items-center gap-2"
-                                                        >
-                                                            <CheckCircle2 size={14} /> Mark Shortlisted
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
-                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
-                                                        >
-                                                            <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(app.id, 'HIRED')}
-                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
-                                                        >
-                                                            <Sparkles size={14} /> Mark Hired (AI Learn)
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
-                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
-                                                        >
-                                                            <Filter size={14} /> Reset Status
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
+                                                </td>
+                                            </tr>
                                         );
-                                    })
-                                ) : (
-                                <tr>
-                                    <td colSpan="9" className="py-20 text-center border border-white/10">
-                                        <div className="flex flex-col items-center opacity-40">
-                                            <Users size={48} className="mb-4" />
-                                            <p className="text-xl font-bold uppercase tracking-widest">{searchTerm ? 'No matches found' : 'No Applicants Yet'}</p>
-                                            <p className="text-xs mt-2 font-medium">{searchTerm ? 'Try adjusting your search criteria.' : 'Candidates will appear here once they apply to your jobs.'}</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ))
+            ) : (
+                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
+                    <div className="min-h-[400px] flex flex-col items-center justify-center">
+                        <div className="flex flex-col items-center opacity-40">
+                            <Users size={48} className="mb-4" />
+                            <p className="text-xl font-bold uppercase tracking-widest">{searchTerm ? 'No matches found' : 'No Applicants Yet'}</p>
+                            <p className="text-xs mt-2 font-medium">{searchTerm ? 'Try adjusting your search criteria.' : 'Candidates will appear here once they apply to your jobs.'}</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 text-xs text-gray-500 italic">
                 <CheckCircle2 size={16} className="text-emerald-500 flex-none" />
