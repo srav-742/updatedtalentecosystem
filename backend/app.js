@@ -115,20 +115,53 @@ app.get('/api/tts-debug', async (req, res) => {
         
         let testSuccess = false;
         let testError = null;
-        let audioLength = 0;
+        let rawResponseData = null;
+        let statusCode = null;
         
         if (exists) {
             try {
-                const ttsService = require('./services/tts.service');
-                const buffer = await ttsService.generateSpeech("Test debug audio generation.");
-                if (buffer) {
-                    testSuccess = true;
-                    audioLength = buffer.length;
-                } else {
-                    testError = "generateSpeech returned null (ElevenLabs API call returned empty response or fell back)";
-                }
+                const axios = require('axios');
+                const voiceId = 'JBFqnCBsd6RMkjVDRZzb'; // Default professional male voice
+                const response = await axios({
+                    method: 'post',
+                    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+                    data: {
+                        text: "Test debug audio generation.",
+                        model_id: "eleven_multilingual_v2",
+                        voice_settings: {
+                            stability: 0.45,
+                            similarity_boost: 0.9,
+                            style: 0.7,
+                            use_speaker_boost: true,
+                            speed: 0.8
+                        }
+                    },
+                    headers: {
+                        Accept: 'audio/mpeg',
+                        'xi-api-key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    responseType: 'arraybuffer',
+                    timeout: 15000
+                });
+                
+                testSuccess = true;
+                rawResponseData = `Success. Generated ${response.data.byteLength || response.data.length} bytes.`;
             } catch (err) {
-                testError = err.message;
+                statusCode = err.response?.status || 'NETWORK_ERROR';
+                if (err.response?.data) {
+                    const data = err.response.data;
+                    if (Buffer.isBuffer(data)) {
+                        rawResponseData = data.toString('utf8');
+                    } else if (data instanceof ArrayBuffer) {
+                        rawResponseData = Buffer.from(data).toString('utf8');
+                    } else {
+                        rawResponseData = JSON.stringify(data);
+                    }
+                } else {
+                    rawResponseData = err.message;
+                }
+                testError = `ElevenLabs request failed: ${err.message}`;
             }
         } else {
             testError = "ELEVENLABS_API_KEY environment variable is not defined on the server host.";
@@ -139,7 +172,8 @@ app.get('/api/tts-debug', async (req, res) => {
             elevenLabsApiKeyLength: length,
             elevenLabsApiKeyPrefix: prefix,
             testSuccess,
-            audioLength,
+            statusCode,
+            rawResponseData,
             testError
         });
     } catch (error) {
