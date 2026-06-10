@@ -68,47 +68,48 @@ const PROFESSIONAL_VOICE_SETTINGS = {
 // ElevenLabs fails (e.g. 401 Unusual Activity block on cloud server IPs).
 
 const EDGE_VOICE_MAP = {
-    // Personas / Special roles
-    senior_engineering_manager: 'en-US-AndrewNeural',
-    principal_ai_engineer: 'en-US-ChristopherNeural',
-    vp_sales: 'en-US-BrianNeural',
-    director_vp: 'en-US-SteffanNeural',
-    professional_interviewer: 'en-US-AndrewNeural',
-    professional_interviewer_female: 'en-US-AvaNeural',
-    joerogan: 'en-US-BrianNeural',
-    broadcaster: 'en-US-AndrewNeural',
-    podcast_host: 'en-US-AndrewNeural',
-    cohost: 'en-US-AvaNeural',
+    // Personas / Special roles — upgraded to most human-sounding neural voices
+    senior_engineering_manager: 'en-US-GuyNeural',       // Deep, authoritative, commanding
+    principal_ai_engineer: 'en-US-DavisNeural',          // Warm, thoughtful, confident
+    vp_sales: 'en-US-TonyNeural',                        // Energetic, crisp, professional
+    director_vp: 'en-US-GuyNeural',                      // Executive tone, measured
+    professional_interviewer: 'en-US-GuyNeural',         // Primary interviewer voice
+    professional_interviewer_female: 'en-US-AriaNeural', // Natural, warm female voice
+    joerogan: 'en-US-TonyNeural',                        // Energetic, conversational
+    broadcaster: 'en-US-GuyNeural',                      // Clear broadcaster quality
+    podcast_host: 'en-US-GuyNeural',                     // Natural podcast delivery
+    cohost: 'en-US-AriaNeural',                          // Warm co-host female voice
 
-    // Male voices
-    adam: 'en-US-AndrewNeural',
-    antoni: 'en-US-ChristopherNeural',
-    charlie: 'en-US-EricNeural',
+    // Male voices — mapped to best-quality neural equivalents
+    adam: 'en-US-GuyNeural',
+    antoni: 'en-US-DavisNeural',
+    charlie: 'en-US-TonyNeural',
     josh: 'en-US-GuyNeural',
-    arnold: 'en-US-BrianNeural',
-    sam: 'en-US-ChristopherNeural',
-    george: 'en-US-AndrewNeural',
-    brian: 'en-US-BrianNeural',
+    arnold: 'en-US-TonyNeural',
+    sam: 'en-US-DavisNeural',
+    george: 'en-US-GuyNeural',
+    brian: 'en-US-GuyNeural',
 
-    // Female voices
-    rachel: 'en-US-AvaNeural',
-    alice: 'en-US-EmmaNeural',
+    // Female voices — mapped to best-quality neural equivalents
+    rachel: 'en-US-AriaNeural',
+    alice: 'en-US-JennyNeural',
     charlotte: 'en-US-JennyNeural',
-    domi: 'en-US-AnaNeural',
-    elli: 'en-US-EmmaNeural',
-    bella: 'en-US-AvaNeural',
-    jessica: 'en-US-EmmaNeural',
+    domi: 'en-US-AriaNeural',
+    elli: 'en-US-AriaNeural',
+    bella: 'en-US-AriaNeural',
+    jessica: 'en-US-JennyNeural',
 
     // OpenAI voice name mappings
-    alloy: 'en-US-AndrewNeural',
-    echo: 'en-US-ChristopherNeural',
-    fable: 'en-US-EricNeural',
+    alloy: 'en-US-GuyNeural',
+    echo: 'en-US-DavisNeural',
+    fable: 'en-US-TonyNeural',
     onyx: 'en-US-GuyNeural',
-    nova: 'en-US-AvaNeural',
-    shimmer: 'en-US-EmmaNeural'
+    nova: 'en-US-AriaNeural',
+    shimmer: 'en-US-JennyNeural'
 };
 
-const DEFAULT_EDGE_VOICE = 'en-US-AndrewNeural';
+// Best human-quality neural voice for professional interviewer persona
+const DEFAULT_EDGE_VOICE = 'en-US-GuyNeural';
 
 // ─── Shared Helpers ───────────────────────────────────────────────────────────
 
@@ -174,8 +175,9 @@ async function generateEdgeSpeech(text, voice) {
 
         const communicate = new Communicate(text, {
             voice: edgeVoice,
-            rate: '-5%',      // Slightly slower for professional interviewer feel
-            pitch: '+0Hz'
+            rate: '-8%',       // Slightly slower — measured, confident interview cadence
+            pitch: '+0Hz',     // Natural pitch (no artificial boost)
+            volume: '+0%'      // Neutral volume for clean audio
         });
 
         const chunks = [];
@@ -201,7 +203,7 @@ async function generateEdgeSpeech(text, voice) {
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
-const generateSpeech = async (text, voice = 'podcast_host') => {
+const generateSpeech = async (text, voice = 'professional_interviewer') => {
     const cleanedText = cleanTextForSpeech(text);
     if (!cleanedText) {
         console.warn('[TTS] Empty text after cleaning. Skipping.');

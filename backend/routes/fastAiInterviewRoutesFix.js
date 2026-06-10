@@ -798,11 +798,14 @@ router.post('/next-fast', async (req, res) => {
         session.history.push({ role: 'interviewer', content: nextQuestion });
         await saveSession(sessionId, session);
 
-        // Voice generation (TTS) using ElevenLabs service
+        // Voice generation (TTS) — select voice based on role category for best human quality
         let audioBase64 = null;
         try {
             const { generateSpeech } = require('../services/tts.service');
-            const buffer = await generateSpeech(nextQuestion, session.interviewerVoice);
+            const interviewVoice = session.roleInfo?.roleCategory === 'sales' || session.roleInfo?.roleCategory === 'marketing'
+                ? 'vp_sales'
+                : 'professional_interviewer';
+            const buffer = await generateSpeech(nextQuestion, interviewVoice);
             if (buffer) {
                 audioBase64 = buffer.toString('base64');
             }

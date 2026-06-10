@@ -155,8 +155,14 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             try {
                 const utterance = new SpeechSynthesisUtterance(textToSpeak);
                 utterance.lang = 'en-US';
+                utterance.rate = 0.92;  // Slightly slower — professional interviewer cadence
+                utterance.pitch = 1.0;
                 const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural')));
+                // Priority: Microsoft neural > Google > any natural/online en-US voice
+                const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Microsoft') && (v.name.includes('Guy') || v.name.includes('Davis') || v.name.includes('Tony')))
+                    || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+                    || voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.localService === false))
+                    || voices.find(v => v.lang === 'en-US');
                 if (preferredVoice) utterance.voice = preferredVoice;
                 utterance.onend = finishQuestionPlayback;
                 utterance.onerror = () => {

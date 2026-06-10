@@ -941,10 +941,13 @@ router.post('/start', async (req, res) => {
             }
         }
 
-        // Voice generation (TTS)
+        // Voice generation (TTS) — select voice based on role category for best human quality
         let audioBase64 = null;
         try {
-            const buffer = await generateSpeech(firstQuestion);
+            const interviewVoice = roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing'
+                ? 'vp_sales'
+                : 'professional_interviewer';
+            const buffer = await generateSpeech(firstQuestion, interviewVoice);
             if (buffer) audioBase64 = buffer.toString('base64');
         } catch (e) { console.warn("TTS failed"); }
 
@@ -1175,10 +1178,13 @@ router.post('/next', async (req, res) => {
             }
         }
 
-        // Voice generation (TTS)
+        // Voice generation (TTS) — select voice based on role category for best human quality
         let audioBase64 = null;
         try {
-            const buffer = await generateSpeech(nextQuestion);
+            const interviewVoice = session.roleInfo?.roleCategory === 'sales' || session.roleInfo?.roleCategory === 'marketing'
+                ? 'vp_sales'
+                : 'professional_interviewer';
+            const buffer = await generateSpeech(nextQuestion, interviewVoice);
             if (buffer) audioBase64 = buffer.toString('base64');
         } catch (e) { console.warn("TTS failed"); }
 
