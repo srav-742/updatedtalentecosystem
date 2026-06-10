@@ -105,36 +105,29 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// 🔍 TTS Debug Diagnostics Endpoint
+// 🔍 TTS Debug Diagnostics Endpoint — Tests both ElevenLabs and Edge Neural TTS
 app.get('/api/tts-debug', async (req, res) => {
     try {
         const apiKey = process.env.ELEVENLABS_API_KEY;
-        const exists = !!apiKey;
-        const length = apiKey ? apiKey.length : 0;
-        const prefix = apiKey ? apiKey.substring(0, 5) : '';
-        
-        let testSuccess = false;
-        let testError = null;
-        let rawResponseData = null;
-        let statusCode = null;
-        
-        if (exists) {
+        const elevenLabsExists = !!apiKey;
+
+        // ── Test ElevenLabs ──────────────────────────────────────────────────
+        let elevenLabsSuccess = false;
+        let elevenLabsError = null;
+        let elevenLabsRaw = null;
+        let elevenLabsStatus = null;
+
+        if (elevenLabsExists) {
             try {
                 const axios = require('axios');
-                const voiceId = 'JBFqnCBsd6RMkjVDRZzb'; // Default professional male voice
+                const voiceId = 'JBFqnCBsd6RMkjVDRZzb';
                 const response = await axios({
                     method: 'post',
                     url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
                     data: {
                         text: "Test debug audio generation.",
                         model_id: "eleven_multilingual_v2",
-                        voice_settings: {
-                            stability: 0.45,
-                            similarity_boost: 0.9,
-                            style: 0.7,
-                            use_speaker_boost: true,
-                            speed: 0.8
-                        }
+                        voice_settings: { stability: 0.45, similarity_boost: 0.9, style: 0.7, use_speaker_boost: true, speed: 0.8 }
                     },
                     headers: {
                         Accept: 'audio/mpeg',
@@ -144,37 +137,58 @@ app.get('/api/tts-debug', async (req, res) => {
                     responseType: 'arraybuffer',
                     timeout: 15000
                 });
-                
-                testSuccess = true;
-                rawResponseData = `Success. Generated ${response.data.byteLength || response.data.length} bytes.`;
+                elevenLabsSuccess = true;
+                elevenLabsRaw = `Success. Generated ${response.data.byteLength || response.data.length} bytes.`;
             } catch (err) {
-                statusCode = err.response?.status || 'NETWORK_ERROR';
-                if (err.response?.data) {
-                    const data = err.response.data;
-                    if (Buffer.isBuffer(data)) {
-                        rawResponseData = data.toString('utf8');
-                    } else if (data instanceof ArrayBuffer) {
-                        rawResponseData = Buffer.from(data).toString('utf8');
-                    } else {
-                        rawResponseData = JSON.stringify(data);
-                    }
-                } else {
-                    rawResponseData = err.message;
-                }
-                testError = `ElevenLabs request failed: ${err.message}`;
+                elevenLabsStatus = err.response?.status || 'NETWORK_ERROR';
+                const data = err.response?.data;
+                if (Buffer.isBuffer(data)) elevenLabsRaw = data.toString('utf8');
+                else if (data instanceof ArrayBuffer) elevenLabsRaw = Buffer.from(data).toString('utf8');
+                else elevenLabsRaw = data ? JSON.stringify(data) : err.message;
+                elevenLabsError = `ElevenLabs request failed: ${err.message}`;
             }
         } else {
-            testError = "ELEVENLABS_API_KEY environment variable is not defined on the server host.";
+            elevenLabsError = "ELEVENLABS_API_KEY is not set on the server.";
         }
-        
+
+        // ── Test Microsoft Edge Neural TTS (free fallback) ────────────────────
+        let edgeTTSSuccess = false;
+        let edgeTTSError = null;
+        let edgeTTSBytes = 0;
+
+        try {
+            const { generateEdgeSpeech } = require('./services/tts.service');
+            const buffer = await generateEdgeSpeech("Test debug audio generation.", 'podcast_host');
+            if (buffer && buffer.length > 0) {
+                edgeTTSSuccess = true;
+                edgeTTSBytes = buffer.length;
+            } else {
+                edgeTTSError = "Edge TTS returned no audio data.";
+            }
+        } catch (err) {
+            edgeTTSError = `Edge TTS failed: ${err.message}`;
+        }
+
+        // ── Active engine determination ───────────────────────────────────────
+        const activeEngine = elevenLabsSuccess ? 'ElevenLabs' : (edgeTTSSuccess ? 'Microsoft Edge Neural TTS (free fallback)' : 'None — both engines failed');
+
         res.json({
-            elevenLabsApiKeyExists: exists,
-            elevenLabsApiKeyLength: length,
-            elevenLabsApiKeyPrefix: prefix,
-            testSuccess,
-            statusCode,
-            rawResponseData,
-            testError
+            activeVoiceEngine: activeEngine,
+            elevenLabs: {
+                apiKeyExists: elevenLabsExists,
+                apiKeyLength: apiKey ? apiKey.length : 0,
+                apiKeyPrefix: apiKey ? apiKey.substring(0, 5) : '',
+                success: elevenLabsSuccess,
+                statusCode: elevenLabsStatus,
+                rawResponseData: elevenLabsRaw,
+                error: elevenLabsError
+            },
+            edgeNeuralTTS: {
+                success: edgeTTSSuccess,
+                bytesGenerated: edgeTTSBytes,
+                error: edgeTTSError,
+                note: 'Free Microsoft neural voices — no API key, no IP blocking'
+            }
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
