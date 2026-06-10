@@ -218,7 +218,7 @@ const MyJobs = () => {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col items-end gap-4 min-w-[240px]">
+                            <div className="flex flex-col items-end gap-4 w-full md:w-auto md:min-w-[360px]">
                                 <div className="flex items-center gap-3 py-2 px-4 bg-white/5 rounded-2xl border border-white/5">
                                     <div className="text-right">
                                         <div className="text-xl font-black text-blue-400 leading-none">{job.applicantCount || 0}</div>
