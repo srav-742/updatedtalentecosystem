@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { Communicate } = require('edge-tts-universal');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ─── ElevenLabs Voice Configuration ─────────────────────────────────────────
 
@@ -201,6 +202,58 @@ async function generateEdgeSpeech(text, voice) {
     }
 }
 
+// ─── Gemini TTS Engine (Primary — Charon voice, medium-high speed) ───────────
+
+async function generateGeminiSpeech(text) {
+    try {
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) {
+            console.log('[TTS-GEMINI] GEMINI_API_KEY not set. Skipping Gemini TTS.');
+            return null;
+        }
+
+        console.log(`[TTS-GEMINI] Generating speech | voice: Charon | chars: ${text.length}`);
+
+        // Use Gemini REST API directly for TTS (generateContent with audio modality)
+        const response = await axios({
+            method: 'post',
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+            data: {
+                contents: [{ parts: [{ text }] }],
+                generationConfig: {
+                    responseModalities: ['AUDIO'],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: 'Charon' }
+                        },
+                        // Medium-high speed: speaking rate 1.2 (1.0 = normal, 1.5 = fast)
+                        speakingRate: 1.2
+                    }
+                }
+            },
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 25000
+        });
+
+        // Extract inline audio data from response
+        const parts = response.data?.candidates?.[0]?.content?.parts;
+        const audioPart = parts?.find(p => p.inlineData?.mimeType?.startsWith('audio/'));
+        if (!audioPart?.inlineData?.data) {
+            console.warn('[TTS-GEMINI] No audio data in response.');
+            return null;
+        }
+
+        const audioBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
+        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: Charon`);
+        return audioBuffer;
+    } catch (err) {
+        const status = err.response?.status;
+        const detail = err.response?.data?.error?.message || err.message;
+        console.error(`[TTS-GEMINI ERROR] ${status || 'NETWORK'}: ${detail}`);
+        return null;
+    }
+}
+
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
 const generateSpeech = async (text, voice = 'professional_interviewer') => {
@@ -210,9 +263,15 @@ const generateSpeech = async (text, voice = 'professional_interviewer') => {
         return null;
     }
 
+    // 1. Try Gemini TTS first (Charon voice, medium-high speed)
+    const geminiAudio = await generateGeminiSpeech(cleanedText);
+    if (geminiAudio) return geminiAudio;
+
+    console.warn('[TTS] Gemini TTS unavailable. Falling back to ElevenLabs...');
+
     const apiKey = process.env.ELEVENLABS_API_KEY;
 
-    // 1. Try ElevenLabs first if API Key is configured
+    // 2. Try ElevenLabs if API Key is configured
     if (apiKey) {
         try {
             const voiceId = resolveVoiceId(voice);
@@ -243,8 +302,8 @@ const generateSpeech = async (text, voice = 'professional_interviewer') => {
         console.log('[TTS] ELEVENLABS_API_KEY not set. Using Microsoft Edge Neural TTS (free, human-quality neural voices)...');
     }
 
-    // 2. Fallback to Microsoft Edge TTS (free, no IP restrictions, human-quality neural voices)
+    // 3. Fallback to Microsoft Edge TTS (free, no IP restrictions, human-quality neural voices)
     return await generateEdgeSpeech(cleanedText, voice);
 };
 
-module.exports = { generateSpeech, generateEdgeSpeech };
+module.exports = { generateSpeech, generateEdgeSpeech, generateGeminiSpeech };
