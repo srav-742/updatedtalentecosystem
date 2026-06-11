@@ -162,53 +162,31 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         }, Math.max(cleanText.length * 12, 3000));
     };
 
-    const playAudio = (base64, textToDisplay) => {
-        setDisplayText('');
-        setCoreState('speaking');
-        const textToSpeak = normalizeQuestionText(textToDisplay || currentQuestion);
-        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
-        const finishQuestionPlayback = () => {
-            if (typewriterIntervalRef.current) {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-            }
-            setDisplayText(textToSpeak);
+    const speakInBrowserFallback = (text) => {
+        window.speechSynthesis.cancel();
+        try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.92;
+            utterance.pitch = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            // Try to find the highest-quality native voice
+            const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Microsoft') && (v.name.includes('Guy') || v.name.includes('Davis') || v.name.includes('Tony')))
+                || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+                || voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.localService === false))
+                || voices.find(v => v.lang === 'en-US');
+            if (preferredVoice) utterance.voice = preferredVoice;
+            
+            utterance.onend = () => setCoreState('idle');
+            utterance.onerror = () => setCoreState('idle');
+            window.speechSynthesis.speak(utterance);
+        } catch (err) {
+            console.error("[TTS-BROWSER-FALLBACK] browser speech synthesis failed:", err);
             setCoreState('idle');
-        };
-
-        const speakInBrowser = () => {
-            window.speechSynthesis.cancel();
-            typeText(textToSpeak);
-            try {
-                const utterance = new SpeechSynthesisUtterance(textToSpeak);
-                utterance.lang = 'en-US';
-                utterance.rate = 0.92;  // Slightly slower — professional interviewer cadence
-                utterance.pitch = 1.0;
-                const voices = window.speechSynthesis.getVoices();
-                // Priority: Microsoft neural > Google > any natural/online en-US voice
-                const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Microsoft') && (v.name.includes('Guy') || v.name.includes('Davis') || v.name.includes('Tony')))
-                    || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
-                    || voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.localService === false))
-                    || voices.find(v => v.lang === 'en-US');
-                if (preferredVoice) utterance.voice = preferredVoice;
-                utterance.onend = finishQuestionPlayback;
-                utterance.onerror = () => {
-                    console.warn("[TTS-BROWSER-FALLBACK] Playback failed, ending playback.");
-                    finishQuestionPlayback();
-                };
-                window.speechSynthesis.speak(utterance);
-            } catch (err) {
-                console.error("[TTS-BROWSER-FALLBACK] SpeechSynthesis error:", err);
-                window.setTimeout(finishQuestionPlayback, Math.max(textToSpeak.length * 12, 1200));
-            }
-        };
-
-        if (!base64 || base64 === "") {
-            speakInBrowser();
-            return;
         }
+    };
 
+    const playDecoupledAudio = (base64, text) => {
         try {
             const audioBlob = new Blob(
                 [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
@@ -219,15 +197,33 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             audioPlayerRef.current.currentTime = 0;
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
+            
             audioPlayerRef.current.onplay = () => {
-                audioPlayerRef.current.playbackRate = 0.90; // Ensure speed is locked
-                typeText(textToSpeak);
+                audioPlayerRef.current.playbackRate = 0.90; // Lock speed
             };
-            audioPlayerRef.current.onended = finishQuestionPlayback;
-            audioPlayerRef.current.onerror = speakInBrowser;
-            audioPlayerRef.current.play().catch(speakInBrowser);
+            audioPlayerRef.current.onended = () => setCoreState('idle');
+            audioPlayerRef.current.onerror = () => speakInBrowserFallback(text);
+            audioPlayerRef.current.play().catch(() => speakInBrowserFallback(text));
         } catch (err) {
-            speakInBrowser();
+            speakInBrowserFallback(text);
+        }
+    };
+
+    const fetchAndPlayAudio = async (text, activeSessionId) => {
+        setCoreState('speaking');
+        try {
+            const res = await axios.post(`${API_URL}/interview/tts`, { 
+                text, 
+                sessionId: activeSessionId 
+            });
+            if (res.data?.audio) {
+                playDecoupledAudio(res.data.audio, text);
+            } else {
+                speakInBrowserFallback(text);
+            }
+        } catch (err) {
+            console.warn("[TTS-ASYNC] Failed to fetch audio, using browser fallback", err);
+            speakInBrowserFallback(text);
         }
     };
 
@@ -386,7 +382,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             setCurrentQNum(1);
             await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
             setStep('interview');
-            playAudio(res.data.audio, firstQuestion);
+            typeText(firstQuestion);
+            fetchAndPlayAudio(firstQuestion, activeSessionId);
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -430,7 +427,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 setTranscript('');
                 setError(null);
                 setDisplayText('');
-                playAudio(nextRes.data.audio, nextQuestion);
+                typeText(nextQuestion);
+                fetchAndPlayAudio(nextQuestion, sessionId);
             }
         } catch (err) {
             setError(err.message || "Response processing error.");

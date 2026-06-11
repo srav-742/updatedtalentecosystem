@@ -355,7 +355,7 @@ RULES:
                 ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.'
                 : 'non-technical roles: ask about a core responsibility, business scenario, or domain-specific challenge mentioned in the JD.'}
 - Do NOT ask generic questions like "Tell me about yourself" — dive directly into the role.
-- Return ONLY the question. Nothing else. Ensure the question is a complete sentence and fully addresses the role requirements.
+- Return ONLY the question. Nothing else. Ensure the question is a short, concise, single complete question ending with a question mark (?). Keep it under 30 words. Do not include any trailing text or explanations.
 `;
 }
 
@@ -534,6 +534,7 @@ INTERVIEWER IDENTITY & BEHAVIORAL DIRECTIVES:
 - RULE 5: Do NOT praise answers. Proceed directly to the next question.
 - RULE 6: Your tone should be commanding and measured — like a VP of Engineering or a Director conducting a final-round interview.
 - RULE 7: MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
+- RULE 8: Make your question highly concise and direct. It MUST be at most 2 sentences and under 30 words. Long questions are extremely slow to speak and process.
 `;
 
 /**
@@ -724,7 +725,7 @@ Based on the interview flow above, ask the NEXT interview question (Question ${q
 - CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
 - Make it flow naturally from the candidate's last answer.
 - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
-- Return ONLY the question. Nothing else. Ensure the question is a complete sentence ending with a question mark (?). Do not include any trailing text, explanations, or cut off mid-sentence.
+- Return ONLY the question. Nothing else. Ensure the question is a short, concise, single complete question ending with a question mark (?). Keep it under 30 words. Do not include any trailing text, explanations, or cut off mid-sentence.
 `;
 }
 
@@ -1107,16 +1108,8 @@ router.post('/start', async (req, res) => {
             }
         }
 
-        // Voice generation (TTS) — select voice based on role category for best human quality
+        // Voice generation (TTS) — Decoupled, audio will be fetched asynchronously
         let audioBase64 = null;
-        try {
-            const interviewVoice = roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing'
-                ? 'vp_sales'
-                : 'professional_interviewer';
-            const { generateSpeech } = require('../services/tts.service');
-            const buffer = await generateSpeech(firstQuestion, interviewVoice);
-            if (buffer) audioBase64 = buffer.toString('base64');
-        } catch (e) { console.warn("TTS failed"); }
 
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
@@ -1254,26 +1247,14 @@ router.post('/next-fast', async (req, res) => {
         session.history.push({ role: 'interviewer', content: nextQuestion });
         await saveSession(sessionId, session);
 
-        // Voice generation (TTS) — select voice based on role category for best human quality
+        // Voice generation (TTS) — Decoupled, audio will be fetched asynchronously
         let audioBase64 = null;
-        try {
-            const { generateSpeech } = require('../services/tts.service');
-            const interviewVoice = session.roleInfo?.roleCategory === 'sales' || session.roleInfo?.roleCategory === 'marketing'
-                ? 'vp_sales'
-                : 'professional_interviewer';
-            const buffer = await generateSpeech(nextQuestion, interviewVoice);
-            if (buffer) {
-                audioBase64 = buffer.toString('base64');
-            }
-        } catch (e) {
-            console.warn("[FIX-NEXT-FAST] TTS generation failed:", e.message);
-        }
 
         // 6. Return immediately
         res.json({
             hasNext: true,
             question: nextQuestion,
-            audio: audioBase64,
+            audio: null, // Audio fetched asynchronously by client
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions,
             emptyAnswerWarning: isEmptyAnswer ? "No answer was detected. Please speak clearly into the microphone." : undefined
@@ -1282,6 +1263,113 @@ router.post('/next-fast', async (req, res) => {
     } catch (error) {
         console.error("[FIX-NEXT-FAST] Error:", error);
         res.status(500).json({ success: false, message: "Error fetching next question" });
+    }
+});
+
+/**
+ * POST /api/interview/tts
+ * Decoupled voice synthesis endpoint for lower perceived latency.
+ */
+router.post('/tts', async (req, res) => {
+    try {
+        const { text, voice, sessionId } = req.body;
+        if (!text) return res.status(400).json({ success: false, message: "text is required" });
+
+        const { generateSpeech } = require('../services/tts.service');
+        let interviewVoice = voice || 'professional_interviewer';
+
+        if (sessionId) {
+            const session = await loadSession(sessionId);
+            if (session && session.interviewerVoice) {
+                interviewVoice = session.interviewerVoice;
+            }
+        }
+        
+        console.log(`[FIX-TTS] Request received for chars: ${text.length} | voice: ${interviewVoice} | sessionId: ${sessionId || 'none'}`);
+        const buffer = await generateSpeech(text, interviewVoice);
+        
+        if (buffer) {
+            console.log(`[FIX-TTS] Success, sending ${buffer.length} bytes`);
+            return res.json({ success: true, audio: buffer.toString('base64') });
+        }
+        
+        console.warn(`[FIX-TTS] Failed: generateSpeech returned null`);
+        return res.status(500).json({ success: false, message: "TTS generation failed" });
+    } catch (error) {
+        console.error("[FIX-TTS] Error:", error.message);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/interview/diagnostic
+ * Diagnostics endpoint for checking API keys and testing TTS engines in production.
+ */
+router.get('/diagnostic', async (req, res) => {
+    try {
+        const results = {
+            env: {
+                hasGeminiKey: !!process.env.GEMINI_API_KEY,
+                hasGroqKey: !!process.env.GROQ_API_KEY,
+                hasElevenLabsKey: !!process.env.ELEVENLABS_API_KEY,
+                nodeEnv: process.env.NODE_ENV || 'development'
+            },
+            tests: {}
+        };
+
+        // 1. Test Gemini LLM Connection
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const { callGemini } = require('../utils/aiClients');
+                const start = Date.now();
+                const text = await callGemini("Return the word 'OK'", 10, false, null, 0.1);
+                results.tests.geminiLLM = {
+                    success: text === 'OK' || String(text).includes('OK'),
+                    latencyMs: Date.now() - start,
+                    response: text
+                };
+            } catch (e) {
+                results.tests.geminiLLM = { success: false, error: e.message };
+            }
+        } else {
+            results.tests.geminiLLM = { success: false, error: "GEMINI_API_KEY not configured" };
+        }
+
+        // 2. Test Gemini TTS Connection
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const { generateGeminiSpeech } = require('../services/tts.service');
+                const start = Date.now();
+                const buf = await generateGeminiSpeech("Test", 'professional_interviewer');
+                results.tests.geminiTTS = {
+                    success: !!buf && buf.length > 0,
+                    latencyMs: Date.now() - start,
+                    bufferSize: buf ? buf.length : 0
+                };
+            } catch (e) {
+                results.tests.geminiTTS = { success: false, error: e.message };
+            }
+        } else {
+            results.tests.geminiTTS = { success: false, error: "GEMINI_API_KEY not configured" };
+        }
+
+        // 3. Test Edge TTS Connection
+        try {
+            const { generateEdgeSpeech } = require('../services/tts.service');
+            const start = Date.now();
+            const buf = await generateEdgeSpeech("Test", 'professional_interviewer');
+            results.tests.edgeTTS = {
+                success: !!buf && buf.length > 0,
+                latencyMs: Date.now() - start,
+                bufferSize: buf ? buf.length : 0
+            };
+        } catch (e) {
+            results.tests.edgeTTS = { success: false, error: e.message };
+        }
+
+        res.json({ success: true, diagnostics: results });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
