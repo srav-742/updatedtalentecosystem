@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { Communicate } = require('edge-tts-universal');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// const { GoogleGenerativeAI } = require('@google/generative-ai'); // Unused import removed
 
 // ─── ElevenLabs Voice Configuration ─────────────────────────────────────────
 
@@ -204,7 +204,52 @@ async function generateEdgeSpeech(text, voice) {
 
 // ─── Gemini TTS Engine (Primary — Charon voice, medium-high speed) ───────────
 
-async function generateGeminiSpeech(text) {
+// Gemini TTS voice mapping - maps interview personas to Google's neural voices
+const GEMINI_VOICE_MAP = {
+    // Premium Interviewer Personas
+    senior_engineering_manager: 'Charon',      // Deep, authoritative, commanding
+    principal_ai_engineer: 'Charon',           // Warm, thoughtful, confident
+    vp_sales: 'Callie',                        // Energetic, professional
+    director_vp: 'Charon',                     // Executive tone, measured
+    professional_interviewer: 'Charon',        // Primary interviewer voice
+    professional_interviewer_female: 'Callie', // Natural, warm female voice
+
+    // Male voices
+    adam: 'Charon',
+    antoni: 'Charon',
+    charlie: 'Callie',
+    josh: 'Charon',
+    arnold: 'Callie',
+    sam: 'Charon',
+    george: 'Charon',
+    brian: 'Charon',
+
+    // Female voices
+    rachel: 'Callie',
+    alice: 'Callie',
+    charlotte: 'Callie',
+    domi: 'Callie',
+    elli: 'Callie',
+    bella: 'Callie',
+    jessica: 'Callie',
+
+    // OpenAI voice name mappings for backward compatibility
+    alloy: 'Charon',
+    echo: 'Charon',
+    fable: 'Callie',
+    onyx: 'Charon',
+    nova: 'Callie',
+    shimmer: 'Callie'
+};
+
+const DEFAULT_GEMINI_VOICE = 'Charon';
+
+function resolveGeminiVoice(voice) {
+    const voiceKey = String(voice || '').toLowerCase();
+    return GEMINI_VOICE_MAP[voiceKey] || DEFAULT_GEMINI_VOICE;
+}
+
+async function generateGeminiSpeech(text, voice) {
     try {
         const geminiApiKey = process.env.GEMINI_API_KEY;
         if (!geminiApiKey) {
@@ -212,7 +257,8 @@ async function generateGeminiSpeech(text) {
             return null;
         }
 
-        console.log(`[TTS-GEMINI] Generating speech | voice: Charon | chars: ${text.length}`);
+        const geminiVoice = resolveGeminiVoice(voice);
+        console.log(`[TTS-GEMINI] Generating speech | voice: ${geminiVoice} | chars: ${text.length}`);
 
         // Use Gemini REST API directly for TTS (generateContent with audio modality)
         const response = await axios({
@@ -224,10 +270,8 @@ async function generateGeminiSpeech(text) {
                     responseModalities: ['AUDIO'],
                     speechConfig: {
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: 'Charon' }
-                        },
-                        // Medium-high speed: speaking rate 1.2 (1.0 = normal, 1.5 = fast)
-                        speakingRate: 1.2
+                            prebuiltVoiceConfig: { voiceName: geminiVoice }
+                        }
                     }
                 }
             },
@@ -244,7 +288,7 @@ async function generateGeminiSpeech(text) {
         }
 
         const audioBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
-        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: Charon`);
+        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: ${geminiVoice}`);
         return audioBuffer;
     } catch (err) {
         const status = err.response?.status;
@@ -264,7 +308,7 @@ const generateSpeech = async (text, voice = 'professional_interviewer') => {
     }
 
     // 1. Try Gemini TTS first (Charon voice, medium-high speed)
-    const geminiAudio = await generateGeminiSpeech(cleanedText);
+    const geminiAudio = await generateGeminiSpeech(cleanedText, voice);
     if (geminiAudio) return geminiAudio;
 
     console.warn('[TTS] Gemini TTS unavailable. Falling back to ElevenLabs...');

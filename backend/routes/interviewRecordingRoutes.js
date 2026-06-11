@@ -84,13 +84,16 @@ function buildPlaybackUrl(publicId) {
 }
 
 function uploadRecordingToCloudinary(file, options) {
+    // Use upload_large for file paths — supports files of any size via 6MB chunked streaming.
+    // This prevents Cloudinary's standard upload size limit (100MB) from rejecting long interviews.
     if (typeof file === 'string') {
-        return cloudinary.uploader.upload(file, options);
+        return cloudinary.uploader.upload_large(file, { ...options, chunk_size: 6000000 });
     }
     if (file?.path) {
-        return cloudinary.uploader.upload(file.path, options);
+        return cloudinary.uploader.upload_large(file.path, { ...options, chunk_size: 6000000 });
     }
 
+    // Fallback for in-memory buffers — use upload_stream (no chunked alternative for buffers)
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
             if (result) {
@@ -222,35 +225,105 @@ router.post("/finalize-recording", async (req, res) => {
         return res.status(404).json({ error: "Recording chunks not found" });
     }
 
-    try {
-        const chunkFiles = fs.readdirSync(sessionDir).sort();
-        if (chunkFiles.length === 0) {
-            return res.status(400).json({ error: "No chunks found to finalize" });
-        }
-
-        const mergedFilePath = path.join(tempRecordingDir, `${sessionId}_merged.webm`);
-        const writeStream = fs.createWriteStream(mergedFilePath);
-
-        for (const file of chunkFiles) {
-            const filePath = path.join(sessionDir, file);
-            const chunkData = fs.readFileSync(filePath);
-            writeStream.write(chunkData);
-        }
-        writeStream.end();
-
-        await new Promise((resolve) => writeStream.on('finish', resolve));
-
-        // Now upload the merged file to Cloudinary
-        // Reuse uploadInterviewRecording logic but passing the file path
-        req.file = { path: mergedFilePath, originalname: `${sessionId}.webm` };
-        await uploadInterviewRecording(req, res);
-
-        // Cleanup chunks directory
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-    } catch (error) {
-        console.error("[FINALIZE-RECORDING] Error:", error);
-        res.status(500).json({ error: "Finalization failed", message: error.message });
+    const chunkFiles = fs.readdirSync(sessionDir).sort();
+    if (chunkFiles.length === 0) {
+        return res.status(400).json({ error: "No chunks found to finalize" });
     }
+
+    // ── ASYNC FINALIZATION ────────────────────────────────────────────────
+    // Respond immediately so the frontend (and Render's 100s timeout) are
+    // never blocked.  Merging + Cloudinary upload happen in the background.
+    // ─────────────────────────────────────────────────────────────────────
+    res.status(200).json({
+        success: true,
+        recordingSessionId: sessionId,
+        message: "Recording finalization started — upload will complete in the background."
+    });
+
+    // Background: merge chunks → upload_large → update MongoDB
+    (async () => {
+        let mergedFilePath;
+        try {
+            console.log(`[FINALIZE-BG] Starting background merge for session: ${sessionId} (${chunkFiles.length} chunks)`);
+
+            mergedFilePath = path.join(tempRecordingDir, `${sessionId}_merged.webm`);
+            const writeStream = fs.createWriteStream(mergedFilePath);
+
+            for (const file of chunkFiles) {
+                const filePath = path.join(sessionDir, file);
+                const chunkData = fs.readFileSync(filePath);
+                writeStream.write(chunkData);
+            }
+            writeStream.end();
+            await new Promise((resolve) => writeStream.on('finish', resolve));
+
+            const mergedStats = fs.statSync(mergedFilePath);
+            console.log(`[FINALIZE-BG] Merged file size: ${(mergedStats.size / (1024 * 1024)).toFixed(1)} MB`);
+
+            // Determine recordingSessionId
+            const existingApp = await Application.findOne({ userId, jobId }).lean();
+            const recordingSessionId =
+                existingApp?.recordingSessionId ||
+                buildRecordingSessionId(userId, jobId);
+
+            // Upload via upload_large (chunked, no size limit)
+            const uploadResult = await uploadRecordingToCloudinary(
+                mergedFilePath,
+                {
+                    resource_type: "video",
+                    folder: "ai-interviews",
+                    public_id: recordingSessionId,
+                    use_filename: false,
+                    unique_filename: false,
+                    overwrite: true,
+                    type: "upload",
+                    tags: [
+                        "ai-interview",
+                        `user-${sanitizeRecordingSegment(userId)}`,
+                        `job-${sanitizeRecordingSegment(jobId)}`
+                    ],
+                    context: {
+                        alt: `Interview recording for ${userId}`,
+                        caption: `Interview recording ${recordingSessionId}`
+                    }
+                }
+            );
+
+            const playbackUrl = buildPlaybackUrl(uploadResult.public_id);
+
+            await Application.findOneAndUpdate(
+                { userId, jobId },
+                {
+                    recordingSessionId,
+                    recordingStatus: "uploaded",
+                    recordingPublicId: uploadResult.public_id,
+                    recordingAssetId: uploadResult.asset_id,
+                    recordingUrl: uploadResult.secure_url,
+                    recordingPlaybackUrl: playbackUrl,
+                    recordingFormat: uploadResult.format,
+                    recordingDuration: uploadResult.duration,
+                    recordingBytes: uploadResult.bytes || mergedStats.size,
+                    recordingUploadedAt: new Date()
+                },
+                { upsert: true, new: true }
+            );
+
+            console.log(`[FINALIZE-BG] Upload complete for session: ${sessionId} — ${uploadResult.secure_url}`);
+        } catch (bgError) {
+            console.error("[FINALIZE-BG] Background finalization failed:", bgError);
+            await Application.findOneAndUpdate(
+                { userId, jobId },
+                { recordingStatus: "upload_failed" },
+                { upsert: true }
+            ).catch(() => null);
+        } finally {
+            // Cleanup merged file and chunk directory
+            if (mergedFilePath) {
+                fs.promises.unlink(mergedFilePath).catch(() => null);
+            }
+            fs.promises.rm(sessionDir, { recursive: true, force: true }).catch(() => null);
+        }
+    })();
 });
 
 router.get("/interview-details/:applicationId", getInterviewDetails);

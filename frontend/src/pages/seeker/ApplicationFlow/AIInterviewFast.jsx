@@ -232,10 +232,13 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     };
 
     const getRecordingMimeType = () => {
+        // Ordered by quality. Safari/iOS don't support webm — fall back to mp4/h264.
         const candidates = [
             'video/webm;codecs=vp9,opus',
             'video/webm;codecs=vp8,opus',
-            'video/webm'
+            'video/webm',
+            'video/mp4;codecs=h264,aac',
+            'video/mp4'
         ];
 
         return candidates.find(type => window.MediaRecorder?.isTypeSupported?.(type)) || '';
@@ -336,9 +339,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         return new Promise((resolve) => {
             recorder.onstop = async () => {
                 try {
+                    // Wait for all in-flight chunk uploads to settle
                     if (chunkUploadsRef.current.length > 0) {
                         await Promise.allSettled(chunkUploadsRef.current);
                     }
+                    // Finalize is now async on the server — it responds immediately.
+                    // The actual merge+upload happens in the background on the server.
                     const response = await axios.post(`${API_URL}/finalize-recording`, {
                         sessionId: recordingSessionId || sessionId,
                         userId: user.uid,
@@ -346,7 +352,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     });
                     resolve(response.data);
                 } catch (err) {
-                    console.error("Finalization failed", err);
+                    console.error("Finalization request failed", err);
                     resolve(null);
                 } finally {
                     stopStreamTracks(fullSessionStreamRef.current);
@@ -558,6 +564,18 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             setError("Mic access required to proceed.");
         }
     };
+
+    // Warn users before they accidentally close the tab during an active recording
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state === 'recording') {
+                e.preventDefault();
+                e.returnValue = 'Your interview recording is still in progress. Are you sure you want to leave?';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
 
     useEffect(() => {
         return () => {
