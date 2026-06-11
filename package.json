@@ -1,5 +1,8 @@
 {
   "dependencies": {
-    "@google/genai": "^1.38.0"
+    "@google/genai": "^1.38.0",
+    "@mediapipe/tasks-audio": "^0.10.35",
+    "@mediapipe/tasks-genai": "^0.10.27",
+    "@mediapipe/tasks-vision": "^0.10.35"
   }
 }

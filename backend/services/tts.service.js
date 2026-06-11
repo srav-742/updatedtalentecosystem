@@ -209,37 +209,37 @@ const GEMINI_VOICE_MAP = {
     // Premium Interviewer Personas
     senior_engineering_manager: 'Charon',      // Deep, authoritative, commanding
     principal_ai_engineer: 'Charon',           // Warm, thoughtful, confident
-    vp_sales: 'Callie',                        // Energetic, professional
+    vp_sales: 'Aoede',                         // Energetic, professional
     director_vp: 'Charon',                     // Executive tone, measured
     professional_interviewer: 'Charon',        // Primary interviewer voice
-    professional_interviewer_female: 'Callie', // Natural, warm female voice
+    professional_interviewer_female: 'Aoede',  // Natural, warm female voice
 
     // Male voices
     adam: 'Charon',
     antoni: 'Charon',
-    charlie: 'Callie',
+    charlie: 'Aoede',
     josh: 'Charon',
-    arnold: 'Callie',
+    arnold: 'Aoede',
     sam: 'Charon',
     george: 'Charon',
     brian: 'Charon',
 
     // Female voices
-    rachel: 'Callie',
-    alice: 'Callie',
-    charlotte: 'Callie',
-    domi: 'Callie',
-    elli: 'Callie',
-    bella: 'Callie',
-    jessica: 'Callie',
+    rachel: 'Aoede',
+    alice: 'Aoede',
+    charlotte: 'Aoede',
+    domi: 'Aoede',
+    elli: 'Aoede',
+    bella: 'Aoede',
+    jessica: 'Aoede',
 
     // OpenAI voice name mappings for backward compatibility
     alloy: 'Charon',
     echo: 'Charon',
-    fable: 'Callie',
+    fable: 'Aoede',
     onyx: 'Charon',
-    nova: 'Callie',
-    shimmer: 'Callie'
+    nova: 'Aoede',
+    shimmer: 'Aoede'
 };
 
 const DEFAULT_GEMINI_VOICE = 'Charon';
@@ -263,7 +263,7 @@ async function generateGeminiSpeech(text, voice) {
         // Use Gemini REST API directly for TTS (generateContent with audio modality)
         const response = await axios({
             method: 'post',
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${geminiApiKey}`,
             data: {
                 contents: [{ parts: [{ text }] }],
                 generationConfig: {
@@ -273,7 +273,13 @@ async function generateGeminiSpeech(text, voice) {
                             prebuiltVoiceConfig: { voiceName: geminiVoice }
                         }
                     }
-                }
+                },
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+                ]
             },
             headers: { 'Content-Type': 'application/json' },
             timeout: 25000
