@@ -60,7 +60,7 @@ const PROFESSIONAL_VOICE_SETTINGS = {
     similarity_boost: 0.9,
     style: 0.7,
     use_speaker_boost: true,
-    speed: 0.8
+    speed: 1.0
 };
 
 // ─── Microsoft Edge Neural TTS Voice Map ─────────────────────────────────────
@@ -176,7 +176,7 @@ async function generateEdgeSpeech(text, voice) {
 
         const communicate = new Communicate(text, {
             voice: edgeVoice,
-            rate: '-8%',       // Slightly slower — measured, confident interview cadence
+            rate: '+0%',       // Neutral speed for client-side control
             pitch: '+0Hz',     // Natural pitch (no artificial boost)
             volume: '+0%'      // Neutral volume for clean audio
         });
@@ -209,37 +209,37 @@ const GEMINI_VOICE_MAP = {
     // Premium Interviewer Personas
     senior_engineering_manager: 'Charon',      // Deep, authoritative, commanding
     principal_ai_engineer: 'Charon',           // Warm, thoughtful, confident
-    vp_sales: 'Aoede',                         // Energetic, professional
+    vp_sales: 'Charon',                        // Energetic, professional
     director_vp: 'Charon',                     // Executive tone, measured
     professional_interviewer: 'Charon',        // Primary interviewer voice
-    professional_interviewer_female: 'Aoede',  // Natural, warm female voice
+    professional_interviewer_female: 'Charon', // Natural, warm female voice
 
     // Male voices
     adam: 'Charon',
     antoni: 'Charon',
-    charlie: 'Aoede',
+    charlie: 'Charon',
     josh: 'Charon',
-    arnold: 'Aoede',
+    arnold: 'Charon',
     sam: 'Charon',
     george: 'Charon',
     brian: 'Charon',
 
     // Female voices
-    rachel: 'Aoede',
-    alice: 'Aoede',
-    charlotte: 'Aoede',
-    domi: 'Aoede',
-    elli: 'Aoede',
-    bella: 'Aoede',
-    jessica: 'Aoede',
+    rachel: 'Charon',
+    alice: 'Charon',
+    charlotte: 'Charon',
+    domi: 'Charon',
+    elli: 'Charon',
+    bella: 'Charon',
+    jessica: 'Charon',
 
     // OpenAI voice name mappings for backward compatibility
     alloy: 'Charon',
     echo: 'Charon',
-    fable: 'Aoede',
+    fable: 'Charon',
     onyx: 'Charon',
-    nova: 'Aoede',
-    shimmer: 'Aoede'
+    nova: 'Charon',
+    shimmer: 'Charon'
 };
 
 const DEFAULT_GEMINI_VOICE = 'Charon';

@@ -190,7 +190,11 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
             audioPlayerRef.current.src = url;
-            audioPlayerRef.current.onplay = () => typeText(textToSpeak);
+            audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
+            audioPlayerRef.current.onplay = () => {
+                audioPlayerRef.current.playbackRate = 0.90; // Ensure speed is locked
+                typeText(textToSpeak);
+            };
             audioPlayerRef.current.onended = finishQuestionPlayback;
             audioPlayerRef.current.onerror = speakInBrowser;
             audioPlayerRef.current.play().catch(speakInBrowser);

@@ -27,9 +27,12 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const { callInterviewAI } = require('../utils/aiClients');
 const Application = require('../models/Application');
 const InterviewSession = require('../models/InterviewSession');
+const Job = require('../models/Job');
+const ResumeAnalysis = require('../models/ResumeAnalysis');
 const {
     averageInterviewScore,
     clamp,
@@ -38,6 +41,337 @@ const {
 } = require('../utils/interviewScoring');
 
 const MAX_INTERVIEW_QUESTIONS = 15;
+
+// Keywords used to determine if a role is "tech" (development, engineering, data, etc.)
+const TECH_KEYWORDS = [
+    'developer', 'engineer', 'engineering', 'software', 'frontend', 'backend',
+    'fullstack', 'full-stack', 'full stack', 'devops', 'data scientist',
+    'data engineer', 'machine learning', 'ml engineer', 'ai engineer',
+    'artificial intelligence', 'ai researcher', 'ai scientist', 'llm engineer',
+    'prompt engineer', 'nlp engineer', 'computer vision', 'deep learning engineer',
+    'generative ai', 'genai', 'foundation model', 'rag engineer', 'mlops',
+    'cloud engineer', 'sre', 'site reliability', 'qa engineer', 'test engineer',
+    'automation engineer', 'security engineer', 'architect', 'programmer',
+    'coding', 'development', 'web developer', 'mobile developer', 'ios developer',
+    'android developer', 'react', 'node', 'python developer', 'java developer',
+    'dba', 'database administrator', 'network engineer', 'systems engineer',
+    'embedded', 'firmware', 'blockchain', 'web3', 'solidity', 'cybersecurity',
+    'penetration tester', 'infrastructure', 'platform engineer', 'tech lead',
+    'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
+];
+
+function getRandomQuestionCount() {
+    return MAX_INTERVIEW_QUESTIONS;
+}
+
+function classifyRole(job) {
+    if (!job) return { isTech: false, roleCategory: 'general' };
+
+    const titleLower = (job.title || '').toLowerCase();
+    const descLower = (job.description || '').toLowerCase();
+    const skillsLower = (job.skills || []).map(s => s.toLowerCase());
+
+    let techScore = 0;
+
+    // Check title (strongest signal)
+    for (const kw of TECH_KEYWORDS) {
+        if (titleLower.includes(kw)) { techScore += 3; break; }
+    }
+
+    // Check description
+    let descMatches = 0;
+    for (const kw of TECH_KEYWORDS) {
+        if (descLower.includes(kw)) descMatches++;
+    }
+    if (descMatches >= 3) techScore += 2;
+    else if (descMatches >= 1) techScore += 1;
+
+    // Check skills for tech-centric skills
+    const techSkills = ['javascript', 'python', 'java', 'c++', 'react', 'node', 'angular',
+        'vue', 'typescript', 'go', 'rust', 'sql', 'nosql', 'mongodb', 'postgresql',
+        'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'git',
+        'html', 'css', 'api', 'rest', 'graphql', 'microservices', 'linux',
+        'solidity', 'blockchain', 'machine learning', 'deep learning', 'tensorflow',
+        'pytorch', 'scikit', 'pandas', 'numpy', 'spark', 'hadoop', 'kafka',
+        'redis', 'elasticsearch', 'ci/cd', 'jenkins', 'flask', 'django', 'spring',
+        'ruby', 'rails', 'swift', 'kotlin', 'flutter', 'dart', '.net', 'c#',
+        'langchain', 'langgraph', 'openai', 'anthropic', 'hugging face', 'transformers',
+        'llm', 'gpt', 'claude', 'gemini', 'ollama', 'rag', 'vector database',
+        'pinecone', 'weaviate', 'chroma', 'faiss', 'embeddings', 'fine-tuning',
+        'lora', 'rlhf', 'prompt engineering', 'stable diffusion', 'diffusion models',
+        'automl', 'mlflow', 'weights and biases', 'wandb', 'ray', 'triton',
+        'onnx', 'torchserve', 'bentoml', 'fastapi', 'gradio', 'streamlit'
+    ];
+
+    for (const skill of skillsLower) {
+        if (techSkills.some(ts => skill.includes(ts))) techScore += 1;
+    }
+
+    const isTech = techScore >= 3;
+
+    // Determine a more granular role category for prompt engineering
+    let roleCategory = 'general';
+    if (isTech) {
+        if (/mlops/i.test(titleLower + ' ' + descLower)) {
+            roleCategory = 'mlops';
+        } else if (/ai engineer|ml engineer|machine learning|deep learning|llm|artificial intelligence|ai researcher|ai scientist|nlp|computer vision|generative ai|genai|prompt engineer|rag|foundation model/i.test(titleLower + ' ' + descLower)) {
+            roleCategory = 'ai_engineer';
+        } else {
+            roleCategory = 'technical';
+        }
+    } else if (/sales|business development|bd |bde|account executive|account manager/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'sales';
+    } else if (/marketing|brand|growth|seo|sem|content|social media/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'marketing';
+    } else if (/hr |human resource|talent acquisition|recruiter|people ops/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'hr';
+    } else if (/finance|accounting|chartered|cpa|audit|treasury/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'finance';
+    } else if (/operations|supply chain|logistics|procurement|warehouse/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'operations';
+    } else if (/design|ui|ux|graphic|creative|art director/i.test(titleLower + ' ' + descLower)) {
+        roleCategory = 'design';
+    } else if (/manager|management|director|lead|head of/i.test(titleLower)) {
+        roleCategory = 'management';
+    }
+
+    return { isTech, roleCategory };
+}
+
+function buildSystemPrompt(roleInfo, job) {
+    const { isTech, roleCategory } = roleInfo;
+    const jobTitle = job?.title || 'the role';
+
+    let basePrompt = '';
+    if (isTech && roleCategory === 'mlops') {
+        basePrompt = `
+You are a Lead MLOps Engineer conducting a technical interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus on the intersection of Machine Learning and DevOps. 95% of questions must come from the JD — CI/CD for ML, model monitoring, feature stores, data versioning (DVC), and model deployment (Kubernetes/SageMaker).
+- DIVERSITY RULE: Use the session context to ensure every user gets a unique starting question. Rotate between: 1. Model Deployment strategies, 2. Data drift & Monitoring, 3. Infrastructure as Code for ML, 4. Scalability & Performance.
+- Evaluate: production mindset, automation skills, understanding of the ML lifecycle, and system reliability.
+
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a lead engineer at a top tech company.
+- Each question should naturally flow from the candidate's previous answer.
+- Ask ONE question at a time.
+- STRICT RULE: NEVER REPEAT a question. Provide a completely new question each time.
+- Respond with ONLY the question text. Nothing else.
+`;
+    } else if (isTech && roleCategory === 'ai_engineer') {
+        basePrompt = `
+You are a principal AI/ML engineer and technical interviewer conducting a rigorous interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- You are interviewing for an AI/ML engineering role. Focus primarily on the job description requirements.
+- 95% of your questions MUST be derived directly from the job description — AI/ML frameworks, model architectures, data pipelines, deployment strategies, and domain-specific AI challenges.
+- 5% of your questions should reference the candidate's resume to validate their claimed AI/ML experience.
+- Ask about model selection and trade-offs, RAG pipeline design, LLM fine-tuning strategies, prompt engineering techniques, vector database architecture, MLOps practices, and production AI system challenges relevant to the job.
+- Dive into implementation details: tokenization, embedding strategies, chunking strategies, context window management, hallucination mitigation, latency optimisation, and cost management for LLM-based systems.
+- Probe their understanding of evaluation metrics: BLEU, ROUGE, BERTScore, faithfulness, relevance, and human evaluation for generative AI systems.
+
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a principal AI engineer interviewing at a top AI-first company.
+- Each question should naturally flow from the candidate's previous answer.
+- If the candidate gives a strong answer, go deeper. If they struggle, gracefully pivot to a related but different AI/ML topic from the job description.
+- Ask ONE question at a time. Never bundle multiple questions.
+- Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
+`;
+    } else if (isTech) {
+        basePrompt = `
+You are a senior technical interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- You are interviewing for a TECHNICAL role. Focus primarily on the job description requirements.
+- 95% of your questions MUST be derived directly from the job description — responsibilities, required technologies, and domain knowledge.
+- 5% of your questions should reference the candidate's resume to validate their claimed experience relevant to this role.
+- Ask about system design, architecture decisions, debugging approaches, and code-level trade-offs relevant to the job.
+- Dive into implementation details specific to the technologies mentioned in the job description.
+
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a real senior engineering interviewer at a top company.
+- Each question should naturally flow from the candidate's previous answer.
+- If the candidate gives a strong answer, go deeper. If they struggle, gracefully pivot to a related but different topic from the job description.
+- Ask ONE question at a time. Never bundle multiple questions.
+- Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
+`;
+    } else {
+        const categoryPrompts = {
+            sales: `
+You are a senior sales/business development interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% of questions must come from the JD — target market, sales methodology, pipeline management, revenue targets, and client engagement strategies described.
+- Only 5% of questions should reference the candidate's resume (e.g., verifying past achievements or industry experience).
+- Evaluate: negotiation skills, objection handling, relationship building, market knowledge, and commercial acumen.
+- Ask situational and behavioral questions: "Tell me about a time when..." or "How would you handle..."
+`,
+            marketing: `
+You are a senior marketing interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — campaigns, channels, metrics, brand strategy, and growth targets described.
+- Only 5% from the candidate's resume.
+- Evaluate: strategic thinking, campaign planning, analytics mindset, creativity, and ROI focus.
+- Ask about real scenarios: "Walk me through how you would plan a campaign for..." or "How do you measure success for..."
+`,
+            hr: `
+You are a senior HR/People Operations interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — talent acquisition, employee engagement, compliance, HRIS, and people strategy described.
+- Only 5% from the candidate's resume.
+- Evaluate: empathy, conflict resolution, labor law knowledge, organizational development, and strategic HR thinking.
+`,
+            finance: `
+You are a senior finance interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — financial analysis, reporting, compliance, budgeting, and forecasting requirements described.
+- Only 5% from the candidate's resume.
+- Evaluate: analytical rigor, attention to detail, regulatory knowledge, and financial modeling skills.
+`,
+            operations: `
+You are a senior operations interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — process optimization, supply chain, vendor management, and KPIs described.
+- Only 5% from the candidate's resume.
+- Evaluate: process thinking, problem-solving under constraints, efficiency mindset, and cross-functional collaboration.
+`,
+            design: `
+You are a senior design interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — design systems, user research, wireframing, prototyping, and brand guidelines described.
+- Only 5% from the candidate's resume.
+- Evaluate: design thinking, user empathy, visual communication skills, and ability to iterate based on feedback.
+`,
+            management: `
+You are a senior interviewer conducting a professional interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions from the JD — team leadership, strategic planning, stakeholder management, and KPIs described.
+- Only 5% from the candidate's resume.
+- Evaluate: leadership style, decision-making under pressure, team building, conflict resolution, and strategic vision.
+`,
+            general: `
+You are a senior professional interviewer conducting a formal interview for the role of "${jobTitle}".
+
+INTERVIEW PHILOSOPHY:
+- Focus ENTIRELY on the job description. 95% questions must come from the JD — role responsibilities, required qualifications, and key deliverables described.
+- Only 5% from the candidate's resume.
+- Evaluate: domain knowledge, problem-solving, communication skills, and cultural fit for the role.
+`
+        };
+
+        const categoryBase = categoryPrompts[roleCategory] || categoryPrompts.general;
+        basePrompt = categoryBase + `
+INTERVIEW CONDUCT:
+- Be professional, structured, and rigorous — like a real interview panel at a reputable organization.
+- Each question should naturally flow from the candidate's previous answer.
+- If the candidate gives a strong answer, go deeper into that topic. If they struggle, gracefully pivot to another aspect of the job description.
+- Ask ONE question at a time. Never bundle multiple questions.
+- Do NOT use conversational filler like "Great answer!" or "That's interesting!" — stay focused and professional.
+- Use a mix of situational, behavioral, and competency-based questions appropriate for the role.
+- STRICT RULE: NEVER REPEAT a question that has already been asked in this interview. Provide a completely new question each time. Do not repeat the same specific topic if it has already been covered.
+- Respond with ONLY the next interview question. Ensure the question is complete, concise, and professional. Do not cut off mid-sentence.
+- Respond with ONLY the question text. Nothing else.
+`;
+    }
+
+    let voiceStyleInstruction = '';
+    if (roleCategory === 'mlops' || roleCategory === 'technical') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Senior Engineering Manager.
+- Your voice style is calm, confident, and authoritative. Speak with clear deliberation.
+`;
+    } else if (roleCategory === 'ai_engineer') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Principal AI Engineer.
+- Your voice style is deep technical with thoughtful pauses. Discuss advanced technical AI architectures and considerations naturally.
+`;
+    } else if (roleCategory === 'sales' || roleCategory === 'marketing') {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a VP of Sales.
+- Your voice style is energetic, professional, and engaging.
+`;
+    } else {
+        voiceStyleInstruction = `
+VOICE STYLE & PERSONA:
+- You are a Director / VP.
+- Your voice style is executive tone, measured, formal, and direct.
+`;
+    }
+
+    return basePrompt + voiceStyleInstruction + INTERVIEWER_PERSONA;
+}
+
+function buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions) {
+    const { isTech, roleCategory } = roleInfo;
+    const resumeWeight = '5%';
+    const jdWeight = '95%';
+    const isAiRole = roleCategory === 'ai_engineer';
+
+    return `
+=== JOB DESCRIPTION (PRIMARY SOURCE — ${jdWeight} of questions should come from this) ===
+Title: ${job?.title || 'Not specified'}
+Description: ${job?.description || 'Not specified'}
+Required Skills: ${(job?.skills || []).join(', ') || 'Not specified'}
+Experience Level: ${job?.experienceLevel || 'Not specified'}
+Job Type: ${job?.type || 'Not specified'}
+
+=== CANDIDATE RESUME (SECONDARY SOURCE — only ${resumeWeight} of questions should reference this) ===
+${JSON.stringify(structured)}
+
+=== RECRUITER'S SPECIAL INSTRUCTIONS ===
+${specialInstructions || 'None'}
+
+=== ROLE CLASSIFICATION ===
+Role Type: ${isTech ? 'Technical' : 'Non-Technical'}
+Category: ${roleCategory}
+
+=== TASK ===
+You are starting the interview. Ask the FIRST question.
+
+RULES:
+- The first question MUST be derived from the JOB DESCRIPTION, not the resume.
+- Start with a strong, role-specific opening question that assesses the candidate's understanding of the core responsibilities described in the JD.
+- For ${roleCategory === 'mlops'
+            ? 'MLOps engineering roles: ask about a specific production challenge — e.g., model deployment strategies (Canary/Blue-Green), drift detection pipelines, feature store implementation, or CI/CD for ML models described in the JD.'
+            : isAiRole
+            ? 'AI/ML engineering roles: ask about a key AI/ML architecture, framework, or technical challenge mentioned in the JD — e.g., RAG pipeline design, LLM selection rationale, embedding strategy, or model evaluation approach.'
+            : isTech
+                ? 'technical roles: ask about a key technology, architecture pattern, or technical challenge mentioned in the JD.'
+                : 'non-technical roles: ask about a core responsibility, business scenario, or domain-specific challenge mentioned in the JD.'}
+- Do NOT ask generic questions like "Tell me about yourself" — dive directly into the role.
+- Return ONLY the question. Nothing else. Ensure the question is a complete sentence and fully addresses the role requirements.
+`;
+}
+
+function sanitizeRecordingSegment(value) {
+    return String(value || 'unknown')
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .slice(0, 40) || 'unknown';
+}
+
+function buildRecordingSessionId(userId, jobId) {
+    const userSegment = sanitizeRecordingSegment(userId);
+    const jobSegment = sanitizeRecordingSegment(jobId);
+    const timestamp = Date.now();
+    const suffix = crypto.randomBytes(4).toString('hex');
+    return `rec_${userSegment}_${jobSegment}_${timestamp}_${suffix}`;
+}
 
 // ─── In-memory session cache ────────────────────────────────────────────────
 const fixSessionCache = new Map();
@@ -715,7 +1049,129 @@ async function finalizeInterview(session, sessionId) {
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 /**
+ * POST /api/interview/start
+ *
+ * Fast version of /start endpoint.
+ * Initiates the interview session, generates the first question (maxTokens=200 for speed),
+ * generates its voice, and returns details.
+ */
+router.post('/start', async (req, res) => {
+    try {
+        const { jobId, userId } = req.body;
+        if (!jobId || !userId) return res.status(400).json({ message: "jobId and userId are required" });
+
+        // Fetch resume data
+        let resume = await ResumeAnalysis.findOne({ userId, jobId });
+        let structured = resume?.structured;
+
+        if (!structured) {
+            const ResumeProfile = require('../models/ResumeProfile');
+            const profile = await ResumeProfile.findOne({ userId });
+            if (profile) {
+                structured = {
+                    skills: profile.skills,
+                    projects: profile.projects,
+                    experienceYears: profile.experienceYears
+                };
+            }
+        }
+
+        // Final fallback
+        if (!structured) structured = { message: "No resume data available." };
+
+        // Fetch job details
+        const job = await Job.findById(jobId);
+        const specialInstructions = job?.specialInstructions || "";
+
+        // Classify the role
+        const roleInfo = classifyRole(job);
+        console.log(`[FIX-INTERVIEW-START] Role Classification: ${JSON.stringify(roleInfo)} | Job: ${job?.title}`);
+
+        // Build role-specific system prompt
+        const systemPrompt = buildSystemPrompt(roleInfo, job);
+
+        // Build first question prompt (JD-focused)
+        const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
+
+        // Requesting 200 tokens (was 1000) for fast startup
+        let firstQuestion = await callInterviewAI(firstQPrompt, 200, false, systemPrompt);
+
+        if (!firstQuestion) {
+            // Fallback: role-appropriate generic question
+            if (roleInfo.roleCategory === 'ai_engineer') {
+                firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
+            } else if (roleInfo.isTech) {
+                firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+            } else {
+                firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+            }
+        }
+
+        // Voice generation (TTS) — select voice based on role category for best human quality
+        let audioBase64 = null;
+        try {
+            const interviewVoice = roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing'
+                ? 'vp_sales'
+                : 'professional_interviewer';
+            const { generateSpeech } = require('../services/tts.service');
+            const buffer = await generateSpeech(firstQuestion, interviewVoice);
+            if (buffer) audioBase64 = buffer.toString('base64');
+        } catch (e) { console.warn("TTS failed"); }
+
+        const sessionId = crypto.randomBytes(16).toString('hex');
+        const recordingSessionId = buildRecordingSessionId(userId, jobId);
+
+        const totalQuestions = getRandomQuestionCount();
+        console.log(`[FIX-INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
+
+        await Application.findOneAndUpdate(
+            { userId, jobId },
+            {
+                $set: {
+                    recordingSessionId,
+                    recordingStatus: 'recording'
+                }
+            },
+            { upsert: true }
+        );
+
+        // Store the interviewer voice and other properties properly in the session
+        await saveSession(sessionId, {
+            userId,
+            jobId,
+            recordingSessionId,
+            resumeProfile: structured,
+            specialInstructions,
+            roleInfo,
+            jobTitle: job?.title || '',
+            jobDescription: job?.description || '',
+            jobSkills: job?.skills || [],
+            experienceLevel: job?.experienceLevel || '',
+            systemPrompt,
+            interviewerVoice: roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing' ? 'vp_sales' : 'professional_interviewer',
+            totalQuestions,
+            history: [{ role: 'interviewer', content: firstQuestion }],
+            answerEvaluations: []
+        });
+
+        res.json({
+            success: true,
+            sessionId,
+            recordingSessionId,
+            question: firstQuestion,
+            audio: audioBase64,
+            totalQuestions
+        });
+    } catch (error) {
+        console.error("Start Error:", error);
+        res.status(500).json({ success: false, message: "Failed to start" });
+    }
+});
+
+/**
  * POST /api/interview/next-fast
+ *
+ * FIXED version of the /next-fast endpoint.
  *
  * FIXED version of the /next-fast endpoint.
  * Changes from original:

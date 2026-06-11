@@ -73,8 +73,8 @@ app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 app.use('/api', applicationRoutes);
+app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX Overlay first (overrides /start and /next-fast)
 app.use('/api/interview', aiInterviewRoutes);
-app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX: overrides /next-fast with corrected maxTokens + question cleaning
 app.use('/api/interview', require('./routes/fastAiInterviewRoutes'));
 app.use('/api', aiInterviewUploadRoutes);
 app.use('/api/v2/voice', voiceRoutesNew);
