@@ -91,6 +91,7 @@ app.use('/api/insights', insightRoutes);
 app.use('/api/ai-search', aiSearchRoutes);
 app.use('/api/voice-agent', voiceAgentRoutes);
 app.use('/api/transcripts', require('./routes/transcriptRoutes'));
+app.use('/api/user-resumes', require('./routes/userResumeRoutes'));
 app.use('/api', paymentRoutes);
 
 

@@ -1,4 +1,5 @@
 const ResumeProfile = require('../models/ResumeProfile');
+const UserResume = require('../models/UserResume');
 
 const uniqueStrings = (values = []) => [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
 
@@ -234,6 +235,24 @@ const syncFromBuilder = async (req, res) => {
             },
             { upsert: true, new: true }
         );
+        
+        // Sync to UserResume collection as a builder-generated resume
+        try {
+            await UserResume.updateMany({ userId: uid }, { isDefault: false });
+            await UserResume.findOneAndUpdate(
+                { userId: uid, source: 'builder' },
+                {
+                    userId: uid,
+                    title: `${basics.name || 'Builder'} Resume`,
+                    source: 'builder',
+                    isDefault: true,
+                    updatedAt: new Date()
+                },
+                { upsert: true, new: true }
+            );
+        } catch (syncError) {
+            console.error("[RESUME-SYNC] Failed to save to UserResume collection:", syncError);
+        }
 
         console.log(`[RESUME-SYNC] Synced successfully for user UID: ${uid}`);
 
