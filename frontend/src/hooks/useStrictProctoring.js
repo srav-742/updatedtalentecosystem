@@ -112,10 +112,6 @@ export function useStrictProctoring({
   }, []);
 
   const dismissOverlay = useCallback(() => {
-    if (resetTriggeredRef.current || countRef.current >= resetLimit) {
-      return;
-    }
-
     lockedRef.current = false;
     setIsLocked(false);
     setShowOverlay(false);
@@ -123,7 +119,7 @@ export function useStrictProctoring({
     requestFullscreen();
     window.focus();
     document.documentElement.focus?.();
-  }, [requestFullscreen, resetLimit]);
+  }, [requestFullscreen]);
 
   const triggerViolation = useCallback((type, detail) => {
     if (!isActive || resetTriggeredRef.current) {
@@ -153,26 +149,12 @@ export function useStrictProctoring({
     setViolations((previousViolations) => [...previousViolations, violation]);
     logViolation({ examId, userId, ...violation });
 
-    if (count >= resetLimit) {
-      resetTriggeredRef.current = true;
-      lockSession(
-        "Security limit exceeded. Returning you to Resume Analysis.",
-        "reset"
-      );
-      callbacksRef.current.onResetRequired?.(violation);
-      return;
-    }
-
-    const remainingWarnings = Math.max(warningLimit - count, 0);
-    const remainingMessage = remainingWarnings > 0
-      ? `You have ${remainingWarnings} warning(s) left before you are returned to Resume Analysis.`
-      : "One more violation will return you to Resume Analysis.";
-
+    // All violations are just stored in MongoDB, and the warning modal can be dismissed.
     lockSession(
-      `Warning ${count}/${warningLimit}: ${detail}\n\n${remainingMessage}\n\nClick "Return to Exam" to continue.`,
+      `Warning: ${detail}\n\nTotal warnings/flags logged: ${count}\n\nClick "Return to Exam" to continue.`,
       "warning"
     );
-  }, [examId, isActive, lockSession, resetLimit, userId, warningLimit]);
+  }, [examId, isActive, lockSession, userId]);
 
   useEffect(() => {
     if (!isActive) {

@@ -110,19 +110,11 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
       setViolations((prev) => [...prev, v]);
       logViolation({ examId, userId, ...v });
 
-      if (count >= MAX_VIOLATIONS) {
-        lockExam(
-          `🚨 Exam auto-submitting: You have been caught switching tabs/windows ${count} times. Your responses have been recorded.`
-        );
-        setTimeout(() => onAutoSubmit?.("proctoring_violation"), 4000);
-      } else {
-        const remaining = MAX_VIOLATIONS - count;
-        lockExam(
-          `⛔ WARNING ${count}/${MAX_VIOLATIONS}: ${detail}.\n\n` +
-          `You have ${remaining} warning(s) remaining before your exam is auto-submitted.\n\n` +
-          `Click "Return to Exam" to continue.`
-        );
-      }
+      lockExam(
+        `⛔ WARNING: ${detail}.\n\n` +
+        `Total warnings/flags logged: ${count}.\n\n` +
+        `Click "Return to Exam" to continue.`
+      );
     },
     [isActive, examId, userId, lockExam, onAutoSubmit]
   );

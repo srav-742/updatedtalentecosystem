@@ -34,24 +34,15 @@ const useTabLock = (options = {}) => {
         setViolations(prev => [...prev, newViolation]);
         setWarnings(prev => {
             const newCount = prev + 1;
-            if (newCount >= maxWarnings) {
-                setIsTerminated(true);
-                setIsLocked(true);
-                setShowWarning(false);
-                if (callbacksRef.current.onMaxWarningsExceeded) {
-                    callbacksRef.current.onMaxWarningsExceeded(newViolation);
-                }
-            } else {
-                setLastViolationType(type);
-                setShowWarning(true);
-                // Auto-hide warning after timeout
-                if (warningTimeoutRef.current) {
-                    clearTimeout(warningTimeoutRef.current);
-                }
-                warningTimeoutRef.current = setTimeout(() => {
-                    setShowWarning(false);
-                }, warningTimeout);
+            setLastViolationType(type);
+            setShowWarning(true);
+            // Auto-hide warning after timeout
+            if (warningTimeoutRef.current) {
+                clearTimeout(warningTimeoutRef.current);
             }
+            warningTimeoutRef.current = setTimeout(() => {
+                setShowWarning(false);
+            }, warningTimeout);
             return newCount;
         });
     }, [isActive, isTerminated, maxWarnings, warningTimeout]);

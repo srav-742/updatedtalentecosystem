@@ -195,9 +195,6 @@ export default function SecureExamWrapper({
             {violationCount === 0 ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
           </span>
           <span>Protected session</span>
-          <span className={`font-semibold ${violationCount === 0 ? 'text-emerald-600' : violationCount < resetLimit ? 'text-amber-600' : 'text-red-600'}`}>
-            {violationCount}/{resetLimit} flags
-          </span>
         </div>
       )}
 

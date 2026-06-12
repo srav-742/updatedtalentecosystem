@@ -38,10 +38,7 @@ export default function ProctoringMonitor({
       {/* Violation counter overlay */}
       {isActive && (
         <div className="fixed top-4 right-4 bg-gray-900 text-white text-xs px-3 py-1 rounded-full z-40 shadow-lg">
-          🛡️ Proctored &nbsp;|&nbsp;
-          <span className={violationCount > 0 ? "text-red-400" : "text-green-400"}>
-            Flags: {violationCount}/3
-          </span>
+          🛡️ Proctored
         </div>
       )}
 

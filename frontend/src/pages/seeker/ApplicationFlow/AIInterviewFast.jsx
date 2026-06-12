@@ -103,10 +103,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                         if (persons.length !== 1) {
                             setWarnings(prev => {
                                 const next = prev + 1;
-                                if (next >= MAX_WARNINGS) {
-                                    setIsKickedOut(true);
-                                    if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-                                }
+                                // We no longer kick the candidate out, only track warnings
                                 return next;
                             });
                         }

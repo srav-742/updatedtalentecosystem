@@ -177,12 +177,6 @@ export default function ExamWrapper({ examId, userId, onSubmit, children }) {
         }}>
           <span style={{ color: "#4ade80", fontSize: 10 }}>●</span>
           <span style={{ color: "#888" }}>Proctored</span>
-          <span style={{
-            color: violationCount === 0 ? "#4ade80" : violationCount === 1 ? "#fbbf24" : "#ef4444",
-            fontWeight: 700,
-          }}>
-            {violationCount}/3 flags
-          </span>
         </div>
       )}
 
