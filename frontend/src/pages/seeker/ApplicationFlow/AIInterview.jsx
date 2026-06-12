@@ -39,6 +39,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
+    const isRecordingRef = useRef(false);
+    const recognitionTimeoutRef = useRef(null);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -446,13 +448,23 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     const toggleRecording = async () => {
         if (recording) {
+            isRecordingRef.current = false;
             if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-            // Clear any pending recognition restart before stopping so it doesn't fire after stop
-            if (recognitionRef._restartTimeoutRef) {
-                clearTimeout(recognitionRef._restartTimeoutRef);
-                recognitionRef._restartTimeoutRef = null;
+            
+            if (recognitionTimeoutRef.current) {
+                clearTimeout(recognitionTimeoutRef.current);
+                recognitionTimeoutRef.current = null;
             }
-            if (recognitionRef.current) recognitionRef.current.stop();
+
+            if (recognitionRef.current) {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.onerror = null;
+                try {
+                    recognitionRef.current.stop();
+                } catch (_) {}
+                recognitionRef.current = null;
+            }
+
             setRecording(false);
             setCoreState('processing');
             // Remove setProcessing(true) here as it causes a race condition inside submitUserAnswer
@@ -460,6 +472,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         try {
+            isRecordingRef.current = true;
             setTranscript('');
             latestTranscriptRef.current = '';
 
@@ -550,14 +563,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (SpeechRec) {
-                let recRestartTimeout = null;
+                const startSpeechRecognition = () => {
+                    if (!isRecordingRef.current) return;
 
-                const startRecognition = () => {
-                    // Only restart if the MediaRecorder is still actively recording
-                    if (
-                        !mediaRecorderRef.current ||
-                        mediaRecorderRef.current.state !== 'recording'
-                    ) return;
+                    // Stop and clean up any pre-existing instance
+                    if (recognitionRef.current) {
+                        try {
+                            recognitionRef.current.onend = null;
+                            recognitionRef.current.onerror = null;
+                            recognitionRef.current.stop();
+                        } catch (_) {}
+                    }
 
                     const rec = new SpeechRec();
                     rec.lang = 'en-US';
@@ -571,26 +587,16 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         latestTranscriptRef.current = full;
                     };
 
-                    // If recognition ends for any reason (audio gap, browser timeout, etc.)
-                    // restart it immediately so STT stays active for the entire recording
-                    rec.onend = () => {
-                        if (
-                            mediaRecorderRef.current &&
-                            mediaRecorderRef.current.state === 'recording'
-                        ) {
-                            recRestartTimeout = setTimeout(startRecognition, 150);
+                    rec.onerror = (ev) => {
+                        if (ev.error === 'aborted') return;
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 300);
                         }
                     };
 
-                    // On error, restart unless the user deliberately stopped recording
-                    rec.onerror = (ev) => {
-                        // 'aborted' is fired when we manually call rec.stop() — don't restart in that case
-                        if (ev.error === 'aborted') return;
-                        if (
-                            mediaRecorderRef.current &&
-                            mediaRecorderRef.current.state === 'recording'
-                        ) {
-                            recRestartTimeout = setTimeout(startRecognition, 300);
+                    rec.onend = () => {
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 150);
                         }
                     };
 
@@ -598,15 +604,13 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     try {
                         rec.start();
                     } catch (_) {
-                        // start() can throw if called too quickly after stop(); retry after a short delay
-                        recRestartTimeout = setTimeout(startRecognition, 400);
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 400);
+                        }
                     }
                 };
 
-                startRecognition();
-
-                // Store a cleanup reference so toggleRecording(stop) can clear pending restarts
-                recognitionRef._restartTimeoutRef = recRestartTimeout;
+                startSpeechRecognition();
             }
 
             recorder.start();
@@ -632,6 +636,15 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     useEffect(() => {
         return () => {
+            isRecordingRef.current = false;
+            if (recognitionTimeoutRef.current) {
+                clearTimeout(recognitionTimeoutRef.current);
+            }
+            if (recognitionRef.current) {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.onerror = null;
+                try { recognitionRef.current.stop(); } catch(_) {}
+            }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
             stopStreamTracks(answerStreamRef.current);
@@ -651,7 +664,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         setProcessing(false);
         setCoreState('idle');
 
-        recognitionRef.current?.stop();
+        isRecordingRef.current = false;
+        if (recognitionTimeoutRef.current) {
+            clearTimeout(recognitionTimeoutRef.current);
+            recognitionTimeoutRef.current = null;
+        }
+        if (recognitionRef.current) {
+            recognitionRef.current.onend = null;
+            recognitionRef.current.onerror = null;
+            try { recognitionRef.current.stop(); } catch(_) {}
+            recognitionRef.current = null;
+        }
         audioPlayerRef.current.pause();
         window.speechSynthesis.cancel();
 

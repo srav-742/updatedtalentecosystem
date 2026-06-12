@@ -57,6 +57,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
+    const isRecordingRef = useRef(false);
+    const recognitionTimeoutRef = useRef(null);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -442,14 +444,30 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     // ── OPTIMIZED: toggleRecording — bypasses /upload-audio wait ─────────────
     const toggleRecording = async () => {
         if (recording) {
+            isRecordingRef.current = false;
             if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-            if (recognitionRef.current) recognitionRef.current.stop();
+            
+            if (recognitionTimeoutRef.current) {
+                clearTimeout(recognitionTimeoutRef.current);
+                recognitionTimeoutRef.current = null;
+            }
+
+            if (recognitionRef.current) {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.onerror = null;
+                try {
+                    recognitionRef.current.stop();
+                } catch (_) {}
+                recognitionRef.current = null;
+            }
+
             setRecording(false);
             setCoreState('processing');
             return;
         }
 
         try {
+            isRecordingRef.current = true;
             setTranscript('');
             latestTranscriptRef.current = '';
 
@@ -523,40 +541,64 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (SpeechRec) {
-                const rec = new SpeechRec();
-                rec.lang = 'en-US';
-                rec.continuous = true;
-                rec.interimResults = true;
-                rec.maxAlternatives = 1;
-                rec.onresult = (e) => {
-                    let finalText = '';
-                    let interimText = '';
-                    for (let i = 0; i < e.results.length; i++) {
-                        const result = e.results[i];
-                        if (result.isFinal) {
-                            finalText += result[0].transcript;
-                        } else {
-                            interimText += result[0].transcript;
+                const startSpeechRecognition = () => {
+                    if (!isRecordingRef.current) return;
+
+                    // Stop and clean up any pre-existing instance
+                    if (recognitionRef.current) {
+                        try {
+                            recognitionRef.current.onend = null;
+                            recognitionRef.current.onerror = null;
+                            recognitionRef.current.stop();
+                        } catch (_) {}
+                    }
+
+                    const rec = new SpeechRec();
+                    rec.lang = 'en-US';
+                    rec.continuous = true;
+                    rec.interimResults = true;
+                    rec.maxAlternatives = 1;
+
+                    rec.onresult = (e) => {
+                        let finalText = '';
+                        let interimText = '';
+                        for (let i = 0; i < e.results.length; i++) {
+                            const result = e.results[i];
+                            if (result.isFinal) {
+                                finalText += result[0].transcript;
+                            } else {
+                                interimText += result[0].transcript;
+                            }
+                        }
+                        const full = (finalText + interimText).trim();
+                        setTranscript(full || '');
+                        latestTranscriptRef.current = full || '';
+                    };
+
+                    rec.onerror = (ev) => {
+                        if (ev.error === 'aborted') return;
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 300);
+                        }
+                    };
+
+                    rec.onend = () => {
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 150);
+                        }
+                    };
+
+                    recognitionRef.current = rec;
+                    try {
+                        rec.start();
+                    } catch (_) {
+                        if (isRecordingRef.current) {
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 400);
                         }
                     }
-                    const full = (finalText + interimText).trim();
-                    setTranscript(full || '');
-                    latestTranscriptRef.current = full || '';
                 };
-                rec.onerror = (e) => {
-                    // If speech recognition errors out (e.g. no-speech), restart it
-                    if (e.error === 'no-speech' || e.error === 'audio-capture') {
-                        try { rec.start(); } catch(_) {}
-                    }
-                };
-                rec.onend = () => {
-                    // Auto-restart if recording is still active (browser may stop it)
-                    if (recording || mediaRecorderRef.current?.state === 'recording') {
-                        try { rec.start(); } catch(_) {}
-                    }
-                };
-                recognitionRef.current = rec;
-                rec.start();
+
+                startSpeechRecognition();
             }
 
             recorder.start();
@@ -582,6 +624,15 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     useEffect(() => {
         return () => {
+            isRecordingRef.current = false;
+            if (recognitionTimeoutRef.current) {
+                clearTimeout(recognitionTimeoutRef.current);
+            }
+            if (recognitionRef.current) {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.onerror = null;
+                try { recognitionRef.current.stop(); } catch(_) {}
+            }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
             stopStreamTracks(answerStreamRef.current);
@@ -601,7 +652,17 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         setProcessing(false);
         setCoreState('idle');
 
-        recognitionRef.current?.stop();
+        isRecordingRef.current = false;
+        if (recognitionTimeoutRef.current) {
+            clearTimeout(recognitionTimeoutRef.current);
+            recognitionTimeoutRef.current = null;
+        }
+        if (recognitionRef.current) {
+            recognitionRef.current.onend = null;
+            recognitionRef.current.onerror = null;
+            try { recognitionRef.current.stop(); } catch(_) {}
+            recognitionRef.current = null;
+        }
         audioPlayerRef.current.pause();
         window.speechSynthesis.cancel();
 
