@@ -10,7 +10,6 @@ import {
     MapPin,
     Sparkles,
     Share2,
-    ScanSearch,
     Mail,
     Linkedin,
     Twitter,
@@ -25,7 +24,6 @@ const PublicJobDetails = () => {
     const navigate = useNavigate();
     const [job, setJob] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [showApplyOptions, setShowApplyOptions] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
 
@@ -260,42 +258,18 @@ const PublicJobDetails = () => {
                                 </p>
 
                                 <div className="mt-6 space-y-3">
-                                    <AnimatePresence mode="wait">
-                                        {!showApplyOptions ? (
-                                            <motion.button
-                                                key="apply-btn"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                transition={{ duration: 0.2 }}
-                                                onClick={() => setShowApplyOptions(true)}
-                                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                                            >
-                                                <Sparkles size={18} />
-                                                Apply
-                                            </motion.button>
-                                        ) : (
-                                            <motion.div
-                                                key="resume-analysis-btn"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="space-y-3"
-                                            >
-                                                <button
-                                                    onClick={handleResumeAnalysis}
-                                                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                                                >
-                                                    <ScanSearch size={18} />
-                                                    Resume Analysis
-                                                </button>
-                                                <p className="text-xs text-center text-gray-400">
-                                                    You'll be asked to sign in before proceeding
-                                                </p>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
+                                    <button
+                                        onClick={handleResumeAnalysis}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                    >
+                                        <Sparkles size={18} />
+                                        Apply
+                                    </button>
+                                    {!localStorage.getItem('user') && (
+                                        <p className="text-xs text-center text-gray-400">
+                                            You'll be asked to sign in before proceeding
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
