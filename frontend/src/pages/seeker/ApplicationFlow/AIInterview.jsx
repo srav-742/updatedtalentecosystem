@@ -447,6 +447,11 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const toggleRecording = async () => {
         if (recording) {
             if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+            // Clear any pending recognition restart before stopping so it doesn't fire after stop
+            if (recognitionRef._restartTimeoutRef) {
+                clearTimeout(recognitionRef._restartTimeoutRef);
+                recognitionRef._restartTimeoutRef = null;
+            }
             if (recognitionRef.current) recognitionRef.current.stop();
             setRecording(false);
             setCoreState('processing');
@@ -545,18 +550,63 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (SpeechRec) {
-                const rec = new SpeechRec();
-                rec.lang = 'en-US';
-                rec.continuous = true;
-                rec.interimResults = true;
-                rec.onresult = (e) => {
-                    let full = '';
-                    for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
-                    setTranscript(full);
-                    latestTranscriptRef.current = full;
+                let recRestartTimeout = null;
+
+                const startRecognition = () => {
+                    // Only restart if the MediaRecorder is still actively recording
+                    if (
+                        !mediaRecorderRef.current ||
+                        mediaRecorderRef.current.state !== 'recording'
+                    ) return;
+
+                    const rec = new SpeechRec();
+                    rec.lang = 'en-US';
+                    rec.continuous = true;
+                    rec.interimResults = true;
+
+                    rec.onresult = (e) => {
+                        let full = '';
+                        for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
+                        setTranscript(full);
+                        latestTranscriptRef.current = full;
+                    };
+
+                    // If recognition ends for any reason (audio gap, browser timeout, etc.)
+                    // restart it immediately so STT stays active for the entire recording
+                    rec.onend = () => {
+                        if (
+                            mediaRecorderRef.current &&
+                            mediaRecorderRef.current.state === 'recording'
+                        ) {
+                            recRestartTimeout = setTimeout(startRecognition, 150);
+                        }
+                    };
+
+                    // On error, restart unless the user deliberately stopped recording
+                    rec.onerror = (ev) => {
+                        // 'aborted' is fired when we manually call rec.stop() — don't restart in that case
+                        if (ev.error === 'aborted') return;
+                        if (
+                            mediaRecorderRef.current &&
+                            mediaRecorderRef.current.state === 'recording'
+                        ) {
+                            recRestartTimeout = setTimeout(startRecognition, 300);
+                        }
+                    };
+
+                    recognitionRef.current = rec;
+                    try {
+                        rec.start();
+                    } catch (_) {
+                        // start() can throw if called too quickly after stop(); retry after a short delay
+                        recRestartTimeout = setTimeout(startRecognition, 400);
+                    }
                 };
-                recognitionRef.current = rec;
-                rec.start();
+
+                startRecognition();
+
+                // Store a cleanup reference so toggleRecording(stop) can clear pending restarts
+                recognitionRef._restartTimeoutRef = recRestartTimeout;
             }
 
             recorder.start();
