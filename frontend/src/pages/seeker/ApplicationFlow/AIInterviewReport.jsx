@@ -96,7 +96,7 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
                             <div className="bg-gray-50 border border-gray-200 rounded-3xl p-6 flex items-center gap-6">
                                 <div className="text-center">
                                     <p className="text-[10px] font-black text-gray-500 uppercase mb-1">Attempted</p>
-                                    <p className="text-2xl font-black text-gray-900">{attemptedQuestions || 10}/{totalQuestions || 10}</p>
+                                    <p className="text-2xl font-black text-gray-900">{attemptedQuestions || 5}/{totalQuestions || 5}</p>
                                 </div>
                                 <div className="w-px h-10 bg-gray-200" />
                                 <div className="text-center">

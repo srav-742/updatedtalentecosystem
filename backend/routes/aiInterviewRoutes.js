@@ -17,7 +17,7 @@ const {
 
 // In-memory session store
 const interviewSessions = new Map();
-const MAX_INTERVIEW_QUESTIONS = 15;
+const MAX_INTERVIEW_QUESTIONS = 5;
 
 // Mapping of candidate job categories to premium curated voice personas
 const CATEGORY_VOICE_MAP = {
@@ -1095,7 +1095,7 @@ router.post('/next', async (req, res) => {
             console.log("[INTERVIEW-EVAL] Final Score:", evaluation.score);
 
             // ─── OWNERSHIP VETTING SCORE LOGIC: Final Calculation ────────────────
-            const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= 8);
+            const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= Math.ceil((session.totalQuestions || MAX_INTERVIEW_QUESTIONS) / 2));
             const ownershipScore = ownershipEvals.length > 0 
                 ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
                 : 0;

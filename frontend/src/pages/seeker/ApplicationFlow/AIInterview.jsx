@@ -770,7 +770,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold mt-0.5">3</div>
                             <div>
                                 <h4 className="text-xs font-black uppercase tracking-widest text-gray-900 mb-1">Process</h4>
-                                <p className="text-[11px] text-gray-500 leading-normal">The AI will ask 10 questions. Press the microphone to start and stop recording.</p>
+                                <p className="text-[11px] text-gray-500 leading-normal">The AI will ask 5 questions. Press the microphone to start and stop recording.</p>
                             </div>
                         </div>
                     </div>
@@ -1075,7 +1075,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 score={finalScore}
                 ownershipScore={ownershipScore} // ─── OWNERSHIP V VETTING SCORE
                 feedback={feedback}
-                totalQuestions={10}
+                totalQuestions={5}
                 attemptedQuestions={currentQNum}
                 userId={user.uid}
                 jobId={job._id}

@@ -36,7 +36,7 @@ const {
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
 
-const MAX_INTERVIEW_QUESTIONS = 15;
+const MAX_INTERVIEW_QUESTIONS = 5;
 
 // ─── In-memory session cache (mirrors the one in aiInterviewRoutes.js) ──────
 // Sessions created by /start are persisted to MongoDB. This cache avoids
@@ -593,7 +593,7 @@ async function finalizeInterview(session, sessionId) {
         console.log("[FAST-FINAL-EVAL] Final Score:", evaluation.score);
 
         // Ownership vetting score
-        const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= 8);
+        const ownershipEvals = session.answerEvaluations.filter(e => e.questionNumber >= Math.ceil((session.totalQuestions || MAX_INTERVIEW_QUESTIONS) / 2));
         const ownershipScore = ownershipEvals.length > 0
             ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
             : 0;

@@ -7,7 +7,7 @@ const {
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
 
-const MAX_INTERVIEW_QUESTIONS = 15;
+const MAX_INTERVIEW_QUESTIONS = 5;
 
 const buildRecruiterInterviewPayload = (application, socialUser, questions, overallInterviewScore, overallInterviewMarks) => ({
     application: {
