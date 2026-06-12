@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
-import SecureExamWrapper from '../../../components/exam/SecureExamWrapper';
+import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => {
     const [started, setStarted] = useState(false);
@@ -396,6 +396,8 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
             userId={user.uid}
             isActive={started && !securityResetting}
             requireScreenShare={true}
+            requireCamera={true}
+            isAnswering={started && !securityResetting}
             warningLimit={3}
             resetLimit={4}
             onSecurityReset={handleAssessmentSecurityReset}

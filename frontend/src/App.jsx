@@ -39,6 +39,7 @@ const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
 const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
+const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
 
 function App() {
   return (
@@ -102,6 +103,7 @@ function App() {
           <Route path="agentInterview" element={<AgentInterview />} />
           <Route path="agentInterview.jsx" element={<AgentInterview />} />
           <Route path="community" element={<EliteCommunity />} />
+          <Route path="proctoring-test" element={<ProctoringTest />} />
         </Route>
 
         <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />

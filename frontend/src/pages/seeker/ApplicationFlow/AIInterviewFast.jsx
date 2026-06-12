@@ -5,7 +5,7 @@ import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import SecureExamWrapper from '../../../components/exam/SecureExamWrapper';
+import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -921,6 +921,10 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 userId={user.uid}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
+                requireCamera={true}
+                cameraStream={fullSessionStreamRef.current}
+                showWebcamPreview={false}
+                isAnswering={coreState === 'listening'}
                 warningLimit={3}
                 resetLimit={4}
                 onSecurityReset={handleInterviewSecurityReset}
