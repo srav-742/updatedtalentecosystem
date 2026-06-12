@@ -1286,11 +1286,11 @@ router.post('/tts', async (req, res) => {
         }
         
         console.log(`[FIX-TTS] Request received for chars: ${text.length} | voice: ${interviewVoice} | sessionId: ${sessionId || 'none'}`);
-        const buffer = await generateSpeech(text, interviewVoice);
+        const ttsResult = await generateSpeech(text, interviewVoice);
         
-        if (buffer) {
-            console.log(`[FIX-TTS] Success, sending ${buffer.length} bytes`);
-            return res.json({ success: true, audio: buffer.toString('base64') });
+        if (ttsResult) {
+            console.log(`[FIX-TTS] Success, sending ${ttsResult.buffer.length} bytes | engine: ${ttsResult.engine}`);
+            return res.json({ success: true, audio: ttsResult.buffer.toString('base64'), audioMimeType: ttsResult.mimeType });
         }
         
         console.warn(`[FIX-TTS] Failed: generateSpeech returned null`);
@@ -1340,11 +1340,12 @@ router.get('/diagnostic', async (req, res) => {
             try {
                 const { generateGeminiSpeech } = require('../services/tts.service');
                 const start = Date.now();
-                const buf = await generateGeminiSpeech("Test", 'professional_interviewer');
+                const result = await generateGeminiSpeech("Test", 'professional_interviewer');
                 results.tests.geminiTTS = {
-                    success: !!buf && buf.length > 0,
+                    success: !!result && result.buffer?.length > 0,
                     latencyMs: Date.now() - start,
-                    bufferSize: buf ? buf.length : 0
+                    bufferSize: result ? result.buffer.length : 0,
+                    engine: result?.engine || 'none'
                 };
             } catch (e) {
                 results.tests.geminiTTS = { success: false, error: e.message };
@@ -1357,11 +1358,12 @@ router.get('/diagnostic', async (req, res) => {
         try {
             const { generateEdgeSpeech } = require('../services/tts.service');
             const start = Date.now();
-            const buf = await generateEdgeSpeech("Test", 'professional_interviewer');
+            const result = await generateEdgeSpeech("Test", 'professional_interviewer');
             results.tests.edgeTTS = {
-                success: !!buf && buf.length > 0,
+                success: !!result && result.buffer?.length > 0,
                 latencyMs: Date.now() - start,
-                bufferSize: buf ? buf.length : 0
+                bufferSize: result ? result.buffer.length : 0,
+                engine: result?.engine || 'none'
             };
         } catch (e) {
             results.tests.edgeTTS = { success: false, error: e.message };

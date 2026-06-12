@@ -87,10 +87,20 @@ function uploadRecordingToCloudinary(file, options) {
     // Use upload_large for file paths — supports files of any size via 6MB chunked streaming.
     // This prevents Cloudinary's standard upload size limit (100MB) from rejecting long interviews.
     if (typeof file === 'string') {
-        return cloudinary.uploader.upload_large(file, { ...options, chunk_size: 6000000 });
+        return new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_large(file, { ...options, chunk_size: 6000000 }, (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            });
+        });
     }
     if (file?.path) {
-        return cloudinary.uploader.upload_large(file.path, { ...options, chunk_size: 6000000 });
+        return new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_large(file.path, { ...options, chunk_size: 6000000 }, (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            });
+        });
     }
 
     // Fallback for in-memory buffers — use upload_stream (no chunked alternative for buffers)

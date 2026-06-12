@@ -188,8 +188,8 @@ STRICT RULES:
     // Generate audio
     let audioBase64 = null;
     try {
-      const audioBuffer = await generateSpeech(assistantMessage, session.voice);
-      if (audioBuffer) audioBase64 = audioBuffer.toString("base64");
+      const ttsResult = await generateSpeech(assistantMessage, session.voice);
+      if (ttsResult) audioBase64 = ttsResult.buffer.toString("base64");
     } catch (err) {
       console.warn("TTS generation failed:", err.message);
     }
@@ -334,8 +334,8 @@ STRICT RULES:
 
     let audioBase64 = null;
     try {
-      const audioBuffer = await generateSpeech(assistantMessage, session.voice);
-      if (audioBuffer) audioBase64 = audioBuffer.toString("base64");
+      const ttsResult = await generateSpeech(assistantMessage, session.voice);
+      if (ttsResult) audioBase64 = ttsResult.buffer.toString("base64");
     } catch (err) {
       console.warn("TTS generation failed:", err.message);
     }

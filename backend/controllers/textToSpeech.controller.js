@@ -7,14 +7,18 @@ const convertTextToSpeech = async (req, res) => {
             return res.status(400).json({ error: "Text is required" });
         }
 
-        const audioBuffer = await ttsService.generateSpeech(text, voice);
+        const ttsResult = await ttsService.generateSpeech(text, voice);
+
+        if (!ttsResult) {
+            return res.status(500).json({ error: "TTS generation failed" });
+        }
 
         res.set({
-            'Content-Type': 'audio/mpeg',
+            'Content-Type': ttsResult.mimeType || 'audio/mpeg',
             'Content-Disposition': 'attachment; filename="speech.mp3"',
         });
 
-        res.send(audioBuffer);
+        res.send(ttsResult.buffer);
     } catch (error) {
         res.status(500).json({ error: "TTS failed", details: error.message });
     }

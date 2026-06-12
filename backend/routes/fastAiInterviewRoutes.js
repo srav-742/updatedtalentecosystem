@@ -723,14 +723,16 @@ router.post('/next-fast', async (req, res) => {
 
         // Voice generation (TTS) — select voice based on role category for best human quality
         let audioBase64 = null;
+        let audioMimeType = null;
         try {
             const { generateSpeech } = require('../services/tts.service');
             const interviewVoice = session.roleInfo?.roleCategory === 'sales' || session.roleInfo?.roleCategory === 'marketing'
                 ? 'vp_sales'
                 : 'professional_interviewer';
-            const buffer = await generateSpeech(nextQuestion, interviewVoice);
-            if (buffer) {
-                audioBase64 = buffer.toString('base64');
+            const ttsResult = await generateSpeech(nextQuestion, interviewVoice);
+            if (ttsResult) {
+                audioBase64 = ttsResult.buffer.toString('base64');
+                audioMimeType = ttsResult.mimeType;
             }
         } catch (e) {
             console.warn("[FAST-NEXT] TTS generation failed:", e.message);
@@ -741,6 +743,7 @@ router.post('/next-fast', async (req, res) => {
             hasNext: true,
             question: nextQuestion,
             audio: audioBase64,
+            audioMimeType: audioMimeType,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions
         });

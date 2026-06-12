@@ -113,14 +113,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         });
     }, [isKickedOut]);
 
-    // Clean Typewriter Effect (Removed Bold)
-    const typeText = (text) => {
+    // Synced Typewriter Effect — calculates delay from audio duration
+    const typeText = (text, customDelay) => {
         const cleanText = normalizeQuestionText(text);
         if (!cleanText) return;
         let i = 0;
         setDisplayText('');
 
         if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
+
+        // Use custom delay if provided (synced to audio), otherwise default 22ms
+        const charDelay = customDelay || 22;
 
         typewriterIntervalRef.current = setInterval(() => {
             i++;
@@ -131,10 +134,10 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 typewriterIntervalRef.current = null;
                 setDisplayText(cleanText);
             }
-        }, 22);
+        }, charDelay);
     };
 
-    const playAudio = (base64, textToDisplay) => {
+    const playAudio = (base64, textToDisplay, audioMimeType) => {
         setDisplayText('');
         setCoreState('speaking');
         const textToSpeak = normalizeQuestionText(textToDisplay || currentQuestion);
@@ -151,19 +154,24 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
         const speakInBrowser = () => {
             window.speechSynthesis.cancel();
-            typeText(textToSpeak);
             try {
                 const utterance = new SpeechSynthesisUtterance(textToSpeak);
                 utterance.lang = 'en-US';
-                utterance.rate = 0.92;  // Slightly slower — professional interviewer cadence
-                utterance.pitch = 1.0;
+                utterance.rate = 0.92;
+                utterance.pitch = 0.9; // Lower pitch for more human-like gentle voice
                 const voices = window.speechSynthesis.getVoices();
-                // Priority: Microsoft neural > Google > any natural/online en-US voice
                 const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Microsoft') && (v.name.includes('Guy') || v.name.includes('Davis') || v.name.includes('Tony')))
                     || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
                     || voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.localService === false))
                     || voices.find(v => v.lang === 'en-US');
                 if (preferredVoice) utterance.voice = preferredVoice;
+
+                // Calculate synced typewriter delay from estimated speech duration
+                // Approximate: ~130 words per minute at 0.92 rate = ~6.5 chars/sec
+                const estimatedDuration = (textToSpeak.length / 6.5);
+                const syncedDelay = Math.max(15, (estimatedDuration * 1000) / textToSpeak.length);
+                typeText(textToSpeak, syncedDelay);
+
                 utterance.onend = finishQuestionPlayback;
                 utterance.onerror = () => {
                     console.warn("[TTS-BROWSER-FALLBACK] Playback failed, ending playback.");
@@ -172,6 +180,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 window.speechSynthesis.speak(utterance);
             } catch (err) {
                 console.error("[TTS-BROWSER-FALLBACK] SpeechSynthesis error:", err);
+                typeText(textToSpeak);
                 window.setTimeout(finishQuestionPlayback, Math.max(textToSpeak.length * 22, 1200));
             }
         };
@@ -182,18 +191,35 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         try {
+            // Use server-provided MIME type for correct audio decoding
+            const blobType = audioMimeType || 'audio/mpeg';
             const audioBlob = new Blob(
                 [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
-                { type: 'audio/mpeg' }
+                { type: blobType }
             );
             const url = URL.createObjectURL(audioBlob);
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
             audioPlayerRef.current.src = url;
-            audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
+            audioPlayerRef.current.playbackRate = 0.95; // Gentle, measured pace — not too slow
+
+            // Sync typewriter to actual audio duration once metadata is loaded
+            audioPlayerRef.current.onloadedmetadata = () => {
+                const audioDuration = audioPlayerRef.current.duration; // seconds
+                if (audioDuration && isFinite(audioDuration) && audioDuration > 0) {
+                    // Account for playback rate: effective duration = duration / playbackRate
+                    const effectiveDuration = audioDuration / 0.95;
+                    // Leave a small buffer (95% of duration) so text finishes just before audio
+                    const syncedDelay = Math.max(15, (effectiveDuration * 950) / textToSpeak.length);
+                    typeText(textToSpeak, syncedDelay);
+                } else {
+                    // Duration unknown — use conservative estimate
+                    typeText(textToSpeak, 55);
+                }
+            };
+
             audioPlayerRef.current.onplay = () => {
-                audioPlayerRef.current.playbackRate = 0.90; // Ensure speed is locked
-                typeText(textToSpeak);
+                audioPlayerRef.current.playbackRate = 0.95; // Ensure speed is locked
             };
             audioPlayerRef.current.onended = finishQuestionPlayback;
             audioPlayerRef.current.onerror = speakInBrowser;
@@ -359,7 +385,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             setCurrentQNum(1);
             await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
             setStep('interview');
-            playAudio(res.data.audio, firstQuestion);
+            playAudio(res.data.audio, firstQuestion, res.data.audioMimeType);
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -403,7 +429,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 setTranscript('');
                 setError(null);
                 setDisplayText('');
-                playAudio(nextRes.data.audio, nextQuestion);
+                playAudio(nextRes.data.audio, nextQuestion, nextRes.data.audioMimeType);
             }
         } catch (err) {
             setError(err.message || "Response processing error.");

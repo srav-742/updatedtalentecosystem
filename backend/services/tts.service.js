@@ -70,26 +70,26 @@ const PROFESSIONAL_VOICE_SETTINGS = {
 
 const EDGE_VOICE_MAP = {
     // Personas / Special roles — upgraded to most human-sounding neural voices
-    senior_engineering_manager: 'en-US-GuyNeural',       // Deep, authoritative, commanding
+    senior_engineering_manager: 'en-US-ChristopherNeural', // Deep, authoritative, commanding
     principal_ai_engineer: 'en-US-DavisNeural',          // Warm, thoughtful, confident
     vp_sales: 'en-US-TonyNeural',                        // Energetic, crisp, professional
-    director_vp: 'en-US-GuyNeural',                      // Executive tone, measured
-    professional_interviewer: 'en-US-GuyNeural',         // Primary interviewer voice
+    director_vp: 'en-US-ChristopherNeural',              // Executive tone, measured
+    professional_interviewer: 'en-US-ChristopherNeural', // Primary interviewer voice
     professional_interviewer_female: 'en-US-AriaNeural', // Natural, warm female voice
     joerogan: 'en-US-TonyNeural',                        // Energetic, conversational
-    broadcaster: 'en-US-GuyNeural',                      // Clear broadcaster quality
-    podcast_host: 'en-US-GuyNeural',                     // Natural podcast delivery
+    broadcaster: 'en-US-ChristopherNeural',              // Clear broadcaster quality
+    podcast_host: 'en-US-ChristopherNeural',             // Natural podcast delivery
     cohost: 'en-US-AriaNeural',                          // Warm co-host female voice
 
     // Male voices — mapped to best-quality neural equivalents
-    adam: 'en-US-GuyNeural',
+    adam: 'en-US-ChristopherNeural',
     antoni: 'en-US-DavisNeural',
     charlie: 'en-US-TonyNeural',
-    josh: 'en-US-GuyNeural',
+    josh: 'en-US-ChristopherNeural',
     arnold: 'en-US-TonyNeural',
     sam: 'en-US-DavisNeural',
-    george: 'en-US-GuyNeural',
-    brian: 'en-US-GuyNeural',
+    george: 'en-US-ChristopherNeural',
+    brian: 'en-US-ChristopherNeural',
 
     // Female voices — mapped to best-quality neural equivalents
     rachel: 'en-US-AriaNeural',
@@ -101,16 +101,16 @@ const EDGE_VOICE_MAP = {
     jessica: 'en-US-JennyNeural',
 
     // OpenAI voice name mappings
-    alloy: 'en-US-GuyNeural',
+    alloy: 'en-US-ChristopherNeural',
     echo: 'en-US-DavisNeural',
     fable: 'en-US-TonyNeural',
-    onyx: 'en-US-GuyNeural',
+    onyx: 'en-US-ChristopherNeural',
     nova: 'en-US-AriaNeural',
     shimmer: 'en-US-JennyNeural'
 };
 
 // Best human-quality neural voice for professional interviewer persona
-const DEFAULT_EDGE_VOICE = 'en-US-GuyNeural';
+const DEFAULT_EDGE_VOICE = 'en-US-ChristopherNeural';
 
 // ─── Shared Helpers ───────────────────────────────────────────────────────────
 
@@ -176,8 +176,8 @@ async function generateEdgeSpeech(text, voice) {
 
         const communicate = new Communicate(text, {
             voice: edgeVoice,
-            rate: '+0%',       // Neutral speed for client-side control
-            pitch: '+0Hz',     // Natural pitch (no artificial boost)
+            rate: '-5%',       // Slightly slower — natural professional pacing
+            pitch: '-3Hz',     // Deeper, gentle, low-pitch human resonance
             volume: '+0%'      // Neutral volume for clean audio
         });
 
@@ -195,7 +195,7 @@ async function generateEdgeSpeech(text, voice) {
 
         const buffer = Buffer.concat(chunks);
         console.log(`[TTS-EDGE] Audio generated successfully: ${buffer.length} bytes`);
-        return buffer;
+        return { buffer, mimeType: 'audio/mpeg', engine: 'edge' };
     } catch (err) {
         console.error('[TTS-EDGE ERROR]:', err.message);
         return null;
@@ -261,9 +261,10 @@ async function generateGeminiSpeech(text, voice) {
         console.log(`[TTS-GEMINI] Generating speech | voice: ${geminiVoice} | chars: ${text.length}`);
 
         // Use Gemini REST API directly for TTS (generateContent with audio modality)
+        // Correct model: gemini-3.1-flash-tts (NOT gemini-3.1-flash-tts-preview)
         const response = await axios({
             method: 'post',
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${geminiApiKey}`,
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts:generateContent?key=${geminiApiKey}`,
             data: {
                 contents: [{ parts: [{ text }] }],
                 generationConfig: {
@@ -281,8 +282,11 @@ async function generateGeminiSpeech(text, voice) {
                     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
                 ]
             },
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 25000
+            headers: { 
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            timeout: 45000
         });
 
         // Extract inline audio data from response
@@ -294,8 +298,9 @@ async function generateGeminiSpeech(text, voice) {
         }
 
         const audioBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
-        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: ${geminiVoice}`);
-        return audioBuffer;
+        const audioMimeType = audioPart.inlineData.mimeType || 'audio/mpeg';
+        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: ${geminiVoice} | mime: ${audioMimeType}`);
+        return { buffer: audioBuffer, mimeType: audioMimeType, engine: 'gemini' };
     } catch (err) {
         const status = err.response?.status;
         const detail = err.response?.data?.error?.message || err.message;
@@ -306,53 +311,49 @@ async function generateGeminiSpeech(text, voice) {
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
-const generateSpeech = async (text, voice = 'professional_interviewer') => {
+/**
+ * Main TTS entry point.
+ * Returns: { buffer: Buffer, mimeType: string, engine: 'gemini'|'edge' } | null
+ *
+ * @param {string} text           - Text to synthesize
+ * @param {string} voice          - Voice persona key
+ * @param {object} [options]      - Optional configuration
+ * @param {string} [options.preferredEngine] - 'gemini' or 'edge' — lock to a specific engine
+ * @param {number} [options.retries]        - Number of retries for the preferred engine (default: 2)
+ */
+const generateSpeech = async (text, voice = 'professional_interviewer', options = {}) => {
     const cleanedText = cleanTextForSpeech(text);
     if (!cleanedText) {
         console.warn('[TTS] Empty text after cleaning. Skipping.');
         return null;
     }
 
-    // 1. Try Gemini TTS first (Charon voice, medium-high speed)
-    const geminiAudio = await generateGeminiSpeech(cleanedText, voice);
-    if (geminiAudio) return geminiAudio;
+    const preferredEngine = options.preferredEngine || null;
+    const maxRetries = options.retries || 2;
 
-    console.warn('[TTS] Gemini TTS unavailable. Falling back to ElevenLabs...');
-
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-
-    // 2. Try ElevenLabs if API Key is configured
-    if (apiKey) {
-        try {
-            const voiceId = resolveVoiceId(voice);
-            console.log(`[TTS-ELEVENLABS] Generating speech | model: ${ELEVENLABS_MODEL_ID} | voice: ${voiceId} | chars: ${cleanedText.length}`);
-
-            const audioBuffer = await requestElevenLabsSpeech({
-                text: cleanedText,
-                voiceId,
-                modelId: ELEVENLABS_MODEL_ID,
-                timeout: 20000
-            });
-
-            console.log(`[TTS-ELEVENLABS] Audio generated successfully: ${audioBuffer.length} bytes`);
-            return audioBuffer;
-        } catch (error) {
-            const errorDetail = getErrorDetail(error);
-            console.error('[TTS-ELEVENLABS ERROR]:', error.response?.status || 'NETWORK', errorDetail);
-
-            if (errorDetail.includes('detected_unusual_activity')) {
-                console.warn('[TTS-ELEVENLABS] ⚠️  ElevenLabs Free Tier is BLOCKED on cloud IPs (Render/AWS/Heroku). Falling back to Microsoft Edge Neural TTS (free, human-quality voice).');
-            } else if (error.response?.status === 401 || error.response?.status === 403) {
-                console.warn('[TTS-ELEVENLABS] ⚠️  ElevenLabs auth failed. Falling back to Microsoft Edge Neural TTS.');
-            } else {
-                console.warn('[TTS-ELEVENLABS] ElevenLabs request failed. Falling back to Microsoft Edge Neural TTS...');
-            }
-        }
-    } else {
-        console.log('[TTS] ELEVENLABS_API_KEY not set. Using Microsoft Edge Neural TTS (free, human-quality neural voices)...');
+    // If a preferred engine is set (session locking), try it with retries before fallback
+    if (preferredEngine === 'edge') {
+        const edgeResult = await generateEdgeSpeech(cleanedText, voice);
+        if (edgeResult) return edgeResult;
+        // Edge failed — try Gemini as last resort
+        const geminiResult = await generateGeminiSpeech(cleanedText, voice);
+        if (geminiResult) return geminiResult;
+        return null;
     }
 
-    // 3. Fallback to Microsoft Edge TTS (free, no IP restrictions, human-quality neural voices)
+    // Default: Try Gemini first with retries, then fallback to Edge
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const geminiResult = await generateGeminiSpeech(cleanedText, voice);
+        if (geminiResult) return geminiResult;
+        if (attempt < maxRetries) {
+            console.warn(`[TTS] Gemini attempt ${attempt}/${maxRetries} failed. Retrying...`);
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+
+    console.warn('[TTS] Gemini TTS failed after retries. Falling back to Edge TTS...');
+
+    // Fallback to Microsoft Edge TTS (free, no IP restrictions, human-quality neural voices)
     return await generateEdgeSpeech(cleanedText, voice);
 };
 

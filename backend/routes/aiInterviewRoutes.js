@@ -943,12 +943,18 @@ router.post('/start', async (req, res) => {
 
         // Voice generation (TTS) — select voice based on role category for best human quality
         let audioBase64 = null;
+        let audioMimeType = null;
+        let ttsEngine = null;
         try {
             const interviewVoice = roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing'
                 ? 'vp_sales'
                 : 'professional_interviewer';
-            const buffer = await generateSpeech(firstQuestion, interviewVoice);
-            if (buffer) audioBase64 = buffer.toString('base64');
+            const ttsResult = await generateSpeech(firstQuestion, interviewVoice);
+            if (ttsResult) {
+                audioBase64 = ttsResult.buffer.toString('base64');
+                audioMimeType = ttsResult.mimeType;
+                ttsEngine = ttsResult.engine;
+            }
         } catch (e) { console.warn("TTS failed"); }
 
         const sessionId = crypto.randomBytes(16).toString('hex');
@@ -980,6 +986,7 @@ router.post('/start', async (req, res) => {
             experienceLevel: job?.experienceLevel || '',
             systemPrompt,
             totalQuestions, // ─── stored here
+            ttsEngine: ttsEngine || null, // ─── lock TTS engine for session consistency
             history: [{ role: 'interviewer', content: firstQuestion }],
             answerEvaluations: []
         });
@@ -990,6 +997,7 @@ router.post('/start', async (req, res) => {
             recordingSessionId,
             question: firstQuestion,
             audio: audioBase64,
+            audioMimeType: audioMimeType, // ─── frontend uses this for correct audio Blob type
             totalQuestions // ─── sent to frontend so it can show "Q1 of 5" or "Q1 of 6"
         });
     } catch (error) {
@@ -1178,14 +1186,23 @@ router.post('/next', async (req, res) => {
             }
         }
 
-        // Voice generation (TTS) — select voice based on role category for best human quality
+        // Voice generation (TTS) — use session-locked engine for consistent voice
         let audioBase64 = null;
+        let audioMimeType = null;
         try {
             const interviewVoice = session.roleInfo?.roleCategory === 'sales' || session.roleInfo?.roleCategory === 'marketing'
                 ? 'vp_sales'
                 : 'professional_interviewer';
-            const buffer = await generateSpeech(nextQuestion, interviewVoice);
-            if (buffer) audioBase64 = buffer.toString('base64');
+            const ttsOptions = session.ttsEngine ? { preferredEngine: session.ttsEngine } : {};
+            const ttsResult = await generateSpeech(nextQuestion, interviewVoice, ttsOptions);
+            if (ttsResult) {
+                audioBase64 = ttsResult.buffer.toString('base64');
+                audioMimeType = ttsResult.mimeType;
+                // Lock the engine if not already locked
+                if (!session.ttsEngine && ttsResult.engine) {
+                    session.ttsEngine = ttsResult.engine;
+                }
+            }
         } catch (e) { console.warn("TTS failed"); }
 
         session.history.push({ role: 'interviewer', content: nextQuestion });
@@ -1195,6 +1212,7 @@ router.post('/next', async (req, res) => {
             hasNext: true,
             question: nextQuestion,
             audio: audioBase64,
+            audioMimeType: audioMimeType, // ─── frontend uses this for correct audio Blob type
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions, // ─── keep frontend in sync
             answerEvaluation

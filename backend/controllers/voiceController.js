@@ -47,14 +47,14 @@ const tts = async (req, res) => {
         if (!text) return res.status(400).json({ message: "Text is required" });
 
         console.log(`[TTS] Generating speech for text: ${text.substring(0, 50)}...`);
-        const audioBuffer = await ttsService.generateSpeech(text, voice);
+        const ttsResult = await ttsService.generateSpeech(text, voice);
 
-        if (!audioBuffer) {
+        if (!ttsResult) {
             console.warn("[TTS] AI Voice synthesis failed. Sending null for browser fallback.");
             return res.json({ success: true, audio: null });
         }
 
-        const audioBase64 = audioBuffer.toString('base64');
+        const audioBase64 = ttsResult.buffer.toString('base64');
         res.json({ success: true, audio: audioBase64 });
     } catch (error) {
         console.error("[TTS ERROR]:", error.message);
