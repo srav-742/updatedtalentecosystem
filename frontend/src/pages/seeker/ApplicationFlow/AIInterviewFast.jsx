@@ -195,14 +195,15 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             const url = URL.createObjectURL(audioBlob);
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
-            audioPlayerRef.current.src = url;
-            audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
             
             audioPlayerRef.current.onplay = () => {
                 audioPlayerRef.current.playbackRate = 0.90; // Lock speed
             };
             audioPlayerRef.current.onended = () => setCoreState('idle');
             audioPlayerRef.current.onerror = () => speakInBrowserFallback(text);
+
+            audioPlayerRef.current.src = url;
+            audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
             audioPlayerRef.current.play().catch(() => speakInBrowserFallback(text));
         } catch (err) {
             speakInBrowserFallback(text);

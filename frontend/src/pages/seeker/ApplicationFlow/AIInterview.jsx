@@ -200,8 +200,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             const url = URL.createObjectURL(audioBlob);
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
-            audioPlayerRef.current.src = url;
-            audioPlayerRef.current.playbackRate = 0.95; // Gentle, measured pace — not too slow
 
             // Sync typewriter to actual audio duration once metadata is loaded
             audioPlayerRef.current.onloadedmetadata = () => {
@@ -223,6 +221,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             };
             audioPlayerRef.current.onended = finishQuestionPlayback;
             audioPlayerRef.current.onerror = speakInBrowser;
+
+            audioPlayerRef.current.src = url;
+            audioPlayerRef.current.playbackRate = 0.95; // Gentle, measured pace — not too slow
             audioPlayerRef.current.play().catch(speakInBrowser);
         } catch (err) {
             speakInBrowser();
