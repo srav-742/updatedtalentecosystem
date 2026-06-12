@@ -249,7 +249,7 @@ export default function SecureExamWrapperEnhanced({
     // ── Derived state ───────────────────────────────────────────────────────
     const needsScreenShare = requireScreenShare && isActive && !isSharing;
     const showViolationOverlay = !needsScreenShare && showOverlay;
-    const contentBlocked = needsScreenShare || showViolationOverlay || resetting;
+    const contentBlocked = needsScreenShare || resetting;
     const isResetMode = overlayMode === "reset" || resetting;
 
     // ── AI status indicator ─────────────────────────────────────────────────
@@ -420,7 +420,7 @@ export default function SecureExamWrapperEnhanced({
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div
                 style={{
-                    pointerEvents: isLocked || contentBlocked ? "none" : "auto",
+                    pointerEvents: contentBlocked ? "none" : "auto",
                     filter: contentBlocked ? "blur(10px)" : "none",
                     transition: "filter 0.3s ease",
                 }}

@@ -124,7 +124,7 @@ export default function SecureExamWrapper({
 
   const needsScreenShare = requireScreenShare && isActive && !isSharing;
   const showViolationOverlay = !needsScreenShare && showOverlay;
-  const contentBlocked = needsScreenShare || showViolationOverlay || resetting;
+  const contentBlocked = needsScreenShare || resetting;
   const isResetMode = overlayMode === "reset" || resetting;
 
   return (
@@ -201,7 +201,7 @@ export default function SecureExamWrapper({
 
       <div
         style={{
-          pointerEvents: isLocked || contentBlocked ? "none" : "auto",
+          pointerEvents: contentBlocked ? "none" : "auto",
           filter: contentBlocked ? "blur(10px)" : "none",
           transition: "filter 0.3s ease",
         }}
