@@ -939,7 +939,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             {/* Webcam Mini View */}
                             <div className="flex items-center gap-4">
                                 <AnimatePresence>
-                                    {warnings > 0 && (
+                                    {false && warnings > 0 && (
                                         <motion.div
                                             initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
                                             className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"
