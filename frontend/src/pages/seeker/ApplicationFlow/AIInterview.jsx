@@ -116,30 +116,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const typeText = (text, customDelay) => {
         const cleanText = normalizeQuestionText(text);
         if (!cleanText) return;
-        let i = 0;
-        setDisplayText('');
-
-        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
-        // Use custom delay if provided (synced to audio), otherwise default 22ms
-        const charDelay = customDelay || 22;
-
-        typewriterIntervalRef.current = setInterval(() => {
-            i++;
-            if (i <= cleanText.length) {
-                setDisplayText(cleanText.substring(0, i));
-            } else {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-                setDisplayText(cleanText);
-            }
-        }, charDelay);
+        setDisplayText(cleanText);
+        if (typewriterIntervalRef.current) {
+            clearInterval(typewriterIntervalRef.current);
+            typewriterIntervalRef.current = null;
+        }
     };
 
     const playAudio = (base64, textToDisplay, audioMimeType) => {
-        setDisplayText('');
-        setCoreState('speaking');
         const textToSpeak = normalizeQuestionText(textToDisplay || currentQuestion);
+        setDisplayText(textToSpeak);
+        setCoreState('speaking');
         if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
 
         const finishQuestionPlayback = () => {

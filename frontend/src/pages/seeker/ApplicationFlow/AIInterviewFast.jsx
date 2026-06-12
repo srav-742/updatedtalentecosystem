@@ -134,31 +134,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const typeText = (text) => {
         const cleanText = normalizeQuestionText(text);
         if (!cleanText) return;
-        let i = 0;
-        setDisplayText('');
+        setDisplayText(cleanText);
 
-        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
-        typewriterIntervalRef.current = setInterval(() => {
-            i++;
-            if (i <= cleanText.length) {
-                setDisplayText(cleanText.substring(0, i));
-            } else {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-                // Ensure the FULL text is set after typewriter completes
-                setDisplayText(cleanText);
-            }
-        }, 10);
-
-        // Safety net: if typewriter takes too long, force-set the full text
-        setTimeout(() => {
-            if (typewriterIntervalRef.current) {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-            }
-            setDisplayText(cleanText);
-        }, Math.max(cleanText.length * 12, 3000));
+        if (typewriterIntervalRef.current) {
+            clearInterval(typewriterIntervalRef.current);
+            typewriterIntervalRef.current = null;
+        }
     };
 
     const speakInBrowserFallback = (text) => {
