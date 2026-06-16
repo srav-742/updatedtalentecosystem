@@ -5,6 +5,7 @@ const userResumeSchema = new mongoose.Schema({
     title: { type: String, required: true },
     source: { type: String, enum: ['upload', 'builder'], default: 'upload' },
     fileUrl: String,
+    cloudinaryUrl: String,
     fileName: String,
     resumeData: mongoose.Schema.Types.Mixed,
     isDefault: { type: Boolean, default: false },

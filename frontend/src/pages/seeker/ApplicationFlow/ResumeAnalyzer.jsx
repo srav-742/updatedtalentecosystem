@@ -486,12 +486,16 @@ ${projectsFlat}
         try {
             const formData = new FormData();
             formData.append('resume', file);
+            formData.append('userId', userId);
 
-            const extractRes = await axios.post(`${API_URL}/extract-pdf`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            const extractRes = await axios.post(`${API_URL}/user-resumes/upload`, formData, {
+                headers: { 
+                    'Content-Type': 'multipart/form-data',
+                    'x-user-id': userId
+                }
             });
 
-            const resumeText = extractRes.data.text;
+            const resumeText = extractRes.data.extractedText;
 
             const analysisRes = await axios.post(`${API_URL}/analyze-resume`, {
                 resumeText,
