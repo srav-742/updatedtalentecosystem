@@ -6,6 +6,7 @@ const {
     roundToTenth,
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
+const { getViolationRating } = require('../utils/proctoringScoring');
 
 const MAX_INTERVIEW_QUESTIONS = 5;
 
@@ -177,6 +178,7 @@ const getInterviewDetails = async (req, res) => {
                 detail: v.detail,
                 count: v.count,
                 severity: 'medium',
+                rating: v.rating || getViolationRating(v.type, v.metadata),
                 isAnswering: false,
                 timestamp: v.timestamp || v.createdAt
             })),
@@ -186,6 +188,7 @@ const getInterviewDetails = async (req, res) => {
                 detail: v.detail,
                 count: v.count,
                 severity: v.severity || 'medium',
+                rating: v.rating || getViolationRating(v.type, v.metadata),
                 isAnswering: v.isAnswering || false,
                 timestamp: v.timestamp || v.createdAt
             }))

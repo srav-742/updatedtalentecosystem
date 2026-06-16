@@ -1,4 +1,5 @@
 const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+const { getViolationRating } = require('../utils/proctoringScoring');
 
 /**
  * Enhanced Proctoring Controller
@@ -50,6 +51,8 @@ const logViolation = async (req, res) => {
             return res.status(400).json({ message: 'Missing required fields: examId, userId, type, detail' });
         }
 
+        const rating = getViolationRating(type, metadata);
+
         const violation = await ProctoringViolationEnhanced.create({
             examId,
             userId,
@@ -57,6 +60,7 @@ const logViolation = async (req, res) => {
             detail,
             count: count || 1,
             severity: SEVERITY_MAP[type] || 'medium',
+            rating,
             isAnswering: isAnswering || false,
             confidence: confidence || null,
             metadata: metadata || null,

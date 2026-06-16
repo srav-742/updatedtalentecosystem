@@ -268,15 +268,33 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex items-center gap-3 text-amber-800">
-                                <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
-                                <div>
-                                    <h4 className="font-bold text-sm">Integrity Alerts Logged ({interview.proctoringViolations.length})</h4>
-                                    <p className="text-xs text-amber-700/90 mt-0.5">
-                                        The system detected activities that triggered proctoring alerts. Please review the details below.
-                                    </p>
-                                </div>
-                            </div>
+                            {(() => {
+                                const totalPenalty = interview.proctoringViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex items-center gap-3 text-amber-800">
+                                            <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
+                                            <div>
+                                                <h4 className="font-bold text-sm">Integrity Alerts Logged ({interview.proctoringViolations.length})</h4>
+                                                <p className="text-xs text-amber-700/90 mt-0.5">
+                                                    The system detected activities that triggered proctoring alerts. Please review the details below.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 flex items-center gap-4 text-red-800">
+                                            <div className="h-12 w-12 rounded-xl bg-red-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+                                                {totalPenalty}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-sm">Total Integrity Penalty Rating</h4>
+                                                <p className="text-xs text-red-700/95 mt-0.5">
+                                                    Aggregated suspicion rating across all flagged behaviors during the session.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
                                 <table className="w-full text-left border-collapse">
@@ -284,6 +302,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                         <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
                                             <th className="py-3 px-4">Event Type</th>
                                             <th className="py-3 px-4">Details</th>
+                                            <th className="py-3 px-4 text-center">Rating</th>
                                             <th className="py-3 px-4 text-center">Severity</th>
                                             <th className="py-3 px-4 text-right">Time Detected</th>
                                         </tr>
@@ -305,6 +324,9 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                                     </td>
                                                     <td className="py-3 px-4 text-gray-600 leading-normal">
                                                         {v.detail}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center font-bold text-red-600 bg-red-50/10">
+                                                        +{v.rating || 0}
                                                     </td>
                                                     <td className="py-3 px-4 text-center">
                                                         <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${severityClass}`}>

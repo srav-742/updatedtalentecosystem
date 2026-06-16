@@ -9,6 +9,7 @@ const proctoringViolationSchema = new mongoose.Schema({
     },
     detail: { type: String, required: true },
     count: { type: Number, required: true },
+    rating: { type: Number, default: 0 },
     timestamp: { type: Date, default: Date.now }
 }, { timestamps: true });
 

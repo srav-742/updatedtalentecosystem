@@ -21,10 +21,25 @@ router.get("/test-agent", async (req, res) => {
     }
 });
 
+// Fetch all candidates for testing selection
+router.get("/candidates", async (req, res) => {
+    try {
+        const candidates = await Candidate.find({}, "name appliedJob");
+        res.json({ success: true, candidates });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post("/voice-command", async (req, res) => {
     try {
-        const { audio, text, sessionId } = req.body;
+        let { audio, text, sessionId } = req.body;
         if (!audio && !text) return res.status(400).json({ error: "No audio or text provided" });
+
+        // Strip base64 metadata header if present (e.g. data:audio/webm;base64,...)
+        if (audio && audio.includes("base64,")) {
+            audio = audio.split("base64,")[1];
+        }
 
         const sid = sessionId || "default_session";
         if (!sessions[sid]) sessions[sid] = { identifiedCandidate: null };

@@ -1,4 +1,5 @@
 const ProctoringViolation = require('../models/ProctoringViolation');
+const { getViolationRating } = require('../utils/proctoringScoring');
 
 /**
  * Log a proctoring violation
@@ -6,11 +7,13 @@ const ProctoringViolation = require('../models/ProctoringViolation');
  */
 const logViolation = async (req, res) => {
     try {
-        const { examId, userId, type, detail, count, timestamp } = req.body;
+        const { examId, userId, type, detail, count, timestamp, metadata } = req.body;
 
         if (!examId || !userId || !type || !detail) {
             return res.status(400).json({ message: 'Missing required fields' });
         }
+
+        const rating = getViolationRating(type, metadata);
 
         const violation = await ProctoringViolation.create({
             examId,
@@ -18,6 +21,7 @@ const logViolation = async (req, res) => {
             type,
             detail,
             count,
+            rating,
             timestamp: timestamp || new Date()
         });
 

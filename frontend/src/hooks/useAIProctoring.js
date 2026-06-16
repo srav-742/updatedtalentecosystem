@@ -30,6 +30,8 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 2000,      // How long 0 faces before flagging
     phoneConfidenceThreshold: 0.5,
+    sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
+    sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
     objectDetectionIntervalMs: 2000, // How often to run object detection
     onnxLoadTimeoutMs: 8000,      // Max time to wait for ONNX model before fallback
@@ -101,6 +103,10 @@ export function useAIProctoring({
 
     // Gaze sweep tracking
     const gazeHistoryRef = useRef([]); // [{ratio, ts}]
+
+    // Side gaze tracking (looking away/to the side continuously)
+    const sideGazeStartRef = useRef(null);
+    const sideGazeViolationEmittedRef = useRef(false);
 
     // Keep refs current
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
@@ -262,8 +268,9 @@ export function useAIProctoring({
         const face = faces[0];
         setLandmarks(face);
 
-        // ── Head turn detection ─────────────────────────────────────────────
-        // Landmark indices: Nose tip = 1, Left cheek = 234, Right cheek = 454
+        let isLookingSide = false;
+
+        // Nose tip = 1, Left cheek = 234, Right cheek = 454
         const nose = face[1];
         const leftCheek = face[234];
         const rightCheek = face[454];
@@ -275,6 +282,7 @@ export function useAIProctoring({
             setHeadTurnRatio(ratio);
 
             if (ratio > T.headTurnRatioHigh || ratio < T.headTurnRatioLow) {
+                isLookingSide = true;
                 const direction = ratio > T.headTurnRatioHigh ? "right" : "left";
                 const violationType = isAnsweringRef.current
                     ? "HEAD_TURNED_WHILE_ANSWERING"
@@ -313,6 +321,10 @@ export function useAIProctoring({
 
                 const avgGaze = (leftRatio + rightRatio) / 2;
                 setGazeRatio(avgGaze);
+
+                if (avgGaze < T.sideGazeRatioLow || avgGaze > T.sideGazeRatioHigh) {
+                    isLookingSide = true;
+                }
 
                 // Track gaze direction changes over time for sweep detection
                 const now = Date.now();
@@ -357,6 +369,29 @@ export function useAIProctoring({
                     }
                 }
             }
+        }
+
+        // ── Continuous Side-Looking Tracking (sees the side for 4+ seconds) ──
+        if (isLookingSide) {
+            if (!sideGazeStartRef.current) {
+                sideGazeStartRef.current = Date.now();
+            } else {
+                const elapsed = Date.now() - sideGazeStartRef.current;
+                if (elapsed >= 4000 && !sideGazeViolationEmittedRef.current) {
+                    sideGazeViolationEmittedRef.current = true;
+                    const violationType = isAnsweringRef.current
+                        ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
+                        : "EYE_LOOKING_AWAY";
+                    emitViolation(
+                        violationType,
+                        `Candidate looked away/to the side for more than 4 seconds.`,
+                        { duration: elapsed / 1000, seesSide: true }
+                    );
+                }
+            }
+        } else {
+            sideGazeStartRef.current = null;
+            sideGazeViolationEmittedRef.current = false;
         }
     }, [T, emitViolation, headTurnRatio]);
 
