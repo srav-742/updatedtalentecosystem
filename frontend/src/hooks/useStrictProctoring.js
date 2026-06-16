@@ -7,6 +7,18 @@ const FOCUS_VIOLATION_TYPES = new Set([
   "FULLSCREEN_EXIT",
 ]);
 
+const AI_TYPES = new Set([
+  "MULTIPLE_DEVICES",
+  "EYE_LOOKING_AWAY",
+  "EYE_LOOKING_AWAY_WHILE_ANSWERING",
+  "HEAD_TURNED",
+  "HEAD_TURNED_WHILE_ANSWERING",
+  "NO_PEOPLE",
+  "MULTIPLE_PEOPLE",
+  "PHONE_DETECTED",
+  "HEADPHONES_DETECTED"
+]);
+
 const BLOCKED_COMBOS = [
   { ctrl: true, key: "t" },
   { ctrl: true, key: "n" },
@@ -34,6 +46,13 @@ const BLOCKED_COMBOS = [
   { meta: true, key: "h" },
   { meta: true, key: "m" },
 ];
+
+const SUPPRESSED_OVERLAY_TYPES = new Set([
+  ...AI_TYPES,
+  "TAB_SWITCH",
+  "WINDOW_BLUR",
+  "FULLSCREEN_EXIT",
+]);
 
 const shortcutMatches = (combo, event) => {
   if (String(combo.key).toLowerCase() !== String(event.key).toLowerCase()) {
@@ -149,11 +168,15 @@ export function useStrictProctoring({
     setViolations((previousViolations) => [...previousViolations, violation]);
     logViolation({ examId, userId, ...violation });
 
-    // All violations are just stored in MongoDB, and the warning modal can be dismissed.
-    lockSession(
-      `Warning: ${detail}\n\nTotal warnings/flags logged: ${count}\n\nClick "Return to Exam" to continue.`,
-      "warning"
-    );
+    // Suppress warning modal/popup for AI-enhanced and tab-switch/blur/fullscreen-exit violations
+    if (!SUPPRESSED_OVERLAY_TYPES.has(type)) {
+      lockSession(
+        `Warning: ${detail}\n\nTotal warnings/flags logged: ${count}\n\nClick "Return to Exam" to continue.`,
+        "warning"
+      );
+    } else {
+      console.log(`[useStrictProctoring] Suppressed popup warning overlay for violation: ${type}`);
+    }
   }, [examId, isActive, lockSession, userId]);
 
   useEffect(() => {

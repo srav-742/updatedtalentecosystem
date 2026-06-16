@@ -52,9 +52,17 @@ export default function SecureExamWrapperEnhanced({
     const [localCameraStream, setLocalCameraStream] = useState(null);
     const [webcamPosition, setWebcamPosition] = useState({ x: 16, y: 16 });
     const [isDragging, setIsDragging] = useState(false);
+    const [toasts, setToasts] = useState([]);
 
     const resetInFlightRef = useRef(false);
     const videoRef = useRef(null);
+    const [videoEl, setVideoEl] = useState(null);
+
+    const videoRefCallback = useCallback((el) => {
+        videoRef.current = el;
+        setVideoEl(el);
+    }, []);
+
     const dragOffsetRef = useRef({ x: 0, y: 0 });
 
     // ── Screen share ────────────────────────────────────────────────────────
@@ -86,6 +94,7 @@ export default function SecureExamWrapperEnhanced({
 
     // ── Enhanced strict proctoring (device/telemetry + base violations) ─────
     const {
+        violations,
         violationCount,
         showOverlay,
         overlayMessage,
@@ -132,15 +141,15 @@ export default function SecureExamWrapperEnhanced({
         };
     }, [requireCamera, proctoringIsActive, cameraStream]);
 
-    // Pipe stream to hidden video element
+    // Pipe stream to video element
     useEffect(() => {
-        if (videoRef.current && activeStream) {
+        if (videoEl && activeStream) {
             const videoTrack = activeStream.getVideoTracks?.()[0];
             if (videoTrack) {
-                videoRef.current.srcObject = new MediaStream([videoTrack]);
+                videoEl.srcObject = new MediaStream([videoTrack]);
             }
         }
-    }, [activeStream]);
+    }, [activeStream, videoEl]);
 
     // Cleanup local camera on unmount
     useEffect(() => {
@@ -160,6 +169,13 @@ export default function SecureExamWrapperEnhanced({
                 confidence: meta.confidence || null,
                 metadata: meta,
             });
+
+            // Trigger non-blocking toast overlay
+            const toastId = Date.now() + Math.random();
+            setToasts((prev) => [...prev, { id: toastId, type, detail }]);
+            setTimeout(() => {
+                setToasts((prev) => prev.filter((t) => t.id !== toastId));
+            }, 4000);
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -175,12 +191,32 @@ export default function SecureExamWrapperEnhanced({
         landmarks,
         detections,
     } = useAIProctoring({
-        videoElement: videoRef.current,
+        videoElement: videoEl,
         isActive: proctoringIsActive && requireCamera && !!activeStream,
         isAnswering,
         onViolation: handleAIViolation,
         thresholds: aiThresholds,
     });
+
+    // ── Show toasts for tab switch / window blur / fullscreen exit ──────────
+    const prevViolationsLengthRef = useRef(0);
+    useEffect(() => {
+        if (violations && violations.length > prevViolationsLengthRef.current) {
+            const newViolations = violations.slice(prevViolationsLengthRef.current);
+            newViolations.forEach((v) => {
+                if (v.type === "TAB_SWITCH" || v.type === "WINDOW_BLUR" || v.type === "FULLSCREEN_EXIT") {
+                    const toastId = Date.now() + Math.random();
+                    setToasts((prev) => [...prev, { id: toastId, type: v.type, detail: v.detail }]);
+                    setTimeout(() => {
+                        setToasts((prev) => prev.filter((t) => t.id !== toastId));
+                    }, 4000);
+                }
+            });
+            prevViolationsLengthRef.current = violations.length;
+        } else if (violations && violations.length === 0) {
+            prevViolationsLengthRef.current = 0;
+        }
+    }, [violations]);
 
     // ── Fullscreen management ───────────────────────────────────────────────
     useEffect(() => {
@@ -365,7 +401,7 @@ export default function SecureExamWrapperEnhanced({
                 >
                     <div className="overflow-hidden rounded-2xl border-2 border-black/10 bg-black shadow-2xl">
                         <video
-                            ref={videoRef}
+                            ref={videoRefCallback}
                             autoPlay
                             muted
                             playsInline
@@ -407,13 +443,57 @@ export default function SecureExamWrapperEnhanced({
             {/* ── Hidden video element for AI processing (when no preview) ── */}
             {requireCamera && isActive && activeStream && !showWebcamPreview && (
                 <video
-                    ref={videoRef}
+                    ref={videoRefCallback}
                     autoPlay
                     muted
                     playsInline
-                    style={{ position: "absolute", top: -9999, left: -9999, width: 1, height: 1 }}
+                    width={640}
+                    height={480}
+                    style={{ position: "absolute", top: "-9999px", left: "-9999px", width: "640px", height: "480px" }}
                 />
             )}
+
+            {/* ── Real-time Non-blocking Toasts (bottom left) ───────────────── */}
+            <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
+                {toasts.map((toast) => {
+                    const getToastIcon = () => {
+                        switch (toast.type) {
+                            case "PHONE_DETECTED":
+                                return <Smartphone className="text-red-500 shrink-0" size={18} />;
+                            case "MULTIPLE_PEOPLE":
+                            case "NO_PEOPLE":
+                                return <Users className="text-orange-500 shrink-0" size={18} />;
+                            case "EYE_LOOKING_AWAY":
+                            case "EYE_LOOKING_AWAY_WHILE_ANSWERING":
+                                return <Eye className="text-amber-500 shrink-0" size={18} />;
+                            case "HEAD_TURNED":
+                            case "HEAD_TURNED_WHILE_ANSWERING":
+                                return <Camera className="text-amber-500 shrink-0" size={18} />;
+                            default:
+                                return <AlertTriangle className="text-amber-500 shrink-0" size={18} />;
+                        }
+                    };
+                    return (
+                        <div
+                            key={toast.id}
+                            className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-amber-200/40 bg-white/70 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-300 animate-in slide-in-from-left-5 fade-in"
+                            style={{
+                                fontFamily: "'Outfit', 'Inter', sans-serif",
+                            }}
+                        >
+                            {getToastIcon()}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                                    {toast.type.replace(/_/g, " ")}
+                                </p>
+                                <p className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-700">
+                                    {toast.detail}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
 
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div

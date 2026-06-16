@@ -926,7 +926,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     if (step === 'interview') {
         return (
             <SecureExamWrapper
-                examId={`interview:${job._id}:${sessionId || 'pending'}`}
+                examId={`interview:${job._id}:${recordingSessionId || sessionId || 'pending'}`}
                 userId={user.uid}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
@@ -969,6 +969,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         muted 
                                         playsInline 
                                         ref={el => { 
+                                            webcamRef.current = el ? { video: el } : null;
                                             if(el && fullSessionStreamRef.current) {
                                                 const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
                                                 if (camTrack) el.srcObject = new MediaStream([camTrack]);

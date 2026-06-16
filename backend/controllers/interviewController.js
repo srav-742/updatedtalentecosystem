@@ -9,7 +9,7 @@ const {
 
 const MAX_INTERVIEW_QUESTIONS = 5;
 
-const buildRecruiterInterviewPayload = (application, socialUser, questions, overallInterviewScore, overallInterviewMarks) => ({
+const buildRecruiterInterviewPayload = (application, socialUser, questions, overallInterviewScore, overallInterviewMarks, proctoringViolations) => ({
     application: {
         id: application._id,
         applicantName: application.applicantName,
@@ -44,7 +44,8 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
                 ? roundToTenth(answer.marks)
                 : roundToTenth(Number(answer.score || 0) / 10),
             feedback: answer.feedback
-        }))
+        })),
+        proctoringViolations: proctoringViolations || []
     }
 });
 
@@ -132,13 +133,74 @@ const getInterviewDetails = async (req, res) => {
         const overallInterviewScore = Number(application.interviewScore || averageInterviewScore(questions) || 0);
         const overallInterviewMarks = roundToTenth(overallInterviewScore / 10);
 
+        // ── Query Proctoring Violations ──
+        const ProctoringViolation = require('../models/ProctoringViolation');
+        const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+
+        const jobIdStr = application.jobId?._id?.toString() || application.jobId?.toString();
+        const sessionIdStr = application.recordingSessionId;
+
+        const queryConditions = [];
+        if (jobIdStr && sessionIdStr) {
+            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        }
+        if (application.userId) {
+            queryConditions.push({ userId: application.userId });
+        }
+
+        let baseViolations = [];
+        let enhancedViolations = [];
+
+        if (queryConditions.length > 0) {
+            const query = { $or: queryConditions };
+            
+            const allBase = await ProctoringViolation.find(query).sort({ timestamp: 1 }).lean();
+            const allEnhanced = await ProctoringViolationEnhanced.find(query).sort({ timestamp: 1 }).lean();
+
+            baseViolations = allBase.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+
+            enhancedViolations = allEnhanced.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+        }
+
+        const mappedViolations = [
+            ...baseViolations.map(v => ({
+                id: v._id,
+                type: v.type,
+                detail: v.detail,
+                count: v.count,
+                severity: 'medium',
+                isAnswering: false,
+                timestamp: v.timestamp || v.createdAt
+            })),
+            ...enhancedViolations.map(v => ({
+                id: v._id,
+                type: v.type,
+                detail: v.detail,
+                count: v.count,
+                severity: v.severity || 'medium',
+                isAnswering: v.isAnswering || false,
+                timestamp: v.timestamp || v.createdAt
+            }))
+        ];
+
+        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
         res.json(
             buildRecruiterInterviewPayload(
                 application,
                 socialUser,
                 questions,
                 overallInterviewScore,
-                overallInterviewMarks
+                overallInterviewMarks,
+                mappedViolations
             )
         );
     } catch (error) {

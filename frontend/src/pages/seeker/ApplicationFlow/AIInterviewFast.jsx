@@ -914,7 +914,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     if (step === 'interview') {
         return (
             <SecureExamWrapper
-                examId={`interview:${job._id}:${sessionId || 'pending'}`}
+                examId={`interview:${job._id}:${recordingSessionId || sessionId || 'pending'}`}
                 userId={user.uid}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}

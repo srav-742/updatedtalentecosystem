@@ -130,16 +130,18 @@ export function useAIProctoring({
 
         const initFaceMesh = async () => {
             try {
+                console.log("[AI-Proctoring] Loading MediaPipe FaceMesh script...");
                 await loadScript(`${MEDIAPIPE_CDN}/face_mesh.js`);
 
                 if (cancelled) return;
 
                 const FaceMesh = window.FaceMesh;
                 if (!FaceMesh) {
-                    console.warn("[AI-Proctoring] FaceMesh class not found on window");
+                    console.warn("[AI-Proctoring] FaceMesh class not found on window after script load");
                     return;
                 }
 
+                console.log("[AI-Proctoring] Initializing FaceMesh engine...");
                 const mesh = new FaceMesh({
                     locateFile: (file) => `${MEDIAPIPE_CDN}/${file}`,
                 });
@@ -162,7 +164,7 @@ export function useAIProctoring({
 
                 faceMeshRef.current = mesh;
                 setFaceMeshReady(true);
-                console.log("[AI-Proctoring] MediaPipe FaceMesh initialized");
+                console.log("[AI-Proctoring] MediaPipe FaceMesh initialized successfully");
             } catch (err) {
                 console.error("[AI-Proctoring] FaceMesh initialization failed:", err);
             }
@@ -182,9 +184,22 @@ export function useAIProctoring({
         let cancelled = false;
 
         const initObjectDetection = async () => {
-            // Try COCO-SSD directly (it's already in the project dependencies)
             try {
-                const cocoSsd = await import("@tensorflow-models/coco-ssd");
+                console.log("[AI-Proctoring] Loading @tensorflow/tfjs backend registry...");
+                await import("@tensorflow/tfjs");
+                
+                if (cancelled) return;
+
+                console.log("[AI-Proctoring] Dynamically importing @tensorflow-models/coco-ssd...");
+                const cocoSsdModule = await import("@tensorflow-models/coco-ssd");
+                const cocoSsd = cocoSsdModule.default || cocoSsdModule;
+
+                if (!cocoSsd || typeof cocoSsd.load !== "function") {
+                    console.warn("[AI-Proctoring] COCO-SSD load function not found on imported module");
+                    return;
+                }
+
+                console.log("[AI-Proctoring] Loading COCO-SSD neural network...");
                 const model = await cocoSsd.load();
 
                 if (cancelled) return;
@@ -192,7 +207,7 @@ export function useAIProctoring({
                 cocoModelRef.current = model;
                 setObjectModelReady(true);
                 setObjectModelType("coco-ssd");
-                console.log("[AI-Proctoring] COCO-SSD model loaded");
+                console.log("[AI-Proctoring] COCO-SSD model loaded successfully");
             } catch (err) {
                 console.warn("[AI-Proctoring] COCO-SSD load failed:", err);
             }

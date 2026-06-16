@@ -11,7 +11,11 @@ import {
     Video,
     PlayCircle,
     Github,
-    Linkedin
+    Linkedin,
+    ShieldAlert,
+    ShieldCheck,
+    AlertTriangle,
+    Clock
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
@@ -246,6 +250,82 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         )}
                     </div>
                 )}
+
+                {/* Security & Proctoring Audit Log */}
+                <div className="p-8 border-b border-gray-200 bg-gray-50/30">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <ShieldAlert className="w-5 h-5 text-purple-600" />
+                        Security & Proctoring Audit
+                    </h3>
+
+                    {(!interview?.proctoringViolations || interview.proctoringViolations.length === 0) ? (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
+                            <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                            <div>
+                                <h4 className="font-bold text-sm">Clean Session</h4>
+                                <p className="text-xs text-emerald-700/90 mt-0.5">No proctoring violations or tab-switching events were detected during this interview session.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex items-center gap-3 text-amber-800">
+                                <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
+                                <div>
+                                    <h4 className="font-bold text-sm">Integrity Alerts Logged ({interview.proctoringViolations.length})</h4>
+                                    <p className="text-xs text-amber-700/90 mt-0.5">
+                                        The system detected activities that triggered proctoring alerts. Please review the details below.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                                            <th className="py-3 px-4">Event Type</th>
+                                            <th className="py-3 px-4">Details</th>
+                                            <th className="py-3 px-4 text-center">Severity</th>
+                                            <th className="py-3 px-4 text-right">Time Detected</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 text-xs">
+                                        {interview.proctoringViolations.map((v) => {
+                                            let severityClass = "bg-gray-100 text-gray-700";
+                                            if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
+                                            else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
+                                            else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
+                                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+
+                                            const typeLabel = String(v.type).replace(/_/g, ' ');
+
+                                            return (
+                                                <tr key={v.id || v.timestamp} className="hover:bg-gray-50/50">
+                                                    <td className="py-3 px-4 font-bold text-gray-800 uppercase tracking-tight">
+                                                        {typeLabel}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-gray-600 leading-normal">
+                                                        {v.detail}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${severityClass}`}>
+                                                            {v.severity || 'medium'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right text-gray-400 font-medium whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1.5">
+                                                            <Clock size={12} />
+                                                            {new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* Questions & Answers */}
                 <div className="p-8">
