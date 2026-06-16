@@ -116,30 +116,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const typeText = (text, customDelay) => {
         const cleanText = normalizeQuestionText(text);
         if (!cleanText) return;
-        let i = 0;
-        setDisplayText('');
-
-        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
-        // Use custom delay if provided (synced to audio), otherwise default 22ms
-        const charDelay = customDelay || 22;
-
-        typewriterIntervalRef.current = setInterval(() => {
-            i++;
-            if (i <= cleanText.length) {
-                setDisplayText(cleanText.substring(0, i));
-            } else {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-                setDisplayText(cleanText);
-            }
-        }, charDelay);
+        setDisplayText(cleanText);
+        if (typewriterIntervalRef.current) {
+            clearInterval(typewriterIntervalRef.current);
+            typewriterIntervalRef.current = null;
+        }
     };
 
     const playAudio = (base64, textToDisplay, audioMimeType) => {
-        setDisplayText('');
-        setCoreState('speaking');
         const textToSpeak = normalizeQuestionText(textToDisplay || currentQuestion);
+        setDisplayText(textToSpeak);
+        setCoreState('speaking');
         if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
 
         const finishQuestionPlayback = () => {
@@ -951,7 +938,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             {/* Webcam Mini View - INCREASED SIZE */}
                             <div className="flex items-center gap-4">
                                 <AnimatePresence>
-                                    {warnings > 0 && (
+                                    {false && warnings > 0 && (
                                         <motion.div
                                             initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
                                             className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"

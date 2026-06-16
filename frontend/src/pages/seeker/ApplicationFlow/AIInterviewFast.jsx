@@ -134,31 +134,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const typeText = (text) => {
         const cleanText = normalizeQuestionText(text);
         if (!cleanText) return;
-        let i = 0;
-        setDisplayText('');
+        setDisplayText(cleanText);
 
-        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-
-        typewriterIntervalRef.current = setInterval(() => {
-            i++;
-            if (i <= cleanText.length) {
-                setDisplayText(cleanText.substring(0, i));
-            } else {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-                // Ensure the FULL text is set after typewriter completes
-                setDisplayText(cleanText);
-            }
-        }, 10);
-
-        // Safety net: if typewriter takes too long, force-set the full text
-        setTimeout(() => {
-            if (typewriterIntervalRef.current) {
-                clearInterval(typewriterIntervalRef.current);
-                typewriterIntervalRef.current = null;
-            }
-            setDisplayText(cleanText);
-        }, Math.max(cleanText.length * 12, 3000));
+        if (typewriterIntervalRef.current) {
+            clearInterval(typewriterIntervalRef.current);
+            typewriterIntervalRef.current = null;
+        }
     };
 
     const speakInBrowserFallback = (text) => {
@@ -939,7 +920,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             {/* Webcam Mini View */}
                             <div className="flex items-center gap-4">
                                 <AnimatePresence>
-                                    {warnings > 0 && (
+                                    {false && warnings > 0 && (
                                         <motion.div
                                             initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
                                             className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"

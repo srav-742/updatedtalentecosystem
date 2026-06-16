@@ -285,7 +285,7 @@ export default function SecureExamWrapperEnhanced({
     // ── Derived state ───────────────────────────────────────────────────────
     const needsScreenShare = requireScreenShare && isActive && !isSharing;
     const showViolationOverlay = !needsScreenShare && showOverlay;
-    const contentBlocked = needsScreenShare || showViolationOverlay || resetting;
+    const contentBlocked = needsScreenShare || resetting;
     const isResetMode = overlayMode === "reset" || resetting;
 
     // ── AI status indicator ─────────────────────────────────────────────────
@@ -304,7 +304,7 @@ export default function SecureExamWrapperEnhanced({
     };
 
     return (
-        <div style={{ position: "relative", minHeight: "100vh", userSelect: "none" }}>
+        <div style={{ position: "relative", minHeight: "100vh" }}>
             {/* ── Screen share prompt ──────────────────────────────────────── */}
             {needsScreenShare && (
                 <StrictScreenSharePrompt
@@ -316,8 +316,8 @@ export default function SecureExamWrapperEnhanced({
                 />
             )}
 
-            {/* ── Violation overlay ────────────────────────────────────────── */}
-            {showViolationOverlay && (
+            {/* ── Violation overlay hidden from candidate ─────────────────── */}
+            {false && showViolationOverlay && (
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[rgba(245,240,231,0.82)] p-6 backdrop-blur-md">
                     <div className={`w-full max-w-xl rounded-[2rem] border bg-white p-8 text-center shadow-[0_40px_120px_rgba(15,23,42,0.18)] ${isResetMode ? "border-red-200" : "border-amber-200"}`}>
                         <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-[1.5rem] ${isResetMode ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500"}`}>
@@ -348,7 +348,7 @@ export default function SecureExamWrapperEnhanced({
                         </p>
 
                         {!isResetMode && (
-                            <button
+                             <button
                                 onClick={dismissOverlay}
                                 className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                             >
@@ -369,8 +369,8 @@ export default function SecureExamWrapperEnhanced({
             {/* ── Security status badge (top right) ────────────────────────── */}
             {isActive && (
                 <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${violationCount === 0 ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
-                        {violationCount === 0 ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                        <ShieldCheck size={14} />
                     </span>
                     <span>Protected session</span>
 
@@ -378,9 +378,9 @@ export default function SecureExamWrapperEnhanced({
                     {requireCamera && (
                         <>
                             <span className="mx-1 h-4 w-px bg-black/10" />
-                            <span className={`h-2.5 w-2.5 rounded-full ${getAIStatusColor()}`} />
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                             <span className="text-[10px] uppercase tracking-wider text-gray-400">
-                                {getAIStatusText()}
+                                AI Active
                             </span>
                         </>
                     )}
@@ -409,33 +409,35 @@ export default function SecureExamWrapperEnhanced({
                             style={{ transform: "scaleX(-1)", aspectRatio: "4/3" }}
                         />
 
-                        {/* AI telemetry badges */}
-                        <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                            {faceMeshReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Eye size={8} />
-                                    {faceCount === 1 ? "1 face" : `${faceCount} faces`}
-                                </span>
-                            )}
-                            {objectModelReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Camera size={8} />
-                                    {objectModelType?.toUpperCase()}
-                                </span>
-                            )}
-                            {detections.some((d) => d.class === "cell phone") && (
-                                <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Smartphone size={8} />
-                                    PHONE
-                                </span>
-                            )}
-                            {faceCount > 1 && (
-                                <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Users size={8} />
-                                    {faceCount}
-                                </span>
-                            )}
-                        </div>
+                        {/* AI telemetry warning badges hidden from candidate */}
+                        {false && (
+                            <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                                {faceMeshReady && (
+                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                        <Eye size={8} />
+                                        {faceCount === 1 ? "1 face" : `${faceCount} faces`}
+                                    </span>
+                                )}
+                                {objectModelReady && (
+                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                        <Camera size={8} />
+                                        {objectModelType?.toUpperCase()}
+                                    </span>
+                                )}
+                                {detections.some((d) => d.class === "cell phone") && (
+                                    <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                        <Smartphone size={8} />
+                                        PHONE
+                                    </span>
+                                )}
+                                {faceCount > 1 && (
+                                    <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                        <Users size={8} />
+                                        {faceCount}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -498,7 +500,7 @@ export default function SecureExamWrapperEnhanced({
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div
                 style={{
-                    pointerEvents: isLocked || contentBlocked ? "none" : "auto",
+                    pointerEvents: contentBlocked ? "none" : "auto",
                     filter: contentBlocked ? "blur(10px)" : "none",
                     transition: "filter 0.3s ease",
                 }}

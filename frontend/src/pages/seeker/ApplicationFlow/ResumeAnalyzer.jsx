@@ -260,17 +260,8 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
 
                 setStructuredProfile(normalizedProfile);
 
-                const firstCompletedSection = sectionConfig.find((section) => section.id !== 'resume' && (
-                    section.id === 'basic' ? hasBasicInfo(normalizedProfile) :
-                        section.id === 'education' ? normalizedProfile.education.length > 0 :
-                            section.id === 'skills' ? hasSkills(normalizedProfile) :
-                                section.id === 'languages' ? normalizedProfile.languages.length > 0 :
-                                    section.id === 'experience' ? normalizedProfile.workExperience.length > 0 :
-                                        section.id === 'projects' ? normalizedProfile.projects.length > 0 :
-                                            Boolean(normalizedProfile.summary)
-                ));
-
-                setActiveSection(firstCompletedSection?.id || 'resume');
+                // Default to 'resume' upload step initially so the candidate starts at the Resume Upload tab
+                setActiveSection('resume');
             } catch (storedProfileError) {
                 if (storedProfileError?.response?.status !== 404) {
                     console.error('Failed to load stored resume profile:', storedProfileError);
