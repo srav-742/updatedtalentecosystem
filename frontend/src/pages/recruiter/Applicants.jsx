@@ -86,6 +86,7 @@ const Applicants = () => {
                     linkedinUrl: app.user?.linkedinUrl,
                     resumeUrl: app.user?.resumeUrl,
                     finalScore: app.finalScore,
+                    proctoringScore: app.proctoringScore || 0,
                     status: app.status,
                     teamFit: app.teamFit,
                     videoIntroUrl: app.videoIntroUrl,
@@ -323,6 +324,7 @@ const Applicants = () => {
                                     <option value="resumeScore" className="bg-[#1a1d24] text-white">Resume Score</option>
                                     <option value="assessmentScore" className="bg-[#1a1d24] text-white">Assessment Score</option>
                                     <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
+                                    <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Penalty Score</option>
                                     <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
                                 </select>
                                 {sortBy !== 'none' && (
@@ -422,13 +424,14 @@ const Applicants = () => {
                             <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
                                 <colgroup>
                                     <col style={{ width: '5%' }} />
-                                    <col style={{ width: '23%' }} />
-                                    <col style={{ width: '9%' }} />
-                                    <col style={{ width: '12%' }} />
-                                    <col style={{ width: '12%' }} />
-                                    <col style={{ width: '12%' }} />
-                                    <col style={{ width: '12%' }} />
-                                    <col style={{ width: '10%' }} />
+                                    <col style={{ width: '20%' }} />
+                                    <col style={{ width: '8%' }} />
+                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '7%' }} />
                                     <col style={{ width: '5%' }} />
                                 </colgroup>
                                 <thead>
@@ -439,6 +442,7 @@ const Applicants = () => {
                                         <th className="pb-4 pt-4 text-center">Resume Match</th>
                                         <th className="pb-4 pt-4 text-center">Assessment</th>
                                         <th className="pb-4 pt-4 text-center">Interview</th>
+                                        <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
                                         <th className="pb-4 pt-4 text-center">Final Score</th>
                                         <th className="pb-4 pt-4 text-center">Status</th>
                                         <th className="pb-4 pt-4 text-right pr-6">Action</th>
@@ -551,6 +555,13 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <div className="flex items-center justify-center">
+                                                        <div className={`inline-flex items-center justify-center px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 font-extrabold text-base shadow-sm ${app.proctoringScore > 0 ? 'animate-pulse' : ''}`} title="Total Integrity Penalty Score">
+                                                            <span>{app.proctoringScore}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
                                                         {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}

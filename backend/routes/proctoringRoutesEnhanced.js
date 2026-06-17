@@ -22,4 +22,7 @@ router.get('/violations/user/:userId', proctoringControllerEnhanced.getViolation
 // Get violations summary for admin dashboard
 router.get('/summary', proctoringControllerEnhanced.getViolationsSummary);
 
+// Get overall report by exam ID
+router.get('/report/:examId', proctoringControllerEnhanced.getReportByExam);
+
 module.exports = router;

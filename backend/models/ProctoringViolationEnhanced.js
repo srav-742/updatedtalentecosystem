@@ -39,6 +39,7 @@ const VIOLATION_TYPES = [
     // ── AI object detection ──────────────────────────────────────────────────
     'PHONE_DETECTED',
     'HEADPHONES_DETECTED',
+    'OBJECT_DETECTED',
 ];
 
 const proctoringViolationEnhancedSchema = new mongoose.Schema({

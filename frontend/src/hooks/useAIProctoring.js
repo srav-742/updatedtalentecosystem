@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as tf from "@tensorflow/tfjs";
+import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
 /**
  * useAIProctoring
@@ -29,17 +31,30 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 2000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.5,
+    phoneConfidenceThreshold: 0.25, // Lowered from 0.5 to make detection much more sensitive
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
-    objectDetectionIntervalMs: 2000, // How often to run object detection
+    objectDetectionIntervalMs: 1000, // Lowered from 2000 to run check every 1 second
     onnxLoadTimeoutMs: 8000,      // Max time to wait for ONNX model before fallback
 };
 
 // ─── CDN URLs ───────────────────────────────────────────────────────────────
 const MEDIAPIPE_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619";
 const CAMERA_UTILS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074";
+
+const SUSPICIOUS_OBJECTS = {
+    "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 6 },
+    "remote": { type: "PHONE_DETECTED", label: "Remote control/device", ranking: 6 },
+    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 6 },
+    "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 5 },
+    "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 6 },
+    "backpack": { type: "OBJECT_DETECTED", label: "Backpack/bag", ranking: 4 },
+    "handbag": { type: "OBJECT_DETECTED", label: "Handbag/bag", ranking: 4 },
+    "suitcase": { type: "OBJECT_DETECTED", label: "Suitcase", ranking: 4 },
+    "keyboard": { type: "OBJECT_DETECTED", label: "External keyboard", ranking: 3 },
+    "mouse": { type: "OBJECT_DETECTED", label: "External mouse", ranking: 3 }
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function euclidean(a, b) {
@@ -183,7 +198,7 @@ export function useAIProctoring({
         };
     }, [isActive]);
 
-    // ── Initialize Object Detection (ONNX → COCO-SSD fallback) ─────────────
+    // ── Initialize Object Detection (COCO-SSD) ──────────────────────────────
     useEffect(() => {
         if (!isActive) return;
 
@@ -191,19 +206,10 @@ export function useAIProctoring({
 
         const initObjectDetection = async () => {
             try {
-                console.log("[AI-Proctoring] Loading @tensorflow/tfjs backend registry...");
-                await import("@tensorflow/tfjs");
+                console.log("[AI-Proctoring] Initializing TensorFlow backend...");
+                await tf.ready();
                 
                 if (cancelled) return;
-
-                console.log("[AI-Proctoring] Dynamically importing @tensorflow-models/coco-ssd...");
-                const cocoSsdModule = await import("@tensorflow-models/coco-ssd");
-                const cocoSsd = cocoSsdModule.default || cocoSsdModule;
-
-                if (!cocoSsd || typeof cocoSsd.load !== "function") {
-                    console.warn("[AI-Proctoring] COCO-SSD load function not found on imported module");
-                    return;
-                }
 
                 console.log("[AI-Proctoring] Loading COCO-SSD neural network...");
                 const model = await cocoSsd.load();
@@ -239,7 +245,7 @@ export function useAIProctoring({
                     if (isActiveRef.current) {
                         emitViolation(
                             "NO_PEOPLE",
-                            "No face detected in camera frame for over 2 seconds.",
+                            "No face detected in camera frame for over 2 seconds. (Ranking: 4)",
                             { faceCount: 0 }
                         );
                     }
@@ -259,7 +265,7 @@ export function useAIProctoring({
         if (count > 1) {
             emitViolation(
                 "MULTIPLE_PEOPLE",
-                `${count} faces detected in camera frame.`,
+                `${count} faces detected in camera frame. (Ranking: 7)`,
                 { faceCount: count }
             );
         }
@@ -289,7 +295,7 @@ export function useAIProctoring({
                     : "HEAD_TURNED";
                 emitViolation(
                     violationType,
-                    `Head turned excessively to the ${direction} (ratio: ${ratio.toFixed(2)}).`,
+                    `Head turned excessively to the ${direction}. (Ranking: 3)`,
                     { headTurnRatio: ratio, direction }
                 );
             }
@@ -360,7 +366,7 @@ export function useAIProctoring({
                                 : "EYE_LOOKING_AWAY";
                             emitViolation(
                                 violationType,
-                                "Rhythmic horizontal eye movement detected (possible reading pattern).",
+                                "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 4)",
                                 { directionChanges, gazeRatio: avgGaze }
                             );
                             // Clear history after firing to avoid repeated triggers
@@ -384,7 +390,7 @@ export function useAIProctoring({
                         : "EYE_LOOKING_AWAY";
                     emitViolation(
                         violationType,
-                        `Candidate looked away/to the side for more than 4 seconds.`,
+                        `Candidate looked away/to the side for more than 4 seconds. (Ranking: 8)`,
                         { duration: elapsed / 1000, seesSide: true }
                     );
                 }
@@ -444,13 +450,15 @@ export function useAIProctoring({
                 if (cocoModelRef.current) {
                     const predictions = await cocoModelRef.current.detect(video);
                     setDetections(predictions || []);
+                    console.log("[AI-Proctoring] COCO-SSD predictions:", predictions);
 
                     for (const pred of predictions) {
-                        if (pred.class === "cell phone" && pred.score >= T.phoneConfidenceThreshold) {
+                        const objConfig = SUSPICIOUS_OBJECTS[pred.class];
+                        if (objConfig && pred.score >= T.phoneConfidenceThreshold) {
                             emitViolation(
-                                "PHONE_DETECTED",
-                                `Cell phone detected in camera frame (confidence: ${(pred.score * 100).toFixed(1)}%).`,
-                                { confidence: pred.score, bbox: pred.bbox }
+                                objConfig.type,
+                                `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
+                                { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
                             );
                         }
                     }

@@ -7,7 +7,8 @@ const AI_TYPES = new Set([
   "NO_PEOPLE",
   "MULTIPLE_PEOPLE",
   "PHONE_DETECTED",
-  "HEADPHONES_DETECTED"
+  "HEADPHONES_DETECTED",
+  "OBJECT_DETECTED"
 ]);
 
 export async function logViolation(data) {

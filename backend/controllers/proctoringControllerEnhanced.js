@@ -1,4 +1,7 @@
 const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+const ProctoringViolation = require('../models/ProctoringViolation');
+const ProctoringReport = require('../models/ProctoringReport');
+const Application = require('../models/Application');
 const { getViolationRating } = require('../utils/proctoringScoring');
 
 /**
@@ -27,6 +30,105 @@ const SEVERITY_MAP = {
     MULTIPLE_PEOPLE: 'critical',
     PHONE_DETECTED: 'critical',
     HEADPHONES_DETECTED: 'high',
+    OBJECT_DETECTED: 'high',
+};
+
+const updateProctoringReport = async (examId, userId) => {
+    try {
+        const baseQuery = { examId, userId };
+        const baseViolations = await ProctoringViolation.find(baseQuery).lean();
+        const enhancedViolations = await ProctoringViolationEnhanced.find(baseQuery).lean();
+        
+        const allViolations = [
+            ...baseViolations.map(v => ({
+                type: v.type,
+                detail: v.detail,
+                timestamp: v.timestamp || v.createdAt || new Date(),
+                rating: v.rating || getViolationRating(v.type, v.metadata),
+            })),
+            ...enhancedViolations.map(v => ({
+                type: v.type,
+                detail: v.detail,
+                timestamp: v.timestamp || v.createdAt || new Date(),
+                rating: v.rating || getViolationRating(v.type, v.metadata),
+            }))
+        ];
+        
+        allViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        const totalViolations = allViolations.length;
+        const totalPenaltyRating = allViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
+        
+        let status = 'clean';
+        let verdict = 'Seriousness Verified';
+        let summary = 'No anomalies detected. Candidate followed rules during the assessment.';
+        
+        if (totalPenaltyRating > 0 && totalPenaltyRating <= 5) {
+            status = 'low_risk';
+            verdict = 'Pass with Minor Alerts';
+            summary = 'A few minor alerts recorded. Candidate is likely serious.';
+        } else if (totalPenaltyRating > 5 && totalPenaltyRating <= 12) {
+            status = 'suspicious';
+            verdict = 'Review Recommended';
+            summary = 'Multiple alerts recorded (e.g., eye movement or head turns). Review of proctoring evidence recommended.';
+        } else if (totalPenaltyRating > 12) {
+            status = 'critical';
+            verdict = 'Critical Cheating Alert';
+            summary = 'Critical violations detected (e.g., cell phone detected, screen share stop). Strong evidence of candidate cheating.';
+        }
+        
+        const countsMap = {};
+        allViolations.forEach(v => {
+            if (!countsMap[v.type]) {
+                countsMap[v.type] = { type: v.type, count: 0, rating: 0 };
+            }
+            countsMap[v.type].count += 1;
+            countsMap[v.type].rating += v.rating || 0;
+        });
+        const violationSummaryList = Object.values(countsMap);
+        
+        let applicationId = null;
+        const parts = examId.split(':');
+        if (parts.length >= 3) {
+            const sessionId = parts[2];
+            const app = await Application.findOne({
+                $or: [
+                    { recordingSessionId: sessionId },
+                    { userId: userId }
+                ]
+            }).select('_id').lean();
+            if (app) {
+                applicationId = app._id;
+            }
+        } else {
+            const app = await Application.findOne({ userId }).select('_id').lean();
+            if (app) {
+                applicationId = app._id;
+            }
+        }
+        
+        const report = await ProctoringReport.findOneAndUpdate(
+            { examId },
+            {
+                examId,
+                userId,
+                applicationId,
+                totalViolations,
+                totalPenaltyRating,
+                status,
+                verdict,
+                summary,
+                violationSummaryList,
+                timeline: allViolations
+            },
+            { upsert: true, new: true }
+        );
+        
+        console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, status: ${status}, rating: ${totalPenaltyRating}`);
+        return report;
+    } catch (err) {
+        console.error('[PROCTORING REPORT UPDATE ERROR]', err);
+    }
 };
 
 /**
@@ -72,10 +174,15 @@ const logViolation = async (req, res) => {
             userId,
             type,
             detail,
-            count,
+            count: count || 1,
             severity: violation.severity,
+            rating: violation.rating,
+            ranking: violation.rating,
             isAnswering: violation.isAnswering,
         });
+
+        // Trigger report update asynchronously
+        updateProctoringReport(examId, userId).catch(() => {});
 
         return res.status(200).json({
             recorded: true,
@@ -210,9 +317,25 @@ const getViolationsSummary = async (req, res) => {
     }
 };
 
+const getReportByExam = async (req, res) => {
+    try {
+        const { examId } = req.params;
+        const report = await ProctoringReport.findOne({ examId }).lean();
+        if (!report) {
+            return res.status(404).json({ message: 'Proctoring report not found for this session.' });
+        }
+        return res.status(200).json(report);
+    } catch (error) {
+        console.error('[GET PROCTORING REPORT ERROR]', error);
+        return res.status(500).json({ message: 'Failed to fetch proctoring report', error: error.message });
+    }
+};
+
 module.exports = {
     logViolation,
     getViolationsByExam,
     getViolationsByUser,
     getViolationsSummary,
+    getReportByExam,
+    updateProctoringReport,
 };

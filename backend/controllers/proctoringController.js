@@ -25,7 +25,15 @@ const logViolation = async (req, res) => {
             timestamp: timestamp || new Date()
         });
 
-        console.log('[PROCTORING VIOLATION]', { examId, userId, type, detail, count });
+        console.log('[PROCTORING VIOLATION]', { 
+            examId, 
+            userId, 
+            type, 
+            detail, 
+            count,
+            rating: violation.rating,
+            ranking: violation.rating
+        });
 
         return res.status(200).json({ recorded: true, violationId: violation._id });
     } catch (error) {

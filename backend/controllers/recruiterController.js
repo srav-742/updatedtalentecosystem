@@ -93,7 +93,43 @@ const getRecruiterApplications = async (req, res) => {
             });
         }
 
-        res.json(apps);
+        // Fetch proctoring violations and map proctoringScore
+        const userIdList = apps.map(app => app.userId).filter(Boolean);
+        const ProctoringViolation = require('../models/ProctoringViolation');
+        const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+        const { getViolationRating } = require('../utils/proctoringScoring');
+
+        const violationQuery = {
+            userId: { $in: userIdList }
+        };
+
+        const [baseViolations, enhancedViolations] = await Promise.all([
+            ProctoringViolation.find(violationQuery).lean(),
+            ProctoringViolationEnhanced.find(violationQuery).lean()
+        ]);
+
+        const userPenaltyMap = {};
+        const addRating = (userId, type, metadata) => {
+            if (!userId) return;
+            const rating = getViolationRating(type, metadata);
+            userPenaltyMap[userId] = (userPenaltyMap[userId] || 0) + rating;
+        };
+
+        baseViolations.forEach(v => {
+            addRating(v.userId, v.type, v.metadata);
+        });
+
+        enhancedViolations.forEach(v => {
+            addRating(v.userId, v.type, v.metadata);
+        });
+
+        const appsWithScore = apps.map(app => {
+            const doc = app.toObject();
+            doc.proctoringScore = userPenaltyMap[app.userId] || 0;
+            return doc;
+        });
+
+        res.json(appsWithScore);
     } catch (error) {
         console.error('[GET-APPS-REC] Failure:', error);
         res.status(500).json({ message: error.message });

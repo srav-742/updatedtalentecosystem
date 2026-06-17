@@ -5,6 +5,27 @@ const AssessmentSubmission = require('../models/AssessmentSubmission');
 const User = require('../models/User');
 const Job = require('../models/Job');
 const mongoose = require('mongoose');
+const ProctoringViolation = require('../models/ProctoringViolation');
+const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+const { getViolationRating } = require('../utils/proctoringScoring');
+const ProctoringReport = require('../models/ProctoringReport');
+const { updateProctoringReport } = require('./proctoringControllerEnhanced');
+
+const sanitizeViolationDetail = (type, detail, rating) => {
+    if (!detail) return '';
+    let cleanDetail = detail
+        .replace(/\s*\(ratio:\s*[^)]+\)/gi, '')
+        .replace(/\s*\(confidence:\s*[^)]+\)/gi, '');
+    
+    if (!cleanDetail.endsWith('.')) {
+        cleanDetail += '.';
+    }
+    
+    if (!cleanDetail.includes('(Ranking:')) {
+        cleanDetail += ` (Ranking: ${rating})`;
+    }
+    return cleanDetail;
+};
 
 /**
  * GET /api/transcripts/:applicationId
@@ -42,6 +63,86 @@ const getTranscript = async (req, res) => {
         // 6. Fetch skill assessment submission
         const assessment = await AssessmentSubmission.findOne({ applicationId }).lean()
             || await AssessmentSubmission.findOne({ userId, jobId }).lean();
+
+        // 6.5 Query Proctoring Violations
+        const jobIdStr = jobId?.toString();
+        const sessionIdStr = application.recordingSessionId;
+
+        const queryConditions = [];
+        if (jobIdStr && sessionIdStr) {
+            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        }
+        if (userId) {
+            queryConditions.push({ userId });
+        }
+
+        let baseViolations = [];
+        let enhancedViolations = [];
+
+        if (queryConditions.length > 0) {
+            const query = { $or: queryConditions };
+            
+            const allBase = await ProctoringViolation.find(query).sort({ timestamp: 1 }).lean();
+            const allEnhanced = await ProctoringViolationEnhanced.find(query).sort({ timestamp: 1 }).lean();
+
+            baseViolations = allBase.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+
+            enhancedViolations = allEnhanced.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+        }
+
+        const mappedViolations = [
+            ...baseViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: 'medium',
+                    rating,
+                    isAnswering: false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            }),
+            ...enhancedViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: v.severity || 'medium',
+                    rating,
+                    isAnswering: v.isAnswering || false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            })
+        ];
+
+        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // ── Query Proctoring Report ──
+        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
+        let proctoringReport = null;
+        if (examIdStr) {
+            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
+            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
+                // Compile on-the-fly if violations exist but report doesn't
+                try {
+                    proctoringReport = await updateProctoringReport(examIdStr, userId);
+                } catch (reportErr) {
+                    console.warn('[TRANSCRIPT-REPORT-ON-THE-FLY] Generation failed:', reportErr);
+                }
+            }
+        }
 
         // 7. Build the unified transcript
         const transcript = {
@@ -122,6 +223,8 @@ const getTranscript = async (req, res) => {
                     feedback: q.feedback || '',
                     isAttempted: !!(q.answer && q.answer.trim()),
                 })),
+                proctoringViolations: mappedViolations,
+                proctoringReport: proctoringReport || null,
             },
             scores: {
                 resumeMatch: application.resumeMatchPercent || null,
@@ -154,8 +257,38 @@ const getJobCandidates = async (req, res) => {
         }
 
         const applications = await Application.find({ jobId })
-            .select('_id applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus')
+            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus')
             .lean();
+
+        const userIdList = applications.map(app => app.userId).filter(Boolean);
+        const jobIdStr = jobId.toString();
+
+        const query = {
+            $or: [
+                { examId: { $regex: new RegExp(`^(interview|assessment):${jobIdStr}:`) } },
+                { userId: { $in: userIdList } }
+            ]
+        };
+
+        const [baseViolations, enhancedViolations] = await Promise.all([
+            ProctoringViolation.find(query).lean(),
+            ProctoringViolationEnhanced.find(query).lean()
+        ]);
+
+        const userPenaltyMap = {};
+        const addRating = (userId, type, metadata) => {
+            if (!userId) return;
+            const rating = getViolationRating(type, metadata);
+            userPenaltyMap[userId] = (userPenaltyMap[userId] || 0) + rating;
+        };
+
+        baseViolations.forEach(v => {
+            addRating(v.userId, v.type, v.metadata);
+        });
+
+        enhancedViolations.forEach(v => {
+            addRating(v.userId, v.type, v.metadata);
+        });
 
         const candidates = applications.map(app => ({
             applicationId: app._id,
@@ -166,6 +299,7 @@ const getJobCandidates = async (req, res) => {
             assessmentScore: app.assessmentScore || null,
             interviewScore: app.interviewScore || null,
             finalScore: app.finalScore || null,
+            proctoringScore: userPenaltyMap[app.userId] || 0,
             status: app.status,
             appliedAt: app.appliedAt,
             hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,

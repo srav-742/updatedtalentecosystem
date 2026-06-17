@@ -27,6 +27,7 @@ const getViolationRating = (type, metadata) => {
         // AI Object Detection
         PHONE_DETECTED: 6,
         HEADPHONES_DETECTED: 5,
+        OBJECT_DETECTED: 6,
 
         // AI Presence
         NO_PEOPLE: 4,

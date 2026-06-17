@@ -258,6 +258,53 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         Security & Proctoring Audit
                     </h3>
 
+                    {/* Proctoring Integrity Report Summary Card */}
+                    {interview?.proctoringReport && (
+                        <div className="mb-6 rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="flex items-start gap-4">
+                                    {/* Icon container */}
+                                    <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                                        interview.proctoringReport.status === 'clean' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                        interview.proctoringReport.status === 'low_risk' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                                        interview.proctoringReport.status === 'suspicious' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                        'bg-red-50 text-red-600 border border-red-100'
+                                    }`}>
+                                        {interview.proctoringReport.status === 'clean' && <ShieldCheck size={28} />}
+                                        {interview.proctoringReport.status === 'low_risk' && <ShieldCheck size={28} />}
+                                        {interview.proctoringReport.status === 'suspicious' && <AlertTriangle size={28} />}
+                                        {interview.proctoringReport.status === 'critical' && <ShieldAlert size={28} />}
+                                    </div>
+                                    
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Proctoring Integrity Verdict</p>
+                                        <h4 className={`text-xl font-black mt-1 ${
+                                            interview.proctoringReport.status === 'clean' ? 'text-emerald-600' :
+                                            interview.proctoringReport.status === 'low_risk' ? 'text-blue-600' :
+                                            interview.proctoringReport.status === 'suspicious' ? 'text-amber-600' :
+                                            'text-red-600'
+                                        }`}>
+                                            {interview.proctoringReport.verdict}
+                                        </h4>
+                                        <p className="text-xs text-gray-500 font-semibold leading-relaxed mt-2 max-w-2xl">
+                                            {interview.proctoringReport.summary}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className={`flex flex-col items-center justify-center h-24 w-32 rounded-2xl border shrink-0 ${
+                                    interview.proctoringReport.status === 'clean' ? 'bg-emerald-50/20 border-emerald-100 text-emerald-800' :
+                                    interview.proctoringReport.status === 'low_risk' ? 'bg-blue-50/20 border-blue-100 text-blue-800' :
+                                    interview.proctoringReport.status === 'suspicious' ? 'bg-amber-50/20 border-amber-100 text-amber-800' :
+                                    'bg-red-50/20 border-red-100 text-red-800'
+                                }`}>
+                                    <span className="text-3xl font-black">{interview.proctoringReport.totalPenaltyRating}</span>
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 mt-1">Penalty Rating</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {(!interview?.proctoringViolations || interview.proctoringViolations.length === 0) ? (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
                             <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />

@@ -16,7 +16,8 @@ const AI_TYPES = new Set([
   "NO_PEOPLE",
   "MULTIPLE_PEOPLE",
   "PHONE_DETECTED",
-  "HEADPHONES_DETECTED"
+  "HEADPHONES_DETECTED",
+  "OBJECT_DETECTED"
 ]);
 
 const BLOCKED_COMBOS = [
@@ -203,7 +204,7 @@ export function useStrictProctoring({
         }
       }, 250);
 
-      triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode.");
+      triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -222,7 +223,7 @@ export function useStrictProctoring({
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        triggerViolation("TAB_SWITCH", "You switched to another tab.");
+        triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 2)");
       }
     };
 
@@ -238,7 +239,7 @@ export function useStrictProctoring({
     }
 
     const handleBlur = () => {
-      triggerViolation("WINDOW_BLUR", "You switched to another application or window.");
+      triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
     };
 
     window.addEventListener("blur", handleBlur);
@@ -271,7 +272,7 @@ export function useStrictProctoring({
         event.key,
       ].filter(Boolean).join("+");
 
-      triggerViolation("KEYBOARD_SHORTCUT", `Blocked shortcut: ${label}`);
+      triggerViolation("KEYBOARD_SHORTCUT", `Blocked shortcut: ${label}. (Ranking: 1)`);
       return false;
     };
 

@@ -64,11 +64,18 @@ export default function SecureExamWrapperEnhanced({
     }, []);
 
     const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const triggerViolationRef = useRef(null);
+    const logEnhancedViolationRef = useRef(null);
 
     // ── Screen share ────────────────────────────────────────────────────────
     const handleScreenShareStopped = useCallback(() => {
         setScreenShareInterrupted(true);
-    }, []);
+        triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)");
+        logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)", {
+            isAnswering: isAnswering,
+            metadata: { stopped: true }
+        });
+    }, [isAnswering]);
 
     const {
         isSharing,
@@ -111,6 +118,9 @@ export default function SecureExamWrapperEnhanced({
         resetLimit,
         onResetRequired: handleSecurityReset,
     });
+
+    triggerViolationRef.current = triggerViolation;
+    logEnhancedViolationRef.current = logEnhancedViolation;
 
     // ── Camera stream management ────────────────────────────────────────────
     const activeStream = cameraStream || localCameraStream;
@@ -449,9 +459,16 @@ export default function SecureExamWrapperEnhanced({
                     autoPlay
                     muted
                     playsInline
-                    width={640}
-                    height={480}
-                    style={{ position: "absolute", top: "-9999px", left: "-9999px", width: "640px", height: "480px" }}
+                    style={{
+                        position: "absolute",
+                        top: "0px",
+                        left: "0px",
+                        width: "1px",
+                        height: "1px",
+                        opacity: 0.001,
+                        pointerEvents: "none",
+                        zIndex: -1,
+                    }}
                 />
             )}
 
@@ -461,6 +478,7 @@ export default function SecureExamWrapperEnhanced({
                     const getToastIcon = () => {
                         switch (toast.type) {
                             case "PHONE_DETECTED":
+                            case "OBJECT_DETECTED":
                                 return <Smartphone className="text-red-500 shrink-0" size={18} />;
                             case "MULTIPLE_PEOPLE":
                             case "NO_PEOPLE":
