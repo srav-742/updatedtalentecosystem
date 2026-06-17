@@ -1,11 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const dns = require('dns');
+const compression = require('compression');
 
-// Fix for MongoDB SRV DNS resolution issues
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+// Fix for MongoDB SRV DNS resolution issues (only in development environments)
+if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+}
 
 const app = express();
+
+// Enable GZIP compression for all API responses
+app.use(compression());
 
 // Middleware
 const corsOptions = {

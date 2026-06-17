@@ -96,7 +96,7 @@ const submitApplication = async (req, res) => {
 
 const getSeekerApplications = async (req, res) => {
     try {
-        const apps = await Application.find({ userId: req.params.userId }).populate('jobId').sort({ createdAt: -1 });
+        const apps = await Application.find({ userId: req.params.userId }).populate('jobId').sort({ appliedAt: -1 });
         const validApps = apps.filter(app => app.jobId);
         res.json(validApps);
     } catch (error) {

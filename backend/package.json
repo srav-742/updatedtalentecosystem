@@ -15,6 +15,7 @@
         "axios": "^1.13.3",
         "bcryptjs": "^3.0.3",
         "cloudinary": "^2.9.0",
+        "compression": "^1.8.1",
         "cors": "^2.8.5",
         "dotenv": "^17.2.3",
         "edge-tts-universal": "^1.4.0",

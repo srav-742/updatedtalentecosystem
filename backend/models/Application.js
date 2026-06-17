@@ -55,7 +55,7 @@ const applicationSchema = new mongoose.Schema({
     },
     status: { type: String, enum: ['APPLIED', 'SHORTLISTED', 'ELIGIBLE', 'REJECTED', 'HIRED', 'SAVED'], default: 'APPLIED' },
     resultsVisibleAt: { type: Date },
-    appliedAt: { type: Date, default: Date.now },
+    appliedAt: { type: Date, default: Date.now, index: true },
     assessmentAnswers: [
         {
             question: String,
@@ -76,6 +76,9 @@ const applicationSchema = new mongoose.Schema({
         calculatedAt: Date
     }
 });
+
+// Compound index for optimized querying & sorting of recruiter applicants
+applicationSchema.index({ jobId: 1, status: 1, appliedAt: -1 });
 
 applicationSchema.set('toJSON', { virtuals: true });
 applicationSchema.set('toObject', { virtuals: true });

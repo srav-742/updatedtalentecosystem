@@ -168,7 +168,7 @@ const triggerVoiceCall = async (id, forceStage = null) => {
             if (!user) user = await User.findOne({ uid: id });
             
             if (user) {
-                application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 }).populate('jobId');
+                application = await Application.findOne({ userId: user.uid }).sort({ appliedAt: -1 }).populate('jobId');
             }
         }
 
@@ -239,7 +239,7 @@ const generateTwiML = async (id, queryStage = null) => {
         if (!user) user = await User.findOne({ uid: id });
         
         if (user) {
-            application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 }).populate('jobId');
+            application = await Application.findOne({ userId: user.uid }).sort({ appliedAt: -1 }).populate('jobId');
         }
     }
 
@@ -286,7 +286,7 @@ const handleCallResponse = async (id, speechResult) => {
         if (!user) user = await User.findOne({ uid: id });
         
         if (user) {
-            application = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 });
+            application = await Application.findOne({ userId: user.uid }).sort({ appliedAt: -1 });
         }
     }
 

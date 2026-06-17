@@ -102,7 +102,7 @@ const analyzeAllCandidates = async (req, res) => {
         const analysis = [];
 
         for (const user of users) {
-            const latestApplication = await Application.findOne({ userId: user.uid }).sort({ createdAt: -1 }).populate('jobId');
+            const latestApplication = await Application.findOne({ userId: user.uid }).sort({ appliedAt: -1 }).populate('jobId');
             
             // Re-use deriveCandidateState logic but manually for the bulk array
             let state = 'inactive_candidate';

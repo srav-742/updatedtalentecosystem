@@ -53,9 +53,10 @@ const getRecruiterApplications = async (req, res) => {
         const jobIds = jobs.map((job) => job._id);
 
         const apps = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
+            .select('-interviewAnswers -assessmentAnswers -recommendationSummary')
             .populate('jobId')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
-            .sort({ createdAt: -1 });
+            .sort({ appliedAt: -1 });
 
         const missingUserApps = apps.filter((app) => !app.user);
 
