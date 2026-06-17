@@ -56,7 +56,8 @@ const getRecruiterApplications = async (req, res) => {
             .select('-interviewAnswers -assessmentAnswers -recommendationSummary')
             .populate('jobId')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
-            .sort({ appliedAt: -1 });
+            .sort({ appliedAt: -1 })
+            .lean();
 
         const missingUserApps = apps.filter((app) => !app.user);
 
@@ -81,7 +82,7 @@ const getRecruiterApplications = async (req, res) => {
                 if (!app.user) {
                     const found = userMap.get(app.applicantEmail) || userMap.get(app.userId);
                     if (found) {
-                        app._doc.user = {
+                        app.user = {
                             githubUrl: found.githubUrl,
                             linkedinUrl: found.linkedinUrl,
                             profilePic: found.profilePic,
@@ -125,9 +126,8 @@ const getRecruiterApplications = async (req, res) => {
         });
 
         const appsWithScore = apps.map(app => {
-            const doc = app.toObject();
-            doc.proctoringScore = userPenaltyMap[app.userId] || 0;
-            return doc;
+            app.proctoringScore = userPenaltyMap[app.userId] || 0;
+            return app;
         });
 
         res.json(appsWithScore);

@@ -14,8 +14,10 @@ const getAllJobs = async (req, res) => {
         }
 
         const jobs = await Job.find({ status: 'approved' })
+            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status')
             .populate('recruiter', 'name company')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
             
         jobsCache = jobs;
         jobsCacheTime = Date.now();
@@ -31,7 +33,8 @@ const getAllJobsAdmin = async (req, res) => {
     try {
         const jobs = await Job.find()
             .populate('recruiter', 'name company email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         res.json(jobs);
     } catch (error) {
         console.error("[ADMIN-GET-JOBS] Failure:", error);
@@ -42,7 +45,7 @@ const getAllJobsAdmin = async (req, res) => {
 const getJobById = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) return res.status(400).json({ message: "Invalid Job ID" });
-        const job = await Job.findById(req.params.jobId);
+        const job = await Job.findById(req.params.jobId).lean();
         if (!job) return res.status(404).json({ message: "Job not found" });
         res.json(job);
     } catch (error) {
