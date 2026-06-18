@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     FileText, 
@@ -29,6 +29,10 @@ const OnboardingKit = () => {
     });
 
     const activeTemplate = onboardingTemplates[selectedId];
+    
+    const documentRef = useMemo(() => {
+        return Math.floor(Math.random() * 9000) + 1000;
+    }, [selectedId]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -105,7 +109,7 @@ const OnboardingKit = () => {
                     <div style="font-size: 18pt; font-weight: 900; text-transform: uppercase;">${formData.companyName}</div>
                     <div style="text-align: right; font-size: 9pt; color: #555;">
                         <strong>OFFICIAL DOCUMENT</strong><br/>
-                        ${activeTemplate.title} Ref #GEN-${Math.floor(Math.random() * 9000) + 1000}
+                        ${activeTemplate.title} Ref #GEN-${documentRef}
                     </div>
                 </div>
                 ${htmlContent}
@@ -224,7 +228,7 @@ const OnboardingKit = () => {
                             </div>
                             <div className="text-right">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Official Document</p>
-                                <p className="text-[10px] font-bold text-gray-500">{activeTemplate.title} Ref #GEN-{Math.floor(Math.random() * 9000) + 1000}</p>
+                                <p className="text-[10px] font-bold text-gray-500">{activeTemplate.title} Ref #GEN-{documentRef}</p>
                             </div>
                         </div>
 

@@ -153,10 +153,10 @@ export default function SecureExamWrapperEnhanced({
 
     // Pipe stream to video element
     useEffect(() => {
-        if (videoEl && activeStream) {
+        if (videoRef.current && activeStream) {
             const videoTrack = activeStream.getVideoTracks?.()[0];
             if (videoTrack) {
-                videoEl.srcObject = new MediaStream([videoTrack]);
+                videoRef.current.srcObject = new MediaStream([videoTrack]);
             }
         }
     }, [activeStream, videoEl]);

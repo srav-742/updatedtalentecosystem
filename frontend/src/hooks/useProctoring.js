@@ -51,26 +51,6 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
     }
   }, []);
 
-  // Re-enter fullscreen when user exits it
-  useEffect(() => {
-    if (!isActive) return;
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isActive && !lockedRef.current) {
-        // Give browser 300ms, then force back
-        setTimeout(() => {
-          if (!document.fullscreenElement) requestFullscreen();
-        }, 300);
-        recordViolation("FULLSCREEN_EXIT", "Exited fullscreen mode");
-      }
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
-    };
-  }, [isActive, requestFullscreen]);
-
   // ── Lock exam UI (hard overlay) ───────────────────────────────────────
   const lockExam = useCallback((msg) => {
     lockedRef.current = true;
@@ -118,6 +98,26 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
     },
     [isActive, examId, userId, lockExam, onAutoSubmit]
   );
+
+  // Re-enter fullscreen when user exits it
+  useEffect(() => {
+    if (!isActive) return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isActive && !lockedRef.current) {
+        // Give browser 300ms, then force back
+        setTimeout(() => {
+          if (!document.fullscreenElement) requestFullscreen();
+        }, 300);
+        recordViolation("FULLSCREEN_EXIT", "Exited fullscreen mode");
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, [isActive, requestFullscreen, recordViolation]);
 
   // ── 1. Tab visibility (catches Ctrl+Tab, clicking other tab) ─────────
   useEffect(() => {

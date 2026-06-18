@@ -52,10 +52,15 @@ export default function ProctoringTest() {
 
     // ── Telemetry ───────────────────────────────────────────────────────────
     const [devices, setDevices] = useState([]);
-    const [screenExtended, setScreenExtended] = useState(false);
+    const screenExtended = !!window.screen?.isExtended;
     const [hasFocus, setHasFocus] = useState(true);
 
     const videoRef = useRef(null);
+    const [videoEl, setVideoEl] = useState(null);
+    const videoRefCallback = useCallback((el) => {
+        videoRef.current = el;
+        setVideoEl(el);
+    }, []);
     const canvasRef = useRef(null);
     const logContainerRef = useRef(null);
 
@@ -102,11 +107,11 @@ export default function ProctoringTest() {
         if (videoRef.current && cameraStream) {
             videoRef.current.srcObject = cameraStream;
         }
-    }, [cameraStream]);
+    }, [cameraStream, videoEl]);
 
     // ── AI violation callback ───────────────────────────────────────────────
     const handleViolation = useCallback(
-        (type, detail, meta) => {
+        (type, detail) => {
             const severity =
                 type.includes("WHILE_ANSWERING") || type === "PHONE_DETECTED" || type === "MULTIPLE_PEOPLE"
                     ? "critical"
@@ -129,7 +134,7 @@ export default function ProctoringTest() {
         landmarks,
         detections,
     } = useAIProctoring({
-        videoElement: videoRef.current,
+        videoElement: videoEl,
         isActive: proctorActive && cameraActive,
         isAnswering,
         onViolation: handleViolation,
@@ -137,11 +142,11 @@ export default function ProctoringTest() {
 
     // ── Draw landmarks on canvas ────────────────────────────────────────────
     useEffect(() => {
-        if (!landmarks || !canvasRef.current || !videoRef.current) return;
+        if (!landmarks || !canvasRef.current || !videoEl) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
-        const video = videoRef.current;
+        const video = videoEl;
 
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
@@ -187,7 +192,7 @@ export default function ProctoringTest() {
                 ctx.fill();
             }
         }
-    }, [landmarks]);
+    }, [landmarks, videoEl]);
 
     // ── Draw object detection boxes ─────────────────────────────────────────
     useEffect(() => {
@@ -220,7 +225,7 @@ export default function ProctoringTest() {
             try {
                 const allDevices = await navigator.mediaDevices.enumerateDevices();
                 setDevices(allDevices);
-            } catch (_) {
+            } catch {
                 // not supported
             }
         };
@@ -233,10 +238,7 @@ export default function ProctoringTest() {
         };
     }, []);
 
-    // ── Screen extended check ───────────────────────────────────────────────
-    useEffect(() => {
-        setScreenExtended(!!window.screen?.isExtended);
-    }, []);
+
 
     // ── Focus tracking ──────────────────────────────────────────────────────
     useEffect(() => {
@@ -332,7 +334,7 @@ export default function ProctoringTest() {
                                 {cameraActive ? (
                                     <>
                                         <video
-                                            ref={videoRef}
+                                            ref={videoRefCallback}
                                             autoPlay
                                             muted
                                             playsInline

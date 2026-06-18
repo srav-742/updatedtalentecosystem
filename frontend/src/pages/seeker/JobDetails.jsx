@@ -29,6 +29,19 @@ const JobDetails = () => {
     const [application, setApplication] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
+    const [showShareMenu, setShowShareMenu] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showShareMenu && !event.target.closest('.share-container')) {
+                setShowShareMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showShareMenu]);
+
     useEffect(() => {
         const fetchJobAndApp = async () => {
             try {
@@ -98,19 +111,6 @@ const JobDetails = () => {
             </div>
         );
     }
-
-    const [showShareMenu, setShowShareMenu] = useState(false);
-    const [copiedLink, setCopiedLink] = useState(false);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showShareMenu && !event.target.closest('.share-container')) {
-                setShowShareMenu(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showShareMenu]);
 
     const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
 

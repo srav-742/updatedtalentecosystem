@@ -261,13 +261,13 @@ router.post("/finalize-recording", async (req, res) => {
 
             for (const file of chunkFiles) {
                 const filePath = path.join(sessionDir, file);
-                const chunkData = fs.readFileSync(filePath);
+                const chunkData = await fs.promises.readFile(filePath);
                 writeStream.write(chunkData);
             }
             writeStream.end();
             await new Promise((resolve) => writeStream.on('finish', resolve));
 
-            const mergedStats = fs.statSync(mergedFilePath);
+            const mergedStats = await fs.promises.stat(mergedFilePath);
             console.log(`[FINALIZE-BG] Merged file size: ${(mergedStats.size / (1024 * 1024)).toFixed(1)} MB`);
 
             // Determine recordingSessionId
