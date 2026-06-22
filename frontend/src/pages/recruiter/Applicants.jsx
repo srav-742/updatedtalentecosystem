@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles, XCircle } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles, XCircle, UploadCloud } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -8,6 +8,7 @@ import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
+import BulkUploadModal from '../../components/BulkUploadModal';
 
 const Applicants = () => {
     const navigate = useNavigate();
@@ -50,62 +51,65 @@ const Applicants = () => {
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
     const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
 
+    // Bulk Resume Upload Modal
+    const [uploadModalOpen, setUploadModalOpen] = useState(false);
+
+
+    const fetchApplicants = async () => {
+        setLoading(true);
+        try {
+            const userId = user.uid || user._id || user.id;
+            
+            // Fetch fresh recruiter profile to check isPro status
+            try {
+                const profileRes = await axios.get(`${API_URL}/profile/${userId}`);
+                if (profileRes.data) {
+                    const isPremium = profileRes.data.hiringPattern === "Premium Recruiter" || profileRes.data.isPro === true;
+                    setIsPro(isPremium);
+                    const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                }
+            } catch (err) {
+                console.error("Failed to fetch fresh recruiter profile:", err);
+            }
+
+            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
+            let mapped = res.data.map(app => ({
+                id: app._id,
+                userId: app.userId,
+                jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
+                name: app.applicantName || app.user?.name || 'Anonymous',
+                email: app.applicantEmail || 'No Email',
+                job: app.jobId?.title || 'Unknown Job',
+                resumeScore: app.resumeMatchPercent,
+                assessmentScore: app.assessmentScore,
+                interviewScore: app.interviewScore,
+                ownershipScore: app.metrics?.ownershipMindset || 0, // ─── OWNERSHIP V VETTING SCORE
+                githubUrl: app.user?.githubUrl, // ─── SOCIAL INTEGRATIONS
+                linkedinUrl: app.user?.linkedinUrl,
+                resumeUrl: app.user?.resumeUrl,
+                finalScore: app.finalScore,
+                proctoringScore: app.proctoringScore || 0,
+                status: app.status,
+                teamFit: app.teamFit,
+                videoIntroUrl: app.videoIntroUrl,
+                resultsVisibleAt: app.resultsVisibleAt,
+                interviewAnswerCount: app.interviewAnswers?.length || 0,
+                recordingStatus: app.recordingStatus || 'pending'
+            }));
+
+            if (targetJobId) {
+                mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
+            }
+            setApplicants(mapped);
+        } catch (error) {
+            console.error("Failed to fetch applicants:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchApplicants = async () => {
-            setLoading(true);
-            try {
-                const userId = user.uid || user._id || user.id;
-                
-                // Fetch fresh recruiter profile to check isPro status
-                try {
-                    const profileRes = await axios.get(`${API_URL}/profile/${userId}`);
-                    if (profileRes.data) {
-                        const isPremium = profileRes.data.hiringPattern === "Premium Recruiter" || profileRes.data.isPro === true;
-                        setIsPro(isPremium);
-                        const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
-                        localStorage.setItem('user', JSON.stringify(updatedUser));
-                    }
-                } catch (err) {
-                    console.error("Failed to fetch fresh recruiter profile:", err);
-                }
-
-                const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
-                let mapped = res.data.map(app => ({
-                    id: app._id,
-                    userId: app.userId,
-                    jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
-                    name: app.applicantName || app.user?.name || 'Anonymous',
-                    email: app.applicantEmail || 'No Email',
-                    job: app.jobId?.title || 'Unknown Job',
-                    resumeScore: app.resumeMatchPercent,
-                    assessmentScore: app.assessmentScore,
-                    interviewScore: app.interviewScore,
-                    ownershipScore: app.metrics?.ownershipMindset || 0, // ─── OWNERSHIP V VETTING SCORE
-                    githubUrl: app.user?.githubUrl, // ─── SOCIAL INTEGRATIONS
-                    linkedinUrl: app.user?.linkedinUrl,
-                    resumeUrl: app.user?.resumeUrl,
-                    finalScore: app.finalScore,
-                    proctoringScore: app.proctoringScore || 0,
-                    status: app.status,
-                    teamFit: app.teamFit,
-                    videoIntroUrl: app.videoIntroUrl,
-                    resultsVisibleAt: app.resultsVisibleAt,
-                    interviewAnswerCount: app.interviewAnswers?.length || 0,
-                    recordingStatus: app.recordingStatus || 'pending'
-                }));
-
-                if (targetJobId) {
-                    mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
-                }
-                setApplicants(mapped);
-            } catch (error) {
-                console.error("Failed to fetch applicants:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchApplicants();
     }, [targetJobId]);
 
@@ -257,6 +261,15 @@ const Applicants = () => {
                             className="pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all w-64 text-sm font-medium"
                         />
                     </div>
+                    {targetJobId && (
+                        <button
+                            onClick={() => setUploadModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                        >
+                            <UploadCloud size={16} />
+                            Bulk Upload
+                        </button>
+                    )}
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm border transition-all ${
@@ -705,6 +718,14 @@ const Applicants = () => {
                     }}
                 />
             )}
+
+            {/* Bulk Resume Upload Modal */}
+            <BulkUploadModal
+                isOpen={uploadModalOpen}
+                onClose={() => setUploadModalOpen(false)}
+                jobId={targetJobId}
+                onUploadComplete={fetchApplicants}
+            />
         </div>
 
     );

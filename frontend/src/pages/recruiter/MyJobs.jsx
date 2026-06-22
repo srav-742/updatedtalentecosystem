@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2, Mail, Linkedin, Twitter, Copy } from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2, Mail, Linkedin, Twitter, Copy, UploadCloud } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
+import BulkUploadModal from '../../components/BulkUploadModal';
 
 const MyJobs = () => {
     const navigate = useNavigate();
@@ -13,6 +14,8 @@ const MyJobs = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [activeShareJobId, setActiveShareJobId] = useState(null);
+    const [uploadModalOpen, setUploadModalOpen] = useState(false);
+    const [selectedJobId, setSelectedJobId] = useState(null);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -321,6 +324,18 @@ const MyJobs = () => {
                                                 )}
                                             </AnimatePresence>
                                         </div>
+                                        {job.status === 'approved' && (
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedJobId(job._id);
+                                                    setUploadModalOpen(true);
+                                                }}
+                                                className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-blue-500/10 transition-all group/btn"
+                                                title="Bulk upload candidate resumes"
+                                            >
+                                                <UploadCloud size={20} className="text-gray-400 group-hover/btn:text-blue-400" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => navigate(`/recruiter/post-job?edit=${job._id}`)}
                                             className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group/btn"
@@ -362,6 +377,16 @@ const MyJobs = () => {
                     </div>
                 )}
             </div>
+
+            <BulkUploadModal
+                isOpen={uploadModalOpen}
+                onClose={() => {
+                    setUploadModalOpen(false);
+                    setSelectedJobId(null);
+                }}
+                jobId={selectedJobId}
+                onUploadComplete={fetchJobs}
+            />
         </div>
     );
 };
