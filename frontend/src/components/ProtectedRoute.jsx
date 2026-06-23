@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
-const ProtectedRoute = ({ children, role }) => {
+const ProtectedRoute = ({ children, role, allowedRoles }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState(null);
     const location = useLocation();
@@ -34,7 +34,7 @@ const ProtectedRoute = ({ children, role }) => {
         );
     }
 
-    console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, userRole: user?.role });
+    console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
 
     if (!user || !user.uid) {
         console.log("[ProtectedRoute] No valid user, redirecting to login");
@@ -45,9 +45,14 @@ const ProtectedRoute = ({ children, role }) => {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    // ─── Role-Based Access Check ─────────────────────────────────
+    // Support both legacy `role` prop (single string) and new `allowedRoles` prop (array)
+    const effectiveAllowedRoles = allowedRoles
+        ? (Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles])
+        : (role ? [role] : null);
 
-    if (role && user.role !== role) {
-        console.log(`[ProtectedRoute] Role mismatch: Expected ${role}, got ${user.role}. Redirecting...`);
+    if (effectiveAllowedRoles && !effectiveAllowedRoles.includes(user.role)) {
+        console.log(`[ProtectedRoute] Role mismatch: Expected one of [${effectiveAllowedRoles.join(', ')}], got "${user.role}". Redirecting...`);
         const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker';
         
         // Hard fallback if Navigate seems to be ignored
@@ -66,3 +71,4 @@ const ProtectedRoute = ({ children, role }) => {
 
 
 export default ProtectedRoute;
+

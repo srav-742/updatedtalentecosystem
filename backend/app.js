@@ -27,7 +27,8 @@ const corsOptions = {
             callback(null, true); // Still allow for now to resolve the blocker
         }
     },
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'X-Client-ID', 'X-Client-Secret', 'X-Refresh-Token'],
+    exposedHeaders: ['X-New-Access-Token'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     optionsSuccessStatus: 200
@@ -66,6 +67,7 @@ const insightRoutes = require('./routes/insightRoutes');
 const aiSearchRoutes = require('./routes/aiSearchRoutes');
 const voiceAgentRoutes = require('./routes/voiceAgentRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const gatewayRoutes = require('./routes/gatewayRoutes');
 
 
 
@@ -101,6 +103,7 @@ app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 app.use('/api/user-resumes', require('./routes/userResumeRoutes'));
 app.use('/api', require('./routes/recruiterUploadRoutes'));
 app.use('/api', paymentRoutes);
+app.use('/api/gateway', gatewayRoutes);
 
 
 
@@ -167,10 +170,10 @@ app.get('/api/tts-debug', async (req, res) => {
 
         try {
             const { generateEdgeSpeech } = require('./services/tts.service');
-            const buffer = await generateEdgeSpeech("Test debug audio generation.", 'podcast_host');
-            if (buffer && buffer.length > 0) {
+            const result = await generateEdgeSpeech("Test debug audio generation.", 'podcast_host');
+            if (result && result.buffer && result.buffer.length > 0) {
                 edgeTTSSuccess = true;
-                edgeTTSBytes = buffer.length;
+                edgeTTSBytes = result.buffer.length;
             } else {
                 edgeTTSError = "Edge TTS returned no audio data.";
             }

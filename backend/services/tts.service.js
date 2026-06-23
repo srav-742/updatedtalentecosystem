@@ -261,10 +261,10 @@ async function generateGeminiSpeech(text, voice) {
         console.log(`[TTS-GEMINI] Generating speech | voice: ${geminiVoice} | chars: ${text.length}`);
 
         // Use Gemini REST API directly for TTS (generateContent with audio modality)
-        // Correct model: gemini-3.1-flash-tts (NOT gemini-3.1-flash-tts-preview)
+        // Correct model: gemini-3.1-flash-tts-preview
         const response = await axios({
             method: 'post',
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts:generateContent?key=${geminiApiKey}`,
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${geminiApiKey}`,
             data: {
                 contents: [{ parts: [{ text }] }],
                 generationConfig: {
