@@ -133,6 +133,41 @@ const updateUserProfile = async (req, res) => {
         if (user) {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
+
+            // Generate unique API Client Credentials for Recruiter if they don't exist yet
+            if (user.role === 'recruiter') {
+                const Client = require('../models/Client');
+                const PlaintextClientCredential = require('../models/PlaintextClientCredential');
+                const bcrypt = require('bcryptjs');
+                
+                const expectedClientId = `client_${user.uid || user._id}`;
+                const existingClient = await Client.findOne({ clientId: expectedClientId });
+                
+                if (!existingClient) {
+                    const clientSecretRaw = `h1p_sec_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+                    const hashedSecret = await bcrypt.hash(clientSecretRaw, 10);
+
+                    const newClient = new Client({
+                        clientId: expectedClientId,
+                        clientSecret: hashedSecret,
+                        name: `Client for Recruiter ${user.name || user.email}`,
+                        description: `API Client for recruiter: ${user.email}`,
+                        status: 'active'
+                    });
+                    await newClient.save();
+
+                    const newPlaintext = new PlaintextClientCredential({
+                        clientId: expectedClientId,
+                        clientSecretRaw: clientSecretRaw,
+                        name: `Client for Recruiter ${user.name || user.email}`,
+                        description: `API Client for recruiter: ${user.email}`,
+                        status: 'active'
+                    });
+                    await newPlaintext.save();
+                    
+                    console.log(`[CLIENT-GENERATION] Generated API Client Credentials for Recruiter: ${user.email}`);
+                }
+            }
         }
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
