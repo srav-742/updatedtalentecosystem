@@ -1,4 +1,6 @@
+const runtimePort = process.env.PORT;
 require('dotenv').config({ override: true });
+if (runtimePort) process.env.PORT = runtimePort;
 const connectDB = require('./config/db');
 const app = require('./app');
 

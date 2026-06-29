@@ -75,8 +75,9 @@ const refreshAccessToken = async () => {
     }
 
     const data = await response.json();
-    setTokens(data.accessToken, null); // Only update access token
-    return data.accessToken;
+    const payload = data.data || data;
+    setTokens(payload.accessToken, null); // Only update access token
+    return payload.accessToken;
 };
 
 /**
@@ -187,6 +188,41 @@ const apiClient = {
             headers,
             body: formData
         });
+    },
+
+    /**
+     * Request new gateway session tokens and store them in localStorage
+     */
+    initializeGatewaySession: async (email, uid) => {
+        try {
+            const response = await fetch(`${API_URL}/gateway/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Client-ID': CLIENT_ID,
+                    'X-Client-Secret': CLIENT_SECRET
+                },
+                body: JSON.stringify({ email, uid })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to exchange gateway tokens');
+            }
+
+            const data = await response.json();
+            const payload = data.data || data;
+            if (payload.accessToken && payload.refreshToken) {
+                setTokens(payload.accessToken, payload.refreshToken);
+                console.log('[API-CLIENT] Gateway session initialized successfully for:', email);
+                return { accessToken: payload.accessToken, refreshToken: payload.refreshToken };
+            } else {
+                throw new Error('Incomplete token response from gateway');
+            }
+        } catch (error) {
+            console.error('[API-CLIENT] Gateway session initialization failed:', error.message);
+            throw error;
+        }
     },
 
     // Token management utilities

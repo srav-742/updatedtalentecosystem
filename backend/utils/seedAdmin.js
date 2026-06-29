@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Client = require('../models/Client');
 const bcrypt = require('bcryptjs');
 const admin = require('../config/firebase');
 
@@ -71,6 +72,40 @@ const seedAdmin = async () => {
         } catch (error) {
             console.error(`[SEED] Critical failure for ${account.email}:`, error.message);
         }
+    }
+
+    // 3. Seed default Gateway Client
+    try {
+        const defaultClient = {
+            clientId: 'hire1percent_web_client',
+            clientSecretRaw: 'h1p_secret_2026_gateway_key',
+            name: 'Hire1Percent Web Client',
+            description: 'Default web client for the Hire1Percent platform',
+            status: 'active'
+        };
+
+        const existingClient = await Client.findOne({ clientId: defaultClient.clientId });
+        if (!existingClient) {
+            const hashedSecret = await bcrypt.hash(defaultClient.clientSecretRaw, 10);
+            const client = new Client({
+                clientId: defaultClient.clientId,
+                clientSecret: hashedSecret,
+                name: defaultClient.name,
+                description: defaultClient.description,
+                status: defaultClient.status
+            });
+            await client.save();
+            console.log(`[SEED] Created default Client record in MongoDB: ${defaultClient.clientId}`);
+        } else {
+            const hashedSecret = await bcrypt.hash(defaultClient.clientSecretRaw, 10);
+            existingClient.clientSecret = hashedSecret;
+            existingClient.name = defaultClient.name;
+            existingClient.status = defaultClient.status;
+            await existingClient.save();
+            console.log(`[SEED] Synced/Updated default Client record in MongoDB: ${defaultClient.clientId}`);
+        }
+    } catch (error) {
+        console.error('[SEED] Failed to seed default client:', error.message);
     }
 };
 

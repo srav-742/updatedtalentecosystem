@@ -32,8 +32,19 @@ const uploadResume = async (req, res) => {
         });
 
         // 2. Parse PDF buffer using pdf-parse to extract text
-        const pdfData = await pdf(req.file.buffer);
-        const text = (pdfData?.text || "").trim();
+        let text = "";
+        try {
+            const pdfData = await pdf(req.file.buffer);
+            text = (pdfData?.text || "").trim();
+        } catch (pdfError) {
+            console.warn("[PDF-PARSE-WARNING]: Failed to parse PDF structure, trying fallback UTF-8 conversion:", pdfError.message);
+            const rawString = req.file.buffer.toString('utf8');
+            if (rawString && rawString.trim().length > 10) {
+                text = rawString;
+            } else {
+                throw pdfError;
+            }
+        }
 
         // 3. Mark all other resumes for this user as not default
         await UserResume.updateMany({ userId }, { isDefault: false });

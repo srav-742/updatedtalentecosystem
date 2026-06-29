@@ -1,0 +1,10 @@
+# ──────────────────────────────────────────────────────────────
+# Hire1Percent Foundation — Kubernetes Namespace
+# ──────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: h1p-foundation
+  labels:
+    project: hire1percent
+    tier: infrastructure

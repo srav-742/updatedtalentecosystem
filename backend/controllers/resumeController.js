@@ -659,8 +659,19 @@ const extractPdf = async (req, res) => {
         }
 
         // Try to parse
-        const data = await pdf(req.file.buffer);
-        const text = (data?.text || "").trim();
+        let text = "";
+        try {
+            const data = await pdf(req.file.buffer);
+            text = (data?.text || "").trim();
+        } catch (pdfErr) {
+            console.warn("[PDF-EXTRACT-WARNING]: Failed to parse PDF, trying fallback UTF-8 conversion:", pdfErr.message);
+            const rawString = req.file.buffer.toString('utf8');
+            if (rawString && rawString.trim().length > 10) {
+                text = rawString;
+            } else {
+                throw pdfErr;
+            }
+        }
 
         if (!text) {
             console.error("[PDF-EXTRACT] Extracted text is empty");

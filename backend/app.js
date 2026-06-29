@@ -65,6 +65,7 @@ const communityRoutes = require('./routes/communityRoutes');
 const teamFitRoutes = require('./routes/teamFitRoutes');
 const insightRoutes = require('./routes/insightRoutes');
 const aiSearchRoutes = require('./routes/aiSearchRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 const voiceAgentRoutes = require('./routes/voiceAgentRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const gatewayRoutes = require('./routes/gatewayRoutes');
@@ -72,10 +73,98 @@ const gatewayRoutes = require('./routes/gatewayRoutes');
 
 
 
-// ✅ Mount Routes
+// ✅ 1. Mount Gateway & Health Check Routes (Bypass global gatewayMiddleware)
+app.use('/api/gateway', gatewayRoutes);
+
+const serviceHealth = {
+    service: "interview-service",
+    status: true,
+    message: "Interview Service is healthy.",
+    timestamp: () => new Date().toISOString()
+};
+
+const buildInterviewStatus = (message = serviceHealth.message, extra = {}) => ({
+    success: true,
+    status: true,
+    service: serviceHealth.service,
+    message,
+    timestamp: serviceHealth.timestamp(),
+    ...extra
+});
+
+const sendInterviewHealth = (res, message = serviceHealth.message, extra = {}) => {
+    res.json(buildInterviewStatus(message, extra));
+};
+
+const sendInterviewRunning = (res) => {
+    res.json({
+        ...buildInterviewStatus("Interview Service is running."),
+        endpoints: {
+            health: "/health",
+            ready: "/ready",
+            live: "/live",
+            gatewayHealth: "/api/v1/interviews/health"
+        }
+    });
+};
+
+app.get('/health', (req, res) => {
+    sendInterviewHealth(res);
+});
+
+app.get('/live', (req, res) => {
+    sendInterviewHealth(res, "Interview Service is live.", {
+        alive: true,
+        uptime: process.uptime()
+    });
+});
+
+app.get('/ready', (req, res) => {
+    sendInterviewHealth(res, "Interview Service is ready.", {
+        ready: true
+    });
+});
+
+app.get('/api/v1/interviews/health', (req, res) => {
+    sendInterviewHealth(res);
+});
+
+app.get('/api/v1/interviews/live', (req, res) => {
+    sendInterviewHealth(res, "Interview Service is live.", {
+        alive: true,
+        uptime: process.uptime()
+    });
+});
+
+app.get('/api/v1/interviews/ready', (req, res) => {
+    sendInterviewHealth(res, "Interview Service is ready.", {
+        ready: true
+    });
+});
+
+app.get('/api/v1/interviews', (req, res) => {
+    sendInterviewRunning(res);
+});
+
+app.get('/api/v1/interviews/', (req, res) => {
+    sendInterviewRunning(res);
+});
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: "Active",
+        message: "hire1percent Backend is running successfully.",
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ✅ 2. Apply Global Gateway Middleware for all other /api routes
+const { gatewayMiddleware } = require('./middleware/gatewayMiddleware');
+app.use('/api', gatewayMiddleware);
+
+// ✅ 3. Mount Business Routes (Protected by gatewayMiddleware)
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
-app.use('/api', recruiterRoutes)
+app.use('/api', recruiterRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
@@ -103,19 +192,6 @@ app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 app.use('/api/user-resumes', require('./routes/userResumeRoutes'));
 app.use('/api', require('./routes/recruiterUploadRoutes'));
 app.use('/api', paymentRoutes);
-app.use('/api/gateway', gatewayRoutes);
-
-
-
-
-// ✅ API Health Check
-app.get('/api/status', (req, res) => {
-    res.json({
-        status: "Active",
-        message: "hire1percent Backend is running successfully.",
-        timestamp: new Date().toISOString()
-    });
-});
 
 // 🔍 TTS Debug Diagnostics Endpoint — Tests both ElevenLabs and Edge Neural TTS
 app.get('/api/tts-debug', async (req, res) => {
@@ -207,9 +283,9 @@ app.get('/api/tts-debug', async (req, res) => {
     }
 });
 
-// Root health check (for Render ping)
+// Root status check (for direct service clicks and Render ping)
 app.get('/', (req, res) => {
-    res.json({ status: "OK", message: "hire1percent API is live." });
+    sendInterviewRunning(res);
 });
 
 // 404 handler for unknown routes

@@ -23,6 +23,27 @@ const User = require('../models/User');
  *   Authorization: Bearer <accessToken>
  *   X-Refresh-Token: <refreshToken>  (optional, used for silent refresh)
  */
+const PUBLIC_ROUTES = [
+    { method: 'POST', pattern: /^\/api\/signup$/i },
+    { method: 'POST', pattern: /^\/api\/login$/i },
+    { method: 'POST', pattern: /^\/api\/users\/sync$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/google$/i },
+    { method: 'POST', pattern: /^\/api\/forgot-password$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/forgot-password$/i },
+    { method: 'POST', pattern: /^\/api\/verify-otp$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/verify-otp$/i },
+    { method: 'POST', pattern: /^\/api\/reset-password$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/reset-password$/i },
+    { method: 'GET', pattern: /^\/api\/status$/i },
+    { method: 'GET', pattern: /^\/api\/tts-debug$/i },
+    { method: 'GET', pattern: /^\/api\/jobs$/i },
+    { method: 'GET', pattern: /^\/api\/jobs\/[^/]+$/i },
+    { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
+    { method: 'PUT', pattern: /^\/api\/profile\/[^/]+$/i },
+    { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
+    { method: '*', pattern: /^\/api\/gateway\/.*/i }
+];
+
 const gatewayMiddleware = async (req, res, next) => {
     try {
         // ─── Step 1: Validate Client Credentials ──────────────────────────
@@ -46,6 +67,18 @@ const gatewayMiddleware = async (req, res, next) => {
 
         // Attach client info to request
         req.client = client;
+
+        // Check if route is public
+        const isPublic = PUBLIC_ROUTES.some(route => {
+            const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
+            const isPathMatch = route.pattern.test(req.path);
+            return isMethodMatch && isPathMatch;
+        });
+
+        if (isPublic) {
+            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${req.path}`);
+            return next();
+        }
 
         // ─── Step 2: Validate Access Token ────────────────────────────────
         const authHeader = req.headers.authorization;

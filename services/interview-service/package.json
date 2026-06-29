@@ -1,0 +1,14 @@
+{
+  "name": "hire1percent-interview-service",
+  "version": "1.0.0",
+  "description": "Interview service wrapper for Hire1Percent microservices platform",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

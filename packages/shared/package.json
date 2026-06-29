@@ -1,0 +1,20 @@
+{
+  "name": "@hire1percent/shared",
+  "version": "1.0.0",
+  "description": "Shared platform engineering utility library for the Hire1Percent monorepo",
+  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "uuid": "^10.0.0",
+    "winston": "^3.14.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

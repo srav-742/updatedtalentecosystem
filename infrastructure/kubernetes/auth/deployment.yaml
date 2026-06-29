@@ -1,0 +1,157 @@
+# ──────────────────────────────────────────────────────────────
+# Hire1Percent Auth Service — Kubernetes Deployment & Service
+#
+# Production Notes:
+#   - RSA keys are mounted from a Kubernetes Secret
+#   - MongoDB URI and Redis URL come from Secrets
+#   - For managed databases, point to Atlas/ElastiCache endpoints
+# ──────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: h1p-foundation
+  labels:
+    app: auth-service
+    tier: infrastructure
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        tier: infrastructure
+        version: v1
+    spec:
+      containers:
+        - name: auth-service
+          image: hire1percent/auth-service:latest
+          ports:
+            - containerPort: 5001
+              name: http
+          env:
+            - name: PORT
+              value: "5001"
+            - name: NODE_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: MONGO_URI
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: REDIS_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: JWT_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: JWT_REFRESH_SECRET
+            - name: JWT_ACCESS_EXPIRES_IN
+              value: "15m"
+            - name: JWT_REFRESH_EXPIRES_IN
+              value: "7d"
+            - name: CORS_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: auth-config
+                  key: CORS_ORIGIN
+          volumeMounts:
+            - name: rsa-keys
+              mountPath: /app/keys
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 5001
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: rsa-keys
+          secret:
+            secretName: auth-rsa-keys
+            items:
+              - key: private.pem
+                path: private.pem
+              - key: public.pem
+                path: public.pem
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: h1p-foundation
+  labels:
+    app: auth-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5001
+      targetPort: 5001
+      protocol: TCP
+      name: http
+  selector:
+    app: auth-service
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-config
+  namespace: h1p-foundation
+data:
+  CORS_ORIGIN: "https://hire1percent.com"
+
+---
+# ──────────────────────────────────────────────────────────────
+# Secret Templates (apply with kubectl create secret)
+#
+# kubectl create secret generic auth-secrets \
+#   --namespace=h1p-foundation \
+#   --from-literal=MONGO_URI='mongodb+srv://...' \
+#   --from-literal=REDIS_URL='redis://...' \
+#   --from-literal=JWT_SECRET='...' \
+#   --from-literal=JWT_REFRESH_SECRET='...'
+#
+# kubectl create secret generic auth-rsa-keys \
+#   --namespace=h1p-foundation \
+#   --from-file=private.pem=./keys/private.pem \
+#   --from-file=public.pem=./keys/public.pem
+# ──────────────────────────────────────────────────────────────

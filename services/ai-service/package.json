@@ -1,0 +1,25 @@
+{
+  "name": "hire1percent-ai-service",
+  "version": "1.0.0",
+  "description": "AI Service for Hire1Percent resume parsing, matching, scoring, extraction, recommendations, semantic search, and interview analysis",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node tests/run-all.js"
+  },
+  "dependencies": {
+    "@hire1percent/shared": "file:../../packages/shared",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

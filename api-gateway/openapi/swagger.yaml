@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: Hire1Percent API Gateway
+  description: |
+    Production-ready API Gateway for the Hire1Percent recruitment platform.
+    This gateway serves as the single entry point for all client applications
+    (Recruiter Portal, Candidate Portal, Admin Dashboard, Mobile Apps).
+  version: 1.0.0
+  contact:
+    name: Hire1Percent Engineering
+    email: engineering@hire1percent.com
+
+servers:
+  - url: http://localhost:5000
+    description: Local Development
+  - url: https://api.hire1percent.com
+    description: Production
+
+tags:
+  - name: Health
+    description: Health check and readiness endpoints
+  - name: Auth
+    description: Authentication service proxy
+  - name: Jobs
+    description: Job service proxy
+  - name: Candidates
+    description: Candidate service proxy
+  - name: Recruiters
+    description: Recruiter service proxy
+  - name: Admin
+    description: Admin service proxy
+  - name: Assessments
+    description: Assessment service proxy
+  - name: Interviews
+    description: Interview service proxy
+  - name: Resumes
+    description: Resume service proxy
+  - name: Notifications
+    description: Notification service proxy
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Full health check with downstream dependency states
+      responses:
+        '200':
+          description: Gateway and downstream services status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Kubernetes readiness probe
+      responses:
+        '200':
+          description: Gateway is ready to accept traffic
+        '503':
+          description: Gateway is not ready
+
+  /live:
+    get:
+      tags: [Health]
+      summary: Kubernetes liveness probe
+      responses:
+        '200':
+          description: Gateway process is alive
+
+  /api/v1/auth/{path}:
+    get:
+      tags: [Auth]
+      summary: Proxy to Authentication Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Proxied response from Auth Service
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/jobs/{path}:
+    get:
+      tags: [Jobs]
+      summary: Proxy to Job Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Job Service
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/candidates/{path}:
+    get:
+      tags: [Candidates]
+      summary: Proxy to Candidate Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Candidate Service
+
+  /api/v1/recruiters/{path}:
+    get:
+      tags: [Recruiters]
+      summary: Proxy to Recruiter Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Recruiter Service
+
+  /api/v1/admin/{path}:
+    get:
+      tags: [Admin]
+      summary: Proxy to Admin Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Admin Service
+
+  /api/v1/assessments/{path}:
+    get:
+      tags: [Assessments]
+      summary: Proxy to Assessment Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Assessment Service
+
+  /api/v1/interviews/{path}:
+    get:
+      tags: [Interviews]
+      summary: Proxy to Interview Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Interview Service
+
+  /api/v1/resumes/{path}:
+    get:
+      tags: [Resumes]
+      summary: Proxy to Resume Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Resume Service
+
+  /api/v1/notifications/{path}:
+    get:
+      tags: [Notifications]
+      summary: Proxy to Notification Service
+      parameters:
+        - $ref: '#/components/parameters/ProxyPath'
+        - $ref: '#/components/parameters/CorrelationId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Proxied response from Notification Service
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProxyPath:
+      name: path
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Downstream service path
+
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Correlation ID for distributed tracing
+
+  responses:
+    Unauthorized:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Authorization denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServiceUnavailable:
+      description: Downstream service unavailable (circuit breaker open)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        status:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            gateway:
+              type: string
+            version:
+              type: string
+            uptime:
+              type: number
+            memoryUsage:
+              type: object
+            nodeVersion:
+              type: string
+            timestamp:
+              type: string
+            services:
+              type: object
+        correlationId:
+          type: string
+        timestamp:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        status:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: Unauthorized
+        errorCode:
+          type: string
+          example: AUTH_001
+        correlationId:
+          type: string
+          example: CID-550e8400-e29b-41d4-a716-446655440000
+        timestamp:
+          type: string
+          format: date-time

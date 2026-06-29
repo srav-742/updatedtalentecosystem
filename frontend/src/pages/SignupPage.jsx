@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
 import Navbar from '../components/Navbar';
+import apiClient from '../utils/apiClient';
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -55,6 +56,9 @@ const SignupPage = () => {
                 role: role,
                 createdAt: new Date().toISOString()
             };
+
+            // Initialize Gateway session tokens
+            await apiClient.initializeGatewaySession(profileData.email, profileData.uid);
 
             // 3. Store and Navigate IMMEDIATELY
             localStorage.setItem('user', JSON.stringify(profileData));
@@ -125,6 +129,9 @@ const SignupPage = () => {
                 createdAt: new Date().toISOString(),
                 isOptimistic: true
             };
+
+            // Initialize Gateway session tokens
+            await apiClient.initializeGatewaySession(newProfile.email, newProfile.uid);
 
             // 3. Store & Navigate IMMEDIATELY
             localStorage.setItem('user', JSON.stringify(newProfile));

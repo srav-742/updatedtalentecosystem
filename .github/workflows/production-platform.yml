@@ -1,0 +1,44 @@
+name: Production Platform Validation
+
+on:
+  pull_request:
+    paths:
+      - "services/**"
+      - "packages/**"
+      - "infrastructure/**"
+      - "docs/operations/**"
+      - ".github/workflows/production-platform.yml"
+  workflow_dispatch:
+
+jobs:
+  test-services:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - services/notification-service
+          - services/search-service
+          - services/admin-service
+          - services/analytics-service
+          - services/ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+      - name: Install dependencies
+        run: npm install
+        working-directory: ${{ matrix.service }}
+      - name: Run tests
+        run: npm test
+        working-directory: ${{ matrix.service }}
+
+  validate-helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Render Helm chart
+        run: helm template hire1percent infrastructure/helm/hire1percent-platform

@@ -1,0 +1,100 @@
+global:
+  imageRegistry: ghcr.io/hire1percent
+  imagePullPolicy: IfNotPresent
+  namespace: hire1percent
+  serviceAccountName: hire1percent-platform
+  environment: production
+  serviceMesh:
+    enabled: true
+    mtlsMode: STRICT
+  tracing:
+    enabled: true
+    otlpEndpoint: http://otel-collector:4318
+  secrets:
+    provider: vault
+    vaultAddress: https://vault.hire1percent.internal
+    awsRegion: us-east-1
+
+services:
+  api-gateway:
+    image: api-gateway
+    port: 5000
+    replicas: 3
+    minReplicas: 3
+    maxReplicas: 20
+  auth-service:
+    image: auth-service
+    port: 5001
+    replicas: 3
+    minReplicas: 3
+    maxReplicas: 15
+  notification-service:
+    image: notification-service
+    port: 5012
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 10
+  search-service:
+    image: search-service
+    port: 5013
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 10
+  admin-service:
+    image: admin-service
+    port: 5014
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 8
+  analytics-service:
+    image: analytics-service
+    port: 5015
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 12
+  ai-service:
+    image: ai-service
+    port: 5016
+    replicas: 2
+    minReplicas: 2
+    maxReplicas: 12
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.hire1percent.com
+  tlsSecretName: hire1percent-api-tls
+
+autoscaling:
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+
+observability:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+  jaeger:
+    enabled: true
+  opensearchLogs:
+    enabled: true
+
+messageBroker:
+  provider: kafka
+  kafka:
+    brokers: kafka-0.kafka:9092,kafka-1.kafka:9092,kafka-2.kafka:9092
+  rabbitmq:
+    urlSecretName: rabbitmq-connection
+
+deployment:
+  strategy: canary
+  blueGreen:
+    previewServiceSuffix: preview
+    activeServiceSuffix: active
+  canary:
+    steps:
+      - setWeight: 10
+      - pauseSeconds: 120
+      - setWeight: 50
+      - pauseSeconds: 300
+      - setWeight: 100

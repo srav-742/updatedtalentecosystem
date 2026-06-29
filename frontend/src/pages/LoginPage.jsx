@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase } from '../firebase';
 import Navbar from '../components/Navbar';
+import apiClient from '../utils/apiClient';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -261,6 +262,9 @@ const LoginPage = () => {
                 }
             }
 
+            // Initialize Gateway session tokens
+            await apiClient.initializeGatewaySession(profile.email, profile.uid || profile.id || profile._id);
+
             setMessage({ type: 'success', text: "Login successful!" });
 
             // Store using the SELECTED role (not the DB role) so the session matches what the user chose.
@@ -333,6 +337,9 @@ const LoginPage = () => {
                 ...baseProfile,
                 role: targetRole  // single occurrence, placed last to override DB role
             };
+
+            // Initialize Gateway session tokens
+            await apiClient.initializeGatewaySession(basicProfile.email, basicProfile.uid || basicProfile.id || basicProfile._id);
 
             // Step 3: Store and navigate immediately
             localStorage.setItem('user', JSON.stringify(basicProfile));

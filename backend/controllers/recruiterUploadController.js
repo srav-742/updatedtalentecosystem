@@ -56,8 +56,14 @@ const bulkUploadCandidate = async (req, res) => {
             const data = await pdf(req.file.buffer);
             resumeText = (data?.text || "").trim();
         } catch (pdfErr) {
-            console.error("[BULK-UPLOAD] PDF Extraction Failed:", pdfErr);
-            return res.status(400).json({ message: "Failed to extract text from PDF resume." });
+            console.warn("[BULK-UPLOAD] PDF Extraction Failed, trying fallback UTF-8 conversion:", pdfErr.message);
+            const rawString = req.file.buffer.toString('utf8');
+            if (rawString && rawString.trim().length > 10) {
+                resumeText = rawString;
+            } else {
+                console.error("[BULK-UPLOAD] PDF Extraction Failed completely:", pdfErr);
+                return res.status(400).json({ message: "Failed to extract text from PDF resume." });
+            }
         }
 
         if (!resumeText) {
