@@ -75,6 +75,10 @@ jobs:
         working-directory: api-gateway
         run: npm ci
 
+      - name: Install shared package dependencies
+        working-directory: packages/shared
+        run: npm ci
+
       - name: Run gateway tests
         working-directory: api-gateway
         run: node scratch/test-gateway.js
@@ -119,6 +123,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: auth-service
+        run: npm ci
+
+      - name: Install shared package dependencies
+        working-directory: packages/shared
         run: npm ci
 
       - name: Generate test RSA keys
