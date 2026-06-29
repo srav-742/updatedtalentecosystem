@@ -97,12 +97,22 @@ const startMockJobService = () => {
     }));
   });
 
+  mockJobServer.on('clientError', (err, socket) => {
+    console.error('MOCK JOB SERVER CLIENT ERROR:', err.message, err.code);
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+  });
+
   mockJobServer.listen(TEST_JOB_PORT);
 };
 
 // ─── Helper to execute HTTP Requests ──────────────────
 const request = (method, path, headers = {}, body = null) => {
   return new Promise((resolve, reject) => {
+    let bodyStr = null;
+    if (body) {
+      bodyStr = typeof body === 'object' ? JSON.stringify(body) : body;
+      headers['Content-Length'] = Buffer.byteLength(bodyStr);
+    }
     const req = http.request(
       `http://localhost:${TEST_GATEWAY_PORT}${path}`,
       { method, headers },
@@ -129,8 +139,8 @@ const request = (method, path, headers = {}, body = null) => {
 
     req.on('error', err => reject(err));
 
-    if (body) {
-      req.write(typeof body === 'object' ? JSON.stringify(body) : body);
+    if (bodyStr) {
+      req.write(bodyStr);
     }
     req.end();
   });
@@ -182,6 +192,7 @@ const runTests = async () => {
 
     const successRes = await request('POST', '/api/v1/jobs/create', spoofHeaders, { title: 'Staff Engineer' });
     console.assert(successRes.statusCode === 201, 'Should proxy successfully and return 201');
+
 
     // Assert downstream headers inside mock Job Service
     const headers = state.lastJobHeaders;
