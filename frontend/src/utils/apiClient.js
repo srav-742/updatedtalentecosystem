@@ -14,8 +14,8 @@
 
 import { API_URL } from '../firebase';
 
-const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || '';
-const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || '';
+const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
+const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';
 
 /**
  * Get stored tokens from localStorage

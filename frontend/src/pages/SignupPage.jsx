@@ -57,21 +57,19 @@ const SignupPage = () => {
                 createdAt: new Date().toISOString()
             };
 
-            // Initialize Gateway session tokens
+            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
+            await saveUserProfile(user.uid, profileData);
+
+            // 3. Initialize Gateway session tokens
             await apiClient.initializeGatewaySession(profileData.email, profileData.uid);
 
-            // 3. Store and Navigate IMMEDIATELY
+            // 4. Store and Navigate IMMEDIATELY
             localStorage.setItem('user', JSON.stringify(profileData));
             setMessage({ type: 'success', text: "Account created successfully!" });
 
             if (role === 'admin') navigate('/admin');
             else if (role === 'recruiter') navigate('/recruiter');
             else navigate('/seeker');
-
-            // 4. Background Sync
-            saveUserProfile(user.uid, profileData).catch(err =>
-                console.warn("[Background] Profile sync failed, will retry on next login:", err)
-            );
 
         } catch (error) {
             console.error("Firebase Signup Error:", error);
@@ -130,23 +128,19 @@ const SignupPage = () => {
                 isOptimistic: true
             };
 
-            // Initialize Gateway session tokens
+            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
+            await saveUserProfile(googleUser.uid, newProfile);
+
+            // 3. Initialize Gateway session tokens
             await apiClient.initializeGatewaySession(newProfile.email, newProfile.uid);
 
-            // 3. Store & Navigate IMMEDIATELY
+            // 4. Store & Navigate IMMEDIATELY
             localStorage.setItem('user', JSON.stringify(newProfile));
             setMessage({ type: 'success', text: "Account created! Logging in..." });
 
             if (role === 'admin') navigate('/admin');
             else if (role === 'recruiter') navigate('/recruiter');
             else navigate('/seeker');
-
-            // 4. Background: Sync to Firebase DB
-            getUserProfile(googleUser.uid).then(async (existing) => {
-                if (!existing) {
-                    await saveUserProfile(googleUser.uid, newProfile);
-                }
-            }).catch(err => console.warn("Background signup sync delayed:", err));
 
         } catch (error) {
             console.error(error);

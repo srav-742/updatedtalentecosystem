@@ -82,12 +82,18 @@ export const linkFirebasePassword = async (email, password) => {
 
 // Database Helpers - Redirected to MongoDB Backend
 export const API_URL = import.meta.env.VITE_API_URL || 'https://api.hire1percent.com/api';
+export const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
+export const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';
 
 export const saveUserProfile = async (userId, data) => {
     try {
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Client-ID': CLIENT_ID,
+                'X-Client-Secret': CLIENT_SECRET
+            },
             body: JSON.stringify({ ...data, uid: userId })
         });
 
@@ -101,7 +107,12 @@ export const saveUserProfile = async (userId, data) => {
 
 export const getUserProfile = async (userId) => {
     try {
-        const response = await fetch(`${API_URL}/profile/${userId}`);
+        const response = await fetch(`${API_URL}/profile/${userId}`, {
+            headers: {
+                'X-Client-ID': CLIENT_ID,
+                'X-Client-Secret': CLIENT_SECRET
+            }
+        });
         if (!response.ok) {
             // If 404, return null so logic can handle 'not found'
             if (response.status === 404) return null;
@@ -120,7 +131,11 @@ export const updateUserProfile = async (userId, data) => {
     try {
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Client-ID': CLIENT_ID,
+                'X-Client-Secret': CLIENT_SECRET
+            },
             body: JSON.stringify(data)
         });
         if (!response.ok) throw new Error("Update failed");
@@ -130,15 +145,20 @@ export const updateUserProfile = async (userId, data) => {
         throw error;
     }
 };
+
 export const getAuthHeaders = async () => {
+    const headers = {
+        'X-Client-ID': CLIENT_ID,
+        'X-Client-Secret': CLIENT_SECRET
+    };
+
     // 1. Try Firebase Auth (Priority)
     const user = auth.currentUser;
     if (user) {
         const token = await user.getIdToken();
-        return {
-            'Authorization': `Bearer ${token}`,
-            'x-user-id': user.uid
-        };
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['x-user-id'] = user.uid;
+        return headers;
     }
 
     // 2. Fallback to Local Storage (for local-only accounts like Admin)
@@ -148,15 +168,14 @@ export const getAuthHeaders = async () => {
             const storedUser = JSON.parse(storedUserStr);
             if (storedUser && storedUser.uid) {
                 console.log("[AUTH-HEADERS] Using local storage user identification:", storedUser.uid);
-                return {
-                    'x-user-id': storedUser.uid
-                };
+                headers['x-user-id'] = storedUser.uid;
+                return headers;
             }
         } catch (e) {
             console.error("[AUTH-HEADERS] Failed to parse stored user:", e);
         }
     }
 
-    return {};
+    return headers;
 };
 

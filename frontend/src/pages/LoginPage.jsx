@@ -213,14 +213,10 @@ const LoginPage = () => {
                                     user = newFbUser.user;
                                     
                                     // Sync new UID to MongoDB to link the old profile
-                                    await fetch(`${API_URL}/users/sync`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            uid: user.uid,
-                                            email: formData.email,
-                                            role: role
-                                        })
+                                    await apiClient.post('/users/sync', {
+                                        uid: user.uid,
+                                        email: formData.email,
+                                        role: role
                                     });
                                 } catch (signupErr) {
                                     // If email is already in use by Google Auth in Firebase, we can't create it here.
@@ -363,16 +359,12 @@ const LoginPage = () => {
                         ...basicProfile,
                         createdAt: new Date().toISOString()
                     });
-                    await fetch(`${API_URL}/users/sync`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            uid: googleUser.uid,
-                            email: googleUser.email,
-                            name: googleUser.displayName,
-                            profilePic: googleUser.photoURL,
-                            role: targetRole
-                        })
+                    await apiClient.post('/users/sync', {
+                        uid: googleUser.uid,
+                        email: googleUser.email,
+                        name: googleUser.displayName,
+                        profilePic: googleUser.photoURL,
+                        role: targetRole
                     });
                 } catch (e) { console.error("Backend sync error", e); }
             }
