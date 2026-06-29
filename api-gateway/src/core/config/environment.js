@@ -9,9 +9,24 @@
  */
 
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const localEnvPath = path.resolve(__dirname, '../../../.env');
+const exampleEnvPath = path.resolve(__dirname, '../../../.env.example');
 
 /** Load .env file into process.env */
-dotenv.config();
+if (fs.existsSync(localEnvPath)) {
+  dotenv.config({ path: localEnvPath });
+} else if (fs.existsSync(exampleEnvPath)) {
+  dotenv.config({ path: exampleEnvPath });
+} else {
+  dotenv.config();
+}
 
 /**
  * List of environment variables that MUST be set for the gateway to start.
