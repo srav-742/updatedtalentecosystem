@@ -68,15 +68,16 @@ const gatewayMiddleware = async (req, res, next) => {
         // Attach client info to request
         req.client = client;
 
-        // Check if route is public
+        // Check if route is public (use baseUrl + path to match patterns starting with /api)
+        const fullPath = req.baseUrl + req.path;
         const isPublic = PUBLIC_ROUTES.some(route => {
             const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
-            const isPathMatch = route.pattern.test(req.path);
+            const isPathMatch = route.pattern.test(fullPath);
             return isMethodMatch && isPathMatch;
         });
 
         if (isPublic) {
-            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${req.path}`);
+            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${fullPath}`);
             return next();
         }
 
@@ -157,7 +158,7 @@ const gatewayMiddleware = async (req, res, next) => {
 
         req.userRoles = combinedRoles;
 
-        const hasAccess = await checkResourceAccess(combinedRoles, req.path, req.method);
+        const hasAccess = await checkResourceAccess(combinedRoles, fullPath, req.method);
         if (!hasAccess) {
             return res.status(403).json({
                 success: false,
@@ -167,7 +168,7 @@ const gatewayMiddleware = async (req, res, next) => {
         }
 
         // ─── Access Granted ──────────────────────────────────────────────
-        console.log(`[GATEWAY] ✅ Access granted: ${req.method} ${req.path} | User: ${user.email} | Roles: [${combinedRoles.join(', ')}]`);
+        console.log(`[GATEWAY] ✅ Access granted: ${req.method} ${fullPath} | User: ${user.email} | Roles: [${combinedRoles.join(', ')}]`);
         next();
 
     } catch (error) {
