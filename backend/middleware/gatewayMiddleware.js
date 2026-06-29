@@ -167,6 +167,20 @@ const gatewayMiddleware = async (req, res, next) => {
             });
         }
 
+        // ─── Client-Level Access Restriction Check (Option A - Intersection Check) ───
+        // If the client has specific roles assigned, verify that the client itself has permission
+        // to access this resource. This prevents restricted clients from performing disallowed actions.
+        if (clientRoles && clientRoles.length > 0) {
+            const clientHasAccess = await checkResourceAccess(clientRoles, fullPath, req.method);
+            if (!clientHasAccess) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You don't have access to this resource.",
+                    requiredAction: 'Contact your administrator to request access.'
+                });
+            }
+        }
+
         // ─── Access Granted ──────────────────────────────────────────────
         console.log(`[GATEWAY] ✅ Access granted: ${req.method} ${fullPath} | User: ${user.email} | Roles: [${combinedRoles.join(', ')}]`);
         next();
