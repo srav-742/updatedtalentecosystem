@@ -68,6 +68,7 @@ const pingService = async (serviceKey, url) => {
 
     return {
       status: isHealthy ? 'UP' : 'DEGRADED',
+      statusTrue: isHealthy,
       statusCode: response.status,
       latencyMs: latency,
     };
@@ -82,6 +83,7 @@ const pingService = async (serviceKey, url) => {
 
     return {
       status: 'DOWN',
+      statusTrue: false,
       error: error.code || error.message,
       latencyMs: latency,
     };
@@ -104,6 +106,14 @@ router.get('/health', async (req, res) => {
   });
 
   await Promise.allSettled(pings);
+
+  // Include the API Gateway itself in the health check list
+  results['API_GATEWAY'] = {
+    status: 'UP',
+    statusTrue: true,
+    statusCode: STATUS_CODES.OK,
+    latencyMs: 0,
+  };
 
   // Determine overall gateway health
   const allUp = Object.values(results).every((r) => r.status === 'UP');

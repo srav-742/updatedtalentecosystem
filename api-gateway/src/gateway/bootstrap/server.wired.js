@@ -91,6 +91,7 @@ const pingDownstreamServices = async () => {
     }
   }
 
+  logger.info(`  ✔  API_GATEWAY               → http://localhost:${environment.port}/health  [UP]`);
   logger.info('─────────────────────────────────────────────');
 };
 

@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 
 const services = [
+  { name: 'auth-service', path: 'auth-service' },
   { name: 'job-service', path: 'services/job-service' },
   { name: 'candidate-service', path: 'services/candidate-service' },
   { name: 'recruiter-service', path: 'services/recruiter-service' },
@@ -19,7 +20,7 @@ console.log('\x1b[36m%s\x1b[0m', 'Starting Hire1Percent Microservices...');
 // Determine shell for running npm on Windows vs Unix
 const shell = process.platform === 'win32' ? true : '/bin/sh';
 
-services.forEach((service) => {
+const startService = (service) => {
   console.log('\x1b[32m%s\x1b[0m', `[Launcher] Starting ${service.name}...`);
   
   const child = spawn('npm', ['run', 'dev'], {
@@ -52,7 +53,19 @@ services.forEach((service) => {
   });
 
   children.push(child);
+  return child;
+};
+
+// Start all downstream services
+services.forEach((service) => {
+  startService(service);
 });
+
+// Wait 8 seconds for downstream services to initialize before starting api-gateway
+console.log('\x1b[33m%s\x1b[0m', '[Launcher] Waiting 8 seconds for services to initialize before starting api-gateway...');
+setTimeout(() => {
+  startService({ name: 'api-gateway', path: 'api-gateway' });
+}, 8000);
 
 // Graceful shutdown handler
 function shutdown() {

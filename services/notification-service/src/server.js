@@ -5,6 +5,7 @@ import { logger } from '@hire1percent/shared';
 import { initializeWebSocket } from './websocket/wsServer.js';
 import { startQueueWorker, stopQueueWorker } from './workers/queueWorker.js';
 import { subscribeToEvents } from './events/listeners.js';
+import { seedNotificationTemplates } from './utils/seedTemplates.js';
 
 const log = logger.createLogger('notification-service');
 const port = environment.port;
@@ -14,6 +15,9 @@ const startServer = async () => {
     log.info('Connecting to MongoDB...');
     await mongoose.connect(environment.MONGO_URI);
     log.info('✔ MongoDB connection established successfully.');
+    
+    // Seed default templates
+    await seedNotificationTemplates();
 
     const server = app.listen(port, () => {
       log.info('=====================================================');
