@@ -7,6 +7,7 @@
 
 import mongoose from 'mongoose';
 import { redisClient } from './redis.js';
+import environment from './environment.js';
 import logger from '../logger/logger.js';
 
 /**
@@ -38,7 +39,9 @@ export const checkInfrastructureHealth = async () => {
   let redisStatus = 'DOWN';
   let redisLatencyMs = null;
 
-  if (redisClient.isReady) {
+  if (!environment.database.redisEnabled) {
+    redisStatus = 'DISABLED';
+  } else if (redisClient.isReady) {
     const start = Date.now();
     try {
       // Execute an active ping command to verify Redis socket response
@@ -53,7 +56,7 @@ export const checkInfrastructureHealth = async () => {
     }
   }
 
-  const healthy = databaseStatus === 'UP' && redisStatus === 'UP';
+  const healthy = databaseStatus === 'UP' && (redisStatus === 'UP' || redisStatus === 'DISABLED');
 
   return {
     database: databaseStatus,

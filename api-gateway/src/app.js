@@ -55,6 +55,9 @@ app.use(requestIdMiddleware);
 // ─── 5. Correlation ID & Request Context Middleware ────────────────
 app.use(correlationMiddleware);
 
+// ─── Favicon Handler ───────────────────────────────────────────────
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // ─── 6. Request Logger ─────────────────────────────────────────────
 app.use(requestLogger);
 

@@ -35,6 +35,10 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '2MB' }));
 app.use(express.urlencoded({ extended: true, limit: '2MB' }));
 
+// ─── Favicon Handler ───────────────────────────────────────────────
+// Prevents browser favicon requests from cluttering logs
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // ─── Request Logger ────────────────────────────────────────────────
 app.use(requestLogger);
 
