@@ -59,7 +59,8 @@ const getUserProfile = async (req, res) => {
                 userId: user._id,
                 status: 'paid'
             });
-            const shouldBePro = paidTransactions > 0;
+            // Keep them Pro if they paid OR if they were manually updated to isPro = true
+            const shouldBePro = paidTransactions > 0 || user.isPro === true;
             if (user.isPro !== shouldBePro || (shouldBePro && user.hiringPattern !== "Premium Recruiter") || (!shouldBePro && user.hiringPattern === "Premium Recruiter")) {
                 user.isPro = shouldBePro;
                 user.hiringPattern = shouldBePro ? "Premium Recruiter" : "";
@@ -130,6 +131,7 @@ const updateUserProfile = async (req, res) => {
             }
         }
         const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
+        let clientCredentials = null;
         if (user) {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
@@ -165,6 +167,11 @@ const updateUserProfile = async (req, res) => {
                     });
                     await newPlaintext.save();
                     
+                    clientCredentials = {
+                        clientId: expectedClientId,
+                        clientSecret: clientSecretRaw
+                    };
+                    
                     console.log(`[CLIENT-GENERATION] Generated API Client Credentials for Recruiter: ${user.email}`);
                 }
             }
@@ -172,7 +179,12 @@ const updateUserProfile = async (req, res) => {
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
-        res.json(user);
+        
+        const userObj = user.toObject();
+        if (clientCredentials) {
+            userObj.client = clientCredentials;
+        }
+        res.json(userObj);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });

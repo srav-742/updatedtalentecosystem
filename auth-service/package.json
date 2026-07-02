@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test:enterprise": "node src/tests/enterpriseUpgradeTest.js",
+    "test:features": "node src/tests/productionReadyFeaturesTest.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

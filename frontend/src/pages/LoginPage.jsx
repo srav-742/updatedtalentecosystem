@@ -185,6 +185,11 @@ const LoginPage = () => {
                     email: formData.email,
                     password: formData.password,
                     role: 'admin'
+                }, {
+                    headers: {
+                        'X-Client-ID': CLIENT_ID,
+                        'X-Client-Secret': CLIENT_SECRET
+                    }
                 });
 
                 profile = response.data.user;
@@ -203,6 +208,11 @@ const LoginPage = () => {
                                 email: formData.email,
                                 password: formData.password,
                                 role: role
+                            }, {
+                                headers: {
+                                    'X-Client-ID': CLIENT_ID,
+                                    'X-Client-Secret': CLIENT_SECRET
+                                }
                             });
                             
                             if (backendRes.data && backendRes.data.user) {

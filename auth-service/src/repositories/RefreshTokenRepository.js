@@ -48,6 +48,20 @@ class RefreshTokenRepository {
   }
 
   /**
+   * Revokes a refresh token by its hashed token.
+   *
+   * @param {string} tokenHash
+   * @returns {Promise<RefreshToken|null>}
+   */
+  async revokeByHash(tokenHash) {
+    return RefreshToken.findOneAndUpdate(
+      { token: tokenHash },
+      { $set: { isRevoked: true } },
+      { new: true }
+    );
+  }
+
+  /**
    * Revokes all refresh tokens for a user.
    *
    * @param {string} userId

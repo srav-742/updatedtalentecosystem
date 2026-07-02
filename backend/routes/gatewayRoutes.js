@@ -176,4 +176,48 @@ router.get('/validate', async (req, res) => {
     }
 });
 
+/**
+ * Diagnostic route to verify database records for vinay@gmail.com
+ */
+router.get('/check-vinay', async (req, res) => {
+    try {
+        const User = require('../models/User');
+        const Client = require('../models/Client');
+        const PlaintextClientCredential = require('../models/PlaintextClientCredential');
+        
+        const user = await User.findOne({ email: 'vinay@gmail.com' });
+        if (!user) {
+            return res.json({ success: false, message: 'User vinay@gmail.com not found in MongoDB' });
+        }
+        
+        const client = await Client.findOne({ clientId: `client_${user.uid || user._id}` });
+        const plaintext = await PlaintextClientCredential.findOne({ clientId: `client_${user.uid || user._id}` });
+        
+        return res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                uid: user.uid,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+                createdAt: user.createdAt,
+            },
+            client: client ? {
+                _id: client._id,
+                clientId: client.clientId,
+                hasHashedSecret: client.clientSecret ? client.clientSecret.startsWith('$2a$') || client.clientSecret.startsWith('$2b$') : false,
+                clientSecretPrefix: client.clientSecret ? client.clientSecret.substring(0, 10) + '...' : null,
+            } : null,
+            plaintext: plaintext ? {
+                clientId: plaintext.clientId,
+                clientSecretRaw: plaintext.clientSecretRaw,
+            } : null,
+        });
+    } catch (err) {
+        return res.json({ success: false, error: err.message });
+    }
+});
+
 module.exports = router;

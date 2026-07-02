@@ -322,7 +322,7 @@ const getAssessmentDetails = async (req, res) => {
                 status: 'paid'
             });
 
-            const shouldBePro = paidTransactions > 0;
+            const shouldBePro = paidTransactions > 0 || recruiter.isPro === true;
             if (recruiter.isPro !== shouldBePro || (shouldBePro && recruiter.hiringPattern !== "Premium Recruiter") || (!shouldBePro && recruiter.hiringPattern === "Premium Recruiter")) {
                 recruiter.isPro = shouldBePro;
                 recruiter.hiringPattern = shouldBePro ? "Premium Recruiter" : "";

@@ -55,6 +55,7 @@ export default function PaymentUpgrade() {
             // Get Backend base URL
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+            /*
             // 2. Request Order ID from the Express server
             const orderRes = await axios.post(`${apiUrl}/payments/order`, {
                 amount: 10, // ₹10 INR (Testing Phase)
@@ -129,7 +130,9 @@ export default function PaymentUpgrade() {
 
             const rzpPaymentObject = new window.Razorpay(options);
             rzpPaymentObject.open();
-
+            */
+            alert("Online payment is disabled. Please use the 'Send Activation Request' button to request manual database activation.");
+            setLoading(false);
         } catch (err) {
             console.error("[PAYMENT-CHECKOUT-ERROR]:", err);
             setErrorMsg(err.response?.data?.message || "Could not initialize checkout. Please try again later.");
@@ -145,6 +148,13 @@ export default function PaymentUpgrade() {
         "Premium dedicated account support 24/7",
         "Export CSV reports & candidate metrics"
     ];
+
+    // Build the mailto url dynamically for admin activation request
+    const mailSubject = encodeURIComponent(`Recruiter Premium License Activation Request - ${user?.name || 'Recruiter'}`);
+    const mailBody = encodeURIComponent(
+        `Hello Admin,\n\nI would like to request Premium License activation for my recruiter account on Hire1Percent.\n\nAccount Details:\n- Name: ${user?.name || 'N/A'}\n- Email: ${user?.email || 'N/A'}\n- User ID: ${user?.uid || user?._id || 'N/A'}\n\nPlease update my profile to isPro=true and hiringPattern="Premium Recruiter" in the MongoDB users collection.\n\nThank you!`
+    );
+    const mailtoUrl = `mailto:admin@hire1percent.com?subject=${mailSubject}&body=${mailBody}`;
 
     return (
         <div className="min-h-screen bg-[#0c0f16] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -175,8 +185,7 @@ export default function PaymentUpgrade() {
                             <div className="flex justify-center mb-6">
                                 <div className="p-4 bg-blue-500/15 text-blue-400 rounded-2xl shadow-inner border border-blue-500/10 relative">
                                     <Crown size={32} />
-                                    <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-teal-400 rounded-full animate-ping" />
-                                    <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-teal-400 rounded-full" />
+                                    <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 rounded-full animate-pulse" />
                                 </div>
                             </div>
 
@@ -184,27 +193,27 @@ export default function PaymentUpgrade() {
                                 Get <span className="bg-gradient-to-r from-blue-400 to-teal-300 bg-clip-text text-transparent">Premium Access</span>
                             </h1>
                             <p className="text-slate-400 text-center text-sm mt-2 leading-relaxed">
-                                Join elite recruiters accelerating their hiring pipeline with our high-performance AI Suite.
+                                Unlock locked candidate video playbacks, transcripts, resume scores, and advanced AI matching badges.
                             </p>
 
                             {/* Plan Card info */}
                             <div className="mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 shadow-inner">
                                 <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
                                     <div>
-                                        <h3 className="font-bold text-lg text-slate-200">Standard Premium Plan</h3>
-                                        <span className="text-xs text-blue-400 font-bold uppercase tracking-wider">One-time payment</span>
+                                        <h3 className="font-bold text-lg text-slate-200">Premium Upgrade</h3>
+                                        <span className="text-xs text-amber-400 font-bold uppercase tracking-wider">Manual Database Activation</span>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-3xl font-black text-white">₹10</span>
-                                        <p className="text-[10px] text-slate-400">All features included</p>
+                                        <span className="text-xl font-black text-slate-400">Admin Approved</span>
+                                        <p className="text-[9px] text-slate-400">Free to request</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3.5 mt-4">
                                     {premiumFeatures.map((feat, idx) => (
                                         <div key={idx} className="flex items-start gap-3">
-                                            <div className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                <Check className="text-emerald-400" size={12} />
+                                            <div className="w-5 h-5 rounded-full bg-[#1e293b] border border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                <Check className="text-blue-400" size={12} />
                                             </div>
                                             <span className="text-xs text-slate-300">{feat}</span>
                                         </div>
@@ -220,33 +229,24 @@ export default function PaymentUpgrade() {
                                 </div>
                             )}
 
-                            {/* Checkout Button */}
-                            <button
-                                onClick={handlePayment}
-                                disabled={loading || verifying}
-                                className="w-full mt-8 py-4 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 cursor-pointer"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="animate-spin text-white" size={18} />
-                                        Connecting Gateway...
-                                    </>
-                                ) : verifying ? (
-                                    <>
-                                        <Loader2 className="animate-spin text-white" size={18} />
-                                        Verifying Transaction...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CreditCard size={18} />
-                                        Upgrade Safely Now
-                                    </>
-                                )}
-                            </button>
+                            {/* Contact Admin Action Card */}
+                            <div className="mt-6 p-5 rounded-2xl bg-blue-500/5 border border-blue-500/10 text-center space-y-4">
+                                <p className="text-xs text-slate-300 leading-relaxed">
+                                    To activate your premium license key in the database and unlock full candidate tracking features, click below to email the system administrator.
+                                </p>
+                                
+                                <a
+                                    href={mailtoUrl}
+                                    className="inline-flex w-full py-4 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-center gap-2.5 cursor-pointer text-sm"
+                                >
+                                    <ShieldCheck size={18} />
+                                    Send Activation Request
+                                </a>
+                            </div>
 
-                            <div className="flex items-center justify-center gap-2 mt-4 text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
-                                <ShieldCheck size={14} className="text-emerald-500" />
-                                Secured with 256-Bit Razorpay Shield
+                            <div className="flex items-center justify-center gap-2 mt-4 text-[9px] text-slate-500 uppercase tracking-widest font-semibold">
+                                <ShieldCheck size={14} className="text-blue-400" />
+                                Admin verification required for activation
                             </div>
 
                         </motion.div>

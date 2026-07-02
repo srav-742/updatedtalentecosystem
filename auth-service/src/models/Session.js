@@ -21,7 +21,20 @@ const sessionSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
-    userAgent: {
+    refreshTokenHash: {
+      type: String,
+      default: '',
+      index: true,
+    },
+    device: {
+      type: String,
+      default: '',
+    },
+    browser: {
+      type: String,
+      default: '',
+    },
+    ip: {
       type: String,
       default: '',
     },
@@ -34,10 +47,23 @@ const sessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    revoked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
       index: true,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 1,
+    },
+    lastActivity: {
+      type: Date,
+      default: Date.now,
     },
   },
   {

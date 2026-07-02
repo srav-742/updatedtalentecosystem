@@ -69,6 +69,19 @@ class UserRepository {
   }
 
   /**
+   * Finds a user by their email verification token.
+   *
+   * @param {string} token - The email verification token.
+   * @returns {Promise<User|null>}
+   */
+  async findByVerificationToken(token) {
+    return User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+  }
+
+  /**
    * Creates a new user record in the database.
    *
    * @param {Object} userData - User record fields.

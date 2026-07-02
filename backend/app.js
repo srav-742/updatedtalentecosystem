@@ -283,6 +283,176 @@ app.get('/api/tts-debug', async (req, res) => {
     }
 });
 
+// Diagnostic route to approve all pending jobs instantly for local testing
+app.get('/approve-all-jobs', async (req, res) => {
+    try {
+        const Job = require('./models/Job');
+        const result = await Job.updateMany({ status: 'pending' }, { $set: { status: 'approved' } });
+        return res.json({
+            success: true,
+            message: `Successfully approved ${result.modifiedCount} pending job(s).`,
+            result
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Diagnostic route to verify database records for vinay@gmail.com
+app.get('/check-vinay', async (req, res) => {
+    try {
+        const User = require('./models/User');
+        const Client = require('./models/Client');
+        const PlaintextClientCredential = require('./models/PlaintextClientCredential');
+        
+        // Use case-insensitive regex query to match 'Vinay@gmail.com'
+        const user = await User.findOne({ email: { $regex: /^vinay@gmail\.com$/i } });
+        if (!user) {
+            return res.json({ success: false, message: 'User vinay@gmail.com not found in MongoDB' });
+        }
+        
+        const client = await Client.findOne({ clientId: `client_${user.uid || user._id}` });
+        const plaintext = await PlaintextClientCredential.findOne({ clientId: `client_${user.uid || user._id}` });
+        
+        return res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                uid: user.uid,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+                createdAt: user.createdAt,
+            },
+            client: client ? {
+                _id: client._id,
+                clientId: client.clientId,
+                hasHashedSecret: client.clientSecret ? client.clientSecret.startsWith('$2a$') || client.clientSecret.startsWith('$2b$') : false,
+                clientSecretPrefix: client.clientSecret ? client.clientSecret.substring(0, 10) + '...' : null,
+            } : null,
+            plaintext: plaintext ? {
+                clientId: plaintext.clientId,
+                clientSecretRaw: plaintext.clientSecretRaw,
+            } : null,
+        });
+    } catch (err) {
+        return res.json({ success: false, error: err.message });
+    }
+});
+
+// Diagnostics state check route for real-time console verification (bypasses middleware)
+app.get('/api/v1/auth/diagnostics/state', async (req, res) => {
+    try {
+        const User = require('./models/User');
+        const Client = require('./models/Client');
+        const mongoose = require('mongoose');
+        
+        const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+        const db = isConnected ? mongoose.connection.db : null;
+        
+        let users = [];
+        let clients = [];
+        let sessions = [];
+        let refreshTokens = [];
+        let auditLogs = [];
+        
+        if (isConnected) {
+            users = await User.find().sort({ createdAt: -1 }).limit(5).lean();
+            clients = await Client.find().sort({ createdAt: -1 }).limit(5).lean();
+            
+            if (db) {
+                try {
+                    sessions = await db.collection('sessions').find().sort({ createdAt: -1 }).limit(5).toArray();
+                } catch (e) {
+                    console.warn('Diagnostics: sessions collection empty or not initialized');
+                }
+                try {
+                    refreshTokens = await db.collection('refreshtokens').find().sort({ createdAt: -1 }).limit(5).toArray();
+                } catch (e) {
+                    console.warn('Diagnostics: refreshtokens collection empty or not initialized');
+                }
+                try {
+                    auditLogs = await db.collection('auditlogs').find().sort({ timestamp: -1 }).limit(10).toArray();
+                } catch (e) {
+                    console.warn('Diagnostics: auditlogs collection empty or not initialized');
+                }
+            }
+        }
+        
+        let redisKeys = [];
+        try {
+            const Redis = require('ioredis');
+            if (process.env.REDIS_URL && process.env.REDIS_ENABLED !== 'false') {
+                const redis = new Redis(process.env.REDIS_URL);
+                const keys = await redis.keys('session:*');
+                for (const key of keys) {
+                    const val = await redis.get(key);
+                    const ttl = await redis.ttl(key);
+                    let parsedVal = {};
+                    try { parsedVal = JSON.parse(val || '{}'); } catch(e) { parsedVal = { raw: val }; }
+                    redisKeys.push({ key, value: parsedVal, ttl });
+                }
+                await redis.quit();
+            }
+        } catch (redisError) {
+            console.error('Monolith Redis diagnostics error:', redisError.message);
+        }
+        
+        return res.json({
+            success: true,
+            data: {
+                users: (users || []).map(u => ({
+                    id: u._id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role,
+                    isActive: u.isActive,
+                    uid: u.uid,
+                    tokenVersion: u.tokenVersion || 1,
+                    hasHashedPassword: u.password ? u.password.startsWith('$2a$') || u.password.startsWith('$2b$') : false,
+                    passwordPrefix: u.password ? u.password.substring(0, 10) + '...' : null,
+                })),
+                clients: (clients || []).map(c => ({
+                    id: c._id,
+                    clientId: c.clientId,
+                    status: c.status,
+                    hasHashedSecret: c.clientSecret ? c.clientSecret.startsWith('$2a$') || c.clientSecret.startsWith('$2b$') : false,
+                    clientSecretPrefix: c.clientSecret ? c.clientSecret.substring(0, 10) + '...' : null,
+                })),
+                sessions: (sessions || []).map(s => ({
+                    id: s._id ? s._id.toString() : '',
+                    userId: s.userId,
+                    device: s.device,
+                    browser: s.browser,
+                    ip: s.ip,
+                    revoked: s.revoked,
+                    tokenVersion: s.tokenVersion,
+                    lastActivity: s.lastActivity,
+                    hasHashedRefreshToken: s.refreshTokenHash ? true : false,
+                    refreshTokenHashPrefix: s.refreshTokenHash ? s.refreshTokenHash.substring(0, 10) + '...' : null,
+                })),
+                refreshTokens: (refreshTokens || []).map(rt => ({
+                    id: rt._id ? rt._id.toString() : '',
+                    userId: rt.userId,
+                    revoked: rt.revoked,
+                    expiresAt: rt.expiresAt,
+                    hasHashedToken: rt.token ? true : false,
+                    tokenPrefix: rt.token ? rt.token.substring(0, 10) + '...' : null,
+                    replacedByTokenPrefix: rt.replacedByToken ? rt.replacedByToken.substring(0, 10) + '...' : null,
+                })),
+                auditLogs: (auditLogs || []).map(al => ({
+                    ...al,
+                    _id: al._id ? al._id.toString() : ''
+                })),
+                redis: redisKeys,
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Root status check (for direct service clicks and Render ping)
 app.get('/', (req, res) => {
     sendInterviewRunning(res);

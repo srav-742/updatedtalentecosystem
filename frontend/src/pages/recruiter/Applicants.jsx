@@ -68,6 +68,11 @@ const Applicants = () => {
                     setIsPro(isPremium);
                     const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
                     localStorage.setItem('user', JSON.stringify(updatedUser));
+                    
+                    if (!isPremium) {
+                        navigate('/recruiter/upgrade');
+                        return;
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch fresh recruiter profile:", err);
@@ -110,6 +115,12 @@ const Applicants = () => {
     };
 
     useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const initialPro = storedUser.hiringPattern === "Premium Recruiter" || storedUser.isPro === true;
+        if (!initialPro) {
+            navigate('/recruiter/upgrade');
+            return;
+        }
         fetchApplicants();
     }, [targetJobId]);
 

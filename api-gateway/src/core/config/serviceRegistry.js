@@ -26,6 +26,7 @@ export const ServiceKeys = Object.freeze({
   INTERVIEW_SERVICE: 'INTERVIEW_SERVICE',
   RESUME_SERVICE: 'RESUME_SERVICE',
   NOTIFICATION_SERVICE: 'NOTIFICATION_SERVICE',
+  BACKEND: 'BACKEND',
 });
 
 /**
@@ -125,6 +126,7 @@ const serviceRegistry = new ServiceRegistry(
     [ServiceKeys.INTERVIEW_SERVICE, environment.services.interviewService],
     [ServiceKeys.RESUME_SERVICE, environment.services.resumeService],
     [ServiceKeys.NOTIFICATION_SERVICE, environment.services.notificationService],
+    [ServiceKeys.BACKEND, environment.services.backend],
   ])
 );
 

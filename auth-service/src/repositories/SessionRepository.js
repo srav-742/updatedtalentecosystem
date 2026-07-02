@@ -81,6 +81,47 @@ class SessionRepository {
   }
 
   /**
+   * Finds a session by ID.
+   *
+   * @param {string} id
+   * @returns {Promise<Session|null>}
+   */
+  async findById(id) {
+    return Session.findById(id).populate({
+      path: 'userId',
+      populate: [
+        { path: 'tenantId' },
+        { path: 'organizationId' },
+        { path: 'roleRef', populate: { path: 'permissions' } },
+      ],
+    });
+  }
+
+  /**
+   * Finds a session using a query.
+   *
+   * @param {Object} query
+   * @returns {Promise<Session|null>}
+   */
+  async findOne(query) {
+    return Session.findOne(query);
+  }
+
+  /**
+   * Updates last activity timestamp of a session.
+   *
+   * @param {string} id
+   * @returns {Promise<Session|null>}
+   */
+  async updateLastActivity(id) {
+    return Session.findByIdAndUpdate(
+      id,
+      { $set: { lastActivity: new Date() } },
+      { new: true }
+    );
+  }
+
+  /**
    * Cleans up (deletes or deactivates) expired sessions from database.
    *
    * @returns {Promise<Object>} Delete query result.
@@ -90,6 +131,7 @@ class SessionRepository {
       $or: [
         { expiresAt: { $lte: new Date() } },
         { isActive: false },
+        { revoked: true },
       ],
     });
   }

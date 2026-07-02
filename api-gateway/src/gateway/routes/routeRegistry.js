@@ -32,6 +32,32 @@ const registryRaw = [
   {
     version: 'v1',
     method: 'POST',
+    path: '/api/gateway/token',
+    serviceKey: ServiceKeys.AUTH_SERVICE,
+    authRequired: false,
+    permissions: [],
+    policies: [],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'strict',
+    bodyLimit: '2MB',
+    tags: ['Auth', 'TokenExchange']
+  },
+  {
+    version: 'v1',
+    method: 'POST',
+    path: '/api/gateway/refresh',
+    serviceKey: ServiceKeys.AUTH_SERVICE,
+    authRequired: false,
+    permissions: [],
+    policies: [],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'strict',
+    bodyLimit: '2MB',
+    tags: ['Auth', 'TokenRefresh']
+  },
+  {
+    version: 'v1',
+    method: 'POST',
     path: '/api/v1/auth/verify',
     serviceKey: ServiceKeys.AUTH_SERVICE,
     authRequired: false,
@@ -639,6 +665,18 @@ const registryRaw = [
     timeout: { gateway: 30000, downstream: 29000 },
     rateLimit: 'default',
     tags: ['Notifications']
+  },
+  {
+    version: 'v1',
+    method: '*',
+    path: '/api/*',
+    serviceKey: ServiceKeys.BACKEND,
+    authRequired: false,
+    permissions: [],
+    policies: [],
+    timeout: { gateway: 30000, downstream: 29000 },
+    rateLimit: 'default',
+    tags: ['Fallback']
   }
 ];
 

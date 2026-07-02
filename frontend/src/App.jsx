@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
+import DiagnosticConsole from './components/DiagnosticConsole';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -45,6 +46,7 @@ function App() {
   return (
     <BrowserRouter>
       <CookieBanner />
+      <DiagnosticConsole />
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center bg-[#0c0f16] text-white">
           <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">Loading...</div>

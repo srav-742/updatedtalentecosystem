@@ -3,6 +3,7 @@ import path from 'path';
 
 const services = [
   { name: 'auth-service', path: 'auth-service' },
+  { name: 'backend', path: 'backend', env: { PORT: '5010' } },
   { name: 'job-service', path: 'services/job-service' },
   { name: 'candidate-service', path: 'services/candidate-service' },
   { name: 'recruiter-service', path: 'services/recruiter-service' },

@@ -16,6 +16,7 @@ const SignupPage = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
 
     const handleRoleSelect = (selectedRole) => {
         setRole(selectedRole);
@@ -58,18 +59,22 @@ const SignupPage = () => {
             };
 
             // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            await saveUserProfile(user.uid, profileData);
+            const savedProfile = await saveUserProfile(user.uid, profileData);
 
             // 3. Initialize Gateway session tokens
             await apiClient.initializeGatewaySession(profileData.email, profileData.uid);
 
-            // 4. Store and Navigate IMMEDIATELY
+            // 4. Store and Navigate / Show Modal
             localStorage.setItem('user', JSON.stringify(profileData));
-            setMessage({ type: 'success', text: "Account created successfully!" });
 
-            if (role === 'admin') navigate('/admin');
-            else if (role === 'recruiter') navigate('/recruiter');
-            else navigate('/seeker');
+            if (role === 'recruiter' && savedProfile && savedProfile.client) {
+                setClientCredentials(savedProfile.client);
+                setLoading(false);
+            } else {
+                setMessage({ type: 'success', text: "Account created successfully!" });
+                if (role === 'admin') navigate('/admin');
+                else navigate('/seeker');
+            }
 
         } catch (error) {
             console.error("Firebase Signup Error:", error);
@@ -129,18 +134,21 @@ const SignupPage = () => {
             };
 
             // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            await saveUserProfile(googleUser.uid, newProfile);
+            const savedProfile = await saveUserProfile(googleUser.uid, newProfile);
 
             // 3. Initialize Gateway session tokens
             await apiClient.initializeGatewaySession(newProfile.email, newProfile.uid);
 
             // 4. Store & Navigate IMMEDIATELY
             localStorage.setItem('user', JSON.stringify(newProfile));
-            setMessage({ type: 'success', text: "Account created! Logging in..." });
 
-            if (role === 'admin') navigate('/admin');
-            else if (role === 'recruiter') navigate('/recruiter');
-            else navigate('/seeker');
+            if (role === 'recruiter' && savedProfile && savedProfile.client) {
+                setClientCredentials(savedProfile.client);
+            } else {
+                setMessage({ type: 'success', text: "Account created! Logging in..." });
+                if (role === 'admin') navigate('/admin');
+                else navigate('/seeker');
+            }
 
         } catch (error) {
             console.error(error);
@@ -405,6 +413,96 @@ const SignupPage = () => {
                     </AnimatePresence>
                 </div>
             </main>
+
+            {/* Recruiter API Client Credentials Modal */}
+            <AnimatePresence>
+                {clientCredentials && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="w-full max-w-lg bg-[#11131a] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+                        >
+                            {/* Background subtle glow */}
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
+                            
+                            <div className="flex items-center gap-3 mb-6 relative z-10">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                    <ShieldCheck className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-white">Signup Successful</h2>
+                                    <p className="text-gray-400 text-xs">Your API client credentials have been generated.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6 mb-8 relative z-10">
+                                {/* Client ID */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Client ID</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={clientCredentials.clientId}
+                                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(clientCredentials.clientId);
+                                                alert("Client ID copied!");
+                                            }}
+                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Client Secret */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Client Secret</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={clientCredentials.clientSecret}
+                                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(clientCredentials.clientSecret);
+                                                alert("Client Secret copied!");
+                                            }}
+                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    <p className="text-amber-400 text-xs mt-2 font-medium flex items-center gap-1.5">
+                                        ⚠️ The Client Secret will never be shown again.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Destroy plaintext secret in memory and navigate
+                                    setClientCredentials(null);
+                                    navigate('/recruiter');
+                                }}
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-teal-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/10 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider relative z-10"
+                            >
+                                Close & Continue to Dashboard
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

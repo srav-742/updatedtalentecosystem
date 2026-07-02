@@ -28,7 +28,17 @@ const resolveRecruiterJobQuery = async (recruiterId) => {
 
 const getRecruiterDashboard = async (req, res) => {
     try {
+        const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
+
+        // Enforce recruiter dashboard ownership check (admins bypass)
+        if (reqUser && reqUser.role !== 'admin') {
+            const isSelf = reqUser._id.toString() === recruiterId || reqUser.uid === recruiterId;
+            if (!isSelf) {
+                return res.status(403).json({ message: "Access denied. Only the recruiter owning this job can access this dashboard." });
+            }
+        }
+
         const jobQuery = await resolveRecruiterJobQuery(recruiterId);
         const jobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = jobs.map((job) => job._id);
@@ -47,7 +57,17 @@ const getRecruiterDashboard = async (req, res) => {
 
 const getRecruiterApplications = async (req, res) => {
     try {
+        const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
+
+        // Enforce recruiter applications ownership check (admins bypass)
+        if (reqUser && reqUser.role !== 'admin') {
+            const isSelf = reqUser._id.toString() === recruiterId || reqUser.uid === recruiterId;
+            if (!isSelf) {
+                return res.status(403).json({ message: "Access denied. Only the recruiter owning this job can view these applications." });
+            }
+        }
+
         const jobQuery = await resolveRecruiterJobQuery(recruiterId);
         const jobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = jobs.map((job) => job._id);

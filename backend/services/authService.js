@@ -47,9 +47,63 @@ const generateRefreshToken = (user) => {
  * Verify an Access Token
  * Returns decoded payload on success, or throws an error
  */
+const fs = require('fs');
+const path = require('path');
+
+let cachedPublicKey = null;
+const loadPublicKey = () => {
+    if (cachedPublicKey) return cachedPublicKey;
+    try {
+        const keyPath = path.resolve(__dirname, '../../auth-service/keys/public.pem');
+        cachedPublicKey = fs.readFileSync(keyPath, 'utf8');
+        return cachedPublicKey;
+    } catch (err) {
+        console.error('Failed to load RSA public key in backend authService:', err.message);
+        return null;
+    }
+};
+
 const verifyAccessToken = (token) => {
     try {
-        return jwt.verify(token, JWT_SECRET);
+        const isJwt = token && token.split('.').length === 3;
+        if (isJwt) {
+            // Decode the header to check the algorithm
+            let alg = 'HS256';
+            try {
+                const headerSegment = token.split('.')[0];
+                const headerJson = Buffer.from(headerSegment, 'base64').toString('utf8');
+                const header = JSON.parse(headerJson);
+                alg = header.alg || 'HS256';
+            } catch (e) {
+                // Fallback to HS256 if header parsing fails
+            }
+
+            if (alg === 'RS256') {
+                const pubKey = loadPublicKey();
+                if (!pubKey) {
+                    throw new Error('Public key not loaded');
+                }
+                const decoded = jwt.verify(token, pubKey, { algorithms: ['RS256'] });
+                return {
+                    userId: decoded.UserId || decoded.userId,
+                    email: decoded.email,
+                    role: decoded.Role || decoded.role,
+                    name: decoded.name || ''
+                };
+            } else {
+                // Verify using legacy/monolith symmetric secret
+                const decoded = jwt.verify(token, JWT_SECRET);
+                return {
+                    userId: decoded.userId || decoded.UserId,
+                    email: decoded.email,
+                    role: decoded.role || decoded.Role,
+                    name: decoded.name || ''
+                };
+            }
+        } else {
+            // Legacy opaque tokens (non-JWT)
+            return jwt.verify(token, JWT_SECRET);
+        }
     } catch (err) {
         if (err.name === 'TokenExpiredError') {
             const error = new Error('Access token expired');

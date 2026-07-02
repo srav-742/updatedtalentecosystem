@@ -127,6 +127,9 @@ const environment = Object.freeze({
 
     /** @type {string} Notification service base URL */
     notificationService: process.env.NOTIFICATION_SERVICE_URL,
+
+    /** @type {string} Monolithic backend base URL */
+    backend: process.env.BACKEND_SERVICE_URL || 'http://localhost:5010',
   }),
 
   /** Rate limiting configuration */
