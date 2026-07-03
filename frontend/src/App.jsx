@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
-import DiagnosticConsole from './components/DiagnosticConsole';
+
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -41,12 +41,14 @@ const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
 const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
+const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
+const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
 
 function App() {
   return (
     <BrowserRouter>
       <CookieBanner />
-      <DiagnosticConsole />
+
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center bg-[#0c0f16] text-white">
           <div className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">Loading...</div>
@@ -107,6 +109,20 @@ function App() {
           <Route path="community" element={<EliteCommunity />} />
           <Route path="proctoring-test" element={<ProctoringTest />} />
         </Route>
+
+        {/* Blog Routes */}
+        <Route path="/blog" element={
+          <div className="min-h-screen bg-[#0c0f16]">
+            <Navbar theme="dark" />
+            <BlogLandingPage />
+          </div>
+        } />
+        <Route path="/blog/:slug" element={
+          <div className="min-h-screen bg-[#0c0f16]">
+            <Navbar theme="dark" />
+            <BlogPostDetailsPage />
+          </div>
+        } />
 
         <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />
         <Route path="/ai-recruitment-software" element={<AIRecruitmentSoftware />} />

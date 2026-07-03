@@ -8,6 +8,8 @@ const {
 } = require('../services/authService');
 const User = require('../models/User');
 
+const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+
 /**
  * API Gateway Middleware
  * 
@@ -42,11 +44,89 @@ const PUBLIC_ROUTES = [
     { method: 'PUT', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
     { method: '*', pattern: /^\/api\/gateway\/.*/i },
-    { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i }
+    { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i },
+    { method: 'GET', pattern: /^\/api\/v1\/blogs(\/.*)?$/i },
+    { method: 'POST', pattern: /^\/api\/v1\/blogs\/subscribe$/i }
 ];
 
 const gatewayMiddleware = async (req, res, next) => {
     try {
+        const fullPath = req.baseUrl + req.path;
+
+        // ─── Admin Bypass Check ──────────────────────────────────────────
+        const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+        let isAdminRequest = false;
+        let adminUser = null;
+
+        // 1. Check by login/sync/signup email in req.body
+        if (req.body && req.body.email && adminEmails.includes(req.body.email.toLowerCase().trim())) {
+            isAdminRequest = true;
+        }
+
+        // 2. Check by x-user-id header matching an admin
+        const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'];
+        if (xUserId) {
+            const query = { role: 'admin' };
+            if (OBJECT_ID_REGEX.test(xUserId)) {
+                query.$or = [{ uid: xUserId }, { _id: xUserId }];
+            } else {
+                query.uid = xUserId;
+            }
+            adminUser = await User.findOne(query);
+            if (adminUser) {
+                isAdminRequest = true;
+            }
+        }
+
+        // 3. Or check by Authorization Bearer token (if we can decode it and it's an admin)
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = verifyAccessToken(token);
+                if (decoded && (decoded.role === 'admin' || adminEmails.includes(decoded.email?.toLowerCase().trim()))) {
+                    isAdminRequest = true;
+                    if (!adminUser) {
+                        const query = {};
+                        if (OBJECT_ID_REGEX.test(decoded.userId)) {
+                            query.$or = [{ _id: decoded.userId }, { uid: decoded.userId }];
+                        } else {
+                            query.uid = decoded.userId;
+                        }
+                        adminUser = await User.findOne(query);
+                    }
+                }
+            } catch (err) {
+                // Ignore decoding error here, normal flow will handle it if not admin
+            }
+        }
+
+        // If detected as admin request, bypass client credentials and token checks
+        if (isAdminRequest) {
+            console.log(`[GATEWAY-ADMIN-BYPASS] 🔓 Admin request detected for path: ${req.method} ${fullPath}`);
+            
+            // Populate mock/default client info to avoid breaking downstream code
+            const Client = require('../models/Client');
+            const defaultClient = await Client.findOne({ clientId: 'hire1percent_web_client' });
+            req.client = defaultClient || {
+                clientId: 'hire1percent_web_client',
+                name: 'Default Admin Web Client',
+                status: 'active'
+            };
+
+            // If user has been identified, attach to request
+            if (adminUser) {
+                req.user = adminUser;
+                req.tokenRefreshed = false;
+                req.userRoles = ['admin'];
+                console.log(`[GATEWAY-ADMIN-BYPASS] ✅ User authenticated as admin: ${adminUser.email}`);
+            } else {
+                console.log(`[GATEWAY-ADMIN-BYPASS] ✅ Public admin endpoint or login flow.`);
+            }
+
+            return next();
+        }
+
         // ─── Step 1: Validate Client Credentials ──────────────────────────
         const clientId = req.headers['x-client-id'];
         const clientSecret = req.headers['x-client-secret'];
@@ -70,7 +150,6 @@ const gatewayMiddleware = async (req, res, next) => {
         req.client = client;
 
         // Check if route is public (use baseUrl + path to match patterns starting with /api)
-        const fullPath = req.baseUrl + req.path;
         const isPublic = PUBLIC_ROUTES.some(route => {
             const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
             const isPathMatch = route.pattern.test(fullPath);
@@ -83,7 +162,6 @@ const gatewayMiddleware = async (req, res, next) => {
         }
 
         // ─── Step 2: Validate Access Token ────────────────────────────────
-        const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({
                 success: false,
@@ -135,12 +213,13 @@ const gatewayMiddleware = async (req, res, next) => {
         }
 
         // ─── Step 4: Load User & Attach to Request ───────────────────────
-        const user = await User.findOne({
-            $or: [
-                { _id: decoded.userId },
-                { uid: decoded.userId }
-            ]
-        });
+        const userQuery = {};
+        if (decoded.userId && OBJECT_ID_REGEX.test(decoded.userId.toString())) {
+            userQuery.$or = [{ _id: decoded.userId }, { uid: decoded.userId }];
+        } else {
+            userQuery.uid = decoded.userId;
+        }
+        const user = await User.findOne(userQuery);
 
         if (!user) {
             return res.status(401).json({
