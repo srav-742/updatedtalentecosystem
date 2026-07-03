@@ -7,23 +7,30 @@ const resolveRecruiterJobQuery = async (recruiterId) => {
         return { recruiterId: null };
     }
 
-    let resolvedUid = null;
-    let resolvedObjectId = null;
-
-    if (recruiterId.length === 24) {
-        const user = await User.findById(recruiterId).select('uid').lean();
-        resolvedUid = user?.uid || null;
-        resolvedObjectId = recruiterId;
-    } else {
-        const user = await User.findOne({ uid: recruiterId }).select('_id').lean();
-        resolvedUid = recruiterId;
-        resolvedObjectId = user?._id?.toString() || null;
+    const mongoose = require('mongoose');
+    const queryConditions = [];
+    if (mongoose.Types.ObjectId.isValid(recruiterId)) {
+        queryConditions.push({ _id: recruiterId });
+    }
+    queryConditions.push({ uid: recruiterId });
+    if (typeof recruiterId === 'string' && recruiterId.includes('@')) {
+        queryConditions.push({ email: recruiterId.toLowerCase().trim() });
     }
 
-    const recruiterIds = [resolvedUid, resolvedObjectId, recruiterId].filter(Boolean);
-    return recruiterIds.length > 1
-        ? { recruiterId: { $in: recruiterIds } }
-        : { recruiterId: recruiterIds[0] || recruiterId };
+    const user = await User.findOne({ $or: queryConditions }).select('_id uid email').lean();
+
+    const recruiterIds = [recruiterId];
+    if (user) {
+        if (user.uid) recruiterIds.push(user.uid);
+        if (user._id) recruiterIds.push(user._id.toString());
+        if (user.email) recruiterIds.push(user.email);
+    }
+
+    const uniqueRecruiterIds = [...new Set(recruiterIds.filter(Boolean))];
+
+    return uniqueRecruiterIds.length > 1
+        ? { recruiterId: { $in: uniqueRecruiterIds } }
+        : { recruiterId: uniqueRecruiterIds[0] || recruiterId };
 };
 
 const getRecruiterDashboard = async (req, res) => {
@@ -33,7 +40,9 @@ const getRecruiterDashboard = async (req, res) => {
 
         // Enforce recruiter dashboard ownership check (admins bypass)
         if (reqUser && reqUser.role !== 'admin') {
-            const isSelf = reqUser._id.toString() === recruiterId || reqUser.uid === recruiterId;
+            const isSelf = reqUser._id.toString() === recruiterId || 
+                           reqUser.uid === recruiterId || 
+                           (reqUser.email && reqUser.email.toLowerCase().trim() === recruiterId.toLowerCase().trim());
             if (!isSelf) {
                 return res.status(403).json({ message: "Access denied. Only the recruiter owning this job can access this dashboard." });
             }
@@ -62,7 +71,9 @@ const getRecruiterApplications = async (req, res) => {
 
         // Enforce recruiter applications ownership check (admins bypass)
         if (reqUser && reqUser.role !== 'admin') {
-            const isSelf = reqUser._id.toString() === recruiterId || reqUser.uid === recruiterId;
+            const isSelf = reqUser._id.toString() === recruiterId || 
+                           reqUser.uid === recruiterId || 
+                           (reqUser.email && reqUser.email.toLowerCase().trim() === recruiterId.toLowerCase().trim());
             if (!isSelf) {
                 return res.status(403).json({ message: "Access denied. Only the recruiter owning this job can view these applications." });
             }
