@@ -306,7 +306,6 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         );
 
         const response = await axios.post(`${API_URL}/interview/upload-recording`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
             timeout: 300000
         });
 

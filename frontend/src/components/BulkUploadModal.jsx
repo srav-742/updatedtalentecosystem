@@ -94,11 +94,7 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, onUploadComplete }) => {
             formData.append('recruiterId', recruiterId);
 
             try {
-                const res = await axios.post(`${API_URL}/recruiter/bulk-upload-candidate`, formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                });
+                const res = await axios.post(`${API_URL}/recruiter/bulk-upload-candidate`, formData);
 
                 // Step 3: Analyzing
                 updateFileStatus(currentFile.id, { status: 'analyzing', progress: 75 });

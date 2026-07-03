@@ -100,7 +100,6 @@ const SeekerProfile = () => {
         try {
             const uploadRes = await axios.post(`${API_URL}/user-resumes/upload`, formData, {
                 headers: { 
-                    'Content-Type': 'multipart/form-data',
                     'x-user-id': uid
                 }
             });

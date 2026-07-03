@@ -490,7 +490,6 @@ ${projectsFlat}
 
             const extractRes = await axios.post(`${API_URL}/user-resumes/upload`, formData, {
                 headers: { 
-                    'Content-Type': 'multipart/form-data',
                     'x-user-id': userId
                 }
             });
@@ -1462,6 +1461,13 @@ ${projectsFlat}
                         </div>
                     </div>
                 ) : (
+                    <>
+                    {error ? (
+                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                            <AlertCircle size={18} />
+                            {error}
+                        </div>
+                    ) : null}
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <button
                             onClick={() => navigate('/seeker/jobs')}
@@ -1491,6 +1497,7 @@ ${projectsFlat}
                             </span>
                         </button>
                     </div>
+                    </>
                 )}
             </div>
         </motion.div>

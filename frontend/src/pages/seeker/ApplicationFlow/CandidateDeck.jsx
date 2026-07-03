@@ -128,9 +128,7 @@ const CandidateDeck = ({ job, user, onComplete }) => {
         formData.append('jobId', job._id);
 
         try {
-            const response = await axios.post(`${API_URL}/upload-video-intro`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await axios.post(`${API_URL}/upload-video-intro`, formData);
 
             if (response.data.success) {
                 setStep('success');
