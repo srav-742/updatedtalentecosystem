@@ -37,6 +37,11 @@ const REFRESH_TOKEN_TTL_SEC = parseTtlToSeconds(environment.security.jwtRefreshE
  */
 const REDIS_SESSION_PREFIX = 'session:';
 
+/**
+ * Cache key prefix for Redis refresh token storage.
+ */
+const REDIS_REFRESH_TOKEN_PREFIX = 'refreshtoken:';
+
 class SessionService {
   /**
    * Helper to write session data to Redis if connection is ready.
@@ -64,6 +69,36 @@ class SessionService {
         logger.debug(`Session removed from Redis cache: ${sessionId}`);
       } catch (err) {
         logger.error('Failed to remove session from Redis cache:', { error: err.message });
+      }
+    }
+  }
+
+  /**
+   * Helper to write refresh token data to Redis if connection is ready.
+   */
+  async _cacheRefreshToken(refreshTokenHash, tokenData, ttlSec) {
+    if (redisClient.isReady) {
+      try {
+        const key = `${REDIS_REFRESH_TOKEN_PREFIX}${refreshTokenHash}`;
+        await redisClient.setEx(key, ttlSec, JSON.stringify(tokenData));
+        logger.debug(`Refresh token cached in Redis: ${refreshTokenHash}`);
+      } catch (err) {
+        logger.error('Failed to cache refresh token in Redis:', { error: err.message });
+      }
+    }
+  }
+
+  /**
+   * Helper to remove refresh token data from Redis.
+   */
+  async _uncacheRefreshToken(refreshTokenHash) {
+    if (redisClient.isReady) {
+      try {
+        const key = `${REDIS_REFRESH_TOKEN_PREFIX}${refreshTokenHash}`;
+        await redisClient.del(key);
+        logger.debug(`Refresh token removed from Redis cache: ${refreshTokenHash}`);
+      } catch (err) {
+        logger.error('Failed to remove refresh token from Redis cache:', { error: err.message });
       }
     }
   }
@@ -113,6 +148,13 @@ class SessionService {
       expiresAt: refreshExpiresAt,
       isRevoked: false,
     });
+
+    // Cache the refresh token in Redis
+    await this._cacheRefreshToken(refreshTokenHash, {
+      userId: userId.toString(),
+      expiresAt: refreshExpiresAt.toISOString(),
+      isRevoked: false,
+    }, REFRESH_TOKEN_TTL_SEC);
 
     const jwtPayload = {
       UserId: user._id.toString(),
@@ -303,7 +345,58 @@ class SessionService {
    */
   async refreshSession(refreshTokenString, clientMetadata = {}) {
     const refreshTokenHash = hashString(refreshTokenString, 'sha256');
-    const tokenRecord = await RefreshTokenRepository.findByToken(refreshTokenHash);
+    let tokenRecord = null;
+    let cachedTokenData = null;
+
+    // Try reading from Redis first
+    if (redisClient.isReady) {
+      try {
+        const redisKey = `${REDIS_REFRESH_TOKEN_PREFIX}${refreshTokenHash}`;
+        const cached = await redisClient.get(redisKey);
+        if (cached) {
+          cachedTokenData = JSON.parse(cached);
+          logger.debug(`Refresh token cache hit: ${refreshTokenHash}`);
+        }
+      } catch (err) {
+        logger.error('Redis lookup error during refresh token verification:', { error: err.message });
+      }
+    }
+
+    if (cachedTokenData) {
+      // Reconstruct tokenRecord-like structure
+      tokenRecord = {
+        userId: cachedTokenData.userId,
+        expiresAt: new Date(cachedTokenData.expiresAt),
+        isRevoked: cachedTokenData.isRevoked,
+        replacedByToken: cachedTokenData.replacedByToken || null,
+        save: async function () {
+          // Sync changes to DB
+          await RefreshTokenRepository.revoke(refreshTokenHash, this.replacedByToken);
+        }
+      };
+    } else {
+      // Fallback to MongoDB
+      tokenRecord = await RefreshTokenRepository.findByToken(refreshTokenHash);
+      
+      // Populate Redis if found
+      if (tokenRecord && redisClient.isReady) {
+        try {
+          const redisKey = `${REDIS_REFRESH_TOKEN_PREFIX}${refreshTokenHash}`;
+          const timeLeftSec = Math.max(0, Math.floor((tokenRecord.expiresAt.getTime() - Date.now()) / 1000));
+          if (timeLeftSec > 0) {
+            const redisVal = JSON.stringify({
+              userId: (tokenRecord.userId._id || tokenRecord.userId).toString(),
+              expiresAt: tokenRecord.expiresAt.toISOString(),
+              isRevoked: tokenRecord.isRevoked,
+              replacedByToken: tokenRecord.replacedByToken || null,
+            });
+            await redisClient.setEx(redisKey, timeLeftSec, redisVal);
+          }
+        } catch (err) {
+          logger.error('Failed to populate refresh token in Redis cache:', { error: err.message });
+        }
+      }
+    }
 
     if (!tokenRecord) {
       throw new Error('Refresh token is invalid or does not exist.');
@@ -376,10 +469,39 @@ class SessionService {
       isRevoked: false,
     });
 
+    // Cache the next refresh token in Redis
+    await this._cacheRefreshToken(nextRefreshTokenHash, {
+      userId: userId.toString(),
+      expiresAt: refreshExpiresAt.toISOString(),
+      isRevoked: false,
+    }, REFRESH_TOKEN_TTL_SEC);
+
     // 3. Rotate old refresh token
     tokenRecord.isRevoked = true;
     tokenRecord.replacedByToken = nextRefreshTokenHash;
     await tokenRecord.save();
+
+    // Update old refresh token in Redis cache to reflect revocation for reuse detection
+    if (redisClient.isReady) {
+      try {
+        const oldRedisKey = `${REDIS_REFRESH_TOKEN_PREFIX}${refreshTokenHash}`;
+        const oldExpiryMs = tokenRecord.expiresAt.getTime() - Date.now();
+        const oldTtlSec = Math.max(0, Math.floor(oldExpiryMs / 1000));
+        if (oldTtlSec > 0) {
+          const oldRedisVal = JSON.stringify({
+            userId: userId.toString(),
+            expiresAt: tokenRecord.expiresAt.toISOString(),
+            isRevoked: true,
+            replacedByToken: nextRefreshTokenHash,
+          });
+          await redisClient.setEx(oldRedisKey, oldTtlSec, oldRedisVal);
+        } else {
+          await redisClient.del(oldRedisKey);
+        }
+      } catch (err) {
+        logger.error('Failed to update old refresh token cache in Redis:', { error: err.message });
+      }
+    }
 
     // 4. Revoke old session associated with the rotated token
     const oldSession = await SessionRepository.findOne({ refreshTokenHash });
@@ -470,6 +592,7 @@ class SessionService {
 
       if (session.refreshTokenHash) {
         await RefreshTokenRepository.revokeByHash(session.refreshTokenHash);
+        await this._uncacheRefreshToken(session.refreshTokenHash);
       }
 
       await this._uncacheSession(session._id.toString());
@@ -498,6 +621,7 @@ class SessionService {
 
       if (session.refreshTokenHash) {
         await RefreshTokenRepository.revokeByHash(session.refreshTokenHash);
+        await this._uncacheRefreshToken(session.refreshTokenHash);
       }
 
       await this._uncacheSession(sessionId);
@@ -526,6 +650,9 @@ class SessionService {
         await session.save();
 
         await this._uncacheSession(session._id.toString());
+        if (session.refreshTokenHash) {
+          await this._uncacheRefreshToken(session.refreshTokenHash);
+        }
       }
 
       await RefreshTokenRepository.revokeAllByUserId(userId);
@@ -533,6 +660,22 @@ class SessionService {
     } catch (err) {
       logger.error('Failed to revoke all user sessions:', { error: err.message });
       throw err;
+    }
+  }
+
+  /**
+   * Revokes a refresh token string (handles hashing, DB update, and Redis cache removal).
+   *
+   * @param {string} refreshTokenString
+   * @returns {Promise<void>}
+   */
+  async revokeRefreshToken(refreshTokenString) {
+    try {
+      const refreshTokenHash = hashString(refreshTokenString, 'sha256');
+      await RefreshTokenRepository.revokeByHash(refreshTokenHash);
+      await this._uncacheRefreshToken(refreshTokenHash);
+    } catch (err) {
+      logger.error('Failed to revoke refresh token:', { error: err.message });
     }
   }
 }

@@ -36,6 +36,11 @@ const userSchema = new mongoose.Schema(
       default: 'seeker',
       index: true,
     },
+    tokenVersion: {
+      type: Number,
+      default: 1,
+      index: true,
+    },
     
     // ─── Multi-Tenancy & Authorization References ───────────────────
     tenantId: {

@@ -155,7 +155,7 @@ const runEnterpriseTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: candidateEmail,
-        role: 'candidate',
+        role: 'seeker',
       }),
     });
 

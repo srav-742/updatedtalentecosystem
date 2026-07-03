@@ -18,6 +18,7 @@ import roleEngine from '../authorization/roleEngine.js';
 import ApiError from '../errors/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import STATUS_CODES from '../constants/statusCodes.js';
+import logger from '../logger/logger.js';
 import MESSAGES from '../constants/messages.js';
 import ERROR_CODES from '../constants/errors.js';
 
@@ -231,7 +232,7 @@ export const logout = async (req, res, next) => {
     // 2. Try to revoke refresh token if provided in body
     const { refreshToken } = req.body;
     if (refreshToken) {
-      await RefreshTokenRepository.revoke(refreshToken);
+      await SessionService.revokeRefreshToken(refreshToken);
     }
 
     res.status(STATUS_CODES.OK).json({

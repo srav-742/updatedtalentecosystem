@@ -386,7 +386,9 @@ app.get('/api/v1/auth/diagnostics/state', async (req, res) => {
             const Redis = require('ioredis');
             if (process.env.REDIS_URL && process.env.REDIS_ENABLED !== 'false') {
                 const redis = new Redis(process.env.REDIS_URL);
-                const keys = await redis.keys('session:*');
+                const sessionKeys = await redis.keys('session:*');
+                const tokenKeys = await redis.keys('refreshtoken:*');
+                const keys = [...sessionKeys, ...tokenKeys];
                 for (const key of keys) {
                     const val = await redis.get(key);
                     const ttl = await redis.ttl(key);
