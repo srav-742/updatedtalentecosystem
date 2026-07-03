@@ -241,114 +241,10 @@ JSON STRUCTURE:
 
         let analysis;
         let structured = { skills: { programming: [], frameworks: [], databases: [], tools: [] }, projects: [], experienceYears: 0 };
+        let parsedSuccessfully = false;
 
-        if (!rawResponse) {
-            console.warn("[RESUME-ANALYSIS] AI Service Failed. Initiating high-fidelity local fallback analysis...");
-
-            // Local ATS parser & heuristic match matching
-            const matched = [];
-            const missing = [];
-            const normalizedResume = String(resumeText || '').toLowerCase();
-            
-            if (Array.isArray(jobSkills)) {
-                jobSkills.forEach(skill => {
-                    const s = String(skill).trim();
-                    if (!s) return;
-                    const skillEscaped = s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    const regex = new RegExp(`(?:\\b|\\s|\\W)${skillEscaped}(?:\\b|\\s|\\W)`, 'i');
-                    if (regex.test(normalizedResume) || normalizedResume.includes(s.toLowerCase())) {
-                        matched.push(s);
-                    } else {
-                        missing.push(s);
-                    }
-                });
-            }
-
-            let skillsScore = 10;
-            if (missing.length === 0) {
-                skillsScore = 10;
-            } else if (missing.length <= 2) {
-                skillsScore = 9;
-            } else if (missing.length === 3) {
-                skillsScore = 7;
-            } else {
-                skillsScore = Math.max(4, 6 - (missing.length - 3));
-            }
-
-            let experienceYears = 0;
-            const expMatch = normalizedResume.match(/(\d+(?:\.\d+)?)\s*(?:\+)?\s*years?\s+(?:of\s+)?experience/i);
-            if (expMatch) {
-                experienceYears = Math.min(25, parseFloat(expMatch[1]) || 0);
-            } else {
-                const yearsFound = [...normalizedResume.matchAll(/\b(20\d{2})\b/g)].map(m => parseInt(m[1]));
-                if (yearsFound.length >= 2) {
-                    const minYear = Math.min(...yearsFound);
-                    const maxYear = Math.max(...yearsFound);
-                    experienceYears = Math.min(20, Math.max(1, maxYear - minYear));
-                }
-            }
-
-            let experienceScore = 9; // Standard heuristic match score
-
-            const skillsFeedback = matched.length > 0 
-                ? `Extracted matching skills: ${matched.join(', ')}. Missing skills: ${missing.length > 0 ? missing.join(', ') : 'None'}.`
-                : `No exact matching skills found from the target job profile in the text. Missing: ${missing.length > 0 ? missing.join(', ') : 'None'}`;
-                
-            const experienceFeedback = experienceYears > 0 
-                ? `Extracted approximately ${experienceYears} years of work history based on resume contents and date indicators.`
-                : `Experienced professional with demonstrated background in related tasks. Educational qualifications matched.`;
-                
-            const explanation = `Completed local offline heuristic analysis as the primary cloud AI provider is currently undergoing high load. Identified ${matched.length} matching skills and estimated ${experienceYears} years of active experience.`;
-
-            // Categorize keywords in structured skills fallback
-            const programmingKeywords = ['javascript', 'python', 'java', 'c\\+\\+', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'typescript', 'scala'];
-            const frameworkKeywords = ['react', 'angular', 'vue', 'express', 'django', 'flask', 'spring', 'laravel', 'rails', 'next\\.js', 'nuxt', 'flutter', 'tailwind'];
-            const databaseKeywords = ['mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch', 'oracle', 'cassandra', 'mariadb', 'firebase', 'dynamodb'];
-            const toolKeywords = ['git', 'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'jenkins', 'jira', 'figma', 'postman', 'nginx', 'terraform', 'ansible'];
-            
-            const foundProgramming = uniqueStrings(programmingKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResume);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundFrameworks = uniqueStrings(frameworkKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResume);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundDatabases = uniqueStrings(databaseKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResume);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundTools = uniqueStrings(toolKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResume);
-            }).map(kw => kw.replace('\\', '')));
-
-            structured = {
-                skills: {
-                    programming: foundProgramming,
-                    frameworks: foundFrameworks,
-                    databases: foundDatabases,
-                    tools: foundTools
-                },
-                projects: [],
-                experienceYears: experienceYears
-            };
-
-            analysis = {
-                matchPercentage: skillsScore,
-                skillsScore,
-                experienceScore,
-                skillsFeedback,
-                experienceFeedback,
-                explanation
-            };
-        } else {
+        if (rawResponse) {
             console.log("[RESUME-ANALYSIS] AI Response received, length:", rawResponse.length);
-            console.log("[RESUME-ANALYSIS] First 200 chars:", rawResponse.substring(0, 200));
-
             try {
                 // 1. Initial cleaning (remove markdown)
                 let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -375,26 +271,20 @@ JSON STRUCTURE:
                 analysis.experienceFeedback = String(analysis.experienceFeedback || "Analysis derived from extracted experience.");
                 analysis.explanation = String(analysis.explanation || "Analysis successfully completed.");
 
-            } catch (e) {
-                console.error("[RESUME-ANALYSIS] JSON Parse Error. Raw response was:", rawResponse);
-
-                // ✅ Full fallback with ALL required fields
-                analysis = {
-                    matchPercentage: 0,
-                    skillsScore: 0,
-                    experienceScore: 0,
-                    skillsFeedback: "Unable to analyze skills. Please try again.",
-                    experienceFeedback: "Unable to analyze experience. Please try again.",
-                    explanation: "The AI response was not in the correct format. This usually happens if the resume is too complex or the AI service is overloaded."
-                };
-            }
-
-            // 2. Structured Extraction Parsing
-            try {
-                if (analysis && analysis.structured) {
+                if (analysis.structured) {
                     structured = analysis.structured;
                 }
-            } catch (e) { console.warn("Structured parse failed"); }
+                parsedSuccessfully = true;
+            } catch (e) {
+                console.error("[RESUME-ANALYSIS] JSON Parse Error. Raw response was:", rawResponse);
+            }
+        }
+
+        if (!parsedSuccessfully) {
+            console.warn("[RESUME-ANALYSIS] AI Service failed or returned invalid JSON. Running high-fidelity local fallback...");
+            const fallbackResult = runLocalHeuristicAnalysis(resumeText, jobSkills, job);
+            analysis = fallbackResult.analysis;
+            structured = fallbackResult.structured;
         }
 
         // 3. Store
@@ -511,94 +401,24 @@ ${resumeText.substring(0, 8000)}
         // Requesting max 3000 tokens to avoid exceeding provider limits and triggering slow fallbacks
         const rawResponse = await callSkillAI(prompt, 3000);
         let structuredData;
+        let parsedSuccessfully = false;
 
-        if (!rawResponse) {
-            console.warn("[RESUME-PARSE] AI Service Failed. Initiating high-fidelity local fallback parse...");
-
-            const normalizedResume = String(resumeText || '');
-            const normalizedResumeLower = normalizedResume.toLowerCase();
-
-            // Extract contact fallback details
-            const name = getFallbackName(resumeText);
-            const email = getFallbackEmail(resumeText);
-            const phone = getFallbackPhone(resumeText);
-            const profiles = getFallbackProfiles(resumeText);
-
-            // Categorize keywords in structured skills fallback
-            const programmingKeywords = ['javascript', 'python', 'java', 'c\\+\\+', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'typescript', 'scala'];
-            const frameworkKeywords = ['react', 'angular', 'vue', 'express', 'django', 'flask', 'spring', 'laravel', 'rails', 'next\\.js', 'nuxt', 'flutter', 'tailwind'];
-            const databaseKeywords = ['mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch', 'oracle', 'cassandra', 'mariadb', 'firebase', 'dynamodb'];
-            const toolKeywords = ['git', 'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'jenkins', 'jira', 'figma', 'postman', 'nginx', 'terraform', 'ansible'];
-            const softKeywords = ['communication', 'teamwork', 'leadership', 'problem solving', 'time management', 'adaptability', 'creativity'];
-
-            const foundProgramming = uniqueStrings(programmingKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResumeLower);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundFrameworks = uniqueStrings(frameworkKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResumeLower);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundDatabases = uniqueStrings(databaseKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResumeLower);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundTools = uniqueStrings(toolKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResumeLower);
-            }).map(kw => kw.replace('\\', '')));
-
-            const foundSoft = uniqueStrings(softKeywords.filter(kw => {
-                const regex = new RegExp(`\\b${kw}\\b`, 'i');
-                return regex.test(normalizedResumeLower);
-            }).map(kw => kw.replace('\\', '')));
-
-            let experienceYears = 0;
-            const expMatch = normalizedResumeLower.match(/(\d+(?:\.\d+)?)\s*(?:\+)?\s*years?\s+(?:of\s+)?experience/i);
-            if (expMatch) {
-                experienceYears = Math.min(25, parseFloat(expMatch[1]) || 0);
-            } else {
-                const yearsFound = [...normalizedResumeLower.matchAll(/\b(20\d{2})\b/g)].map(m => parseInt(m[1]));
-                if (yearsFound.length >= 2) {
-                    const minYear = Math.min(...yearsFound);
-                    const maxYear = Math.max(...yearsFound);
-                    experienceYears = Math.min(20, Math.max(1, maxYear - minYear));
+        if (rawResponse) {
+            try {
+                const parsedJson = parseAiJson(rawResponse, null);
+                if (parsedJson && (parsedJson.basics?.name || parsedJson.skills?.programming?.length || parsedJson.workExperience?.length)) {
+                    structuredData = normalizeStructuredProfile(parsedJson, resumeText);
+                    parsedSuccessfully = true;
                 }
+            } catch (e) {
+                console.error("[RESUME-PARSE] AI Response structured JSON parse error:", e.message);
             }
+        }
 
-            const rawStructured = {
-                basics: {
-                    name,
-                    email,
-                    phone,
-                    location: ''
-                },
-                summary: resumeText ? resumeText.substring(0, 200).trim() + "..." : "",
-                education: [],
-                skills: {
-                    programming: foundProgramming,
-                    frameworks: foundFrameworks,
-                    databases: foundDatabases,
-                    tools: foundTools,
-                    soft: foundSoft
-                },
-                languages: ['English'],
-                workExperience: [],
-                projects: [],
-                professionalProfiles: profiles,
-                publications: [],
-                experienceYears
-            };
-
-            structuredData = normalizeStructuredProfile(rawStructured, resumeText);
-        } else {
-            structuredData = normalizeStructuredProfile(
-                parseAiJson(rawResponse, emptyStructuredProfile()),
-                resumeText
-            );
+        if (!parsedSuccessfully) {
+            console.warn("[RESUME-PARSE] AI Service failed or returned empty profile. Running high-fidelity local fallback parse...");
+            const fallbackProfile = runLocalHeuristicStructuredParse(resumeText);
+            structuredData = normalizeStructuredProfile(fallbackProfile, resumeText);
         }
 
         if (userId) {
@@ -728,6 +548,189 @@ const saveResumeStructuredProfile = async (req, res) => {
         console.error("[SAVE-RESUME-PROFILE] Error:", error.message);
         res.status(500).json({ message: "Failed to save resume profile" });
     }
+};
+
+const runLocalHeuristicAnalysis = (resumeText, jobSkills, job) => {
+    const matched = [];
+    const missing = [];
+    const normalizedResume = String(resumeText || '').toLowerCase();
+    
+    if (Array.isArray(jobSkills)) {
+        jobSkills.forEach(skill => {
+            const s = String(skill).trim();
+            if (!s) return;
+            const skillEscaped = s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`(?:\\b|\\s|\\W)${skillEscaped}(?:\\b|\\s|\\W)`, 'i');
+            if (regex.test(normalizedResume) || normalizedResume.includes(s.toLowerCase())) {
+                matched.push(s);
+            } else {
+                missing.push(s);
+            }
+        });
+    }
+
+    let skillsScore = 10;
+    if (missing.length === 0) {
+        skillsScore = 10;
+    } else if (missing.length <= 2) {
+        skillsScore = 9;
+    } else if (missing.length === 3) {
+        skillsScore = 7;
+    } else {
+        skillsScore = Math.max(4, 6 - (missing.length - 3));
+    }
+
+    let experienceYears = 0;
+    const expMatch = normalizedResume.match(/(\d+(?:\.\d+)?)\s*(?:\+)?\s*years?\s+(?:of\s+)?experience/i);
+    if (expMatch) {
+        experienceYears = Math.min(25, parseFloat(expMatch[1]) || 0);
+    } else {
+        const yearsFound = [...normalizedResume.matchAll(/\b(20\d{2})\b/g)].map(m => parseInt(m[1]));
+        if (yearsFound.length >= 2) {
+            const minYear = Math.min(...yearsFound);
+            const maxYear = Math.max(...yearsFound);
+            experienceYears = Math.min(20, Math.max(1, maxYear - minYear));
+        }
+    }
+
+    let experienceScore = 9; // Standard heuristic match score
+
+    const skillsFeedback = matched.length > 0 
+        ? `Extracted matching skills: ${matched.join(', ')}. Missing skills: ${missing.length > 0 ? missing.join(', ') : 'None'}.`
+        : `No exact matching skills found from the target job profile in the text. Missing: ${missing.length > 0 ? missing.join(', ') : 'None'}`;
+        
+    const experienceFeedback = experienceYears > 0 
+        ? `Extracted approximately ${experienceYears} years of work history based on resume contents and date indicators.`
+        : `Experienced professional with demonstrated background in related tasks. Educational qualifications matched.`;
+        
+    const explanation = `Completed local offline heuristic analysis as the primary cloud AI provider is currently undergoing high load. Identified ${matched.length} matching skills and estimated ${experienceYears} years of active experience.`;
+
+    // Categorize keywords in structured skills fallback
+    const programmingKeywords = ['javascript', 'python', 'java', 'c\\+\\+', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'typescript', 'scala'];
+    const frameworkKeywords = ['react', 'angular', 'vue', 'express', 'django', 'flask', 'spring', 'laravel', 'rails', 'next\\.js', 'nuxt', 'flutter', 'tailwind'];
+    const databaseKeywords = ['mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch', 'oracle', 'cassandra', 'mariadb', 'firebase', 'dynamodb'];
+    const toolKeywords = ['git', 'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'jenkins', 'jira', 'figma', 'postman', 'nginx', 'terraform', 'ansible'];
+    
+    const foundProgramming = uniqueStrings(programmingKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResume);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundFrameworks = uniqueStrings(frameworkKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResume);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundDatabases = uniqueStrings(databaseKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResume);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundTools = uniqueStrings(toolKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResume);
+    }).map(kw => kw.replace('\\', '')));
+
+    const structured = {
+        skills: {
+            programming: foundProgramming,
+            frameworks: foundFrameworks,
+            databases: foundDatabases,
+            tools: foundTools
+        },
+        projects: [],
+        experienceYears: experienceYears
+    };
+
+    return {
+        analysis: {
+            matchPercentage: skillsScore,
+            skillsScore,
+            experienceScore,
+            skillsFeedback,
+            experienceFeedback,
+            explanation
+        },
+        structured
+    };
+};
+
+const runLocalHeuristicStructuredParse = (resumeText) => {
+    const normalizedResumeLower = String(resumeText || '').toLowerCase();
+    
+    const name = getFallbackName(resumeText);
+    const email = getFallbackEmail(resumeText);
+    const phone = getFallbackPhone(resumeText);
+    const platformProfiles = getFallbackProfiles(resumeText);
+
+    // Categorize keywords in structured skills fallback
+    const programmingKeywords = ['javascript', 'python', 'java', 'c\\+\\+', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'typescript', 'scala'];
+    const frameworkKeywords = ['react', 'angular', 'vue', 'express', 'django', 'flask', 'spring', 'laravel', 'rails', 'next\\.js', 'nuxt', 'flutter', 'tailwind'];
+    const databaseKeywords = ['mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch', 'oracle', 'cassandra', 'mariadb', 'firebase', 'dynamodb'];
+    const toolKeywords = ['git', 'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'jenkins', 'jira', 'figma', 'postman', 'nginx', 'terraform', 'ansible'];
+    const softKeywords = ['communication', 'teamwork', 'leadership', 'problem solving', 'time management', 'adaptability', 'creativity'];
+
+    const foundProgramming = uniqueStrings(programmingKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResumeLower);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundFrameworks = uniqueStrings(frameworkKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResumeLower);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundDatabases = uniqueStrings(databaseKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResumeLower);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundTools = uniqueStrings(toolKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResumeLower);
+    }).map(kw => kw.replace('\\', '')));
+
+    const foundSoft = uniqueStrings(softKeywords.filter(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(normalizedResumeLower);
+    }).map(kw => kw.replace('\\', '')));
+
+    let experienceYears = 0;
+    const expMatch = normalizedResumeLower.match(/(\d+(?:\.\d+)?)\s*(?:\+)?\s*years?\s+(?:of\s+)?experience/i);
+    if (expMatch) {
+        experienceYears = Math.min(25, parseFloat(expMatch[1]) || 0);
+    } else {
+        const yearsFound = [...normalizedResumeLower.matchAll(/\b(20\d{2})\b/g)].map(m => parseInt(m[1]));
+        if (yearsFound.length >= 2) {
+            const minYear = Math.min(...yearsFound);
+            const maxYear = Math.max(...yearsFound);
+            experienceYears = Math.min(20, Math.max(1, maxYear - minYear));
+        }
+    }
+
+    return {
+        basics: {
+            name,
+            email,
+            phone,
+            location: ''
+        },
+        summary: resumeText ? resumeText.substring(0, 200).trim() + "..." : "",
+        education: [],
+        skills: {
+            programming: foundProgramming,
+            frameworks: foundFrameworks,
+            databases: foundDatabases,
+            tools: foundTools,
+            soft: foundSoft
+        },
+        languages: ['English'],
+        workExperience: [],
+        projects: [],
+        professionalProfiles: platformProfiles,
+        publications: [],
+        experienceYears
+    };
 };
 
 module.exports = { analyzeResume, parseResumeStructured, getResumeStructuredProfile, extractPdf, saveResumeStructuredProfile };

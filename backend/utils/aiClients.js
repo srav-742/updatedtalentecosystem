@@ -54,7 +54,13 @@ const callGemini = async (prompt, maxTokens = 2000, isJsonMode = false, systemPr
 
         // Safely extract and combine all parts to prevent halving questions
         // Filter out thought parts (gemini-2.5-flash thinking model) to only get actual response text
-        const aiText = response.data.candidates[0].content.parts
+        const parts = response.data?.candidates?.[0]?.content?.parts;
+        if (!parts) {
+            console.warn("[AI-CLIENT] Gemini response empty or blocked by safety. Candidates:", JSON.stringify(response.data?.candidates));
+            return null;
+        }
+
+        const aiText = parts
             .filter(p => !p.thought && p.text)
             .map(p => p.text)
             .join("");
