@@ -807,6 +807,30 @@ const registryRaw = [
   {
     version: 'v1',
     method: '*',
+    path: '/api/proctoring/*',
+    serviceKey: ServiceKeys.BACKEND,
+    authRequired: false,
+    permissions: [],
+    policies: [],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'default',
+    tags: ['Proctoring']
+  },
+  {
+    version: 'v1',
+    method: '*',
+    path: '/api/proctoring-enhanced/*',
+    serviceKey: ServiceKeys.BACKEND,
+    authRequired: false,
+    permissions: [],
+    policies: [],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'default',
+    tags: ['Proctoring', 'Enhanced']
+  },
+  {
+    version: 'v1',
+    method: '*',
     path: '/api/*',
     serviceKey: ServiceKeys.BACKEND,
     authRequired: false,

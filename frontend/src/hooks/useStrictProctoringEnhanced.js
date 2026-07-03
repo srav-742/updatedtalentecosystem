@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useStrictProctoring } from "./useStrictProctoring";
+import { API_URL } from "../firebase";
 
 /**
  * useStrictProctoringEnhanced
@@ -21,7 +22,7 @@ export function useStrictProctoringEnhanced({
     warningLimit = 3,
     resetLimit = 4,
     onResetRequired,
-    apiEndpoint = "/api/proctoring-enhanced/violation",
+    apiEndpoint = `${API_URL}/proctoring-enhanced/violation`,
 }) {
     const base = useStrictProctoring({
         examId,

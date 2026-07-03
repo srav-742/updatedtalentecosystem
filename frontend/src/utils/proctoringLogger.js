@@ -1,3 +1,5 @@
+import { API_URL } from "../firebase";
+
 const AI_TYPES = new Set([
   "MULTIPLE_DEVICES",
   "EYE_LOOKING_AWAY",
@@ -19,7 +21,7 @@ export async function logViolation(data) {
 
   try {
     // Replace with your actual API base URL
-    await fetch("/api/proctoring/violation", {
+    await fetch(`${API_URL}/proctoring/violation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include", // send auth cookies
