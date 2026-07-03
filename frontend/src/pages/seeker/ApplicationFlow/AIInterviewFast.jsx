@@ -168,9 +168,10 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     const playDecoupledAudio = (base64, text) => {
         try {
+            const mimeType = base64.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
             const audioBlob = new Blob(
                 [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
-                { type: 'audio/mpeg' }
+                { type: mimeType }
             );
             const url = URL.createObjectURL(audioBlob);
             audioPlayerRef.current.pause();

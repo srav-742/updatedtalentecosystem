@@ -95,6 +95,7 @@ const Applicants = () => {
                 resumeUrl: app.user?.resumeUrl,
                 finalScore: app.finalScore,
                 proctoringScore: app.proctoringScore || 0,
+                proctoringFlags: app.proctoringFlags || [],
                 status: app.status,
                 teamFit: app.teamFit,
                 videoIntroUrl: app.videoIntroUrl,
@@ -579,11 +580,28 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                    <div className="flex items-center justify-center">
+                                                <td className="py-5 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-1.5">
                                                         <div className={`inline-flex items-center justify-center px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 font-extrabold text-base shadow-sm ${app.proctoringScore > 0 ? 'animate-pulse' : ''}`} title="Total Integrity Penalty Score">
                                                             <span>{app.proctoringScore}</span>
                                                         </div>
+                                                        {app.proctoringFlags && app.proctoringFlags.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 max-w-[130px] justify-center mt-1">
+                                                                {app.proctoringFlags.map((flag) => {
+                                                                    const displayFlag = flag.replace(/_/g, ' ');
+                                                                    return (
+                                                                        <span 
+                                                                            key={flag} 
+                                                                            className="px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20"
+                                                                            title={displayFlag}
+                                                                            style={{ whiteSpace: 'nowrap' }}
+                                                                        >
+                                                                            {displayFlag}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>

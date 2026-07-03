@@ -131,10 +131,16 @@ const getRecruiterApplications = async (req, res) => {
         ]);
 
         const userPenaltyMap = {};
+        const userFlagsMap = {};
         const addRating = (userId, type, metadata) => {
             if (!userId) return;
             const rating = getViolationRating(type, metadata);
             userPenaltyMap[userId] = (userPenaltyMap[userId] || 0) + rating;
+            
+            if (!userFlagsMap[userId]) {
+                userFlagsMap[userId] = new Set();
+            }
+            userFlagsMap[userId].add(type);
         };
 
         baseViolations.forEach(v => {
@@ -147,6 +153,7 @@ const getRecruiterApplications = async (req, res) => {
 
         const appsWithScore = apps.map(app => {
             app.proctoringScore = userPenaltyMap[app.userId] || 0;
+            app.proctoringFlags = userFlagsMap[app.userId] ? Array.from(userFlagsMap[app.userId]) : [];
             return app;
         });
 

@@ -180,12 +180,14 @@ export default function SecureExamWrapperEnhanced({
                 metadata: meta,
             });
 
-            // Trigger non-blocking toast overlay
+            // Trigger non-blocking toast overlay suppressed for candidate
+            /*
             const toastId = Date.now() + Math.random();
             setToasts((prev) => [...prev, { id: toastId, type, detail }]);
             setTimeout(() => {
                 setToasts((prev) => prev.filter((t) => t.id !== toastId));
             }, 4000);
+            */
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -215,11 +217,14 @@ export default function SecureExamWrapperEnhanced({
             const newViolations = violations.slice(prevViolationsLengthRef.current);
             newViolations.forEach((v) => {
                 if (v.type === "TAB_SWITCH" || v.type === "WINDOW_BLUR" || v.type === "FULLSCREEN_EXIT") {
+                    // Toasts suppressed for candidate
+                    /*
                     const toastId = Date.now() + Math.random();
                     setToasts((prev) => [...prev, { id: toastId, type: v.type, detail: v.detail }]);
                     setTimeout(() => {
                         setToasts((prev) => prev.filter((t) => t.id !== toastId));
                     }, 4000);
+                    */
                 }
             });
             prevViolationsLengthRef.current = violations.length;

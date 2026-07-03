@@ -196,9 +196,10 @@ export default function AgentInterview() {
 
     // Play ElevenLabs audio (high-quality human voice)
     try {
+      const mimeType = audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
       const audioBlob = new Blob(
         [Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))],
-        { type: "audio/mpeg" }
+        { type: mimeType }
       );
       const url = URL.createObjectURL(audioBlob);
       const player = audioPlayerRef.current;

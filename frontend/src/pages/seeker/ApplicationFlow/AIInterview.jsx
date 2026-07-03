@@ -177,8 +177,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         try {
-            // Use server-provided MIME type for correct audio decoding
-            const blobType = audioMimeType || 'audio/mpeg';
+            // Use server-provided MIME type or check for WAV signature
+            const blobType = base64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
             const audioBlob = new Blob(
                 [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
                 { type: blobType }

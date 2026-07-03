@@ -297,9 +297,31 @@ async function generateGeminiSpeech(text, voice) {
             return null;
         }
 
-        const audioBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
-        const audioMimeType = audioPart.inlineData.mimeType || 'audio/mpeg';
-        console.log(`[TTS-GEMINI] Audio generated successfully: ${audioBuffer.length} bytes | voice: ${geminiVoice} | mime: ${audioMimeType}`);
+        const rawPcmBuffer = Buffer.from(audioPart.inlineData.data, 'base64');
+        
+        // Wrap the raw PCM buffer with a standard 44-byte WAV header so browsers can play it natively
+        const sampleRate = 24000;
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        
+        const wavHeader = Buffer.alloc(44);
+        wavHeader.write('RIFF', 0);
+        wavHeader.writeUInt32LE(rawPcmBuffer.length + 36, 4);
+        wavHeader.write('WAVE', 8);
+        wavHeader.write('fmt ', 12);
+        wavHeader.writeUInt32LE(16, 16);
+        wavHeader.writeUInt16LE(1, 20); // Audio format 1 = uncompressed PCM
+        wavHeader.writeUInt16LE(numChannels, 22);
+        wavHeader.writeUInt32LE(sampleRate, 24);
+        wavHeader.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), 28);
+        wavHeader.writeUInt16LE(numChannels * (bitsPerSample / 8), 32);
+        wavHeader.writeUInt16LE(bitsPerSample, 34);
+        wavHeader.write('data', 36);
+        wavHeader.writeUInt32LE(rawPcmBuffer.length, 40);
+        
+        const audioBuffer = Buffer.concat([wavHeader, rawPcmBuffer]);
+        const audioMimeType = 'audio/wav';
+        console.log(`[TTS-GEMINI] Audio wrapped in WAV successfully: ${audioBuffer.length} bytes | voice: ${geminiVoice} | mime: ${audioMimeType}`);
         return { buffer: audioBuffer, mimeType: audioMimeType, engine: 'gemini' };
     } catch (err) {
         const status = err.response?.status;
