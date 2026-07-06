@@ -32,7 +32,7 @@ const jobSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['pending_approval', 'approved', 'rejected'],
-        default: 'pending_approval'
+        default: 'approved'
     },
     adminFeedback: {
         reason: { type: String, default: '' },

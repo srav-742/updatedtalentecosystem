@@ -6,6 +6,11 @@ let jobsCache = null;
 let jobsCacheTime = 0;
 const CACHE_DURATION = 60 * 1000; // 60 seconds
 
+const clearJobsCache = () => {
+    jobsCache = null;
+    jobsCacheTime = 0;
+};
+
 // GET ALL JOBS — candidates only see approved jobs
 const getAllJobs = async (req, res) => {
     try {
@@ -14,7 +19,7 @@ const getAllJobs = async (req, res) => {
         }
 
         const jobs = await Job.find({ status: 'approved' })
-            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status')
+            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education')
             .populate('recruiter', 'name company')
             .sort({ createdAt: -1 })
             .lean();
@@ -60,7 +65,7 @@ const updateJob = async (req, res) => {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
         const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, req.body, { new: true });
-        jobsCacheTime = 0; // Clear cache
+        clearJobsCache(); // Clear cache
         res.json(updatedJob);
     } catch (error) {
         console.error("[GET-JOBS] Error:", error);
@@ -74,7 +79,7 @@ const deleteJob = async (req, res) => {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
         await Job.findByIdAndDelete(req.params.jobId);
-        jobsCacheTime = 0; // Clear cache
+        clearJobsCache(); // Clear cache
         res.json({ message: "Job deleted successfully" });
     } catch (error) {
         console.error("[GET-JOBS] Error:", error);
@@ -86,7 +91,7 @@ const createJob = async (req, res) => {
     try {
         const job = new Job(req.body);
         const savedJob = await job.save();
-        jobsCacheTime = 0; // Clear cache
+        clearJobsCache(); // Clear cache
         res.status(201).json({ success: true, job: savedJob });
     } catch (error) {
         console.error("[CREATE-JOB] Failure:", error);
@@ -110,7 +115,7 @@ const approveJob = async (req, res) => {
         );
         if (!job) return res.status(404).json({ message: "Job not found" });
         console.log(`[ADMIN] Job approved: ${job._id} - "${job.title}"`);
-        jobsCacheTime = 0; // Clear cache
+        clearJobsCache(); // Clear cache
         res.json({ message: "Job approved and now live", job });
     } catch (error) {
         console.error("[ADMIN-APPROVE] Error:", error);
@@ -138,7 +143,7 @@ const rejectJob = async (req, res) => {
         );
         if (!job) return res.status(404).json({ message: "Job not found" });
         console.log(`[ADMIN] Job rejected: ${job._id} - "${job.title}" | Reason: ${reason}`);
-        jobsCacheTime = 0; // Clear cache
+        clearJobsCache(); // Clear cache
         res.json({ message: "Job rejected", job });
     } catch (error) {
         console.error("[ADMIN-REJECT] Error:", error);
@@ -146,4 +151,4 @@ const rejectJob = async (req, res) => {
     }
 };
 
-module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob };
+module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache };

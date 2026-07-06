@@ -30,9 +30,8 @@ const PublicJobDetails = () => {
     useEffect(() => {
         const fetchJob = async () => {
             try {
-                const res = await axios.get(`${API_URL}/jobs`);
-                const found = res.data.find((item) => item._id === id);
-                setJob(found);
+                const res = await axios.get(`${API_URL}/jobs/${id}`);
+                setJob(res.data);
             } catch (error) {
                 console.error('Failed to fetch job details:', error);
             } finally {

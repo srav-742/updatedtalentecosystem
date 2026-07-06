@@ -46,13 +46,12 @@ const JobDetails = () => {
         const fetchJobAndApp = async () => {
             try {
                 const [jobRes, appsRes] = await Promise.all([
-                    axios.get(`${API_URL}/jobs`),
+                    axios.get(`${API_URL}/jobs/${id}`),
                     user.uid || user._id || user.id
                         ? axios.get(`${API_URL}/applications/seeker/${user.uid || user._id || user.id}`)
                         : Promise.resolve({ data: [] })
                 ]);
-                const foundJob = jobRes.data.find((item) => item._id === id);
-                setJob(foundJob);
+                setJob(jobRes.data);
 
                 const foundApp = appsRes.data.find((app) => (app.jobId?._id || app.jobId) === id);
                 setApplication(foundApp);

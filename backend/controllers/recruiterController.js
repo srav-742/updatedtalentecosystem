@@ -231,6 +231,14 @@ const createJob = async (req, res) => {
         const savedJob = await job.save();
 
         console.log(`[JOBS] Successfully saved job: ${savedJob._id}`);
+        
+        try {
+            const { clearJobsCache } = require('./jobController');
+            clearJobsCache();
+        } catch (cacheError) {
+            console.error('[JOBS] Cache invalidation failed:', cacheError.message);
+        }
+
         res.status(201).json({
             message: 'Job created successfully',
             job: savedJob
