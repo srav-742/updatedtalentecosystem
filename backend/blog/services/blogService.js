@@ -77,10 +77,24 @@ class BlogService {
     }
 }
 
+const mongoose = require('mongoose');
 const serviceInstance = new BlogService();
-// Seeding in the background on load
-serviceInstance.seedDefaultCategories().catch(err => {
-    console.error('[BLOG-SERVICE] Failed to seed default categories:', err.message);
-});
+
+// Safe seeding that runs only when MongoDB connection is active
+const seedAfterConnection = () => {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+        serviceInstance.seedDefaultCategories().catch(err => {
+            console.error('[BLOG-SERVICE] Failed to seed default categories:', err.message);
+        });
+    } else {
+        mongoose.connection.once('open', () => {
+            serviceInstance.seedDefaultCategories().catch(err => {
+                console.error('[BLOG-SERVICE] Failed to seed default categories:', err.message);
+            });
+        });
+    }
+};
+
+seedAfterConnection();
 
 module.exports = serviceInstance;
