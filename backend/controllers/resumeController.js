@@ -469,33 +469,30 @@ const getResumeStructuredProfile = async (req, res) => {
             });
 
             if (recruiter && recruiter.role === 'recruiter') {
-                const isPro = recruiter.isPro === true || recruiter.hiringPattern === 'Premium Recruiter';
-                if (!isPro) {
-                    const Application = require('../models/Application');
-                    const UnlockedApplicant = require('../models/UnlockedApplicant');
-                    const Job = require('../models/Job');
+                const Application = require('../models/Application');
+                const UnlockedApplicant = require('../models/UnlockedApplicant');
+                const Job = require('../models/Job');
 
-                    // Find jobs for this recruiter
-                    const jobs = await Job.find({ 
-                        $or: [
-                            { recruiterId: recruiter.uid },
-                            { recruiterId: recruiter._id.toString() }
-                        ]
-                    }).select('_id');
-                    const jobIds = jobs.map(j => j._id);
+                // Find jobs for this recruiter
+                const jobs = await Job.find({ 
+                    $or: [
+                        { recruiterId: recruiter.uid },
+                        { recruiterId: recruiter._id.toString() }
+                    ]
+                }).select('_id');
+                const jobIds = jobs.map(j => j._id);
 
-                    // Find if the candidate has an application for one of these jobs
-                    const app = await Application.findOne({ userId: req.params.userId, jobId: { $in: jobIds } });
-                    if (!app) {
-                        return res.status(403).json({ message: "Access denied: Candidate has not applied to your jobs." });
-                    }
+                // Find if the candidate has an application for one of these jobs
+                const app = await Application.findOne({ userId: req.params.userId, jobId: { $in: jobIds } });
+                if (!app) {
+                    return res.status(403).json({ message: "Access denied: Candidate has not applied to your jobs." });
+                }
 
-                    // Check if unlocked
-                    const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId: app._id });
-                    const isUnlockedResume = isUnlocked && isUnlocked.unlockedItems.includes('resume');
-                    if (!isUnlockedResume) {
-                        return res.status(403).json({ message: "Access denied: Please unlock candidate's resume to view." });
-                    }
+                // Check if unlocked
+                const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId: app._id });
+                const isUnlockedResume = isUnlocked && isUnlocked.unlockedItems.includes('resume');
+                if (!isUnlockedResume) {
+                    return res.status(403).json({ message: "Access denied: Please unlock candidate's resume to view." });
                 }
             }
         }
