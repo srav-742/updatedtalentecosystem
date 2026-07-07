@@ -19,19 +19,19 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobDetailSkeleton } from '../../components/Skeleton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const JobDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [job, setJob] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+    
     const [showApplyOptions, setShowApplyOptions] = useState(false);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [application, setApplication] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
-
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
+
+    const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -43,56 +43,58 @@ const JobDetails = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showShareMenu]);
 
-    useEffect(() => {
-        const fetchJobAndApp = async () => {
-            try {
-                const [jobRes, appsRes] = await Promise.all([
-                    axios.get(`${API_URL}/jobs/${id}`),
-                    user.uid || user._id || user.id
-                        ? axios.get(`${API_URL}/applications/seeker/${user.uid || user._id || user.id}`)
-                        : Promise.resolve({ data: [] })
-                ]);
-                setJob(jobRes.data);
+    // Fetch individual job details
+    const { data: job = null, isLoading: jobLoading } = useQuery({
+        queryKey: ['job', id],
+        queryFn: async () => {
+            const res = await axios.get(`${API_URL}/jobs/${id}`);
+            return res.data;
+        },
+        enabled: !!id
+    });
 
-                const foundApp = appsRes.data.find((app) => (app.jobId?._id || app.jobId) === id);
-                setApplication(foundApp);
-            } catch (error) {
-                console.error('Failed to fetch job details/application:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    // Fetch seeker's applications to determine save/application status
+    const { data: userApplications = [], isLoading: appsLoading } = useQuery({
+        queryKey: ['applications', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
 
-        fetchJobAndApp();
-    }, [id, user.uid, user._id, user.id]);
+    const loading = jobLoading || appsLoading;
+    const application = userApplications.find((app) => (app.jobId?._id || app.jobId) === id);
 
-    const handleToggleSaveJob = async () => {
-        const userId = user.uid || user._id || user.id;
-        if (!userId) {
-            alert("Please log in to save jobs.");
-            return;
-        }
-
-        setIsSaving(true);
-        try {
+    // Mutation for toggling save state
+    const toggleSaveMutation = useMutation({
+        mutationFn: async () => {
             if (application) {
                 if (application.status === 'SAVED') {
                     await axios.delete(`${API_URL}/applications/${application._id || application.id}`);
-                    setApplication(null);
                 }
             } else {
-                const res = await axios.post(`${API_URL}/applications`, {
+                await axios.post(`${API_URL}/applications`, {
                     jobId: id,
                     userId,
                     status: 'SAVED'
                 });
-                setApplication(res.data);
             }
-        } catch (error) {
-            console.error('Failed to toggle save job:', error);
-        } finally {
-            setIsSaving(false);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
+    });
+
+    const isSaving = toggleSaveMutation.isPending;
+
+    const handleToggleSaveJob = async () => {
+        if (!userId) {
+            alert("Please log in to save jobs.");
+            return;
+        }
+        toggleSaveMutation.mutate();
     };
 
     if (loading) {

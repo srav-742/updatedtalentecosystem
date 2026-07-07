@@ -196,30 +196,26 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
     </section>
 );
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 const MyApplications = () => {
+    const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [applications, setApplications] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [submittedOpen, setSubmittedOpen] = useState(true);
     const [archivedOpen, setArchivedOpen] = useState(false);
 
-    useEffect(() => {
-        const fetchApps = async () => {
-            try {
-                const userId = user.uid || user._id || user.id;
-                const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
-                setApplications(res.data);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const userId = user.uid || user._id || user.id;
 
-        if (user.uid || user._id || user.id) {
-            fetchApps();
-        }
-    }, [user.uid, user._id, user.id]);
+    // React Query hook for fetching and caching seeker applications
+    const { data: applications = [], isLoading: loading } = useQuery({
+        queryKey: ['applications', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
 
     const submittedApplications = useMemo(
         () => applications.filter((application) => application.status !== 'REJECTED' && application.status !== 'SAVED'),
@@ -231,13 +227,18 @@ const MyApplications = () => {
         [applications]
     );
 
-    const handleUnsave = async (appId) => {
-        try {
+    // Mutation for unsaving jobs
+    const unsaveMutation = useMutation({
+        mutationFn: async (appId) => {
             await axios.delete(`${API_URL}/applications/${appId}`);
-            setApplications((prev) => prev.filter((app) => app._id !== appId));
-        } catch (error) {
-            console.error('Failed to unsave job:', error);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
+    });
+
+    const handleUnsave = async (appId) => {
+        unsaveMutation.mutate(appId);
     };
 
     return (

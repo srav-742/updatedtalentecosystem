@@ -5,15 +5,16 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobCardSkeleton } from '../../components/Skeleton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const BrowseJobs = () => {
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState('');
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [userApplications, setUserApplications] = useState([]);
+
+    const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -25,56 +26,59 @@ const BrowseJobs = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [activeShareJobId]);
 
-    useEffect(() => {
-        const fetchJobsAndApps = async () => {
-            try {
-                const [jobsRes, appsRes] = await Promise.all([
-                    axios.get(`${API_URL}/jobs`),
-                    user.uid || user._id || user.id
-                        ? axios.get(`${API_URL}/applications/seeker/${user.uid || user._id || user.id}`)
-                        : Promise.resolve({ data: [] })
-                ]);
-                setJobs(jobsRes.data);
-                setUserApplications(appsRes.data);
-            } catch (error) {
-                console.error('Failed to fetch jobs/applications:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    // Fetch jobs using React Query
+    const { data: jobs = [], isLoading: jobsLoading } = useQuery({
+        queryKey: ['jobs'],
+        queryFn: async () => {
+            const res = await axios.get(`${API_URL}/jobs`);
+            return res.data;
+        }
+    });
 
-        fetchJobsAndApps();
-    }, [user.uid, user._id, user.id]);
+    // Fetch seeker's applications using React Query
+    const { data: userApplications = [], isLoading: appsLoading } = useQuery({
+        queryKey: ['applications', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
+
+    const loading = jobsLoading || appsLoading;
+
+    // Mutation for toggling save state
+    const toggleSaveMutation = useMutation({
+        mutationFn: async ({ jobId, existingApp }) => {
+            if (existingApp) {
+                if (existingApp.status === 'SAVED') {
+                    await axios.delete(`${API_URL}/applications/${existingApp._id || existingApp.id}`);
+                }
+            } else {
+                await axios.post(`${API_URL}/applications`, {
+                    jobId,
+                    userId,
+                    status: 'SAVED'
+                });
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['applications', userId] });
+        }
+    });
 
     const handleToggleSaveJob = async (e, jobId) => {
         e.preventDefault();
         e.stopPropagation();
         
-        const userId = user.uid || user._id || user.id;
         if (!userId) {
             alert("Please log in to save jobs.");
             return;
         }
 
         const existingApp = userApplications.find(app => (app.jobId?._id || app.jobId) === jobId);
-        
-        try {
-            if (existingApp) {
-                if (existingApp.status === 'SAVED') {
-                    await axios.delete(`${API_URL}/applications/${existingApp._id || existingApp.id}`);
-                    setUserApplications(prev => prev.filter(app => app._id !== (existingApp._id || existingApp.id)));
-                }
-            } else {
-                const res = await axios.post(`${API_URL}/applications`, {
-                    jobId,
-                    userId,
-                    status: 'SAVED'
-                });
-                setUserApplications(prev => [...prev, res.data]);
-            }
-        } catch (error) {
-            console.error('Failed to toggle save job:', error);
-        }
+        toggleSaveMutation.mutate({ jobId, existingApp });
     };
 
     const filteredJobs = useMemo(() => {
