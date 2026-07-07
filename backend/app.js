@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dns = require('dns');
 const compression = require('compression');
+const { cacheMiddleware } = require('./middleware/cacheMiddleware');
 
 // Fix for MongoDB SRV DNS resolution issues (only in development environments)
 if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
@@ -10,8 +11,20 @@ if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
 
 const app = express();
 
-// Enable GZIP compression for all API responses
-app.use(compression());
+// Fastest compression: level 1 gives ~60% size reduction at maximum speed
+// Level 6 (default) is 3x slower with only ~5% better compression
+app.use(compression({
+    level: 1,           // fastest deflate level — best for high-throughput APIs
+    threshold: 512,     // compress responses > 512 bytes (lower than default 1KB)
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) return false;
+        return compression.filter(req, res);
+    }
+}));
+
+// Enable ETag so browsers can do conditional GET (304 Not Modified)
+// This means unchanged responses return instantly with 0 bytes transferred
+app.set('etag', 'strong');
 
 // Middleware
 const corsOptions = {
@@ -165,11 +178,17 @@ app.use('/api', gatewayMiddleware);
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', recruiterRoutes);
-app.use('/api/jobs', jobRoutes);
+
+// 🚀 High-traffic read routes — wrapped with cache middleware for instant responses
+// Jobs: cache 5 min (data changes rarely, public endpoint)
+app.use('/api/jobs', cacheMiddleware(300, { httpMaxAge: 60, staleWhileRevalidate: 600 }), jobRoutes);
+
 app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
-app.use('/api', applicationRoutes);
+
+// Applications: cache 30s per user (user-specific so varyByUser = true)
+app.use('/api', cacheMiddleware(30, { httpMaxAge: 30, staleWhileRevalidate: 120, varyByUser: true }), applicationRoutes);
 app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX Overlay first (overrides /start and /next-fast)
 app.use('/api/interview', aiInterviewRoutes);
 app.use('/api/interview', require('./routes/fastAiInterviewRoutes'));
