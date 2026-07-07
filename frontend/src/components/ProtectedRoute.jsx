@@ -10,11 +10,11 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
     useEffect(() => {
         const checkAuth = () => {
             const storedUser = localStorage.getItem('user');
-            console.log("[ProtectedRoute] Stored user:", storedUser);
+            if (import.meta.env.DEV) console.log("[ProtectedRoute] Stored user:", storedUser);
             if (storedUser) {
                 try {
                     const parsedUser = JSON.parse(storedUser);
-                    console.log("[ProtectedRoute] Parsed user role:", parsedUser?.role);
+                    if (import.meta.env.DEV) console.log("[ProtectedRoute] Parsed user role:", parsedUser?.role);
                     setUser(parsedUser);
                 } catch (e) {
                     console.error("Failed to parse user from localStorage", e);
@@ -34,10 +34,10 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
         );
     }
 
-    console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
+    if (import.meta.env.DEV) console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
 
     if (!user || !user.uid) {
-        console.log("[ProtectedRoute] No valid user, redirecting to login");
+        if (import.meta.env.DEV) console.log("[ProtectedRoute] No valid user, redirecting to login");
         if (window.location.pathname.includes('AdminContentPage')) {
             window.location.href = '/login';
             return null;
@@ -52,7 +52,7 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
         : (role ? [role] : null);
 
     if (effectiveAllowedRoles && !effectiveAllowedRoles.includes(user.role)) {
-        console.log(`[ProtectedRoute] Role mismatch: Expected one of [${effectiveAllowedRoles.join(', ')}], got "${user.role}". Redirecting...`);
+        if (import.meta.env.DEV) console.log(`[ProtectedRoute] Role mismatch: Expected one of [${effectiveAllowedRoles.join(', ')}], got "${user.role}". Redirecting...`);
         const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker';
         
         // Hard fallback if Navigate seems to be ignored
@@ -65,7 +65,7 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
     }
 
 
-    console.log("[ProtectedRoute] Access Granted");
+    if (import.meta.env.DEV) console.log("[ProtectedRoute] Access Granted");
     return children;
 };
 

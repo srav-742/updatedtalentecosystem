@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => ({
     // esbuild (default) is safe and fast — terser was causing blank page issues
     // due to aggressive code elimination on React initialization code
     minify: 'esbuild',
+    target: 'es2020',
+    cssCodeSplit: true,
     chunkSizeWarningLimit: 1200,
     sourcemap: false,
     rollupOptions: {

@@ -4,6 +4,7 @@ import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
+import { prefetchSeekerRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/seeker' },
@@ -18,6 +19,12 @@ const SeekerLayout = () => {
     const [profile, setProfile] = useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
+
+    // Prefetch all seeker page chunks during browser idle time
+    // so navigation between seeker pages is instant
+    useEffect(() => {
+        prefetchSeekerRoutes();
+    }, []);
 
     useEffect(() => {
         // Only redirect if user has a role and it's not seeker OR admin
@@ -42,7 +49,9 @@ const SeekerLayout = () => {
         };
 
         fetchProfile();
-    }, [navigate, user]);
+    // FIX: Using specific user properties instead of the full `user` object
+    // to prevent infinite re-renders (object reference changes every render)
+    }, [navigate, user.uid, user._id, user.id, user.role]);
 
     const handleLogout = async () => {
         try {

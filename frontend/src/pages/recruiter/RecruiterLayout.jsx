@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import axios from 'axios';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
 import TopUpModal from '../../components/TopUpModal';
+import { prefetchRecruiterRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/recruiter' },
@@ -41,6 +42,12 @@ const RecruiterLayout = () => {
             console.error("Failed to fetch wallet balance:", err);
         }
     };
+
+    // Prefetch all recruiter page chunks during browser idle time
+    // so navigation between recruiter pages is instant
+    React.useEffect(() => {
+        prefetchRecruiterRoutes();
+    }, []);
 
     React.useEffect(() => {
         fetchWalletBalance();

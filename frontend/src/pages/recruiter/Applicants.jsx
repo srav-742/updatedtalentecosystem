@@ -243,13 +243,16 @@ const Applicants = () => {
     const handleStatusUpdate = async (id, newStatus) => {
         try {
             setActiveMenuId(null);
-            // Optimistic update
-            setApplicants(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+            // Optimistic update using React Query's cache (setApplicants doesn't exist)
+            queryClient.setQueryData(['applicants', userId], (old) =>
+                (old || []).map(a => a._id === id ? { ...a, status: newStatus } : a)
+            );
 
             await axios.put(`${API_URL}/applications/${id}/status`, { status: newStatus });
         } catch (error) {
             console.error("Failed to update status:", error);
-            // Revert on error (could fetch again, but alert for now)
+            // Revert on error by refetching
+            queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
             alert("Failed to update status. Please try again.");
         }
     };
