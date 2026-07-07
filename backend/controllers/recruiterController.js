@@ -141,30 +141,123 @@ const getRecruiterApplications = async (req, res) => {
             ProctoringViolationEnhanced.find(violationQuery).lean()
         ]);
 
-        const userPenaltyMap = {};
-        const userFlagsMap = {};
-        const addRating = (userId, type, metadata) => {
+        const applicationPenaltyMap = {};
+        const applicationFlagsMap = {};
+        const addRating = (userId, examId, type, metadata) => {
             if (!userId) return;
             const rating = getViolationRating(type, metadata);
-            userPenaltyMap[userId] = (userPenaltyMap[userId] || 0) + rating;
             
-            if (!userFlagsMap[userId]) {
-                userFlagsMap[userId] = new Set();
+            // Extract jobId from examId (format: type:jobId:sessionId)
+            let jobId = null;
+            if (examId && typeof examId === 'string') {
+                const parts = examId.split(':');
+                if (parts.length >= 2) {
+                    jobId = parts[1];
+                }
             }
-            userFlagsMap[userId].add(type);
+
+            // Key on userId_jobId if jobId is valid, otherwise fallback to userId only
+            const key = jobId ? `${userId}_${jobId}` : userId;
+            
+            applicationPenaltyMap[key] = (applicationPenaltyMap[key] || 0) + rating;
+            
+            if (!applicationFlagsMap[key]) {
+                applicationFlagsMap[key] = new Set();
+            }
+            applicationFlagsMap[key].add(type);
         };
 
         baseViolations.forEach(v => {
-            addRating(v.userId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata);
         });
 
         enhancedViolations.forEach(v => {
-            addRating(v.userId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata);
         });
 
-        const appsWithScore = apps.map(app => {
-            app.proctoringScore = userPenaltyMap[app.userId] || 0;
-            app.proctoringFlags = userFlagsMap[app.userId] ? Array.from(userFlagsMap[app.userId]) : [];
+        const isPremium = reqUser && (reqUser.isPro === true || reqUser.hiringPattern === 'Premium Recruiter' || reqUser.role === 'admin');
+        
+        let unlockedAppMap = new Map();
+        if (!isPremium && reqUser) {
+            const UnlockedApplicant = require('../models/UnlockedApplicant');
+            const unlockedRecords = await UnlockedApplicant.find({ recruiterId: reqUser._id }).lean();
+            unlockedRecords.forEach(r => {
+                unlockedAppMap.set(r.applicationId.toString(), r.unlockedItems || []);
+            });
+        }
+
+        const appsWithScore = apps.map((app, index) => {
+            const appJobId = app.jobId?._id?.toString() || app.jobId?.toString();
+            const key = appJobId ? `${app.userId}_${appJobId}` : app.userId;
+            app.proctoringScore = applicationPenaltyMap[key] !== undefined ? applicationPenaltyMap[key] : (applicationPenaltyMap[app.userId] || 0);
+            
+            const flags = applicationFlagsMap[key] || applicationFlagsMap[app.userId];
+            app.proctoringFlags = flags ? Array.from(flags) : [];
+            
+            let isResumeLocked = true;
+            let isAssessmentLocked = true;
+            let isInterviewLocked = true;
+
+            if (isPremium) {
+                isResumeLocked = false;
+                isAssessmentLocked = false;
+                isInterviewLocked = false;
+            } else if (unlockedAppMap.has(app._id.toString())) {
+                const items = unlockedAppMap.get(app._id.toString());
+                if (!items || items.length === 0) {
+                    isResumeLocked = false;
+                    isAssessmentLocked = false;
+                    isInterviewLocked = false;
+                } else {
+                    isResumeLocked = !items.includes('resume');
+                    isAssessmentLocked = !items.includes('assessment');
+                    isInterviewLocked = !items.includes('interview');
+                }
+            }
+
+            app.isResumeLocked = isResumeLocked;
+            app.isAssessmentLocked = isAssessmentLocked;
+            app.isInterviewLocked = isInterviewLocked;
+            app.isLocked = isResumeLocked; // Backward compatibility for general checks
+
+            // Conditionally mask Resume & Profile data
+            if (isResumeLocked) {
+                app.applicantName = `Candidate ${index + 1}`;
+                if (app.applicantEmail) {
+                    const parts = app.applicantEmail.split('@');
+                    if (parts.length === 2) {
+                        const local = parts[0];
+                        app.applicantEmail = `${local.charAt(0)}***@${parts[1]}`;
+                    } else {
+                        app.applicantEmail = 'Locked';
+                    }
+                } else {
+                    app.applicantEmail = 'Locked';
+                }
+                
+                if (app.user) {
+                    app.user = {
+                        name: `Candidate ${index + 1}`,
+                        email: app.applicantEmail,
+                        profilePic: null,
+                        githubUrl: null,
+                        linkedinUrl: null,
+                        resumeUrl: null
+                    };
+                }
+            } else {
+                if (app.user && app.user.name) {
+                    app.applicantName = app.user.name;
+                }
+            }
+
+            // Conditionally mask Interview / Video Intro data
+            if (isInterviewLocked) {
+                app.videoIntroUrl = null;
+                app.recordingPlaybackUrl = null;
+                app.recordingUrl = null;
+            }
+
             return app;
         });
 

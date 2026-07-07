@@ -88,7 +88,8 @@ const getInterviewDetails = async (req, res) => {
             const Transaction = require('../models/Transaction');
             const paidTransactions = await Transaction.countDocuments({
                 userId: recruiter._id,
-                status: 'paid'
+                status: 'paid',
+                type: 'premium_upgrade'
             });
 
             const shouldBePro = paidTransactions > 0 || recruiter.isPro === true;
@@ -98,8 +99,15 @@ const getInterviewDetails = async (req, res) => {
                 await recruiter.save();
             }
 
-            if (!shouldBePro) {
-                return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+            const UnlockedApplicant = require('../models/UnlockedApplicant');
+            const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
+            const isUnlockedInterview = isUnlocked && (
+                isUnlocked.unlockedItems.includes('interview') || 
+                (!isUnlocked.unlockedItems || isUnlocked.unlockedItems.length === 0)
+            );
+
+            if (!shouldBePro && !isUnlockedInterview) {
+                return res.status(403).json({ message: "Forbidden: Pro Recruiter status or interview unlock required." });
             }
         }
 

@@ -24,6 +24,7 @@ import {
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../firebase';
+import { ResumeAnalysisSkeleton } from '../../../components/Skeleton';
 
 const createEmptyStructuredProfile = () => ({
     basics: {
@@ -613,6 +614,9 @@ ${projectsFlat}
     const isPassed = analysisResult ? matchPercentage >= threshold : false;
 
     const renderSectionContent = () => {
+        if (analyzing) {
+            return <ResumeAnalysisSkeleton />;
+        }
         if (activeSection === 'resume') {
             return (
                 <DetailCard

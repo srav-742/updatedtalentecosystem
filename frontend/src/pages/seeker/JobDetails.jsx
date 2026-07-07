@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { JobDetailSkeleton } from '../../components/Skeleton';
 
 const JobDetails = () => {
     const { id } = useParams();
@@ -95,12 +96,7 @@ const JobDetails = () => {
     };
 
     if (loading) {
-        return (
-            <div className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
-                <p className="mt-6 text-sm font-medium text-gray-500">Loading job details...</p>
-            </div>
-        );
+        return <JobDetailSkeleton />;
     }
 
     if (!job) {

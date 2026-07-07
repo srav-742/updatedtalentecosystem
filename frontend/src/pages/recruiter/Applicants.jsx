@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, FileText, Sparkles, XCircle, UploadCloud } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
+import { ApplicantsSkeleton } from '../../components/Skeleton';
 import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import TopUpModal from '../../components/TopUpModal';
 
 const Applicants = () => {
     const navigate = useNavigate();
@@ -17,6 +19,11 @@ const Applicants = () => {
         const u = JSON.parse(localStorage.getItem('user') || '{}');
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
     });
+    const [walletBalance, setWalletBalance] = useState(user.walletBalance || 0);
+    const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+    const [unlockingItem, setUnlockingItem] = useState(null); // { id, type, cost }
+    const [unlockingInProgress, setUnlockingInProgress] = useState(false);
+    const [unlockError, setUnlockError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [applicants, setApplicants] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -51,9 +58,51 @@ const Applicants = () => {
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
     const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
 
+    // Proctoring Violations Popover State
+    const [expandedProctoringAppId, setExpandedProctoringAppId] = useState(null);
+
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
+
+    const fetchWalletBalance = async () => {
+        const userId = user.uid || user._id || user.id;
+        if (!userId) return;
+        try {
+            const res = await axios.get(`${API_URL}/wallet/balance/${userId}`);
+            if (res.data && res.data.success) {
+                setWalletBalance(res.data.balance);
+            }
+        } catch (err) {
+            console.error("Failed to fetch wallet balance:", err);
+        }
+    };
+
+    const handleUnlockApplicant = async (applicationId, itemType) => {
+        setUnlockError('');
+        setUnlockingInProgress(true);
+        try {
+            const recruiterId = user.uid || user._id || user.id;
+            const res = await axios.post(`${API_URL}/wallet/unlock`, {
+                recruiterId,
+                applicationId,
+                itemType
+            });
+
+            if (res.data && res.data.success) {
+                setWalletBalance(res.data.balance);
+                window.dispatchEvent(new Event('wallet-update'));
+                setUnlockingItem(null);
+                fetchApplicants();
+            }
+        } catch (err) {
+            console.error("Unlock applicant error:", err);
+            const msg = err.response?.data?.message || "Failed to unlock applicant.";
+            setUnlockError(msg);
+        } finally {
+            setUnlockingInProgress(false);
+        }
+    };
 
     const fetchApplicants = async () => {
         setLoading(true);
@@ -68,22 +117,21 @@ const Applicants = () => {
                     setIsPro(isPremium);
                     const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
                     localStorage.setItem('user', JSON.stringify(updatedUser));
-                    
-                    if (!isPremium) {
-                        navigate('/recruiter/upgrade');
-                        return;
-                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch fresh recruiter profile:", err);
             }
 
             const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
-            let mapped = res.data.map(app => ({
+            let mapped = res.data.map((app, index) => ({
                 id: app._id,
                 userId: app.userId,
+                isLocked: app.isLocked,
+                isResumeLocked: app.isResumeLocked,
+                isAssessmentLocked: app.isAssessmentLocked,
+                isInterviewLocked: app.isInterviewLocked,
                 jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
-                name: app.applicantName || app.user?.name || 'Anonymous',
+                name: app.applicantName || app.user?.name || `Candidate ${index + 1}`,
                 email: app.applicantEmail || 'No Email',
                 job: app.jobId?.title || 'Unknown Job',
                 resumeScore: app.resumeMatchPercent,
@@ -117,12 +165,20 @@ const Applicants = () => {
 
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        const initialPro = storedUser.hiringPattern === "Premium Recruiter" || storedUser.isPro === true;
-        if (!initialPro) {
-            navigate('/recruiter/upgrade');
+        if (storedUser.role !== 'recruiter' && storedUser.role !== 'admin') {
+            navigate('/login');
             return;
         }
         fetchApplicants();
+        fetchWalletBalance();
+
+        const handleWalletUpdate = () => {
+            fetchWalletBalance();
+        };
+        window.addEventListener('wallet-update', handleWalletUpdate);
+        return () => {
+            window.removeEventListener('wallet-update', handleWalletUpdate);
+        };
     }, [targetJobId]);
 
     // Handle Filters and Sorting
@@ -190,9 +246,9 @@ const Applicants = () => {
     };
 
     // Handle View Assessment
-    const handleViewAssessment = (applicationId) => {
-        if (!isPro) {
-            navigate('/recruiter/upgrade');
+    const handleViewAssessment = (applicationId, isAssessmentLocked) => {
+        if (isAssessmentLocked) {
+            setUnlockingItem({ id: applicationId, type: 'assessment', cost: 5 });
             return;
         }
         setSelectedApplicationId(applicationId);
@@ -200,9 +256,9 @@ const Applicants = () => {
     };
 
     // Handle View Interview
-    const handleViewInterview = (applicationId) => {
-        if (!isPro) {
-            navigate('/recruiter/upgrade');
+    const handleViewInterview = (applicationId, isInterviewLocked) => {
+        if (isInterviewLocked) {
+            setUnlockingItem({ id: applicationId, type: 'interview', cost: 10 });
             return;
         }
         setSelectedInterviewApplicationId(applicationId);
@@ -282,6 +338,21 @@ const Applicants = () => {
                             Bulk Upload
                         </button>
                     )}
+                    {/* Wallet balance display pill */}
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 shadow-lg shadow-black/5">
+                        <Wallet size={16} className="text-blue-400" />
+                        <div className="text-xs font-semibold text-gray-300">
+                            Wallet: <span className="text-white font-extrabold">₹{walletBalance.toFixed(2)}</span>
+                        </div>
+                        <button 
+                            onClick={() => setIsTopUpOpen(true)}
+                            className="ml-1.5 p-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors border border-blue-500/20 cursor-pointer"
+                            title="Top Up Wallet"
+                        >
+                            <Plus size={12} />
+                        </button>
+                    </div>
+
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm border transition-all ${
@@ -423,14 +494,7 @@ const Applicants = () => {
             )}
 
             {loading ? (
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
-                    <div className="min-h-[400px] flex items-center justify-center">
-                        <div className="flex items-center justify-center gap-2 text-gray-500 italic">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
-                            Reading Applicant Ledger...
-                        </div>
-                    </div>
-                </div>
+                <ApplicantsSkeleton />
             ) : filteredApplicants.length > 0 ? (
                 Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => (
                     <div key={jobTitle} className="space-y-4 mb-10">
@@ -485,20 +549,20 @@ const Applicants = () => {
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-0.5">
                                                             <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
+                                                            {app.isResumeLocked && (
+                                                                <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-400 border border-amber-500/20">
+                                                                    Locked
+                                                                </span>
+                                                            )}
                                                             {/* ─── SOCIAL INTEGRATIONS ─── */}
-                                                            {app.githubUrl && (
+                                                            {!app.isResumeLocked && app.githubUrl && (
                                                                 <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
                                                                     <Github size={14} />
                                                                 </a>
                                                             )}
-                                                            {app.linkedinUrl && (
+                                                            {!app.isResumeLocked && app.linkedinUrl && (
                                                                 <a href={app.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
                                                                     <Linkedin size={14} />
-                                                                </a>
-                                                            )}
-                                                            {app.resumeUrl && (
-                                                                <a href={app.resumeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-emerald-400 transition-colors" title="View Resume">
-                                                                    <FileText size={14} />
                                                                 </a>
                                                             )}
                                                         </div>
@@ -507,7 +571,18 @@ const Applicants = () => {
                                                 </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="flex items-center justify-center">
-                                                        {app.videoIntroUrl ? (
+                                                        {app.isInterviewLocked ? (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setUnlockingItem({ id: app.id, type: 'interview', cost: 10 });
+                                                                }}
+                                                                className="w-10 h-10 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer animate-pulse"
+                                                                title="Unlock Candidate to Watch Video (₹10)"
+                                                            >
+                                                                <Video size={16} />
+                                                            </button>
+                                                        ) : app.videoIntroUrl ? (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -528,17 +603,30 @@ const Applicants = () => {
                                                      <div className="flex items-center justify-center">
                                                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-base shadow-sm">
                                                              <span>{app.resumeScore}/10</span>
-                                                             <button
-                                                                 onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     setSelectedResumeUserId(app.userId);
-                                                                     setShowGeneratedResumeModal(true);
-                                                                 }}
-                                                                 className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
-                                                                 title="View AI Parsed Resume"
-                                                             >
-                                                                 <Eye size={15} />
-                                                             </button>
+                                                             {app.isResumeLocked ? (
+                                                                 <button
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setUnlockingItem({ id: app.id, type: 'resume', cost: 3 });
+                                                                     }}
+                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                                                                     title="Unlock Candidate Resume (₹3)"
+                                                                 >
+                                                                     <Eye size={15} />
+                                                                 </button>
+                                                             ) : (
+                                                                 <button
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setSelectedResumeUserId(app.userId);
+                                                                         setShowGeneratedResumeModal(true);
+                                                                     }}
+                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     title="View AI Parsed Resume"
+                                                                 >
+                                                                     <Eye size={15} />
+                                                                 </button>
+                                                             )}
                                                          </div>
                                                      </div>
                                                  </td>
@@ -550,10 +638,10 @@ const Applicants = () => {
                                                                  <button
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
-                                                                         handleViewAssessment(app.id);
+                                                                         handleViewAssessment(app.id, app.isAssessmentLocked);
                                                                      }}
-                                                                     className="text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
-                                                                     title="View Assessment Details"
+                                                                     className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
+                                                                     title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
                                                                  >
                                                                      <Eye size={15} />
                                                                  </button>
@@ -569,10 +657,10 @@ const Applicants = () => {
                                                                  <button
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
-                                                                         handleViewInterview(app.id);
+                                                                         handleViewInterview(app.id, app.isInterviewLocked);
                                                                      }}
-                                                                     className="opacity-80 hover:opacity-100 hover:bg-white/5 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
-                                                                     title="View Interview Status"
+                                                                     className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
+                                                                     title={app.isInterviewLocked ? "Unlock Interview Status (₹10)" : "View Interview Status"}
                                                                  >
                                                                      <Eye size={15} />
                                                                  </button>
@@ -581,25 +669,35 @@ const Applicants = () => {
                                                      </div>
                                                  </td>
                                                 <td className="py-5 text-center">
-                                                    <div className="flex flex-col items-center justify-center gap-1.5">
-                                                        <div className={`inline-flex items-center justify-center px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 font-extrabold text-base shadow-sm ${app.proctoringScore > 0 ? 'animate-pulse' : ''}`} title="Total Integrity Penalty Score">
+                                                    <div className="flex flex-col items-center justify-center gap-1.5 relative">
+                                                        <div 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setExpandedProctoringAppId(expandedProctoringAppId === app.id ? null : app.id);
+                                                            }}
+                                                            className={`inline-flex items-center justify-center px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 font-extrabold text-base shadow-sm cursor-pointer hover:bg-red-500/10 transition-all ${app.proctoringScore > 0 ? 'animate-pulse' : ''}`} 
+                                                            title="Click to view violations"
+                                                        >
                                                             <span>{app.proctoringScore}</span>
                                                         </div>
-                                                        {app.proctoringFlags && app.proctoringFlags.length > 0 && (
-                                                            <div className="flex flex-wrap gap-1 max-w-[130px] justify-center mt-1">
-                                                                {app.proctoringFlags.map((flag) => {
-                                                                    const displayFlag = flag.replace(/_/g, ' ');
-                                                                    return (
-                                                                        <span 
-                                                                            key={flag} 
-                                                                            className="px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20"
-                                                                            title={displayFlag}
-                                                                            style={{ whiteSpace: 'nowrap' }}
-                                                                        >
-                                                                            {displayFlag}
-                                                                        </span>
-                                                                    );
-                                                                })}
+                                                        {expandedProctoringAppId === app.id && app.proctoringFlags && app.proctoringFlags.length > 0 && (
+                                                            <div className="absolute top-full mt-2 w-48 bg-[#1a1d24] border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-1.5 items-center justify-center" onClick={e => e.stopPropagation()}>
+                                                                <p className="text-[9px] font-bold text-red-400 uppercase tracking-widest border-b border-white/5 pb-1 w-full text-center">Violations</p>
+                                                                <div className="flex flex-wrap gap-1 justify-center mt-1 w-full max-h-[150px] overflow-y-auto pr-1">
+                                                                    {app.proctoringFlags.map((flag) => {
+                                                                        const displayFlag = flag.replace(/_/g, ' ');
+                                                                        return (
+                                                                            <span 
+                                                                                key={flag} 
+                                                                                className="px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20"
+                                                                                title={displayFlag}
+                                                                                style={{ whiteSpace: 'nowrap' }}
+                                                                            >
+                                                                                {displayFlag}
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>
@@ -622,45 +720,47 @@ const Applicants = () => {
                                                     </span>
                                                 </td>
                                                 <td className="py-5 text-right pr-6 relative" style={{ whiteSpace: 'nowrap' }}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setActiveMenuId(activeMenuId === app.id ? null : app.id);
-                                                        }}
-                                                        className={`p-2 rounded-xl transition-all hover:scale-105 active:scale-95 ${activeMenuId === app.id ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-                                                    >
-                                                        <MoreVertical size={16} />
-                                                    </button>
-                                                    {activeMenuId === app.id && (
-                                                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
-                                                            <div className="py-1">
-                                                                <button
-                                                                    onClick={() => handleStatusUpdate(app.id, 'SHORTLISTED')}
-                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-400 hover:bg-white/5 flex items-center gap-2"
-                                                                >
-                                                                    <CheckCircle2 size={14} /> Mark Shortlisted
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
-                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
-                                                                >
-                                                                    <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleStatusUpdate(app.id, 'HIRED')}
-                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
-                                                                >
-                                                                    <Sparkles size={14} /> Mark Hired (AI Learn)
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
-                                                                    className="w-full text-left px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
-                                                                >
-                                                                    <Filter size={14} /> Reset Status
-                                                                </button>
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveMenuId(activeMenuId === app.id ? null : app.id);
+                                                            }}
+                                                            className={`p-2 rounded-xl transition-all hover:scale-105 active:scale-95 ${activeMenuId === app.id ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                                                        >
+                                                            <MoreVertical size={16} />
+                                                        </button>
+                                                        {activeMenuId === app.id && (
+                                                            <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
+                                                                <div className="py-1">
+                                                                    <button
+                                                                        onClick={() => handleStatusUpdate(app.id, 'SHORTLISTED')}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-400 hover:bg-white/5 flex items-center gap-2"
+                                                                    >
+                                                                        <CheckCircle2 size={14} /> Mark Shortlisted
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
+                                                                    >
+                                                                        <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStatusUpdate(app.id, 'HIRED')}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                    >
+                                                                        <Sparkles size={14} /> Mark Hired (AI Learn)
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                    >
+                                                                        <Filter size={14} /> Reset Status
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </>
                                                 </td>
                                             </tr>
                                         );
@@ -754,6 +854,74 @@ const Applicants = () => {
                 onClose={() => setUploadModalOpen(false)}
                 jobId={targetJobId}
                 onUploadComplete={fetchApplicants}
+            />
+
+            {/* Unlock Confirmation Modal */}
+            {unlockingItem && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="relative w-full max-w-sm bg-[#1a1d24] rounded-[2rem] border border-white/10 p-8 text-center shadow-2xl animate-in zoom-in duration-300">
+                        <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 animate-bounce">
+                            <Wallet size={20} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-tight">
+                            Unlock {unlockingItem.type === 'resume' ? 'Resume' : unlockingItem.type === 'assessment' ? 'Skill Assessment' : 'Interview'}?
+                        </h3>
+                        <p className="text-xs text-gray-400 leading-relaxed mb-6">
+                            This will deduct <span className="text-white font-extrabold">₹{unlockingItem.cost.toFixed(2)} INR</span> from your wallet balance to unlock the candidate's {unlockingItem.type === 'resume' ? 'full profile & resume' : unlockingItem.type === 'assessment' ? 'detailed skill assessment logs' : 'video introduction & interview answers'}.
+                        </p>
+
+                        {unlockError && (
+                            <div className="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-[11px] text-left">
+                                {unlockError}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setUnlockingItem(null);
+                                    setUnlockError('');
+                                }}
+                                className="flex-1 py-3 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:bg-white/10 transition cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            {walletBalance < unlockingItem.cost ? (
+                                <button
+                                    onClick={() => {
+                                        setUnlockingItem(null);
+                                        setIsTopUpOpen(true);
+                                    }}
+                                    className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-500/10 active:scale-95 cursor-pointer"
+                                >
+                                    Top Up Wallet
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => handleUnlockApplicant(unlockingItem.id, unlockingItem.type)}
+                                    disabled={unlockingInProgress}
+                                    className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-extrabold rounded-xl text-xs transition shadow-lg shadow-amber-500/10 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                                >
+                                    {unlockingInProgress ? (
+                                        <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        "Unlock"
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <TopUpModal
+                isOpen={isTopUpOpen}
+                onClose={() => setIsTopUpOpen(false)}
+                onSuccess={(newBal) => {
+                    setWalletBalance(newBal);
+                    window.dispatchEvent(new Event('wallet-update'));
+                }}
+                currentBalance={walletBalance}
             />
         </div>
 

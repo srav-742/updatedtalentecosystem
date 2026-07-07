@@ -161,7 +161,7 @@ export const getAuthHeaders = async () => {
         return headers;
     }
 
-    // 2. Fallback to Local Storage (for local-only accounts like Admin)
+    // 2. Fallback to Local Storage (for local-only accounts like Admin/Recruiters with local gateway sessions)
     const storedUserStr = localStorage.getItem('user');
     if (storedUserStr) {
         try {
@@ -169,11 +169,35 @@ export const getAuthHeaders = async () => {
             if (storedUser && storedUser.uid) {
                 console.log("[AUTH-HEADERS] Using local storage user identification:", storedUser.uid);
                 headers['x-user-id'] = storedUser.uid;
-                return headers;
+
+                // Add Authorization header using stored JWT if it exists!
+                const localAccessToken = localStorage.getItem('accessToken');
+                if (localAccessToken) {
+                    headers['Authorization'] = `Bearer ${localAccessToken}`;
+                } else if (storedUser.token) {
+                    headers['Authorization'] = `Bearer ${storedUser.token}`;
+                }
+
+                const localRefreshToken = localStorage.getItem('refreshToken');
+                if (localRefreshToken) {
+                    headers['x-refresh-token'] = localRefreshToken;
+                } else if (storedUser.refreshToken) {
+                    headers['x-refresh-token'] = storedUser.refreshToken;
+                }
             }
         } catch (e) {
             console.error("[AUTH-HEADERS] Failed to parse stored user:", e);
         }
+    }
+
+    // Fallback: If no stored user, but tokens exist in localStorage
+    const localAccessToken = localStorage.getItem('accessToken');
+    if (localAccessToken && !headers['Authorization']) {
+        headers['Authorization'] = `Bearer ${localAccessToken}`;
+    }
+    const localRefreshToken = localStorage.getItem('refreshToken');
+    if (localRefreshToken && !headers['x-refresh-token']) {
+        headers['x-refresh-token'] = localRefreshToken;
     }
 
     return headers;

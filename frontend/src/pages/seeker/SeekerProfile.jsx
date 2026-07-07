@@ -26,6 +26,7 @@ import {
 import { getUserProfile, saveUserProfile, API_URL } from '../../firebase';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { ProfileSkeleton } from '../../components/Skeleton';
 
 // eslint-disable-next-line no-unused-vars
 const SectionCard = ({ title, subtitle, icon: Icon, children, action }) => (
@@ -385,15 +386,7 @@ const SeekerProfile = () => {
     };
 
     if (loading) {
-        return (
-            <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-20 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#f4efe6] text-gray-700">
-                    <Loader2 size={34} className="animate-spin" />
-                </div>
-                <h2 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Loading profile</h2>
-                <p className="mt-3 text-sm leading-7 text-gray-500">Syncing your candidate details and saved configuration.</p>
-            </div>
-        );
+        return <ProfileSkeleton />;
     }
 
     return (

@@ -276,37 +276,51 @@ const getJobCandidates = async (req, res) => {
         ]);
 
         const userPenaltyMap = {};
-        const addRating = (userId, type, metadata) => {
+        const addRating = (userId, examId, type, metadata) => {
             if (!userId) return;
             const rating = getViolationRating(type, metadata);
-            userPenaltyMap[userId] = (userPenaltyMap[userId] || 0) + rating;
+            
+            let jobId = null;
+            if (examId && typeof examId === 'string') {
+                const parts = examId.split(':');
+                if (parts.length >= 2) {
+                    jobId = parts[1];
+                }
+            }
+            const key = jobId ? `${userId}_${jobId}` : userId;
+            userPenaltyMap[key] = (userPenaltyMap[key] || 0) + rating;
         };
 
         baseViolations.forEach(v => {
-            addRating(v.userId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata);
         });
 
         enhancedViolations.forEach(v => {
-            addRating(v.userId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata);
         });
 
-        const candidates = applications.map(app => ({
-            applicationId: app._id,
-            name: app.applicantName || 'Unknown',
-            email: app.applicantEmail || '',
-            profilePic: app.applicantPic || null,
-            resumeScore: app.resumeMatchPercent || null,
-            assessmentScore: app.assessmentScore || null,
-            interviewScore: app.interviewScore || null,
-            finalScore: app.finalScore || null,
-            proctoringScore: userPenaltyMap[app.userId] || 0,
-            status: app.status,
-            appliedAt: app.appliedAt,
-            hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,
-            hasInterview: (app.interviewAnswers?.length || 0) > 0,
-            ownershipScore: app.metrics?.ownershipMindset || null,
-            teamFitScore: app.teamFit?.score || null,
-        }));
+        const candidates = applications.map(app => {
+            const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
+            const proctoringScore = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
+            
+            return {
+                applicationId: app._id,
+                name: app.applicantName || 'Unknown',
+                email: app.applicantEmail || '',
+                profilePic: app.applicantPic || null,
+                resumeScore: app.resumeMatchPercent || null,
+                assessmentScore: app.assessmentScore || null,
+                interviewScore: app.interviewScore || null,
+                finalScore: app.finalScore || null,
+                proctoringScore,
+                status: app.status,
+                appliedAt: app.appliedAt,
+                hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,
+                hasInterview: (app.interviewAnswers?.length || 0) > 0,
+                ownershipScore: app.metrics?.ownershipMindset || null,
+                teamFitScore: app.teamFit?.score || null,
+            };
+        });
 
         return res.json({ jobId, total: candidates.length, candidates });
 

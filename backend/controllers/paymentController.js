@@ -128,6 +128,41 @@ exports.verifyPayment = async (req, res) => {
             if (updatedUser) {
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(updatedUser);
+
+                // Dynamically link client credentials to the premium_recruiter role as well
+                try {
+                    const Client = require('../models/Client');
+                    const Role = require('../models/Role');
+                    const ClientRole = require('../models/ClientRole');
+
+                    // Locate client record for the user (can be client_userId or matching by user lookup)
+                    const client = await Client.findOne({ 
+                        $or: [
+                            { clientId: `client_${updatedUser._id}` },
+                            { clientId: `client_${updatedUser.uid}` }
+                        ]
+                    });
+
+                    if (client) {
+                        let premiumRole = await Role.findOne({ name: 'premium_recruiter' });
+                        if (!premiumRole) {
+                            premiumRole = new Role({
+                                name: 'premium_recruiter',
+                                description: 'Paid/pro recruiter with access to applicants'
+                            });
+                            await premiumRole.save();
+                        }
+
+                        await ClientRole.findOneAndUpdate(
+                            { client: client._id, role: premiumRole._id },
+                            { client: client._id, role: premiumRole._id },
+                            { upsert: true, new: true }
+                        );
+                        console.log(`[PAYMENT-SUCCESS] Associated premium_recruiter role with Client: ${client.clientId}`);
+                    }
+                } catch (clientRoleErr) {
+                    console.error('[PAYMENT-SUCCESS] Failed to map client role:', clientRoleErr.message);
+                }
             }
 
             return res.status(200).json({
@@ -191,6 +226,287 @@ exports.getPaymentStatus = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to retrieve payment status.",
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get wallet balance for a user
+ * GET /api/wallet/balance/:userId
+ */
+exports.getWalletBalance = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        let user = null;
+        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
+            user = await User.findById(userId);
+        }
+        if (!user) {
+            user = await User.findOne({ uid: userId });
+        }
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+        return res.status(200).json({
+            success: true,
+            balance: user.walletBalance || 0
+        });
+    } catch (error) {
+        console.error("[WALLET-BALANCE-ERROR] Details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve wallet balance.",
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Create a new wallet top-up payment order
+ * POST /api/wallet/topup/order
+ */
+exports.createWalletTopupOrder = async (req, res) => {
+    try {
+        const { amount, userId } = req.body;
+        if (!amount || !userId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Amount and userId are required." 
+            });
+        }
+        let user = null;
+        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
+            user = await User.findById(userId);
+        }
+        if (!user) {
+            user = await User.findOne({ uid: userId });
+        }
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+
+        const amountInPaisa = Math.round(amount * 100);
+        const receiptId = `topup_${userId.toString().slice(-6)}_${Date.now()}`;
+
+        const options = {
+            amount: amountInPaisa,
+            currency: 'INR',
+            receipt: receiptId,
+        };
+
+        const order = await razorpay.orders.create(options);
+
+        // Store transaction in database with "pending" status
+        const transaction = new Transaction({
+            userId: user._id,
+            orderId: order.id,
+            amount: amountInPaisa,
+            currency: 'INR',
+            status: 'pending',
+            type: 'wallet_topup',
+            receipt: receiptId
+        });
+        await transaction.save();
+
+        return res.status(201).json({
+            success: true,
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            receipt: order.receipt
+        });
+    } catch (error) {
+        console.error("[WALLET-TOPUP-ORDER-ERROR] Details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to create topup order",
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Verify wallet top-up payment signature and credit balance
+ * POST /api/wallet/topup/verify
+ */
+exports.verifyWalletTopup = async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Missing payment response tokens." 
+            });
+        }
+
+        const transaction = await Transaction.findOne({ orderId: razorpay_order_id });
+        if (!transaction) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Transaction order not found in database." 
+            });
+        }
+
+        const text = razorpay_order_id + "|" + razorpay_payment_id;
+        const generatedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(text.toString())
+            .digest('hex');
+
+        if (generatedSignature === razorpay_signature) {
+            transaction.paymentId = razorpay_payment_id;
+            transaction.signature = razorpay_signature;
+            transaction.status = 'paid';
+            await transaction.save();
+
+            // Credit the user's wallet
+            const creditAmount = transaction.amount / 100; // Paisa to Rupees
+            const updatedUser = await User.findByIdAndUpdate(transaction.userId, {
+                $inc: { walletBalance: creditAmount }
+            }, { new: true });
+
+            return res.status(200).json({
+                success: true,
+                message: "Wallet topped up successfully.",
+                balance: updatedUser.walletBalance,
+                transactionId: transaction._id
+            });
+        } else {
+            transaction.status = 'failed';
+            await transaction.save();
+            return res.status(400).json({
+                success: false,
+                message: "Verification failed. Signature is invalid."
+            });
+        }
+    } catch (error) {
+        console.error("[WALLET-TOPUP-VERIFY-ERROR] Details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal verification error.",
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Deduct wallet balance to unlock candidate
+ * POST /api/wallet/unlock
+ */
+exports.unlockApplicant = async (req, res) => {
+    try {
+        const { recruiterId, applicationId, itemType } = req.body;
+        const UnlockedApplicant = require('../models/UnlockedApplicant');
+        const Application = require('../models/Application');
+
+        if (!recruiterId || !applicationId || !itemType) {
+            return res.status(400).json({ success: false, message: "Recruiter ID, Application ID, and Item Type are required." });
+        }
+
+        const validItems = ['resume', 'assessment', 'interview'];
+        if (!validItems.includes(itemType)) {
+            return res.status(400).json({ success: false, message: "Invalid item type." });
+        }
+
+        // Determine cost
+        let cost = 0;
+        if (itemType === 'resume') {
+            cost = Number(process.env.RESUME_COST || 3);
+        } else if (itemType === 'assessment') {
+            cost = Number(process.env.ASSESSMENT_COST || 5);
+        } else if (itemType === 'interview') {
+            cost = Number(process.env.INTERVIEW_COST || 10);
+        }
+
+        // Find recruiter
+        let recruiter = null;
+        if (typeof recruiterId === 'string' && recruiterId.length === 24 && /^[0-9a-fA-F]{24}$/.test(recruiterId)) {
+            recruiter = await User.findById(recruiterId);
+        }
+        if (!recruiter) {
+            recruiter = await User.findOne({ uid: recruiterId });
+        }
+        if (!recruiter) {
+            return res.status(404).json({ success: false, message: "Recruiter user not found." });
+        }
+
+        // Find application
+        const application = await Application.findById(applicationId);
+        if (!application) {
+            return res.status(404).json({ success: false, message: "Application not found." });
+        }
+
+        // Check if already unlocked
+        let unlockRecord = await UnlockedApplicant.findOne({
+            recruiterId: recruiter._id,
+            applicationId: application._id
+        });
+
+        if (unlockRecord && unlockRecord.unlockedItems && unlockRecord.unlockedItems.includes(itemType)) {
+            return res.status(200).json({
+                success: true,
+                message: `Applicant's ${itemType} is already unlocked.`,
+                balance: recruiter.walletBalance
+            });
+        }
+
+        if ((recruiter.walletBalance || 0) < cost) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient wallet balance. You need ₹${cost.toFixed(2)} to unlock, but have ₹${(recruiter.walletBalance || 0).toFixed(2)}.`
+            });
+        }
+
+        // Deduct balance and save recruiter
+        recruiter.walletBalance = Number(((recruiter.walletBalance || 0) - cost).toFixed(2));
+        await recruiter.save();
+
+        // Create or update unlock entry
+        if (!unlockRecord) {
+            unlockRecord = new UnlockedApplicant({
+                recruiterId: recruiter._id,
+                applicationId: application._id,
+                unlockedItems: [itemType],
+                cost: cost
+            });
+        } else {
+            if (!unlockRecord.unlockedItems) {
+                unlockRecord.unlockedItems = [];
+            }
+            unlockRecord.unlockedItems.push(itemType);
+            unlockRecord.cost = Number(((unlockRecord.cost || 0) + cost).toFixed(2));
+        }
+        await unlockRecord.save();
+
+        // Log deduction transaction
+        const receiptId = `unlock_${itemType}_${recruiter._id.toString().slice(-6)}_${Date.now()}`;
+        const transaction = new Transaction({
+            userId: recruiter._id,
+            orderId: `ord_unlock_${itemType}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            paymentId: `pay_unlock_${itemType}_${Date.now()}`,
+            amount: cost * 100, // in Paisa
+            status: 'paid',
+            type: 'applicant_unlock',
+            receipt: receiptId,
+            metadata: {
+                applicationId: application._id,
+                candidateName: application.applicantName,
+                itemType: itemType
+            }
+        });
+        await transaction.save();
+
+        return res.status(200).json({
+            success: true,
+            message: `Applicant's ${itemType} unlocked successfully.`,
+            balance: recruiter.walletBalance
+        });
+    } catch (error) {
+        console.error("[WALLET-UNLOCK-ERROR] Details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to unlock item.",
             error: error.message
         });
     }

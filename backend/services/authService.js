@@ -169,8 +169,18 @@ const getClientRoles = async (clientId) => {
  */
 const getUserRoles = (user) => {
     if (!user) return [];
-    // The existing User model stores role as a single string ('seeker', 'recruiter', 'admin')
-    return user.role ? [user.role] : ['user'];
+    
+    const roles = [];
+    if (user.role) {
+        roles.push(user.role);
+        // If they are a recruiter and have paid, grant the premium_recruiter role dynamically
+        if (user.role === 'recruiter' && (user.isPro === true || user.hiringPattern === 'Premium Recruiter')) {
+            roles.push('premium_recruiter');
+        }
+    } else {
+        roles.push('user');
+    }
+    return roles;
 };
 
 /**

@@ -57,7 +57,8 @@ const getUserProfile = async (req, res) => {
             const Transaction = require('../models/Transaction');
             const paidTransactions = await Transaction.countDocuments({
                 userId: user._id,
-                status: 'paid'
+                status: 'paid',
+                type: 'premium_upgrade'
             });
             // Keep them Pro if they paid OR if they were manually updated to isPro = true
             const shouldBePro = paidTransactions > 0 || user.isPro === true;

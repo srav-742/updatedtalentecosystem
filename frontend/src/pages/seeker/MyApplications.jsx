@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { ApplicationTrackerSkeleton } from '../../components/Skeleton';
 
 const getStatusTone = (status) => {
     switch (status) {
@@ -258,13 +259,7 @@ const MyApplications = () => {
             </header>
 
             {loading ? (
-                <div className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#f3efe6] text-gray-700">
-                        <Loader2 size={34} className="animate-spin" />
-                    </div>
-                    <h2 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Loading application tracker</h2>
-                    <p className="mt-3 text-sm leading-7 text-gray-500">Syncing your job applications and current status history.</p>
-                </div>
+                <ApplicationTrackerSkeleton />
             ) : (
                 <>
                     <ApplicationsSection

@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getUserProfile, auth } from '../../firebase';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
+import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import axios from 'axios';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
+import TopUpModal from '../../components/TopUpModal';
 
 const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/recruiter' },
@@ -22,6 +24,35 @@ const RecruiterLayout = () => {
     const [profile, setProfile] = React.useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const [isMinimized, setIsMinimized] = React.useState(false);
+
+    // Wallet States
+    const [walletBalance, setWalletBalance] = React.useState(user.walletBalance || 0);
+    const [isTopUpOpen, setIsTopUpOpen] = React.useState(false);
+
+    const fetchWalletBalance = async () => {
+        const uid = user.uid || user._id || user.id;
+        if (!uid) return;
+        try {
+            const res = await axios.get(`${API_URL}/wallet/balance/${uid}`);
+            if (res.data && res.data.success) {
+                setWalletBalance(res.data.balance);
+            }
+        } catch (err) {
+            console.error("Failed to fetch wallet balance:", err);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchWalletBalance();
+        
+        const handleWalletUpdate = () => {
+            fetchWalletBalance();
+        };
+        window.addEventListener('wallet-update', handleWalletUpdate);
+        return () => {
+            window.removeEventListener('wallet-update', handleWalletUpdate);
+        };
+    }, [user.uid, user._id, user.id]);
 
 
     React.useEffect(() => {
@@ -82,6 +113,7 @@ const RecruiterLayout = () => {
                 transition-all duration-300 ease-in-out md:relative md:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
                 ${isMinimized ? 'w-20' : 'w-72'}
+                h-full overflow-y-auto custom-scrollbar
             `}>
                 {/* Expand / Collapse Toggle Button */}
                 <button
@@ -137,6 +169,31 @@ const RecruiterLayout = () => {
                 </nav>
 
                 <div className={`mt-auto shrink-0 border-t border-black/10 transition-all duration-300 ${isMinimized ? 'p-2 flex flex-col items-center gap-3' : 'p-3'}`}>
+                    {/* Wallet Widget */}
+                    {!isMinimized ? (
+                        <div className="mx-2 mb-3.5 p-4 bg-black/[0.03] border border-black/5 rounded-2xl shadow-inner">
+                            <div className="flex justify-between items-center mb-1.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Wallet Balance</span>
+                                <Wallet size={14} className="text-gray-500" />
+                            </div>
+                            <div className="text-lg font-black text-gray-900">₹{(walletBalance || 0).toFixed(2)}</div>
+                            <button
+                                onClick={() => setIsTopUpOpen(true)}
+                                className="w-full mt-2.5 py-2 px-3 bg-black hover:bg-black/80 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <Plus size={10} /> Top Up Wallet
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsTopUpOpen(true)}
+                            title={`Wallet Balance: ₹${(walletBalance || 0).toFixed(2)}`}
+                            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-black/5 bg-black/[0.03] text-gray-700 hover:bg-black/10 hover:text-black transition cursor-pointer mb-2"
+                        >
+                            <Wallet size={18} />
+                        </button>
+                    )}
+
                     <button
                         onClick={handleLogout}
                         title={isMinimized ? "Logout" : undefined}
@@ -201,11 +258,20 @@ const RecruiterLayout = () => {
             )}
 
             <main className="recruiter-content relative flex-1 overflow-y-auto bg-[#f7f4ee] pt-20 text-gray-900 md:pt-0">
-                <div className="mx-auto max-w-[1440px] p-4 md:p-10">
+                <div className="mx-auto w-full max-w-none p-4 md:p-10">
                     <Outlet />
                 </div>
             </main>
             <CreatePasswordModal />
+            <TopUpModal 
+                isOpen={isTopUpOpen} 
+                onClose={() => setIsTopUpOpen(false)} 
+                onSuccess={(newBal) => {
+                    setWalletBalance(newBal);
+                    window.dispatchEvent(new Event('wallet-update'));
+                }} 
+                currentBalance={walletBalance} 
+            />
         </div>
     );
 };

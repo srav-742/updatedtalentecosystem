@@ -4,6 +4,7 @@ import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Sha
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { JobCardSkeleton } from '../../components/Skeleton';
 
 const BrowseJobs = () => {
     const [jobs, setJobs] = useState([]);
@@ -154,9 +155,10 @@ const BrowseJobs = () => {
             </header>
 
             {loading ? (
-                <div className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                    <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
-                    <p className="mt-6 text-sm font-medium text-gray-500">Loading available roles...</p>
+                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <JobCardSkeleton key={i} />
+                    ))}
                 </div>
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">

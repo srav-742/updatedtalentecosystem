@@ -55,7 +55,6 @@ export default function PaymentUpgrade() {
             // Get Backend base URL
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-            /*
             // 2. Request Order ID from the Express server
             const orderRes = await axios.post(`${apiUrl}/payments/order`, {
                 amount: 10, // ₹10 INR (Testing Phase)
@@ -130,9 +129,6 @@ export default function PaymentUpgrade() {
 
             const rzpPaymentObject = new window.Razorpay(options);
             rzpPaymentObject.open();
-            */
-            alert("Online payment is disabled. Please use the 'Send Activation Request' button to request manual database activation.");
-            setLoading(false);
         } catch (err) {
             console.error("[PAYMENT-CHECKOUT-ERROR]:", err);
             setErrorMsg(err.response?.data?.message || "Could not initialize checkout. Please try again later.");
@@ -229,24 +225,34 @@ export default function PaymentUpgrade() {
                                 </div>
                             )}
 
-                            {/* Contact Admin Action Card */}
+                            {/* Payment Upgrade Action Card */}
                             <div className="mt-6 p-5 rounded-2xl bg-blue-500/5 border border-blue-500/10 text-center space-y-4">
                                 <p className="text-xs text-slate-300 leading-relaxed">
-                                    To activate your premium license key in the database and unlock full candidate tracking features, click below to email the system administrator.
+                                    To activate your premium license key in the database and unlock full candidate tracking features, complete the payment secure checkout below.
                                 </p>
                                 
-                                <a
-                                    href={mailtoUrl}
-                                    className="inline-flex w-full py-4 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-center gap-2.5 cursor-pointer text-sm"
+                                <button
+                                    onClick={handlePayment}
+                                    disabled={loading || verifying}
+                                    className="inline-flex w-full py-4 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-center gap-2.5 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <ShieldCheck size={18} />
-                                    Send Activation Request
-                                </a>
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={18} />
+                                            Initializing Checkout...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CreditCard size={18} />
+                                            Pay ₹10.00 INR via Razorpay
+                                        </>
+                                    )}
+                                </button>
                             </div>
 
                             <div className="flex items-center justify-center gap-2 mt-4 text-[9px] text-slate-500 uppercase tracking-widest font-semibold">
                                 <ShieldCheck size={14} className="text-blue-400" />
-                                Admin verification required for activation
+                                Secure Checkout & Instant Role Activation
                             </div>
 
                         </motion.div>

@@ -8,6 +8,8 @@ const transactionSchema = new mongoose.Schema({
     amount: { type: Number, required: true }, // in Paisa
     currency: { type: String, default: 'INR' },
     status: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending', index: true },
+    type: { type: String, enum: ['premium_upgrade', 'wallet_topup', 'applicant_unlock'], default: 'premium_upgrade', index: true },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: null },
     receipt: { type: String, required: true }
 }, {
     timestamps: true

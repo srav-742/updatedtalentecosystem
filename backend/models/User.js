@@ -46,6 +46,7 @@ const userSchema = new mongoose.Schema({
     linkedinUrl: String,
     hiringPattern: { type: String, default: "" },
     isPro: { type: Boolean, default: false },
+    walletBalance: { type: Number, default: 0 },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
 }, { timestamps: true });

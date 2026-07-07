@@ -107,6 +107,64 @@ const seedAdmin = async () => {
     } catch (error) {
         console.error('[SEED] Failed to seed default client:', error.message);
     }
+
+    // 4. Seed premium_recruiter role and /api/applications/recruiter/** resource restriction
+    try {
+        const Role = require('../models/Role');
+        const Resource = require('../models/Resource');
+
+        // Find or create 'admin' and 'premium_recruiter' roles
+        const adminRole = await Role.findOne({ name: 'admin' });
+        if (!adminRole) {
+            console.warn('[SEED] Admin role not found. Ensure roles are initialized.');
+        }
+
+        let premiumRecruiterRole = await Role.findOne({ name: 'premium_recruiter' });
+        if (!premiumRecruiterRole) {
+            premiumRecruiterRole = new Role({
+                name: 'premium_recruiter',
+                description: 'Paid/pro recruiter with access to applicants'
+            });
+            await premiumRecruiterRole.save();
+            console.log('[SEED] Created premium_recruiter role');
+        }
+
+        // Find or create resource mapping
+        const pathPattern = '/api/applications/recruiter/**';
+        const existingResource = await Resource.findOne({ pathPattern, method: 'GET' });
+
+        const allowedRoles = [];
+        if (premiumRecruiterRole) allowedRoles.push(premiumRecruiterRole._id);
+        if (adminRole) allowedRoles.push(adminRole._id);
+
+        let recruiterRole = await Role.findOne({ name: 'recruiter' });
+        if (!recruiterRole) {
+            recruiterRole = new Role({
+                name: 'recruiter',
+                description: 'Standard recruiter'
+            });
+            await recruiterRole.save();
+            console.log('[SEED] Created recruiter role');
+        }
+        allowedRoles.push(recruiterRole._id);
+
+        if (!existingResource) {
+            const resource = new Resource({
+                pathPattern,
+                method: 'GET',
+                description: 'Recruiter applications - premium only',
+                allowedRoles
+            });
+            await resource.save();
+            console.log('[SEED] Created premium applicants resource restriction');
+        } else {
+            existingResource.allowedRoles = allowedRoles;
+            await existingResource.save();
+            console.log('[SEED] Synced/Updated premium applicants resource restriction');
+        }
+    } catch (error) {
+        console.error('[SEED] Failed to seed premium recruiter roles/resources:', error.message);
+    }
 };
 
 module.exports = seedAdmin;

@@ -3,6 +3,8 @@ const ProctoringViolation = require('../models/ProctoringViolation');
 const ProctoringReport = require('../models/ProctoringReport');
 const Application = require('../models/Application');
 const { getViolationRating } = require('../utils/proctoringScoring');
+const mongoose = require('mongoose');
+
 
 /**
  * Enhanced Proctoring Controller
@@ -89,19 +91,35 @@ const updateProctoringReport = async (examId, userId) => {
         
         let applicationId = null;
         const parts = examId.split(':');
+        const jobId = parts.length >= 2 ? parts[1] : null;
+
         if (parts.length >= 3) {
             const sessionId = parts[2];
-            const app = await Application.findOne({
-                $or: [
-                    { recordingSessionId: sessionId },
-                    { userId: userId }
-                ]
-            }).select('_id').lean();
+            let app = null;
+            
+            // 1. Try to find by recordingSessionId first
+            if (sessionId && sessionId !== 'pending') {
+                app = await Application.findOne({ recordingSessionId: sessionId }).select('_id').lean();
+            }
+            // 2. Fallback to userId + jobId (which is highly precise since application is unique per user + job)
+            if (!app && jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+                app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
+            }
+            // 3. Fallback to just userId
+            if (!app) {
+                app = await Application.findOne({ userId }).select('_id').lean();
+            }
             if (app) {
                 applicationId = app._id;
             }
         } else {
-            const app = await Application.findOne({ userId }).select('_id').lean();
+            let app = null;
+            if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+                app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
+            }
+            if (!app) {
+                app = await Application.findOne({ userId }).select('_id').lean();
+            }
             if (app) {
                 applicationId = app._id;
             }
