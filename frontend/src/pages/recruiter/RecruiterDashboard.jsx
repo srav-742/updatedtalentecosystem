@@ -6,6 +6,7 @@ import { Briefcase, Users, CheckCircle, ArrowUpRight, Clock, MapPin } from 'luci
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
+import { RecruiterDashboardSkeleton } from '../../components/Skeleton';
 
 const StatCard = ({ title, value, icon, color }) => (
     <motion.div
@@ -55,7 +56,7 @@ const RecruiterDashboard = () => {
     const recentJobs = recruiterJobs.slice(0, 5);
     const loading = statsLoading || jobsLoading;
 
-    if (loading) return <div className="flex items-center justify-center h-[60vh] text-gray-500">Loading dashboard...</div>;
+    if (loading) return <RecruiterDashboardSkeleton />;
 
     return (
         <div className="space-y-8">

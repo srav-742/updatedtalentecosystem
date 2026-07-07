@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
+import { SeekerDashboardSkeleton } from '../../components/Skeleton';
 
 const StatCard = ({ label, value, icon: Icon, tone }) => (
     <div className="rounded-[1.9rem] border border-black/10 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
@@ -42,7 +43,7 @@ const SeekerDashboard = () => {
     const userId = user.uid || user._id || user.id;
 
     // Fetch seeker's applications using React Query
-    const { data: userApplications = [] } = useQuery({
+    const { data: userApplications = [], isLoading: appsLoading } = useQuery({
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
@@ -53,13 +54,15 @@ const SeekerDashboard = () => {
     });
 
     // Fetch all jobs using React Query
-    const { data: jobs = [] } = useQuery({
+    const { data: jobs = [], isLoading: jobsLoading } = useQuery({
         queryKey: ['jobs'],
         queryFn: async () => {
             const res = await axios.get(`${API_URL}/jobs`);
             return res.data;
         }
     });
+
+    const loading = (userId ? appsLoading : false) || jobsLoading;
 
     const stats = useMemo(() => {
         return {
@@ -81,6 +84,8 @@ const SeekerDashboard = () => {
 
         return 'Your next opportunity starts here.';
     }, [stats.applied, stats.shortlisted]);
+
+    if (loading) return <SeekerDashboardSkeleton />;
 
     return (
         <div className="space-y-8">

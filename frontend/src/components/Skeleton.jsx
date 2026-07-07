@@ -339,3 +339,163 @@ export const ApplicantsSkeleton = () => (
         </div>
     </div>
 );
+
+// Recruiter - Job Card Skeleton (Dark Theme)
+export const RecruiterJobCardSkeleton = () => (
+    <div className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 space-y-6 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
+            <div className="flex items-start gap-6 flex-1">
+                <Skeleton className="w-20 h-20 rounded-[2rem]" variant="dark" />
+                <div className="space-y-4 flex-1">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="h-7 w-1/3 rounded-lg" variant="dark" />
+                        <Skeleton className="h-6 w-20 rounded-xl" variant="dark" />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex gap-4">
+                            <Skeleton className="h-4 w-24 rounded" variant="dark" />
+                            <Skeleton className="h-4 w-24 rounded" variant="dark" />
+                            <Skeleton className="h-4 w-24 rounded" variant="dark" />
+                        </div>
+                        <Skeleton className="h-5 w-48 rounded" variant="dark" />
+                        <div className="flex gap-2">
+                            <Skeleton className="h-6 w-16 rounded-md" variant="dark" />
+                            <Skeleton className="h-6 w-16 rounded-md" variant="dark" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="flex flex-col items-end gap-4 w-full md:w-auto md:min-w-[360px]">
+                <Skeleton className="h-14 w-48 rounded-2xl" variant="dark" />
+                <div className="flex gap-2 w-full">
+                    <Skeleton className="h-12 flex-1 rounded-2xl" variant="dark" />
+                    <Skeleton className="h-12 w-12 rounded-2xl" variant="dark" />
+                    <Skeleton className="h-12 w-12 rounded-2xl" variant="dark" />
+                    <Skeleton className="h-12 w-12 rounded-2xl" variant="dark" />
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+// Recruiter - Dashboard Skeleton (Dark Theme)
+export const RecruiterDashboardSkeleton = () => (
+    <div className="space-y-8">
+        {/* Welcome Header Skeleton */}
+        <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-4">
+            <Skeleton className="h-4 w-32 rounded" />
+            <Skeleton className="h-10 w-96 rounded-md" />
+            <Skeleton className="h-5 w-full rounded" />
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+                <div key={i} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
+                    <Skeleton className="w-12 h-12 rounded-2xl" variant="dark" />
+                    <Skeleton className="h-4 w-28 rounded" variant="dark" />
+                    <Skeleton className="h-8 w-16 rounded" variant="dark" />
+                </div>
+            ))}
+        </div>
+
+        {/* Recent Jobs Table Skeleton */}
+        <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
+            <div className="flex items-center justify-between">
+                <Skeleton className="h-6 w-36 rounded" />
+                <Skeleton className="h-4 w-20 rounded" />
+            </div>
+            <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between py-4 border-b border-black/5 last:border-0">
+                        <div className="space-y-2">
+                            <Skeleton className="h-5 w-48 rounded" />
+                            <Skeleton className="h-3 w-32 rounded" />
+                        </div>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+// Seeker - Dashboard Skeleton (Light Theme)
+export const SeekerDashboardSkeleton = () => (
+    <div className="space-y-8">
+        {/* Welcome Header Skeleton */}
+        <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-4">
+            <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-4">
+                    <Skeleton className="h-4 w-32 rounded" />
+                    <Skeleton className="h-10 w-96 rounded-md" />
+                    <Skeleton className="h-5 w-full rounded" />
+                    <div className="flex gap-3">
+                        <Skeleton className="h-12 w-32 rounded-2xl" />
+                        <Skeleton className="h-12 w-40 rounded-2xl" />
+                    </div>
+                </div>
+                <div className="rounded-[2rem] border border-black/10 bg-white/80 p-6 backdrop-blur-sm space-y-4">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="h-12 w-12 rounded-2xl" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-3 w-28 rounded" />
+                            <Skeleton className="h-5 w-40 rounded" />
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        <Skeleton className="h-4 w-full rounded" />
+                        <Skeleton className="h-4 w-5/6 rounded" />
+                        <Skeleton className="h-4 w-4/5 rounded" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-[1.9rem] border border-black/10 bg-white p-6 space-y-4 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                    <Skeleton className="h-12 w-12 rounded-2xl" />
+                    <Skeleton className="h-3 w-24 rounded" />
+                    <Skeleton className="h-8 w-16 rounded" />
+                </div>
+            ))}
+        </div>
+
+        {/* Quick Actions & Profile Info Skeleton */}
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
+                <div>
+                    <Skeleton className="h-3 w-24 rounded" />
+                    <Skeleton className="h-8 w-64 rounded-md mt-2" />
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="rounded-[1.9rem] border border-black/10 bg-[#fcfaf6] p-6 space-y-4">
+                            <Skeleton className="h-12 w-12 rounded-2xl" />
+                            <Skeleton className="h-6 w-28 rounded" />
+                            <Skeleton className="h-4 w-full rounded" />
+                            <Skeleton className="h-4 w-12 rounded" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
+                <Skeleton className="h-3 w-24 rounded" />
+                <Skeleton className="h-8 w-64 rounded-md" />
+                <Skeleton className="h-4 w-full rounded" />
+                <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex gap-3 rounded-2xl border border-black/10 bg-[#fbf8f3] p-4">
+                            <Skeleton className="h-6 w-6 rounded-full" />
+                            <Skeleton className="h-4 w-5/6 rounded" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+

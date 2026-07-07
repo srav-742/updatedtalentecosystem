@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import BulkUploadModal from '../../components/BulkUploadModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { RecruiterJobCardSkeleton } from '../../components/Skeleton';
 
 const MyJobs = () => {
     const navigate = useNavigate();
@@ -125,7 +126,23 @@ const MyJobs = () => {
         );
     };
 
-    if (loading) return <div className="flex items-center justify-center h-[60vh] text-blue-400">Loading Job Postings...</div>;
+    if (loading) {
+        return (
+            <div className="space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <h1 className="text-3xl font-bold mb-2 uppercase tracking-tight">Active Campaigns</h1>
+                        <p className="text-gray-400 font-medium">Loading your job campaigns...</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 gap-6">
+                    <RecruiterJobCardSkeleton />
+                    <RecruiterJobCardSkeleton />
+                    <RecruiterJobCardSkeleton />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
