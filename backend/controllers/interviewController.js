@@ -103,8 +103,9 @@ const getInterviewDetails = async (req, res) => {
             const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
             const isUnlockedInterview = isUnlocked && isUnlocked.unlockedItems.includes('interview');
 
-            if (!shouldBePro && !isUnlockedInterview) {
-                return res.status(403).json({ message: "Forbidden: Pro Recruiter status or interview unlock required." });
+            const isAdmin = recruiter.role === 'admin';
+            if (!isAdmin && !isUnlockedInterview) {
+                return res.status(403).json({ message: "Forbidden: Interview unlock required." });
             }
         }
 

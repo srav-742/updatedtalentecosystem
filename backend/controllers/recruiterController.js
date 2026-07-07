@@ -175,10 +175,10 @@ const getRecruiterApplications = async (req, res) => {
             addRating(v.userId, v.examId, v.type, v.metadata);
         });
 
-        const isPremium = reqUser && (reqUser.isPro === true || reqUser.hiringPattern === 'Premium Recruiter' || reqUser.role === 'admin');
+        const isAdmin = reqUser && reqUser.role === 'admin';
         
         let unlockedAppMap = new Map();
-        if (!isPremium && reqUser) {
+        if (reqUser && !isAdmin) {
             const UnlockedApplicant = require('../models/UnlockedApplicant');
             const unlockedRecords = await UnlockedApplicant.find({ recruiterId: reqUser._id }).lean();
             unlockedRecords.forEach(r => {
@@ -198,7 +198,7 @@ const getRecruiterApplications = async (req, res) => {
             let isAssessmentLocked = true;
             let isInterviewLocked = true;
 
-            if (isPremium) {
+            if (isAdmin) {
                 isResumeLocked = false;
                 isAssessmentLocked = false;
                 isInterviewLocked = false;

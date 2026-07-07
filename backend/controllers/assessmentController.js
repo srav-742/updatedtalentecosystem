@@ -334,8 +334,9 @@ const getAssessmentDetails = async (req, res) => {
             const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
             const isUnlockedAssessment = isUnlocked && isUnlocked.unlockedItems.includes('assessment');
 
-            if (!shouldBePro && !isUnlockedAssessment) {
-                return res.status(403).json({ message: "Forbidden: Pro Recruiter status or assessment unlock required." });
+            const isAdmin = recruiter.role === 'admin';
+            if (!isAdmin && !isUnlockedAssessment) {
+                return res.status(403).json({ message: "Forbidden: Assessment unlock required." });
             }
         }
 
