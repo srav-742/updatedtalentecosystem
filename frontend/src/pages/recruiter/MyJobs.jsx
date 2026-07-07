@@ -386,7 +386,7 @@ const MyJobs = () => {
                     setSelectedJobId(null);
                 }}
                 jobId={selectedJobId}
-                onUploadComplete={fetchJobs}
+                onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
             />
         </div>
     );

@@ -862,7 +862,7 @@ const Applicants = () => {
                 isOpen={uploadModalOpen}
                 onClose={() => setUploadModalOpen(false)}
                 jobId={targetJobId}
-                onUploadComplete={fetchApplicants}
+                onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['applicants', userId] })}
             />
 
             {/* Unlock Confirmation Modal */}
