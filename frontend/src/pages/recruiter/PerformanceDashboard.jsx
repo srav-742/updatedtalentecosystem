@@ -116,7 +116,7 @@ const PerformanceDashboard = () => {
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-teal-400 overflow-hidden border border-white/10">
-                                            {hire.profilePic && <img src={hire.profilePic} alt={hire.candidateName} className="w-full h-full object-cover" />}
+                                            {hire.profilePic && <img loading="lazy" src={hire.profilePic} alt={hire.candidateName} className="w-full h-full object-cover" />}
                                         </div>
                                         <div>
                                             <h4 className="font-black uppercase tracking-tight text-white group-hover:text-blue-400 transition-colors uppercase">{hire.candidateName}</h4>
@@ -210,7 +210,7 @@ const PerformanceDashboard = () => {
                             <div className="flex items-center gap-6 mb-10">
                                 <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-500 to-teal-400 p-1">
                                     <div className="w-full h-full rounded-[1.8rem] bg-[#1a1d24] overflow-hidden">
-                                        {selectedHire.profilePic && <img src={selectedHire.profilePic} alt={selectedHire.candidateName} className="w-full h-full object-cover" />}
+                                        {selectedHire.profilePic && <img loading="lazy" src={selectedHire.profilePic} alt={selectedHire.candidateName} className="w-full h-full object-cover" />}
                                     </div>
                                 </div>
                                 <div>

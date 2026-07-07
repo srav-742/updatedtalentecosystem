@@ -170,7 +170,7 @@ const SeekerLayout = () => {
                         {isMinimized ? (
                             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white text-lg font-semibold text-gray-900">
                                 {profile?.profilePic ? (
-                                    <img src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
+                                    <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                 ) : (
                                     user.name?.[0]?.toUpperCase() || 'S'
                                 )}
@@ -179,7 +179,7 @@ const SeekerLayout = () => {
                             <div className="flex items-center gap-3">
                                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-black/10 bg-white text-lg font-semibold text-gray-900">
                                     {profile?.profilePic ? (
-                                        <img src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
+                                        <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                     ) : (
                                         user.name?.[0]?.toUpperCase() || 'S'
                                     )}

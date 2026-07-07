@@ -315,7 +315,7 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
                                                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-teal-500 p-0.5 relative group-hover:scale-110 transition-transform">
                                                         <div className="w-full h-full rounded-[0.9rem] bg-[#0c0f16] flex items-center justify-center overflow-hidden">
                                                             {profile.profilePic ? (
-                                                                <img src={profile.profilePic} alt={profile.name} className="w-full h-full object-cover" />
+                                                                <img loading="lazy" src={profile.profilePic} alt={profile.name} className="w-full h-full object-cover" />
                                                             ) : (
                                                                 <span className="text-xl font-black text-white">{profile.name[0]}</span>
                                                             )}
@@ -415,7 +415,7 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
                                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-teal-500 p-0.5 relative">
                                         <div className="w-full h-full rounded-[0.9rem] bg-[#0c0f16] flex items-center justify-center overflow-hidden">
                                             {selectedProfile.profilePic ? (
-                                                <img src={selectedProfile.profilePic} alt={selectedProfile.name} className="w-full h-full object-cover" />
+                                                <img loading="lazy" src={selectedProfile.profilePic} alt={selectedProfile.name} className="w-full h-full object-cover" />
                                             ) : (
                                                 <span className="text-xl font-black text-white">{selectedProfile.name[0]}</span>
                                             )}

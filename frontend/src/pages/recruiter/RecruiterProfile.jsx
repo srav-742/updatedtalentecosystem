@@ -139,7 +139,7 @@ const RecruiterProfile = () => {
                         >
                             <div className="w-full h-full rounded-full bg-[#11131a] flex items-center justify-center text-5xl font-black text-white overflow-hidden">
                                 {profileData.profilePic ? (
-                                    <img src={profileData.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                                    <img loading="lazy" src={profileData.profilePic} alt="Profile" className="w-full h-full object-cover" />
                                 ) : (
                                     profileData.name?.[0]?.toUpperCase() || 'U'
                                 )}

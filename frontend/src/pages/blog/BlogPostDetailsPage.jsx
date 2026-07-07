@@ -136,7 +136,7 @@ export default function BlogPostDetailsPage() {
         html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-blue-400 hover:text-blue-300 underline font-semibold transition-colors">$1</a>');
 
         // Images
-        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<span class="block my-6"><img src="$2" alt="$1" class="rounded-[2rem] border border-white/10 w-full max-h-96 object-cover" /><span class="block text-center text-[10px] text-gray-500 font-medium mt-2">$1</span></span>');
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<span class="block my-6"><img loading="lazy" src="$2" alt="$1" class="rounded-[2rem] border border-white/10 w-full max-h-96 object-cover" /><span class="block text-center text-[10px] text-gray-500 font-medium mt-2">$1</span></span>');
 
         // Code blocks
         html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-black/40 border border-white/10 text-teal-400 font-mono text-xs md:text-sm p-5 rounded-2xl my-6 overflow-x-auto select-text leading-relaxed">$1</pre>');
@@ -304,7 +304,7 @@ export default function BlogPostDetailsPage() {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-white/5">
                         <div className="flex items-center gap-2.5">
                             {post.authorId?.profilePic ? (
-                                <img src={post.authorId.profilePic} alt="" className="w-9 h-9 rounded-full object-cover border border-white/10" />
+                                <img loading="lazy" src={post.authorId.profilePic} alt="" className="w-9 h-9 rounded-full object-cover border border-white/10" />
                             ) : (
                                 <div className="w-9 h-9 rounded-full bg-blue-600/10 border border-white/10 flex items-center justify-center text-blue-400">
                                     <User size={14} />
@@ -328,7 +328,7 @@ export default function BlogPostDetailsPage() {
                 {/* HD Cover Image Banner */}
                 <div className="rounded-[2.5rem] overflow-hidden border border-white/10 w-full h-[250px] md:h-[500px] mb-12 shadow-2xl">
                     {post.coverImage ? (
-                        <img src={post.coverImage} alt="" className="w-full h-full object-cover" />
+                        <img loading="lazy" src={post.coverImage} alt="" className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full bg-gradient-to-br from-blue-950/20 via-transparent to-teal-950/20 flex items-center justify-center text-white/5">
                             <BookOpen size={96} />
@@ -424,7 +424,7 @@ export default function BlogPostDetailsPage() {
                 <div className="max-w-4xl border-t border-white/5 pt-12 mt-16">
                     <div className="p-6 md:p-8 rounded-[2rem] border border-white/10 bg-white/[0.01] flex flex-col md:flex-row items-center md:items-start gap-6">
                         {post.authorId?.profilePic ? (
-                            <img src={post.authorId.profilePic} alt="" className="w-16 h-16 rounded-full object-cover border border-white/10 shrink-0" />
+                            <img loading="lazy" src={post.authorId.profilePic} alt="" className="w-16 h-16 rounded-full object-cover border border-white/10 shrink-0" />
                         ) : (
                             <div className="w-16 h-16 rounded-full bg-blue-600/10 border border-white/10 flex items-center justify-center text-blue-400 shrink-0">
                                 <User size={24} />
@@ -453,7 +453,7 @@ export default function BlogPostDetailsPage() {
                                     <div>
                                         <div className="h-40 rounded-2xl overflow-hidden border border-white/5">
                                             {relPost.coverImage ? (
-                                                <img src={relPost.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300" />
+                                                <img loading="lazy" src={relPost.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300" />
                                             ) : (
                                                 <div className="w-full h-full bg-white/5 flex items-center justify-center text-white/10">
                                                     <BookOpen size={24} />
@@ -470,7 +470,7 @@ export default function BlogPostDetailsPage() {
                                     <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                                         <div className="flex items-center gap-2">
                                             {relPost.authorId?.profilePic ? (
-                                                <img src={relPost.authorId.profilePic} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                                                <img loading="lazy" src={relPost.authorId.profilePic} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
                                             ) : (
                                                 <div className="w-7 h-7 rounded-full bg-blue-600/10 border border-white/10 flex items-center justify-center text-blue-400">
                                                     <User size={10} />

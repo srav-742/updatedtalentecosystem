@@ -460,7 +460,7 @@ const SeekerProfile = () => {
                         >
                             <div className="flex h-40 w-40 items-center justify-center overflow-hidden rounded-[2rem] border border-black/10 bg-[#f4efe6] text-5xl font-semibold text-gray-900">
                                 {profileData.profilePic ? (
-                                    <img src={profileData.profilePic} alt="Profile" className="h-full w-full object-cover" />
+                                    <img loading="lazy" src={profileData.profilePic} alt="Profile" className="h-full w-full object-cover" />
                                 ) : (
                                     profileData.name?.[0]?.toUpperCase() || 'C'
                                 )}

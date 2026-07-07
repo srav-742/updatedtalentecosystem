@@ -158,7 +158,7 @@ const TalentSearch = () => {
                                     <div className="flex items-start justify-between mb-6">
                                         <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400">
                                             {can.profilePic ? (
-                                                <img src={can.profilePic} alt="" className="w-full h-full object-cover rounded-2xl" />
+                                                <img loading="lazy" src={can.profilePic} alt="" className="w-full h-full object-cover rounded-2xl" />
                                             ) : (
                                                 <User size={24} />
                                             )}

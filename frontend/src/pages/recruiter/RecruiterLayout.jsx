@@ -219,7 +219,7 @@ const RecruiterLayout = () => {
                         {isMinimized ? (
                             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1.1rem] bg-white text-base font-semibold text-gray-900">
                                 {profile?.profilePic ? (
-                                    <img src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
+                                    <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                 ) : (
                                     user.name?.[0]?.toUpperCase() || 'R'
                                 )}
@@ -228,7 +228,7 @@ const RecruiterLayout = () => {
                             <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[1.1rem] border border-black/10 bg-white text-base font-semibold text-gray-900">
                                     {profile?.profilePic ? (
-                                        <img src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
+                                        <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                     ) : (
                                         user.name?.[0]?.toUpperCase() || 'R'
                                     )}

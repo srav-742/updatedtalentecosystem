@@ -203,7 +203,7 @@ export default function BlogLandingPage() {
                                 {/* Cover image */}
                                 <div className="w-full lg:w-1/2 h-64 md:h-96 rounded-2xl overflow-hidden border border-white/5 relative shrink-0">
                                     {featured.coverImage ? (
-                                        <img 
+                                        <img loading="lazy" 
                                             src={featured.coverImage} 
                                             alt="" 
                                             className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" 
@@ -246,7 +246,7 @@ export default function BlogLandingPage() {
                                     <div className="flex items-center justify-between border-t border-white/5 pt-6 mt-6">
                                         <div className="flex items-center gap-3">
                                             {featured.authorId?.profilePic ? (
-                                                <img src={featured.authorId.profilePic} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                                                <img loading="lazy" src={featured.authorId.profilePic} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10" />
                                             ) : (
                                                 <div className="w-10 h-10 rounded-full bg-blue-600/10 border border-white/10 flex items-center justify-center text-blue-400">
                                                     <User size={16} />
@@ -310,7 +310,7 @@ export default function BlogLandingPage() {
                                         {/* Cover Image Container */}
                                         <div className="h-44 rounded-2xl overflow-hidden border border-white/5 relative shrink-0">
                                             {post.coverImage ? (
-                                                <img 
+                                                <img loading="lazy" 
                                                     src={post.coverImage} 
                                                     alt="" 
                                                     className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300" 
@@ -349,7 +349,7 @@ export default function BlogLandingPage() {
                                     <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-4">
                                         <div className="flex items-center gap-2.5">
                                             {post.authorId?.profilePic ? (
-                                                <img src={post.authorId.profilePic} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10" />
+                                                <img loading="lazy" src={post.authorId.profilePic} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10" />
                                             ) : (
                                                 <div className="w-8 h-8 rounded-full bg-blue-600/10 border border-white/10 flex items-center justify-center text-blue-400">
                                                     <User size={12} />
