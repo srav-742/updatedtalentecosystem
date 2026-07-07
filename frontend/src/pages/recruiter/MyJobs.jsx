@@ -5,17 +5,19 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const MyJobs = () => {
     const navigate = useNavigate();
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState('');
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
+    const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+
+    const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -27,31 +29,30 @@ const MyJobs = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [activeShareJobId]);
 
-    const fetchJobs = async () => {
-        try {
-            const userId = user.uid || user._id || user.id;
+    // Fetch recruiter's jobs using React Query
+    const { data: jobs = [], isLoading: loading } = useQuery({
+        queryKey: ['jobs', 'recruiter', userId],
+        queryFn: async () => {
+            if (!userId) return [];
             const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
-            setJobs(res.data);
-        } catch (error) {
-            console.error('Error fetching jobs:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            return res.data;
+        },
+        enabled: !!userId
+    });
 
-    useEffect(() => {
-        if (user.uid || user._id || user.id) fetchJobs();
-    }, [user.uid, user._id, user.id]);
+    // Delete job mutation
+    const deleteJobMutation = useMutation({
+        mutationFn: async (jobId) => {
+            await axios.delete(`${API_URL}/jobs/${jobId}`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+        }
+    });
 
     const handleDelete = async (jobId) => {
         if (!window.confirm('Are you sure you want to delete this job posting?')) return;
-        try {
-            await axios.delete(`${API_URL}/jobs/${jobId}`);
-            setJobs(jobs.filter(j => j._id !== jobId));
-        } catch (error) {
-            console.error('Error deleting job:', error);
-            alert('Failed to delete job.');
-        }
+        deleteJobMutation.mutate(jobId);
     };
 
     const toggleShareMenu = (jobId) => {

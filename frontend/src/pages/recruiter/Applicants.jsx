@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus } from 'lucide-react';
 import axios from 'axios';
@@ -11,24 +11,150 @@ import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
 import TopUpModal from '../../components/TopUpModal';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Applicants = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [isPro, setIsPro] = useState(() => {
         const u = JSON.parse(localStorage.getItem('user') || '{}');
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
     });
-    const [walletBalance, setWalletBalance] = useState(user.walletBalance || 0);
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
     const [unlockingItem, setUnlockingItem] = useState(null); // { id, type, cost }
     const [unlockingInProgress, setUnlockingInProgress] = useState(false);
     const [unlockError, setUnlockError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [applicants, setApplicants] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [searchParams] = useSearchParams();
     const targetJobId = searchParams.get('jobId');
+
+    const userId = user.uid || user._id || user.id;
+
+    // Fetch wallet balance
+    const { data: walletBalance = user.walletBalance || 0 } = useQuery({
+        queryKey: ['wallet', 'balance', userId],
+        queryFn: async () => {
+            if (!userId) return 0;
+            const res = await axios.get(`${API_URL}/wallet/balance/${userId}`);
+            return res.data?.success ? res.data.balance : 0;
+        },
+        enabled: !!userId
+    });
+
+    // Fetch fresh recruiter profile to check isPro status
+    const { data: profile = null } = useQuery({
+        queryKey: ['recruiter', 'profile', userId],
+        queryFn: async () => {
+            if (!userId) return null;
+            const res = await axios.get(`${API_URL}/profile/${userId}`);
+            if (res.data) {
+                const isPremium = res.data.hiringPattern === "Premium Recruiter" || res.data.isPro === true;
+                setIsPro(isPremium);
+                const updatedUser = { ...user, ...res.data, isPro: isPremium, role: user.role };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+            }
+            return res.data;
+        },
+        enabled: !!userId
+    });
+
+    // Fetch applicants list using React Query
+    const { data: rawApplicants = [], isLoading: loading } = useQuery({
+        queryKey: ['applicants', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
+
+    const applicants = useMemo(() => {
+        let mapped = rawApplicants.map((app, index) => ({
+            id: app._id,
+            userId: app.userId,
+            isLocked: app.isLocked,
+            isResumeLocked: app.isResumeLocked,
+            isAssessmentLocked: app.isAssessmentLocked,
+            isInterviewLocked: app.isInterviewLocked,
+            jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
+            name: app.applicantName || app.user?.name || `Candidate ${index + 1}`,
+            email: app.applicantEmail || 'No Email',
+            job: app.jobId?.title || 'Unknown Job',
+            resumeScore: app.resumeMatchPercent,
+            assessmentScore: app.assessmentScore,
+            interviewScore: app.interviewScore,
+            ownershipScore: app.metrics?.ownershipMindset || 0,
+            githubUrl: app.user?.githubUrl,
+            linkedinUrl: app.user?.linkedinUrl,
+            resumeUrl: app.user?.resumeUrl,
+            finalScore: app.finalScore,
+            proctoringScore: app.proctoringScore || 0,
+            proctoringFlags: app.proctoringFlags || [],
+            status: app.status,
+            teamFit: app.teamFit,
+            videoIntroUrl: app.videoIntroUrl,
+            resultsVisibleAt: app.resultsVisibleAt,
+            interviewAnswerCount: app.interviewAnswers?.length || 0,
+            recordingStatus: app.recordingStatus || 'pending'
+        }));
+
+        if (targetJobId) {
+            mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
+        }
+        return mapped;
+    }, [rawApplicants, targetJobId]);
+
+    // Mutation for unlocking applicant details
+    const unlockMutation = useMutation({
+        mutationFn: async ({ applicationId, itemType }) => {
+            const recruiterId = user.uid || user._id || user.id;
+            const res = await axios.post(`${API_URL}/wallet/unlock`, {
+                recruiterId,
+                applicationId,
+                itemType
+            });
+            return res.data;
+        },
+        onMutate: () => {
+            setUnlockError('');
+            setUnlockingInProgress(true);
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
+            queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+            window.dispatchEvent(new Event('wallet-update'));
+            setUnlockingItem(null);
+        },
+        onError: (err) => {
+            const msg = err.response?.data?.message || "Failed to unlock applicant.";
+            setUnlockError(msg);
+        },
+        onSettled: () => {
+            setUnlockingInProgress(false);
+        }
+    });
+
+    const handleUnlockApplicant = async (applicationId, itemType) => {
+        unlockMutation.mutate({ applicationId, itemType });
+    };
+
+    useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        if (storedUser.role !== 'recruiter' && storedUser.role !== 'admin') {
+            navigate('/login');
+            return;
+        }
+
+        const handleWalletUpdate = () => {
+            queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
+        };
+        window.addEventListener('wallet-update', handleWalletUpdate);
+        return () => {
+            window.removeEventListener('wallet-update', handleWalletUpdate);
+        };
+    }, [userId, queryClient]);
 
     // Filter & Sorting State
     const [showFilters, setShowFilters] = useState(false);
@@ -63,123 +189,6 @@ const Applicants = () => {
 
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
-
-
-    const fetchWalletBalance = async () => {
-        const userId = user.uid || user._id || user.id;
-        if (!userId) return;
-        try {
-            const res = await axios.get(`${API_URL}/wallet/balance/${userId}`);
-            if (res.data && res.data.success) {
-                setWalletBalance(res.data.balance);
-            }
-        } catch (err) {
-            console.error("Failed to fetch wallet balance:", err);
-        }
-    };
-
-    const handleUnlockApplicant = async (applicationId, itemType) => {
-        setUnlockError('');
-        setUnlockingInProgress(true);
-        try {
-            const recruiterId = user.uid || user._id || user.id;
-            const res = await axios.post(`${API_URL}/wallet/unlock`, {
-                recruiterId,
-                applicationId,
-                itemType
-            });
-
-            if (res.data && res.data.success) {
-                setWalletBalance(res.data.balance);
-                window.dispatchEvent(new Event('wallet-update'));
-                setUnlockingItem(null);
-                fetchApplicants();
-            }
-        } catch (err) {
-            console.error("Unlock applicant error:", err);
-            const msg = err.response?.data?.message || "Failed to unlock applicant.";
-            setUnlockError(msg);
-        } finally {
-            setUnlockingInProgress(false);
-        }
-    };
-
-    const fetchApplicants = async () => {
-        setLoading(true);
-        try {
-            const userId = user.uid || user._id || user.id;
-            
-            // Fetch fresh recruiter profile to check isPro status
-            try {
-                const profileRes = await axios.get(`${API_URL}/profile/${userId}`);
-                if (profileRes.data) {
-                    const isPremium = profileRes.data.hiringPattern === "Premium Recruiter" || profileRes.data.isPro === true;
-                    setIsPro(isPremium);
-                    const updatedUser = { ...user, ...profileRes.data, isPro: isPremium, role: user.role };
-                    localStorage.setItem('user', JSON.stringify(updatedUser));
-                }
-            } catch (err) {
-                console.error("Failed to fetch fresh recruiter profile:", err);
-            }
-
-            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
-            let mapped = res.data.map((app, index) => ({
-                id: app._id,
-                userId: app.userId,
-                isLocked: app.isLocked,
-                isResumeLocked: app.isResumeLocked,
-                isAssessmentLocked: app.isAssessmentLocked,
-                isInterviewLocked: app.isInterviewLocked,
-                jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
-                name: app.applicantName || app.user?.name || `Candidate ${index + 1}`,
-                email: app.applicantEmail || 'No Email',
-                job: app.jobId?.title || 'Unknown Job',
-                resumeScore: app.resumeMatchPercent,
-                assessmentScore: app.assessmentScore,
-                interviewScore: app.interviewScore,
-                ownershipScore: app.metrics?.ownershipMindset || 0, // ─── OWNERSHIP V VETTING SCORE
-                githubUrl: app.user?.githubUrl, // ─── SOCIAL INTEGRATIONS
-                linkedinUrl: app.user?.linkedinUrl,
-                resumeUrl: app.user?.resumeUrl,
-                finalScore: app.finalScore,
-                proctoringScore: app.proctoringScore || 0,
-                proctoringFlags: app.proctoringFlags || [],
-                status: app.status,
-                teamFit: app.teamFit,
-                videoIntroUrl: app.videoIntroUrl,
-                resultsVisibleAt: app.resultsVisibleAt,
-                interviewAnswerCount: app.interviewAnswers?.length || 0,
-                recordingStatus: app.recordingStatus || 'pending'
-            }));
-
-            if (targetJobId) {
-                mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
-            }
-            setApplicants(mapped);
-        } catch (error) {
-            console.error("Failed to fetch applicants:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (storedUser.role !== 'recruiter' && storedUser.role !== 'admin') {
-            navigate('/login');
-            return;
-        }
-        fetchApplicants();
-        fetchWalletBalance();
-
-        const handleWalletUpdate = () => {
-            fetchWalletBalance();
-        };
-        window.addEventListener('wallet-update', handleWalletUpdate);
-        return () => {
-            window.removeEventListener('wallet-update', handleWalletUpdate);
-        };
-    }, [targetJobId]);
 
     // Handle Filters and Sorting
     const filteredApplicants = applicants

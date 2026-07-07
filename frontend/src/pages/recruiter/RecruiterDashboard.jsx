@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { motion } from 'framer-motion';
 import { Briefcase, Users, CheckCircle, ArrowUpRight, Clock, MapPin } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { useQuery } from '@tanstack/react-query';
 
 const StatCard = ({ title, value, icon, color }) => (
     <motion.div
@@ -25,31 +26,34 @@ const StatCard = ({ title, value, icon, color }) => (
 );
 
 const RecruiterDashboard = () => {
-    const [stats, setStats] = useState({ jobCount: 0, applicationCount: 0, shortlistedCount: 0 });
-    const [recentJobs, setRecentJobs] = useState([]);
-    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    const userId = user.uid || user._id || user.id;
 
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                const userId = user.uid || user._id || user.id;
-                const [statsRes, jobsRes] = await Promise.all([
-                    axios.get(`${API_URL}/dashboard/${userId}`),
-                    axios.get(`${API_URL}/jobs/recruiter/${userId}`)
-                ]);
-                setStats(statsRes.data);
-                setRecentJobs(jobsRes.data.slice(0, 5));
-            } catch (error) {
-                console.error('Error fetching dashboard data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    // Fetch dashboard stats using React Query
+    const { data: stats = { jobCount: 0, applicationCount: 0, shortlistedCount: 0 }, isLoading: statsLoading } = useQuery({
+        queryKey: ['dashboard', 'stats', userId],
+        queryFn: async () => {
+            if (!userId) return { jobCount: 0, applicationCount: 0, shortlistedCount: 0 };
+            const res = await axios.get(`${API_URL}/dashboard/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
 
-        if (user.uid || user._id || user.id) fetchDashboardData();
-    }, [user.uid, user._id, user.id]);
+    // Fetch recruiter's jobs using React Query
+    const { data: recruiterJobs = [], isLoading: jobsLoading } = useQuery({
+        queryKey: ['jobs', 'recruiter', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
+    });
+
+    const recentJobs = recruiterJobs.slice(0, 5);
+    const loading = statsLoading || jobsLoading;
 
     if (loading) return <div className="flex items-center justify-center h-[60vh] text-gray-500">Loading dashboard...</div>;
 

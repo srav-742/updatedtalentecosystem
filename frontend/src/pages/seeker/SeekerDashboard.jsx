@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { useQuery } from '@tanstack/react-query';
 
 const StatCard = ({ label, value, icon: Icon, tone }) => (
     <div className="rounded-[1.9rem] border border-black/10 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
@@ -38,39 +39,36 @@ const quickActions = [
 
 const SeekerDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [stats, setStats] = useState({
-        applied: 0,
-        eligible: 0,
-        shortlisted: 0,
-        availableJobs: 0
+    const userId = user.uid || user._id || user.id;
+
+    // Fetch seeker's applications using React Query
+    const { data: userApplications = [] } = useQuery({
+        queryKey: ['applications', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId
     });
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const userId = user.uid || user._id || user.id;
-                const [appsRes, jobsRes] = await Promise.all([
-                    axios.get(`${API_URL}/applications/seeker/${userId}`),
-                    axios.get(`${API_URL}/jobs`)
-                ]);
-                const apps = appsRes.data;
-                const jobs = jobsRes.data;
-
-                setStats({
-                    applied: apps.length,
-                    eligible: apps.filter((item) => item.status === 'ELIGIBLE' || item.status === 'SHORTLISTED').length,
-                    shortlisted: apps.filter((item) => item.status === 'SHORTLISTED').length,
-                    availableJobs: jobs.length
-                });
-            } catch (error) {
-                console.error('Failed to fetch seeker stats:', error);
-            }
-        };
-
-        if (user.uid || user._id || user.id) {
-            fetchStats();
+    // Fetch all jobs using React Query
+    const { data: jobs = [] } = useQuery({
+        queryKey: ['jobs'],
+        queryFn: async () => {
+            const res = await axios.get(`${API_URL}/jobs`);
+            return res.data;
         }
-    }, [user.uid, user._id, user.id]);
+    });
+
+    const stats = useMemo(() => {
+        return {
+            applied: userApplications.length,
+            eligible: userApplications.filter((item) => item.status === 'ELIGIBLE' || item.status === 'SHORTLISTED').length,
+            shortlisted: userApplications.filter((item) => item.status === 'SHORTLISTED').length,
+            availableJobs: jobs.length
+        };
+    }, [userApplications, jobs]);
 
     const headline = useMemo(() => {
         if (stats.shortlisted > 0) {
