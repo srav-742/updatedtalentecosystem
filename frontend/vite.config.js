@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     compression({
       algorithm: 'gzip',
       exclude: [/\.(png|jpe?g|gif|webp|svg|ico|woff2?)$/i],
-      threshold: 1024, // only compress files > 1KB
+      threshold: 1024,
     }),
 
     // Brotli compression (best compression ratio — ~70% smaller than raw)
@@ -36,25 +36,24 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
 
   build: {
-    // Use terser for maximum dead-code elimination and minification
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,      // strip all console.log in production
-        drop_debugger: true,
-        pure_funcs: ['console.info', 'console.debug', 'console.warn'],
-      },
-    },
-    chunkSizeWarningLimit: 1000, // suppress warnings for large (but expected) chunks
-    sourcemap: false,             // no source maps in production (smaller bundles)
+    // esbuild (default) is safe and fast — terser was causing blank page issues
+    // due to aggressive code elimination on React initialization code
+    minify: 'esbuild',
+    chunkSizeWarningLimit: 1200,
+    sourcemap: false,
     rollupOptions: {
       output: {
-        // Fine-grained chunk splitting — each group is cached independently
+        // Safe chunk splitting — React core + React DOM must stay together
+        // to avoid initialization order issues that cause blank pages
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
           // TensorFlow + object-detection — only loaded on proctoring page
-          if (id.includes('@tensorflow') || id.includes('coco-ssd') || id.includes('face-api')) {
+          if (
+            id.includes('@tensorflow') ||
+            id.includes('coco-ssd') ||
+            id.includes('face-api')
+          ) {
             return 'chunk-tensorflow';
           }
 
@@ -73,18 +72,16 @@ export default defineConfig(({ mode }) => ({
             return 'chunk-query';
           }
 
-          // React core + router
+          // React core + React DOM + Router MUST be in the same chunk
+          // Splitting react from react-dom causes blank page due to
+          // hook initialization order violations
           if (
+            id.includes('/react/') ||
             id.includes('react-dom') ||
             id.includes('react-router') ||
             id.includes('scheduler')
           ) {
             return 'chunk-react';
-          }
-
-          // React itself (tiny, separate for maximum caching)
-          if (id.includes('/react/')) {
-            return 'chunk-react-core';
           }
 
           // Lucide icons
