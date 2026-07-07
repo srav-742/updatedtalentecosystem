@@ -332,10 +332,7 @@ const getAssessmentDetails = async (req, res) => {
 
             const UnlockedApplicant = require('../models/UnlockedApplicant');
             const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
-            const isUnlockedAssessment = isUnlocked && (
-                isUnlocked.unlockedItems.includes('assessment') || 
-                (!isUnlocked.unlockedItems || isUnlocked.unlockedItems.length === 0)
-            );
+            const isUnlockedAssessment = isUnlocked && isUnlocked.unlockedItems.includes('assessment');
 
             if (!shouldBePro && !isUnlockedAssessment) {
                 return res.status(403).json({ message: "Forbidden: Pro Recruiter status or assessment unlock required." });

@@ -101,10 +101,7 @@ const getInterviewDetails = async (req, res) => {
 
             const UnlockedApplicant = require('../models/UnlockedApplicant');
             const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
-            const isUnlockedInterview = isUnlocked && (
-                isUnlocked.unlockedItems.includes('interview') || 
-                (!isUnlocked.unlockedItems || isUnlocked.unlockedItems.length === 0)
-            );
+            const isUnlockedInterview = isUnlocked && isUnlocked.unlockedItems.includes('interview');
 
             if (!shouldBePro && !isUnlockedInterview) {
                 return res.status(403).json({ message: "Forbidden: Pro Recruiter status or interview unlock required." });

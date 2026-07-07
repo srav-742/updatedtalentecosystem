@@ -492,10 +492,7 @@ const getResumeStructuredProfile = async (req, res) => {
 
                     // Check if unlocked
                     const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId: app._id });
-                    const isUnlockedResume = isUnlocked && (
-                        isUnlocked.unlockedItems.includes('resume') || 
-                        (!isUnlocked.unlockedItems || isUnlocked.unlockedItems.length === 0)
-                    );
+                    const isUnlockedResume = isUnlocked && isUnlocked.unlockedItems.includes('resume');
                     if (!isUnlockedResume) {
                         return res.status(403).json({ message: "Access denied: Please unlock candidate's resume to view." });
                     }

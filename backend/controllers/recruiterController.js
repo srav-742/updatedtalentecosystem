@@ -203,16 +203,10 @@ const getRecruiterApplications = async (req, res) => {
                 isAssessmentLocked = false;
                 isInterviewLocked = false;
             } else if (unlockedAppMap.has(app._id.toString())) {
-                const items = unlockedAppMap.get(app._id.toString());
-                if (!items || items.length === 0) {
-                    isResumeLocked = false;
-                    isAssessmentLocked = false;
-                    isInterviewLocked = false;
-                } else {
-                    isResumeLocked = !items.includes('resume');
-                    isAssessmentLocked = !items.includes('assessment');
-                    isInterviewLocked = !items.includes('interview');
-                }
+                const items = unlockedAppMap.get(app._id.toString()) || [];
+                isResumeLocked = !items.includes('resume');
+                isAssessmentLocked = !items.includes('assessment');
+                isInterviewLocked = !items.includes('interview');
             }
 
             app.isResumeLocked = isResumeLocked;
