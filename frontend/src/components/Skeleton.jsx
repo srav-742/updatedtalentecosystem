@@ -8,6 +8,33 @@ export const Skeleton = ({ className = '', variant = 'light' }) => {
     );
 };
 
+// Global Page Transition Skeleton
+export const GlobalPageSkeleton = () => (
+    <div className="min-h-screen bg-[#faf7f1] p-8 flex flex-col space-y-8">
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-black/5 shadow-sm">
+            <Skeleton className="h-10 w-32 rounded-xl" />
+            <div className="flex gap-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <Skeleton className="h-10 w-24 rounded-xl" />
+            </div>
+        </div>
+        {/* Main Content Skeleton */}
+        <div className="flex-1 grid gap-8 md:grid-cols-3">
+            <div className="md:col-span-2 space-y-6">
+                <Skeleton className="h-48 w-full rounded-[2.5rem] bg-white border border-black/5 shadow-sm" />
+                <div className="grid grid-cols-2 gap-6">
+                    <Skeleton className="h-32 w-full rounded-[2rem] bg-white border border-black/5" />
+                    <Skeleton className="h-32 w-full rounded-[2rem] bg-white border border-black/5" />
+                </div>
+            </div>
+            <div className="space-y-6">
+                <Skeleton className="h-[400px] w-full rounded-[2.5rem] bg-white border border-black/5 shadow-sm" />
+            </div>
+        </div>
+    </div>
+);
+
 // Seeker - Browse Jobs Card Skeleton
 export const JobCardSkeleton = () => (
     <div className="rounded-[2rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">

@@ -26,6 +26,7 @@ import {
 import { getUserProfile, saveUserProfile, API_URL } from '../../firebase';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProfileSkeleton } from '../../components/Skeleton';
 
 // eslint-disable-next-line no-unused-vars
@@ -50,14 +51,25 @@ const SectionCard = ({ title, subtitle, icon: Icon, children, action }) => (
 
 const SeekerProfile = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [newSkill, setNewSkill] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
-    const [resumes, setResumes] = useState([]);
-    const [resumesLoading, setResumesLoading] = useState(false);
+    const queryClient = useQueryClient();
+    const uid = user?.uid || user?._id || user?.id;
+
+    const { data: resumes = [], isLoading: resumesLoading } = useQuery({
+        queryKey: ['resumes', uid],
+        queryFn: async () => {
+            if (!uid) return [];
+            const res = await axios.get(`${API_URL}/user-resumes/${uid}`, {
+                headers: { 'x-user-id': uid }
+            });
+            return res.data;
+        },
+        enabled: !!uid,
+    });
     const [uploadingResume, setUploadingResume] = useState(false);
     const [parsingResume, setParsingResume] = useState(false);
     const [resumeSuccessMessage, setResumeSuccessMessage] = useState('');
@@ -65,20 +77,7 @@ const SeekerProfile = () => {
     const [mlopsJobId, setMlopsJobId] = useState(null);
     const [mlopsScore, setMlopsScore] = useState(null);
 
-    const fetchResumes = async () => {
-        setResumesLoading(true);
-        try {
-            const uid = user.uid || user._id || user.id;
-            const res = await axios.get(`${API_URL}/user-resumes/${uid}`, {
-                headers: { 'x-user-id': uid }
-            });
-            setResumes(res.data);
-        } catch (error) {
-            console.error("Failed to fetch resumes:", error);
-        } finally {
-            setResumesLoading(false);
-        }
-    };
+
 
     const handleResumeUpload = async (event) => {
         const file = event.target.files?.[0];
@@ -175,7 +174,7 @@ const SeekerProfile = () => {
                         setMlopsJobId(mlopsJob._id);
                         setResumeSuccessMessage(`Resume analyzed successfully for MLOps Engineer role! Match Score: ${matchPercentage}%`);
                         setShowNextStepsPopup(true);
-                        await fetchResumes();
+                        queryClient.invalidateQueries({ queryKey: ['resumes', uid] });
                         return;
                     }
                 } catch (err) {
@@ -187,7 +186,7 @@ const SeekerProfile = () => {
 
             setResumeSuccessMessage("Resume uploaded and candidate profile enriched successfully!");
             setShowNextStepsPopup(true);
-            await fetchResumes();
+            queryClient.invalidateQueries({ queryKey: ['resumes', uid] });
         } catch (error) {
             console.error("Failed to upload/parse resume:", error);
             alert("Failed to upload or parse resume. Please try again.");
@@ -203,7 +202,7 @@ const SeekerProfile = () => {
             await axios.put(`${API_URL}/user-resumes/${resumeId}/default`, { userId: uid }, {
                 headers: { 'x-user-id': uid }
             });
-            await fetchResumes();
+            queryClient.invalidateQueries({ queryKey: ['resumes', uid] });
         } catch (error) {
             console.error("Failed to set default resume:", error);
         }
@@ -216,7 +215,7 @@ const SeekerProfile = () => {
             await axios.delete(`${API_URL}/user-resumes/${resumeId}`, {
                 headers: { 'x-user-id': uid }
             });
-            await fetchResumes();
+            queryClient.invalidateQueries({ queryKey: ['resumes', uid] });
         } catch (error) {
             console.error("Failed to delete resume:", error);
         }
@@ -235,39 +234,27 @@ const SeekerProfile = () => {
         linkedinUrl: user.linkedinUrl || ''
     });
 
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const profile = await getUserProfile(user.uid || user._id || user.id);
-                if (profile) {
-                    setProfileData({
-                        ...profile,
-                        skills: profile.skills || [],
-                        education: profile.education || [],
-                        experience: profile.experience || [],
-                        githubUrl: profile.githubUrl || '',
-                        linkedinUrl: profile.linkedinUrl || ''
-                    });
-                } else {
-                    setProfileData((previous) => ({
-                        ...previous,
-                        name: user.name || '',
-                        email: user.email || ''
-                    }));
-                }
-            } catch (error) {
-                console.error('Error fetching profile from Firebase:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const { data: fetchedProfile, isLoading: profileLoading } = useQuery({
+        queryKey: ['userProfile', uid],
+        queryFn: async () => {
+            if (!uid) return null;
+            return await getUserProfile(uid);
+        },
+        enabled: !!uid,
+    });
 
-        if (user.uid || user._id || user.id) {
-            fetchProfile();
-            fetchResumes();
+    useEffect(() => {
+        if (fetchedProfile) {
+            setProfileData({
+                ...fetchedProfile,
+                skills: fetchedProfile.skills || [],
+                education: fetchedProfile.education || [],
+                experience: fetchedProfile.experience || [],
+                githubUrl: fetchedProfile.githubUrl || '',
+                linkedinUrl: fetchedProfile.linkedinUrl || ''
+            });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user.uid, user._id, user.id]);
+    }, [fetchedProfile]);
 
     const handleChange = (event) => {
         const { name, value } = event.target;
@@ -385,7 +372,7 @@ const SeekerProfile = () => {
         }
     };
 
-    if (loading) {
+    if (profileLoading) {
         return <ProfileSkeleton />;
     }
 
