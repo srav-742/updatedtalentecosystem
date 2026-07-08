@@ -7,6 +7,7 @@ import { API_URL } from '../../firebase';
 import { ApplicantsSkeleton } from '../../components/Skeleton';
 import AssessmentDetail from './AssessmentDetail';
 import InterviewDetail from './InterviewDetail';
+import ProctoringDetail from './ProctoringDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
@@ -176,6 +177,10 @@ const Applicants = () => {
     const [showInterviewDetail, setShowInterviewDetail] = useState(false);
     const [selectedInterviewApplicationId, setSelectedInterviewApplicationId] = useState(null);
 
+    // Proctoring Detail Modal
+    const [showProctoringDetail, setShowProctoringDetail] = useState(false);
+    const [selectedProctoringApplicationId, setSelectedProctoringApplicationId] = useState(null);
+
     // Video Intro Modal
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
@@ -183,9 +188,6 @@ const Applicants = () => {
     // Generated Resume Modal
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
     const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
-
-    // Proctoring Violations Popover State
-    const [expandedProctoringAppId, setExpandedProctoringAppId] = useState(null);
 
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -275,6 +277,16 @@ const Applicants = () => {
         }
         setSelectedInterviewApplicationId(applicationId);
         setShowInterviewDetail(true);
+    };
+
+    // Handle View Proctoring Details
+    const handleViewProctoring = (applicationId, isInterviewLocked) => {
+        if (isInterviewLocked) {
+            setUnlockingItem({ id: applicationId, type: 'interview', cost: 10 });
+            return;
+        }
+        setSelectedProctoringApplicationId(applicationId);
+        setShowProctoringDetail(true);
     };
 
     const getInterviewMeta = (app) => {
@@ -518,7 +530,7 @@ const Applicants = () => {
                             </span>
                         </h2>
                         
-                        <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-hidden relative">
+                        <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-visible relative">
                             <div className="absolute top-0 right-0 p-8 opacity-[0.01] pointer-events-none">
                                 <Users size={150} />
                             </div>
@@ -680,39 +692,22 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
-                                                <td className="py-5 text-center">
-                                                    <div className="flex flex-col items-center justify-center gap-1.5 relative">
-                                                        <div 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setExpandedProctoringAppId(expandedProctoringAppId === app.id ? null : app.id);
-                                                            }}
-                                                            className={`inline-flex items-center justify-center px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-400 font-extrabold text-base shadow-sm cursor-pointer hover:bg-red-500/10 transition-all ${app.proctoringScore > 0 ? 'animate-pulse' : ''}`} 
-                                                            title="Click to view violations"
-                                                        >
-                                                            <span>{app.proctoringScore}</span>
-                                                        </div>
-                                                        {expandedProctoringAppId === app.id && app.proctoringFlags && app.proctoringFlags.length > 0 && (
-                                                            <div className="absolute top-full mt-2 w-48 bg-[#1a1d24] border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-1.5 items-center justify-center" onClick={e => e.stopPropagation()}>
-                                                                <p className="text-[9px] font-bold text-red-400 uppercase tracking-widest border-b border-white/5 pb-1 w-full text-center">Violations</p>
-                                                                <div className="flex flex-wrap gap-1 justify-center mt-1 w-full max-h-[150px] overflow-y-auto pr-1">
-                                                                    {app.proctoringFlags.map((flag) => {
-                                                                        const displayFlag = flag.replace(/_/g, ' ');
-                                                                        return (
-                                                                            <span 
-                                                                                key={flag} 
-                                                                                className="px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20"
-                                                                                title={displayFlag}
-                                                                                style={{ whiteSpace: 'nowrap' }}
-                                                                            >
-                                                                                {displayFlag}
-                                                                            </span>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                     <div className="flex items-center justify-center">
+                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm">
+                                                             <span>{app.proctoringScore}</span>
+                                                             <button
+                                                                 onClick={(e) => {
+                                                                     e.stopPropagation();
+                                                                     handleViewProctoring(app.id, app.isInterviewLocked);
+                                                                 }}
+                                                                 className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-red-500 hover:text-red-400 hover:bg-red-500/10'}`}
+                                                                 title={app.isInterviewLocked ? "Unlock Proctoring Details (₹10)" : "View Proctoring Report"}
+                                                             >
+                                                                 <Eye size={15} />
+                                                             </button>
+                                                         </div>
+                                                     </div>
                                                 </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
@@ -747,25 +742,25 @@ const Applicants = () => {
                                                                 <div className="py-1">
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'SHORTLISTED')}
-                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-400 hover:bg-white/5 flex items-center gap-2"
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-emerald-600 hover:bg-emerald-50/50 flex items-center gap-2"
                                                                     >
                                                                         <CheckCircle2 size={14} /> Mark Shortlisted
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'REJECTED')}
-                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-400 hover:bg-white/5 flex items-center gap-2"
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-600 hover:bg-red-50/50 flex items-center gap-2"
                                                                     >
                                                                         <CheckCircle2 size={14} className="rotate-45" /> Mark Rejected
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'HIRED')}
-                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-blue-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-blue-600 hover:bg-blue-50/50 flex items-center gap-2 border-t border-gray-100"
                                                                     >
                                                                         <Sparkles size={14} /> Mark Hired (AI Learn)
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
-                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-gray-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-100/50 flex items-center gap-2 border-t border-gray-100"
                                                                     >
                                                                         <Filter size={14} /> Reset Status
                                                                     </button>
@@ -817,6 +812,17 @@ const Applicants = () => {
                     onClose={() => {
                         setShowInterviewDetail(false);
                         setSelectedInterviewApplicationId(null);
+                    }}
+                />
+            )}
+
+            {/* Proctoring Detail Modal */}
+            {showProctoringDetail && (
+                <ProctoringDetail
+                    applicationId={selectedProctoringApplicationId}
+                    onClose={() => {
+                        setShowProctoringDetail(false);
+                        setSelectedProctoringApplicationId(null);
                     }}
                 />
             )}
