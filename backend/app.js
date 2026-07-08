@@ -307,7 +307,7 @@ app.get('/api/tts-debug', async (req, res) => {
 app.get('/approve-all-jobs', async (req, res) => {
     try {
         const Job = require('./models/Job');
-        const result = await Job.updateMany({ status: 'pending' }, { $set: { status: 'approved' } });
+        const result = await Job.updateMany({ status: 'pending_approval' }, { $set: { status: 'approved' } });
         return res.json({
             success: true,
             message: `Successfully approved ${result.modifiedCount} pending job(s).`,
