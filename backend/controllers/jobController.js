@@ -103,7 +103,8 @@ const deleteJob = async (req, res) => {
 
 const createJob = async (req, res) => {
     try {
-        const job = new Job(req.body);
+        const jobData = { ...req.body, status: 'pending_approval' };
+        const job = new Job(jobData);
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches
         res.status(201).json({ success: true, job: savedJob });

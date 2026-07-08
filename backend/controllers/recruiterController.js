@@ -313,6 +313,7 @@ const createJob = async (req, res) => {
         if (jobData.mockInterview?.passingScore) jobData.mockInterview.passingScore = Number(jobData.mockInterview.passingScore);
 
         delete jobData._id;
+        jobData.status = 'pending_approval';
 
         const job = new Job(jobData);
         const savedJob = await job.save();
