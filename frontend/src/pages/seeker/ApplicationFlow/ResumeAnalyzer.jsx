@@ -228,6 +228,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
     const [file, setFile] = useState(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [error, setError] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
     const [applicationSaved, setApplicationSaved] = useState(false);
     const [structuredProfile, setStructuredProfile] = useState(createEmptyStructuredProfile());
@@ -475,6 +476,33 @@ ${projectsFlat}
         setActiveSection('resume');
     };
 
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const droppedFile = e.dataTransfer.files?.[0];
+        if (droppedFile) {
+            if (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf')) {
+                setFile(droppedFile);
+                setError(null);
+                setAnalysisResult(null);
+                setStructuredProfile(createEmptyStructuredProfile());
+                setApplicationSaved(false);
+                setActiveSection('resume');
+            } else {
+                setError('Only PDF files are supported.');
+            }
+        }
+    };
+
     const handleAnalyze = async () => {
         if (!file) {
             setError('Please select a resume file first.');
@@ -651,7 +679,16 @@ ${projectsFlat}
                             </div>
                         </div>
 
-                        <label className="block cursor-pointer rounded-[1.5rem] border-2 border-dashed border-black/10 bg-[#fcfaf6] px-6 py-8 text-center transition hover:border-black/20 hover:bg-[#faf7f1]">
+                        <label 
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`block cursor-pointer rounded-[1.5rem] border-2 border-dashed px-6 py-8 text-center transition ${
+                                isDragging 
+                                    ? 'border-black bg-[#faf7f1] scale-[1.01]' 
+                                    : 'border-black/10 bg-[#fcfaf6] hover:border-black/20 hover:bg-[#faf7f1]'
+                            }`}
+                        >
                             <input
                                 type="file"
                                 accept=".pdf"
