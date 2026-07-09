@@ -29,6 +29,7 @@ WORKDIR /usr/src/app
 
 # Copy production node_modules from builder
 COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /usr/src/packages/shared /usr/src/packages/shared
 
 # Copy application source
 COPY api-gateway/package.json ./
