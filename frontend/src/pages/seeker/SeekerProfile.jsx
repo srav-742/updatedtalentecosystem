@@ -1,35 +1,19 @@
-import React, { useEffect, useState } from 'react';
-// eslint-disable-next-line no-unused-vars
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+ 
 import {
-    AlertCircle,
     Briefcase,
-    CheckCircle2,
     Code2,
     Github,
     GraduationCap,
-    Linkedin,
-    Loader2,
-    Mail,
-    Phone,
-    Plus,
-    Save,
-    Trash2,
     User,
-    FileText,
-    Upload,
-    Star,
-    ArrowRight,
-    Sparkles,
-    ExternalLink
+    FileText
 } from 'lucide-react';
 import { getUserProfile, saveUserProfile, API_URL } from '../../firebase';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ProfileSkeleton } from '../../components/Skeleton';
 
-// eslint-disable-next-line no-unused-vars
+ 
 const SectionCard = ({ title, subtitle, icon: Icon, children, action }) => (
     <section className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

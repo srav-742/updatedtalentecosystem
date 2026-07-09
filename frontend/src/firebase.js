@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential } from "firebase/auth";
-import { getDatabase, ref, set, get, child, update } from "firebase/database";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDd3YaduiL4mjuv6kNErlqkILfiAGuUh4o",
@@ -65,12 +65,8 @@ export const getGoogleRedirectResult = async () => {
 };
 
 export const signInWithGithub = async () => {
-    try {
-        const result = await signInWithPopup(auth, githubProvider);
-        return result.user;
-    } catch (error) {
-        throw error;
-    }
+    const result = await signInWithPopup(auth, githubProvider);
+    return result.user;
 };
 
 export const linkFirebasePassword = async (email, password) => {

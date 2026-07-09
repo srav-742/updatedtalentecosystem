@@ -1,7 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, User, Mail, Phone, ArrowRight, Building, Target } from 'lucide-react';
-import { PhoneInput } from 'react-international-phone';
+import { useState } from 'react';
 import 'react-international-phone/style.css';
 
 const CalibrationModal = ({ isOpen, onClose }) => {

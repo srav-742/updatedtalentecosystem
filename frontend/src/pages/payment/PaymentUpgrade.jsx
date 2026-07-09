@@ -1,17 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
 import { loadRazorpayScript } from '../../utils/loadRazorpayScript';
-import { 
-    CreditCard, 
-    ShieldCheck, 
-    Loader2, 
-    Check, 
-    Sparkles, 
-    AlertTriangle,
-    Crown,
-    ArrowLeft
-} from 'lucide-react';
+
+
 import { useNavigate } from 'react-router-dom';
 
 export default function PaymentUpgrade() {

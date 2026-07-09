@@ -1,20 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    FileText, 
-    ShieldCheck, 
-    HardDrive, 
-    Target, 
-    Download, 
-    Printer, 
-    User, 
-    Briefcase, 
-    DollarSign, 
-    Calendar,
-    ChevronRight,
-    Sparkles
-} from 'lucide-react';
+import { useState } from 'react';
+
+
 import { onboardingTemplates } from './onboardingTemplates';
+
+const getDocumentRef = (id) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return 1000 + Math.abs(hash % 9000);
+};
 
 const OnboardingKit = () => {
     const [selectedId, setSelectedId] = useState('offer');
@@ -29,10 +24,7 @@ const OnboardingKit = () => {
     });
 
     const activeTemplate = onboardingTemplates[selectedId];
-    
-    const documentRef = useMemo(() => {
-        return Math.floor(Math.random() * 9000) + 1000;
-    }, [selectedId]);
+    const documentRef = getDocumentRef(selectedId);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;

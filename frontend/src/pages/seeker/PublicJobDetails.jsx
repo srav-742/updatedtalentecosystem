@@ -1,23 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-    Building2,
-    ChevronLeft,
-    Clock3,
-    FileUp,
-    GraduationCap,
-    MapPin,
-    Sparkles,
-    Share2,
-    Mail,
-    Linkedin,
-    Twitter,
-    Copy
-} from 'lucide-react';
+
+
 import axios from 'axios';
 import { API_URL } from '../../firebase';
-import Navbar from '../../components/Navbar';
 
 const PublicJobDetails = () => {
     const { id } = useParams();

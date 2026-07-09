@@ -1,6 +1,4 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Wallet, Check, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
 import axios from 'axios';
 import { loadRazorpayScript } from '../utils/loadRazorpayScript';
 import { API_URL } from '../firebase';

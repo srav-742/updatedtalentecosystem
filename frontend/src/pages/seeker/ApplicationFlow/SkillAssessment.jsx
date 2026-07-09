@@ -1,22 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState, useEffect } from 'react';
 import {
-    AlertCircle,
-    ArrowLeft,
-    ArrowRight,
-    BookOpenCheck,
-    Brain,
-    CheckCircle2,
-    Clock3,
     Code2,
-    FileLock2,
-    ListChecks,
-    Loader2,
-    Play
+    FileLock2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
-import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => {
     const [started, setStarted] = useState(false);

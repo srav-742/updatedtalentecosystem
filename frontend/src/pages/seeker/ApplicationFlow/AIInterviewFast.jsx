@@ -1,11 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
-import AIInterviewReport from './AIInterviewReport';
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -435,7 +431,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 recognitionRef.current.onerror = null;
                 try {
                     recognitionRef.current.stop();
-                } catch (_) {}
+                } catch (_) { /* ignore */ }
                 recognitionRef.current = null;
             }
 
@@ -528,7 +524,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             recognitionRef.current.onend = null;
                             recognitionRef.current.onerror = null;
                             recognitionRef.current.stop();
-                        } catch (_) {}
+                        } catch (_) { /* ignore */ }
                     }
 
                     const rec = new SpeechRec();
@@ -609,7 +605,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             if (recognitionRef.current) {
                 recognitionRef.current.onend = null;
                 recognitionRef.current.onerror = null;
-                try { recognitionRef.current.stop(); } catch(_) {}
+                try { recognitionRef.current.stop(); } catch(_) { /* ignore */ }
             }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
@@ -638,7 +634,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         if (recognitionRef.current) {
             recognitionRef.current.onend = null;
             recognitionRef.current.onerror = null;
-            try { recognitionRef.current.stop(); } catch(_) {}
+            try { recognitionRef.current.stop(); } catch(_) { /* ignore */ }
             recognitionRef.current = null;
         }
         audioPlayerRef.current.pause();
@@ -920,7 +916,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             {/* Webcam Mini View */}
                             <div className="flex items-center gap-4">
                                 <AnimatePresence>
-                                    {false && warnings > 0 && (
+                                    {/* warnings > 0 && (
                                         <motion.div
                                             initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
                                             className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"
@@ -930,7 +926,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                                 {personCount === 0 ? "No Face" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
                                             </span>
                                         </motion.div>
-                                    )}
+                                    )*/}
                                 </AnimatePresence>
                                 <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-gray-200 shadow-md">
                                     <video 

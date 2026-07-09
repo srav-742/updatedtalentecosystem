@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoring } from "../../hooks/useStrictProctoring";
-import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
 
 const requestFullscreen = () => {
   if (document.fullscreenElement) {
@@ -84,8 +82,10 @@ export default function SecureExamWrapper({
 
   useEffect(() => {
     if (!isActive) {
-      setScreenShareInterrupted(false);
-      setResetting(false);
+      Promise.resolve().then(() => {
+        setScreenShareInterrupted(false);
+        setResetting(false);
+      });
       resetInFlightRef.current = false;
     }
   }, [isActive]);
@@ -140,7 +140,7 @@ export default function SecureExamWrapper({
       )}
 
       {/* Violation overlay hidden from candidate */}
-      {false && showViolationOverlay && (
+      {/* showViolationOverlay && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[rgba(245,240,231,0.82)] p-6 backdrop-blur-md">
           <div className={`w-full max-w-xl rounded-[2rem] border bg-white p-8 text-center shadow-[0_40px_120px_rgba(15,23,42,0.18)] ${isResetMode ? 'border-red-200' : 'border-amber-200'}`}>
             <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-[1.5rem] ${isResetMode ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'}`}>
@@ -188,7 +188,7 @@ export default function SecureExamWrapper({
             )}
           </div>
         </div>
-      )}
+      )*/}
 
       {isActive && (
         <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">

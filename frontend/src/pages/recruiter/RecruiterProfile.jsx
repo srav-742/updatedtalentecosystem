@@ -1,7 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { User, Mail, Phone, Briefcase, Globe, Building2, Users2, Save, Loader2, CheckCircle2 } from 'lucide-react';
-import axios from 'axios';
+import { useState, useEffect } from 'react';
 import { getUserProfile, saveUserProfile } from '../../firebase';
 
 const RecruiterProfile = () => {

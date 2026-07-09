@@ -215,7 +215,7 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
 
   return {
     violations,
-    violationCount: countRef.current,
+    violationCount: violations.length,
     showWarning,
     warningMessage,
     examLocked,

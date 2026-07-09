@@ -1,6 +1,3 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X, Shield, Eye, MousePointerClick } from 'lucide-react';
 import useTabLock from '../hooks/useTabLock';
 
 const TabLockGuard = ({

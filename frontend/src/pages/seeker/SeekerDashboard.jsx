@@ -1,11 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
-import { SeekerDashboardSkeleton } from '../../components/Skeleton';
 
 const StatCard = ({ label, value, icon: Icon, tone }) => (
     <div className="rounded-[1.9rem] border border-black/10 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">

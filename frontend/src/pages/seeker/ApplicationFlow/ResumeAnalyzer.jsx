@@ -1,30 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import {
-    AlertCircle,
-    ArrowLeft,
-    ArrowRight,
     BriefcaseBusiness,
-    Check,
-    CheckCircle2,
     Code2,
     FileText,
     GraduationCap,
-    Languages,
-    Loader2,
-    Mail,
-    MapPin,
-    Phone,
     ScrollText,
-    ShieldCheck,
     Sparkles,
-    Upload,
     UserRound
 } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../firebase';
-import { ResumeAnalysisSkeleton } from '../../../components/Skeleton';
 
 const createEmptyStructuredProfile = () => ({
     basics: {

@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Database, ShieldCheck, Activity, RefreshCw, Cpu, Lock, X, Terminal, Server } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ShieldCheck, Activity, Cpu, Lock, Server } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 

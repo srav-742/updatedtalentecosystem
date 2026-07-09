@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 
@@ -85,7 +85,7 @@ export function useAIProctoring({
     onViolation = () => {},
     thresholds: userThresholds = {},
 }) {
-    const T = { ...DEFAULT_THRESHOLDS, ...userThresholds };
+    const T = useMemo(() => ({ ...DEFAULT_THRESHOLDS, ...userThresholds }), [userThresholds]);
 
     // ── State ───────────────────────────────────────────────────────────────
     const [faceMeshReady, setFaceMeshReady] = useState(false);
@@ -108,6 +108,7 @@ export function useAIProctoring({
     const isAnsweringRef = useRef(isAnswering);
     const videoRef = useRef(videoElement);
     const onViolationRef = useRef(onViolation);
+    const processFaceMeshResultsRef = useRef(null);
 
     // Cooldown refs to avoid spamming violations
     const lastViolationTimeRef = useRef({});
@@ -176,7 +177,7 @@ export function useAIProctoring({
 
                 mesh.onResults((results) => {
                     if (!isActiveRef.current) return;
-                    processFaceMeshResults(results);
+                    processFaceMeshResultsRef.current?.(results);
                 });
 
                 await mesh.initialize();
@@ -400,6 +401,10 @@ export function useAIProctoring({
             sideGazeViolationEmittedRef.current = false;
         }
     }, [T, emitViolation, headTurnRatio]);
+
+    useEffect(() => {
+        processFaceMeshResultsRef.current = processFaceMeshResults;
+    }, [processFaceMeshResults]);
 
     // ── FaceMesh frame loop ─────────────────────────────────────────────────
     useEffect(() => {

@@ -1,4 +1,3 @@
-import React from 'react';
 
 const Footer = ({ theme = 'dark' }) => {
     const isLight = theme === 'light';

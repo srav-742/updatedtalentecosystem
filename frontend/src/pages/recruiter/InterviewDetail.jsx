@@ -1,22 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-    X,
-    CheckCircle,
-    Award,
-    User,
-    Mail,
-    Briefcase,
-    MessageSquare,
-    Video,
-    PlayCircle,
-    Github,
-    Linkedin,
-    ShieldAlert,
-    ShieldCheck,
-    AlertTriangle,
-    Clock
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
 

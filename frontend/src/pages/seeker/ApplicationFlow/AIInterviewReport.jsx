@@ -1,7 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Award, MessageSquare, BarChart3, ChevronRight, Zap, X } from 'lucide-react';
-import InterviewFeedbackForm from './InterviewFeedbackForm';
+import { useState, useEffect } from 'react';
 
 const CircularProgress = ({ value, max = 100, label, color, delay }) => {
     const radius = 36;
@@ -58,7 +55,11 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
 
     // Safety check for score to prevent NaN errors
     const safeScore = typeof score === 'number' ? score : 0;
-    const communicationScore = Math.min(100, Math.max(0, safeScore + (Math.random() * 10 - 5)));
+    const [communicationScore, setCommunicationScore] = useState(safeScore);
+    
+    useEffect(() => {
+        setCommunicationScore(Math.min(100, Math.max(0, safeScore + (Math.random() * 10 - 5))));
+    }, [safeScore]);
     
     // ─── OWNERSHIP V VETTING SCORE ───────────────────────────────────────────
     const safeOwnershipScore = typeof ownershipScore === 'number' ? ownershipScore : 8; // Fallback for display
