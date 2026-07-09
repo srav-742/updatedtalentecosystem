@@ -1,6 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
+import { 
+    Clock, ArrowLeft, Calendar, Share2, Linkedin, Twitter, 
+    Copy, User, BookOpen, ChevronRight, Loader2, ArrowRight, Sparkles
+} from 'lucide-react';
 import { getBlogPostBySlug, getRelatedPosts } from '../../services/blogService';
 
 export default function BlogPostDetailsPage() {

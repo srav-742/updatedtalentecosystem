@@ -1,3 +1,8 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Mail, MessageSquare, Shield, Info, MapPin, Send } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 const Contact = () => {
   return (

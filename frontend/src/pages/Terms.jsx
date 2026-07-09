@@ -1,3 +1,8 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Scale, CheckCircle, AlertTriangle, XCircle, Zap, ShieldCheck } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 const Terms = () => {
   const sections = [

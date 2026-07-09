@@ -5,7 +5,7 @@
 export const loadRazorpayScript = () => {
     return new Promise((resolve) => {
         // If script is already loaded, resolve immediately
-        if ('Razorpay' in window) {
+        if (window.hasOwnProperty('Razorpay')) {
             resolve(true);
             return;
         }

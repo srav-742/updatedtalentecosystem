@@ -1,3 +1,6 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { User, Target, Award, CheckCircle, Rocket } from 'lucide-react';
 
 const steps = [
     {

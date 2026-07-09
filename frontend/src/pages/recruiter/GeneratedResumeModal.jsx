@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { X, Download, Mail, Phone, MapPin, Briefcase, GraduationCap, Award, Code, Globe, User } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 

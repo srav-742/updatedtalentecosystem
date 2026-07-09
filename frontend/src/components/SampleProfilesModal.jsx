@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, User, Code2, Briefcase, GraduationCap, Loader2, Search, Mail, Phone, MapPin, ExternalLink, Calendar, FileText, Globe, Download, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import GeneratedResumeModal from '../pages/recruiter/GeneratedResumeModal';
 
 const mockProfiles = [
     {

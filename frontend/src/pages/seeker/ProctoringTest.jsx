@@ -1,6 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
-
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import {
+    Activity,
+    AlertTriangle,
+    Camera,
+    CameraOff,
+    CheckCircle2,
+    Eye,
+    EyeOff,
+    Loader2,
+    Monitor,
+    MonitorSmartphone,
+    RotateCcw,
+    ShieldCheck,
+    Smartphone,
+    ToggleLeft,
+    ToggleRight,
+    Users,
+    Wifi,
+    X,
+} from "lucide-react";
 import { useAIProctoring } from "../../hooks/useAIProctoring";
 
 /**

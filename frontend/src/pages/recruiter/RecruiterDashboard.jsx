@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { motion } from 'framer-motion';
+import { Briefcase, Users, CheckCircle, ArrowUpRight, Clock, MapPin } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
+import { RecruiterDashboardSkeleton } from '../../components/Skeleton';
 
 const StatCard = ({ title, value, icon, color }) => (
     <motion.div

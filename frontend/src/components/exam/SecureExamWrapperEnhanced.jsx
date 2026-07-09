@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, Camera, Eye, ShieldAlert, ShieldCheck, Smartphone, Users } from "lucide-react";
 import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoringEnhanced } from "../../hooks/useStrictProctoringEnhanced";
 import { useAIProctoring } from "../../hooks/useAIProctoring";
+import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
 
 /**
  * SecureExamWrapperEnhanced
@@ -117,10 +119,8 @@ export default function SecureExamWrapperEnhanced({
         onResetRequired: handleSecurityReset,
     });
 
-    useEffect(() => {
-        triggerViolationRef.current = triggerViolation;
-        logEnhancedViolationRef.current = logEnhancedViolation;
-    }, [triggerViolation, logEnhancedViolation]);
+    triggerViolationRef.current = triggerViolation;
+    logEnhancedViolationRef.current = logEnhancedViolation;
 
     // ── Camera stream management ────────────────────────────────────────────
     const activeStream = cameraStream || localCameraStream;

@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Lock, CheckCircle, AlertCircle, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, linkFirebasePassword, getAuthHeaders, API_URL } from '../firebase';

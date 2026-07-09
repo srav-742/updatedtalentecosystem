@@ -1,3 +1,6 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Check } from 'lucide-react';
 
 const ScalingModels = ({ theme = 'light' }) => {
     const isLight = theme === 'light';

@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, Award, MessageSquare, BarChart3, ChevronRight, Zap, X } from 'lucide-react';
+import InterviewFeedbackForm from './InterviewFeedbackForm';
 
 const CircularProgress = ({ value, max = 100, label, color, delay }) => {
     const radius = 36;

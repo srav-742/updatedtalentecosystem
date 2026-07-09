@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { JobCardSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const BrowseJobs = () => {

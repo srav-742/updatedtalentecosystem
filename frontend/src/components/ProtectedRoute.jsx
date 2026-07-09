@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children, role, allowedRoles }) => {
     const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +39,7 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
     if (!user || !user.uid) {
         if (import.meta.env.DEV) console.log("[ProtectedRoute] No valid user, redirecting to login");
         if (window.location.pathname.includes('AdminContentPage')) {
-            return <Navigate to="/login" state={{ from: location }} replace />;
+            return <Navigate to="/login" replace />;
         }
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
