@@ -1,4 +1,9 @@
-import { lazy } from 'react';
+import { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ProtectedRoute from './components/ProtectedRoute';
+import CookieBanner from './components/CookieBanner';
+import Navbar from './components/Navbar';
+import { GlobalPageSkeleton } from './components/Skeleton';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));

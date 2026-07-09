@@ -1,7 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
+import AIInterviewReport from './AIInterviewReport';
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
+import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -431,7 +435,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 recognitionRef.current.onerror = null;
                 try {
                     recognitionRef.current.stop();
-                } catch (_) { /* ignore */ }
+                } catch (_) {}
                 recognitionRef.current = null;
             }
 
@@ -524,7 +528,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             recognitionRef.current.onend = null;
                             recognitionRef.current.onerror = null;
                             recognitionRef.current.stop();
-                        } catch (_) { /* ignore */ }
+                        } catch (_) {}
                     }
 
                     const rec = new SpeechRec();
@@ -605,7 +609,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             if (recognitionRef.current) {
                 recognitionRef.current.onend = null;
                 recognitionRef.current.onerror = null;
-                try { recognitionRef.current.stop(); } catch(_) { /* ignore */ }
+                try { recognitionRef.current.stop(); } catch(_) {}
             }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
@@ -634,7 +638,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         if (recognitionRef.current) {
             recognitionRef.current.onend = null;
             recognitionRef.current.onerror = null;
-            try { recognitionRef.current.stop(); } catch(_) { /* ignore */ }
+            try { recognitionRef.current.stop(); } catch(_) {}
             recognitionRef.current = null;
         }
         audioPlayerRef.current.pause();

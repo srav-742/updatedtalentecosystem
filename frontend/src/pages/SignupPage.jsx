@@ -1,6 +1,10 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
+import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
 const SignupPage = () => {

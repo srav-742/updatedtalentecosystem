@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowRight, BriefcaseBusiness, RefreshCw, Sparkles } from "lucide-react";
 import axios from "axios";
 import { API_URL } from "../firebase";
 

@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Clock, ArrowRight, Mail, User, BookOpen, Sparkles, AlertCircle } from 'lucide-react';
 import { getBlogPosts, getFeaturedPost, getBlogCategories, subscribeNewsletter } from '../../services/blogService';
 
 export default function BlogLandingPage() {

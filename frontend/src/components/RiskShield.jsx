@@ -1,3 +1,6 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { ShieldCheck, Zap, RotateCcw, DollarSign } from 'lucide-react';
 
 const RiskShield = ({ theme = 'light' }) => {
     const isLight = theme === 'light';

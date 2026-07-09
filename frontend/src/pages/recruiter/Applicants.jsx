@@ -1,7 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
+import { ApplicantsSkeleton } from '../../components/Skeleton';
+import AssessmentDetail from './AssessmentDetail';
+import InterviewDetail from './InterviewDetail';
+import ProctoringDetail from './ProctoringDetail';
+import GeneratedResumeModal from './GeneratedResumeModal';
+import TeamFitBadge from '../../components/TeamFitBadge';
+import BulkUploadModal from '../../components/BulkUploadModal';
+import TopUpModal from '../../components/TopUpModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Applicants = () => {

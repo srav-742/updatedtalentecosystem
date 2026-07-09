@@ -1,3 +1,5 @@
+import React from "react";
+import { motion } from "framer-motion";
 
 const ContentList = ({ content, onSelect, selectedId }) => {
     return (

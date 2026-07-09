@@ -1,8 +1,22 @@
-import { useState } from 'react';
-
-
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    Search, 
+    Sparkles, 
+    User, 
+    Briefcase, 
+    Code, 
+    ExternalLink, 
+    Github, 
+    Linkedin,
+    Loader2,
+    ArrowRight,
+    BrainCircuit,
+    Zap
+} from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import GeneratedResumeModal from './GeneratedResumeModal';
 
 const TalentSearch = () => {
     const [query, setQuery] = useState('');

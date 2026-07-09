@@ -1,9 +1,24 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-
-
+import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import {
+    Building2,
+    ChevronLeft,
+    Clock3,
+    FileUp,
+    GraduationCap,
+    MapPin,
+    Sparkles,
+    Wand2,
+    Share2,
+    Mail,
+    Linkedin,
+    Twitter,
+    Copy
+} from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { JobDetailSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const JobDetails = () => {

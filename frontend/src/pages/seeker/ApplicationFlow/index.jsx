@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FileText, CheckCircle, Video, ChevronRight, Brain } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
+import ResumeAnalyzer from './ResumeAnalyzer';
+import SkillAssessment from './SkillAssessment';
+import AIInterview from './AIInterviewFast';
+import CandidateDeck from './CandidateDeck';
 
 
 const ApplicationFlow = () => {

@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { UploadCloud, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, RefreshCw, X, Users } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../firebase';
 

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoring } from "../../hooks/useStrictProctoring";
+import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
 
 const requestFullscreen = () => {
   if (document.fullscreenElement) {

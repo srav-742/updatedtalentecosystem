@@ -1,3 +1,6 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { CheckCircle2, Search, FileText, UserCheck, Briefcase, TrendingUp, Zap } from 'lucide-react';
 
 const steps = [
     {

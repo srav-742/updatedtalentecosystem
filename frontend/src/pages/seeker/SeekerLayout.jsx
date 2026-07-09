@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Briefcase, Clock, LayoutDashboard, UserCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getUserProfile, auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import CreatePasswordModal from '../../components/CreatePasswordModal';
 import { prefetchSeekerRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [

@@ -1,6 +1,19 @@
-import { useState } from 'react';
-
-
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    FileText, 
+    ShieldCheck, 
+    HardDrive, 
+    Target, 
+    Download, 
+    Printer, 
+    User, 
+    Briefcase, 
+    DollarSign, 
+    Calendar,
+    ChevronRight,
+    Sparkles
+} from 'lucide-react';
 import { onboardingTemplates } from './onboardingTemplates';
 
 const getDocumentRef = (id) => {
