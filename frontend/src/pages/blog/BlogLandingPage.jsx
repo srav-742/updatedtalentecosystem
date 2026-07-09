@@ -1,7 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Clock, ArrowRight, Mail, User, BookOpen, Sparkles, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { getBlogPosts, getFeaturedPost, getBlogCategories, subscribeNewsletter } from '../../services/blogService';
 
 export default function BlogLandingPage() {
@@ -39,9 +36,10 @@ export default function BlogLandingPage() {
         if (isNewCategory) setPage(1);
 
         try {
+            let featRes = null;
             // Fetch featured post on category All + Page 1
             if (!activeCategory && currentPage === 1) {
-                const featRes = await getFeaturedPost();
+                featRes = await getFeaturedPost();
                 setFeatured(featRes?.post || null);
             } else if (isNewCategory) {
                 setFeatured(null); // hide featured on category specific pages

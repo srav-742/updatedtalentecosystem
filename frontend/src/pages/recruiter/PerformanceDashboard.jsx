@@ -1,17 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    TrendingUp, 
-    AlertTriangle, 
-    Github, 
-    Calendar, 
-    ExternalLink, 
-    CheckCircle2, 
-    ArrowUpRight, 
-    Activity,
-    User,
-    BarChart3
-} from 'lucide-react';
+
+
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 

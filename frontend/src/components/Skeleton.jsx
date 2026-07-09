@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Base Skeleton Component with support for light (default) and dark themes
 export const Skeleton = ({ className = '', variant = 'light' }) => {

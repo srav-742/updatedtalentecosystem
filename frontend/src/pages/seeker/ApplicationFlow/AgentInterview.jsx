@@ -1,10 +1,7 @@
 // frontend/src/pages/seeker/ApplicationFlow/AgentInterview.jsx
 
 import { useState, useRef, useEffect } from "react";
-import { Mic, StopCircle, Volume2, Sparkles, Cpu, Send, Loader2, ChevronLeft, User, MessageCircle, Target, AlertTriangle, VideoOff, Printer, FileText } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import AgentSelector from "../../../components/AgentSelector";
 import { API_URL } from "../../../firebase";
 
 // --- Radar Chart Component ---

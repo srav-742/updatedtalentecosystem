@@ -1,12 +1,6 @@
 import { useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  MonitorUp,
-  Play,
-  ShieldCheck
-} from 'lucide-react';
+
+
 
 function PermissionVisual({ step }) {
   if (step === 1) {

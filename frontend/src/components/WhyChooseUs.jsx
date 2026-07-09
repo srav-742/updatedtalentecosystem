@@ -1,6 +1,3 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Zap, ShieldCheck, BarChart3, TrendingUp } from 'lucide-react';
 
 const reasons = [
     {

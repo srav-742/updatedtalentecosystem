@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Briefcase, CheckCircle2, ExternalLink, Lock, MessageSquare, Star, Terminal, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Briefcase, MessageSquare, Terminal } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 

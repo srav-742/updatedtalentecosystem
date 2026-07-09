@@ -1,10 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
-import PricingCalculator from '../components/PricingCalculator';
-import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
-import { Check, Sparkles, Building2, UserCircle, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PricingPage = () => {
     const navigate = useNavigate();

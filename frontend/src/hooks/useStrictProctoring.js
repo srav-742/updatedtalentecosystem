@@ -359,12 +359,14 @@ export function useStrictProctoring({
     resetTriggeredRef.current = false;
     lastFocusViolationTs.current = 0;
 
-    setViolations([]);
-    setViolationCount(0);
-    setShowOverlay(false);
-    setOverlayMessage("");
-    setOverlayMode("warning");
-    setIsLocked(false);
+    Promise.resolve().then(() => {
+      setViolations([]);
+      setViolationCount(0);
+      setShowOverlay(false);
+      setOverlayMessage("");
+      setOverlayMode("warning");
+      setIsLocked(false);
+    });
   }, [isActive]);
 
   return {

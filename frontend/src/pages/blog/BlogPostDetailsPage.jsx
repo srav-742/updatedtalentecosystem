@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
-import { 
-    Clock, ArrowLeft, Calendar, Share2, Linkedin, Twitter, 
-    Copy, User, BookOpen, ChevronRight, Loader2, ArrowRight, Sparkles
-} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+
 import { getBlogPostBySlug, getRelatedPosts } from '../../services/blogService';
 
 export default function BlogPostDetailsPage() {
@@ -143,10 +139,10 @@ export default function BlogPostDetailsPage() {
         html = html.replace(/`([^`]+)`/g, '<code class="bg-white/5 font-mono text-xs px-2 py-0.5 rounded-lg text-rose-400 border border-white/5">$1</code>');
 
         // Blockquotes
-        html = html.replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-blue-500 pl-5 py-2 my-6 italic text-gray-300 bg-white/[0.02] rounded-r-2xl">$1</blockquote>');
+        html = html.replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-blue-500 pl-5 py-2 my-6 italic text-gray-300 bg-white/[0.02] rounded-r-2xl">$1</blockquote>');
 
         // Lists
-        html = html.replace(/^\- (.*$)/gim, '<li class="flex items-start gap-2.5 my-1.5 text-gray-300 text-sm leading-relaxed"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2"></span><span>$1</span></li>');
+        html = html.replace(/^- (.*$)/gim, '<li class="flex items-start gap-2.5 my-1.5 text-gray-300 text-sm leading-relaxed"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2"></span><span>$1</span></li>');
         html = html.replace(/<\/li>\n<li/g, '</li><li'); // join contiguous list tags
 
         // Paragraphs & layout spacing

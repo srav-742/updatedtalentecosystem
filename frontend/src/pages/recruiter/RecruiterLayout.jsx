@@ -1,11 +1,9 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, BarChart3, Package, Sparkles } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
-import CreatePasswordModal from '../../components/CreatePasswordModal';
-import TopUpModal from '../../components/TopUpModal';
 import { prefetchRecruiterRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [

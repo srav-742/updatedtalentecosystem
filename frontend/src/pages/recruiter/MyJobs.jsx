@@ -1,12 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2, Mail, Linkedin, Twitter, Copy, UploadCloud } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
-import BulkUploadModal from '../../components/BulkUploadModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RecruiterJobCardSkeleton } from '../../components/Skeleton';
 
 const MyJobs = () => {
     const navigate = useNavigate();

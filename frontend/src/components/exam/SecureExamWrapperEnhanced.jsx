@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Camera, Eye, ShieldAlert, ShieldCheck, Smartphone, Users } from "lucide-react";
 import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoringEnhanced } from "../../hooks/useStrictProctoringEnhanced";
 import { useAIProctoring } from "../../hooks/useAIProctoring";
-import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
 
 /**
  * SecureExamWrapperEnhanced
@@ -119,8 +117,10 @@ export default function SecureExamWrapperEnhanced({
         onResetRequired: handleSecurityReset,
     });
 
-    triggerViolationRef.current = triggerViolation;
-    logEnhancedViolationRef.current = logEnhancedViolation;
+    useEffect(() => {
+        triggerViolationRef.current = triggerViolation;
+        logEnhancedViolationRef.current = logEnhancedViolation;
+    }, [triggerViolation, logEnhancedViolation]);
 
     // ── Camera stream management ────────────────────────────────────────────
     const activeStream = cameraStream || localCameraStream;
@@ -236,8 +236,10 @@ export default function SecureExamWrapperEnhanced({
     // ── Fullscreen management ───────────────────────────────────────────────
     useEffect(() => {
         if (!isActive) {
-            setScreenShareInterrupted(false);
-            setResetting(false);
+            Promise.resolve().then(() => {
+                setScreenShareInterrupted(false);
+                setResetting(false);
+            });
             resetInFlightRef.current = false;
         }
     }, [isActive]);
@@ -332,7 +334,7 @@ export default function SecureExamWrapperEnhanced({
             )}
 
             {/* ── Violation overlay hidden from candidate ─────────────────── */}
-            {false && showViolationOverlay && (
+            {/* showViolationOverlay && (
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[rgba(245,240,231,0.82)] p-6 backdrop-blur-md">
                     <div className={`w-full max-w-xl rounded-[2rem] border bg-white p-8 text-center shadow-[0_40px_120px_rgba(15,23,42,0.18)] ${isResetMode ? "border-red-200" : "border-amber-200"}`}>
                         <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-[1.5rem] ${isResetMode ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500"}`}>
@@ -379,7 +381,7 @@ export default function SecureExamWrapperEnhanced({
                         )}
                     </div>
                 </div>
-            )}
+            )*/}
 
             {/* ── Security status badge (top right) ────────────────────────── */}
             {isActive && (
@@ -425,7 +427,7 @@ export default function SecureExamWrapperEnhanced({
                         />
 
                         {/* AI telemetry warning badges hidden from candidate */}
-                        {false && (
+                        {/* (
                             <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
                                 {faceMeshReady && (
                                     <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
@@ -452,7 +454,7 @@ export default function SecureExamWrapperEnhanced({
                                     </span>
                                 )}
                             </div>
-                        )}
+                        )*/}
                     </div>
                 </div>
             )}

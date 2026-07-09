@@ -1,7 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Video, StopCircle, RefreshCcw, Check, Loader, AlertCircle, Camera, Lock, Settings } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Webcam from 'react-webcam';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 
@@ -48,7 +45,9 @@ const CandidateDeck = ({ job, user, onComplete }) => {
 
     // Stop recording when component unmounts & listen for device changes
     useEffect(() => {
-        getDevices();
+        Promise.resolve().then(() => {
+            getDevices();
+        });
         navigator.mediaDevices?.addEventListener?.('devicechange', getDevices);
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);

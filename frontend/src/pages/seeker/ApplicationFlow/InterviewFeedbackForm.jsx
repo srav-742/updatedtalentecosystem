@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
 import axios from 'axios';
-import { Star, ChevronRight, CheckCircle2, Loader, Send, MessageSquare, Monitor, Cpu, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 
 // API Configuration
 import { API_URL } from '../../../firebase';

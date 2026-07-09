@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import ScreenSharePrompt from "./ScreenSharePrompt";
+import { useState, useCallback } from "react";
 import { useProctoring } from "../../hooks/useProctoring";
 
 export default function ExamWrapper({ examId, userId, onSubmit, children }) {

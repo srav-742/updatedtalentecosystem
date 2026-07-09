@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { Copy, CheckCircle, Smartphone, ExternalLink, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { markAsPosted, regenerateContent } from "../services/contentService";
 
 const ContentDetail = ({ selected, refresh }) => {

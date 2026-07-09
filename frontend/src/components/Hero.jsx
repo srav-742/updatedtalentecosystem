@@ -1,9 +1,4 @@
- import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { ChevronRight, Users, Briefcase, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import CalibrationModal from './CalibrationModal';
-import SampleProfilesModal from './SampleProfilesModal';
+ import { useState } from 'react';
 
 const Hero = ({ theme = 'light' }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);

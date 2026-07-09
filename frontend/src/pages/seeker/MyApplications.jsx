@@ -1,20 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import {
     Archive,
-    BriefcaseBusiness,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    Circle,
-    CircleDot,
-    Clock3,
-    FileText,
-    Loader2
+    FileText
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
-import { ApplicationTrackerSkeleton } from '../../components/Skeleton';
 
 const getStatusTone = (status) => {
     switch (status) {
