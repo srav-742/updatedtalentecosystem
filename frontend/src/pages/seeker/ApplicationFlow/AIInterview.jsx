@@ -41,6 +41,11 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const chunkUploadsRef = useRef([]);
     const isRecordingRef = useRef(false);
     const recognitionTimeoutRef = useRef(null);
+    
+    // Web Audio API refs to record AI voice
+    const audioContextRef = useRef(null);
+    const mediaElementSourceRef = useRef(null);
+    const mixedStreamDestRef = useRef(null);
 
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
@@ -250,8 +255,46 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
             const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
 
+            let recordingAudioTrack = audioTrack;
+
+            if (audioTrack) {
+                try {
+                    if (!audioContextRef.current) {
+                        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    const audioContext = audioContextRef.current;
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+
+                    const mixedStreamDest = audioContext.createMediaStreamDestination();
+                    mixedStreamDestRef.current = mixedStreamDest;
+
+                    // Mix in the microphone stream
+                    const micSource = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+                    micSource.connect(mixedStreamDest);
+
+                    // Connect the AI voice player so it records and plays to the system audio
+                    if (!mediaElementSourceRef.current) {
+                        mediaElementSourceRef.current = audioContext.createMediaElementSource(audioPlayerRef.current);
+                    }
+
+                    try {
+                        mediaElementSourceRef.current.disconnect();
+                    } catch (_) {}
+
+                    mediaElementSourceRef.current.connect(audioContext.destination);
+                    mediaElementSourceRef.current.connect(mixedStreamDest);
+
+                    recordingAudioTrack = mixedStreamDest.stream.getAudioTracks()[0];
+                } catch (audioMixErr) {
+                    console.error("Failed to setup Web Audio API mix:", audioMixErr);
+                    recordingAudioTrack = audioTrack;
+                }
+            }
+
             if (camVideoTrack) recordTracks.push(camVideoTrack);
-            if (audioTrack) recordTracks.push(audioTrack);
+            if (recordingAudioTrack) recordTracks.push(recordingAudioTrack);
 
             const recordStream = new MediaStream(recordTracks);
 
@@ -346,6 +389,10 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     resolve(null);
                 } finally {
                     stopStreamTracks(fullSessionStreamRef.current);
+                    if (mixedStreamDestRef.current) {
+                        stopStreamTracks(mixedStreamDestRef.current.stream);
+                        mixedStreamDestRef.current = null;
+                    }
                     fullSessionStreamRef.current = null;
                     fullSessionRecorderRef.current = null;
                     chunkUploadsRef.current = [];
@@ -632,6 +679,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
             stopStreamTracks(answerStreamRef.current);
             stopStreamTracks(fullSessionStreamRef.current);
+            if (mixedStreamDestRef.current) {
+                stopStreamTracks(mixedStreamDestRef.current.stream);
+                mixedStreamDestRef.current = null;
+            }
+            if (audioContextRef.current) {
+                try {
+                    audioContextRef.current.close();
+                } catch (_) {}
+                audioContextRef.current = null;
+            }
+            mediaElementSourceRef.current = null;
             audioPlayerRef.current.pause();
             if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
             window.speechSynthesis.cancel();
@@ -676,6 +734,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         stopStreamTracks(fullSessionStreamRef.current);
+        if (mixedStreamDestRef.current) {
+            stopStreamTracks(mixedStreamDestRef.current.stream);
+            mixedStreamDestRef.current = null;
+        }
+        if (audioContextRef.current) {
+            try {
+                audioContextRef.current.close();
+            } catch (_) {}
+            audioContextRef.current = null;
+        }
+        mediaElementSourceRef.current = null;
         fullSessionStreamRef.current = null;
         fullSessionRecorderRef.current = null;
 
