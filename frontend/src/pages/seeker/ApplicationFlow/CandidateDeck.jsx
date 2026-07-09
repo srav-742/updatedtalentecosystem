@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Video, StopCircle, RefreshCcw, Check, Loader, AlertCircle, Camera, Lock } from 'lucide-react';
+import { Video, StopCircle, RefreshCcw, Check, Loader, AlertCircle, Camera, Lock, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
 import axios from 'axios';
@@ -14,20 +14,61 @@ const CandidateDeck = ({ job, user, onComplete }) => {
     const [error, setError] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
 
+    // Camera settings state
+    const [videoDevices, setVideoDevices] = useState([]);
+    const [audioDevices, setAudioDevices] = useState([]);
+    const [selectedVideoDevice, setSelectedVideoDevice] = useState('');
+    const [selectedAudioDevice, setSelectedAudioDevice] = useState('');
+    const [showSettings, setShowSettings] = useState(false);
+
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
 
-    // Stop recording when component unmounts
+    const getDevices = async () => {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = devices.filter(d => d.kind === 'videoinput');
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            setVideoDevices(videoInputs);
+            setAudioDevices(audioInputs);
+            
+            // Set defaults if not set yet
+            if (videoInputs.length > 0 && !selectedVideoDevice) {
+                setSelectedVideoDevice(videoInputs[0].deviceId);
+            }
+            if (audioInputs.length > 0 && !selectedAudioDevice) {
+                setSelectedAudioDevice(audioInputs[0].deviceId);
+            }
+        } catch (err) {
+            console.error("Error listing media devices:", err);
+        }
+    };
+
+    // Stop recording when component unmounts & listen for device changes
     useEffect(() => {
+        getDevices();
+        navigator.mediaDevices?.addEventListener?.('devicechange', getDevices);
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
                 mediaRecorderRef.current.stop();
             }
+            navigator.mediaDevices?.removeEventListener?.('devicechange', getDevices);
         };
     }, []);
+
+    const handleUserMedia = () => {
+        getDevices();
+    };
+
+    const videoConstraints = {
+        width: 1280,
+        height: 720,
+        facingMode: "user",
+        ...(selectedVideoDevice ? { deviceId: { exact: selectedVideoDevice } } : {})
+    };
 
     const startRecording = () => {
         const stream = webcamRef.current?.stream || webcamRef.current?.video?.srcObject;
@@ -164,12 +205,84 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                             <Camera className="text-white mb-4" size={48} />
                             <h3 className="text-white font-bold text-xl mb-2">Ready to record?</h3>
                             <p className="text-gray-300 text-sm mb-8">Make sure you're in a well-lit area and your face is visible.</p>
-                            <button
-                                onClick={startRecording}
-                                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all flex items-center gap-3 shadow-lg"
-                            >
-                                Start Recording
-                            </button>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    onClick={startRecording}
+                                    className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-lg"
+                                >
+                                    Start Recording
+                                </button>
+                                {navigator.mediaDevices && (
+                                    <button
+                                        onClick={() => {
+                                            getDevices();
+                                            setShowSettings(true);
+                                        }}
+                                        className="px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Settings size={18} /> Camera Settings
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-md p-6 animate-in fade-in duration-200">
+                            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm text-left shadow-2xl relative">
+                                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                                    <Settings className="text-blue-500" size={20} /> Camera & Mic Settings
+                                </h3>
+                                
+                                <div className="space-y-4">
+                                    {videoDevices.length > 0 ? (
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Camera</label>
+                                            <select
+                                                value={selectedVideoDevice}
+                                                onChange={(e) => setSelectedVideoDevice(e.target.value)}
+                                                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 text-sm text-white transition focus:border-blue-500 focus:outline-none"
+                                            >
+                                                {videoDevices.map((d, i) => (
+                                                    <option key={d.deviceId || i} value={d.deviceId}>
+                                                        {d.label || `Camera ${i + 1}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 italic">No camera input device detected.</p>
+                                    )}
+                                    
+                                    {audioDevices.length > 0 ? (
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Microphone</label>
+                                            <select
+                                                value={selectedAudioDevice}
+                                                onChange={(e) => setSelectedAudioDevice(e.target.value)}
+                                                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 text-sm text-white transition focus:border-blue-500 focus:outline-none"
+                                            >
+                                                {audioDevices.map((d, i) => (
+                                                    <option key={d.deviceId || i} value={d.deviceId}>
+                                                        {d.label || `Microphone ${i + 1}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 italic">No microphone input device detected.</p>
+                                    )}
+                                </div>
+                                
+                                <div className="mt-6 flex justify-end">
+                                    <button
+                                        onClick={() => setShowSettings(false)}
+                                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-md"
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -180,6 +293,9 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                             muted={true}
                             className="w-full h-full object-cover"
                             mirrored={true}
+                            videoConstraints={videoConstraints}
+                            audioConstraints={selectedAudioDevice ? { deviceId: { exact: selectedAudioDevice } } : undefined}
+                            onUserMedia={handleUserMedia}
                         />
                     )}
 
