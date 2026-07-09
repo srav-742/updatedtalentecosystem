@@ -107,4 +107,21 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+      'framer-motion',
+      'lucide-react',
+      'axios',
+      'firebase/app',
+      'firebase/auth',
+      '@tensorflow/tfjs',
+      '@tensorflow-models/coco-ssd',
+      'face-api.js'
+    ]
+  }
 }))

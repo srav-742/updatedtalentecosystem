@@ -171,9 +171,9 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         }
     };
 
-    const playDecoupledAudio = (base64, text) => {
+    const playDecoupledAudio = (base64, text, audioMimeType) => {
         try {
-            const mimeType = base64.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
+            const mimeType = base64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
             const audioBlob = new Blob(
                 [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
                 { type: mimeType }
@@ -411,7 +411,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
             setStep('interview');
             typeText(firstQuestion);
-            fetchAndPlayAudio(firstQuestion, activeSessionId);
+            if (res.data?.audio) {
+                setCoreState('speaking');
+                playDecoupledAudio(res.data.audio, firstQuestion, res.data.audioMimeType);
+            } else {
+                fetchAndPlayAudio(firstQuestion, activeSessionId);
+            }
         } catch (err) {
             setError("Communication link failed. Please retry.");
             setStep('ready');
@@ -456,7 +461,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 setError(null);
                 setDisplayText('');
                 typeText(nextQuestion);
-                fetchAndPlayAudio(nextQuestion, sessionId);
+                if (nextRes.data?.audio) {
+                    setCoreState('speaking');
+                    playDecoupledAudio(nextRes.data.audio, nextQuestion, nextRes.data.audioMimeType);
+                } else {
+                    fetchAndPlayAudio(nextQuestion, sessionId);
+                }
             }
         } catch (err) {
             setError(err.message || "Response processing error.");

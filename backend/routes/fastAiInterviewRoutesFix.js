@@ -1108,8 +1108,22 @@ router.post('/start', async (req, res) => {
             }
         }
 
-        // Voice generation (TTS) — Decoupled, audio will be fetched asynchronously
+        // Voice generation (TTS) — Synchronous / Inline for faster play start
         let audioBase64 = null;
+        let audioMimeType = null;
+        try {
+            const { generateSpeech } = require('../services/tts.service');
+            const interviewVoice = roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing' ? 'vp_sales' : 'professional_interviewer';
+            console.log(`[FIX-INTERVIEW-START-TTS] Generating inline TTS | voice: ${interviewVoice} | chars: ${firstQuestion.length}`);
+            const ttsResult = await generateSpeech(firstQuestion, interviewVoice);
+            if (ttsResult) {
+                audioBase64 = ttsResult.buffer.toString('base64');
+                audioMimeType = ttsResult.mimeType;
+                console.log(`[FIX-INTERVIEW-START-TTS] Success generating inline audio: ${ttsResult.buffer.length} bytes`);
+            }
+        } catch (ttsErr) {
+            console.warn(`[FIX-INTERVIEW-START-TTS] Error generating inline audio:`, ttsErr.message);
+        }
 
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
@@ -1153,6 +1167,7 @@ router.post('/start', async (req, res) => {
             recordingSessionId,
             question: firstQuestion,
             audio: audioBase64,
+            audioMimeType: audioMimeType,
             totalQuestions
         });
     } catch (error) {
@@ -1247,14 +1262,29 @@ router.post('/next-fast', async (req, res) => {
         session.history.push({ role: 'interviewer', content: nextQuestion });
         await saveSession(sessionId, session);
 
-        // Voice generation (TTS) — Decoupled, audio will be fetched asynchronously
+        // Voice generation (TTS) — Synchronous / Inline for faster play start
         let audioBase64 = null;
+        let audioMimeType = null;
+        try {
+            const { generateSpeech } = require('../services/tts.service');
+            const interviewVoice = session.interviewerVoice || 'professional_interviewer';
+            console.log(`[FIX-NEXT-FAST-TTS] Generating inline TTS | voice: ${interviewVoice} | chars: ${nextQuestion.length}`);
+            const ttsResult = await generateSpeech(nextQuestion, interviewVoice);
+            if (ttsResult) {
+                audioBase64 = ttsResult.buffer.toString('base64');
+                audioMimeType = ttsResult.mimeType;
+                console.log(`[FIX-NEXT-FAST-TTS] Success generating inline audio: ${ttsResult.buffer.length} bytes`);
+            }
+        } catch (ttsErr) {
+            console.warn(`[FIX-NEXT-FAST-TTS] Error generating inline audio:`, ttsErr.message);
+        }
 
-        // 6. Return immediately
+        // 6. Return response
         res.json({
             hasNext: true,
             question: nextQuestion,
-            audio: null, // Audio fetched asynchronously by client
+            audio: audioBase64,
+            audioMimeType: audioMimeType,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions,
             emptyAnswerWarning: isEmptyAnswer ? "No answer was detected. Please speak clearly into the microphone." : undefined
