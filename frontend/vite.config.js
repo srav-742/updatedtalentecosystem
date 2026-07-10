@@ -64,34 +64,8 @@ export default defineConfig(({ mode }) => ({
             return 'chunk-firebase';
           }
 
-          // Framer Motion animations
-          if (id.includes('framer-motion')) {
-            return 'chunk-motion';
-          }
-
-          // React Query — data fetching layer
-          if (id.includes('@tanstack')) {
-            return 'chunk-query';
-          }
-
-          // React core + React DOM + Router MUST be in the same chunk
-          // Splitting react from react-dom causes blank page due to
-          // hook initialization order violations
-          if (
-            id.includes('/react/') ||
-            id.includes('react-dom') ||
-            id.includes('react-router') ||
-            id.includes('scheduler')
-          ) {
-            return 'chunk-react';
-          }
-
-          // Lucide icons
-          if (id.includes('lucide')) {
-            return 'chunk-icons';
-          }
-
-          // Everything else (axios, clsx, etc.)
+          // Group all other packages (React, Router, Framer Motion, Tanstack Query, Lucide icons, etc.)
+          // into a single vendor chunk to avoid cross-chunk circular dependencies and initialization errors.
           return 'chunk-vendor';
         },
       },
