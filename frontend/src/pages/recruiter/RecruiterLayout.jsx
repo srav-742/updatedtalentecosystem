@@ -16,6 +16,7 @@ const navItems = [
     { label: 'Performance', icon: BarChart3, path: '/recruiter/performance' },
     { label: 'Onboarding Kit', icon: Package, path: '/recruiter/onboarding-kit' },
     { label: 'AI Search', icon: Sparkles, path: '/recruiter/ai-search' },
+    { label: 'Blog', icon: FileText, path: '/recruiter/blog' },
     { label: 'Profile', icon: UserCircle, path: '/recruiter/profile' },
 ];
 

@@ -99,6 +99,9 @@ function App() {
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="onboarding-kit" element={<OnboardingKit />} />
           <Route path="ai-search" element={<TalentSearch />} />
+          <Route path="blog" element={<BlogPosts />} />
+          <Route path="blog/new" element={<BlogEditor />} />
+          <Route path="blog/edit/:id" element={<BlogEditor />} />
 
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
