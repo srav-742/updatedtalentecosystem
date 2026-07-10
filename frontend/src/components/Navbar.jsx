@@ -34,10 +34,10 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
     const themeToggle = onToggleTheme ? (
         <button
             onClick={onToggleTheme}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+            className={`inline-flex items-center justify-center rounded-full border w-10 h-10 transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+            aria-label="Toggle Theme"
         >
-            {isLight ? <Moon size={16} /> : <Sun size={16} />}
-            <span>{isLight ? 'Dark' : 'Light'}</span>
+            {isLight ? <Moon size={18} /> : <Sun size={18} />}
         </button>
     ) : null;
 
@@ -120,10 +120,10 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                                             onToggleTheme();
                                             setIsMenuOpen(false);
                                         }}
-                                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+                                        className={`inline-flex items-center justify-center rounded-full border w-10 h-10 transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+                                        aria-label="Toggle Theme"
                                     >
-                                        {isLight ? <Moon size={16} /> : <Sun size={16} />}
-                                        <span>Switch to {isLight ? 'Dark' : 'Light'}</span>
+                                        {isLight ? <Moon size={18} /> : <Sun size={18} />}
                                     </button>
                                 </div>
                             )}

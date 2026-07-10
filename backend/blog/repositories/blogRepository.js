@@ -129,6 +129,11 @@ class BlogRepository {
             query.$text = { $search: searchQuery };
         }
 
+        const User = require('../../models/User');
+        const adminUsers = await User.find({ role: 'admin' }).select('_id');
+        const adminUserIds = adminUsers.map(u => u._id);
+        query.authorId = { $in: adminUserIds };
+
         const skip = (page - 1) * limit;
 
         const postsQuery = BlogPost.find(query)

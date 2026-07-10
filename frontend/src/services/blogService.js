@@ -1,4 +1,4 @@
-import { API_URL, CLIENT_ID, CLIENT_SECRET } from "../firebase";
+import { API_URL, CLIENT_ID, CLIENT_SECRET, getAuthHeaders } from "../firebase";
 
 const getHeaders = () => {
     return {
@@ -7,6 +7,109 @@ const getHeaders = () => {
         "X-Client-Secret": CLIENT_SECRET
     };
 };
+
+// ─── Admin Blog CRUD ───────────────────────────────────────
+
+/**
+ * Get all blog posts for admin (includes drafts & scheduled)
+ */
+export const getAllBlogPostsAdmin = async (params = {}) => {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+    if (params.status) queryParams.append("status", params.status);
+
+    const response = await fetch(`${API_URL}/v1/blogs/admin?${queryParams.toString()}`, { headers });
+    if (!response.ok) throw new Error("Failed to fetch admin blog posts");
+    return await response.json();
+};
+
+/**
+ * Get a single blog post by ID (admin — includes drafts)
+ */
+export const getBlogPostById = async (id) => {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, { headers });
+    if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error("Failed to fetch blog post");
+    }
+    return await response.json();
+};
+
+/**
+ * Create a new blog post (admin)
+ */
+export const createBlogPost = async (data) => {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const response = await fetch(`${API_URL}/v1/blogs/admin`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to create blog post");
+    }
+    return await response.json();
+};
+
+/**
+ * Update an existing blog post (admin)
+ */
+export const updateBlogPost = async (id, data) => {
+    const headers = await getAuthHeaders();
+    headers["Content-Type"] = "application/json";
+    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to update blog post");
+    }
+    return await response.json();
+};
+
+/**
+ * Delete a blog post (admin)
+ */
+export const deleteBlogPost = async (id) => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, {
+        method: "DELETE",
+        headers
+    });
+    if (!response.ok) throw new Error("Failed to delete blog post");
+    return await response.json();
+};
+
+/**
+ * Upload an image for blog (admin)
+ * Returns { url: "..." }
+ */
+export const uploadBlogImage = async (file) => {
+    const headers = await getAuthHeaders();
+    // Don't set Content-Type — let browser set multipart boundary
+    delete headers["Content-Type"];
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const response = await fetch(`${API_URL}/v1/blogs/admin/upload`, {
+        method: "POST",
+        headers,
+        body: formData
+    });
+    if (!response.ok) throw new Error("Failed to upload image");
+    return await response.json();
+};
+
+// ─── Public Blog Endpoints ─────────────────────────────────
 
 /**
  * Get published blog posts with pagination, category filter, and search text

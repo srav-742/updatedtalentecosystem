@@ -46,17 +46,29 @@ class BlogService {
             { name: 'Career Advice', description: 'Expert guidance on navigating your career path' },
             { name: 'Tech & Coding', description: 'Tutorials, reviews, and insights into programming and engineering' },
             { name: 'Resume Building', description: 'Crafting resumes that beat the ATS and catch recruiter eyes' },
-            { name: 'Interview Prep', description: 'Techniques and guides to ace behavioral and technical interviews' }
+            { name: 'Interview Prep', description: 'Techniques and guides to ace behavioral and technical interviews' },
+            { name: 'Technical Assessments', description: 'Insights and guides on technical coding and system design assessments' },
+            { name: 'AI Hiring', description: 'Trends and tech in AI-led recruitment processes and AI screening' },
+            { name: 'Interview Intelligence', description: 'Analyzing interview data and feedback to make better hiring decisions' },
+            { name: 'Engineering Hiring', description: 'Best practices for hiring top-tier engineering talent' },
+            { name: 'Recruiting Strategy', description: 'Strategic approaches to scaling teams and optimizing recruitment pipelines' },
+            { name: 'Product Updates', description: 'Latest features, updates, and releases from Hire1Percent' }
         ];
 
-        const existingCount = await BlogCategory.countDocuments();
-        if (existingCount === 0) {
-            console.log('[BLOG-SERVICE] Seeding default categories...');
-            for (const category of defaults) {
-                const slug = slugify(category.name);
+        console.log('[BLOG-SERVICE] Running categories check/seeding...');
+        let seededCount = 0;
+        for (const category of defaults) {
+            const slug = slugify(category.name);
+            const existing = await BlogCategory.findOne({ slug });
+            if (!existing) {
                 await blogRepository.createCategory({ ...category, slug });
+                seededCount++;
             }
-            console.log('[BLOG-SERVICE] Categories seeded successfully.');
+        }
+        if (seededCount > 0) {
+            console.log(`[BLOG-SERVICE] Seeded ${seededCount} new categories successfully.`);
+        } else {
+            console.log('[BLOG-SERVICE] All default categories are already present.');
         }
     }
 

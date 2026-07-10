@@ -4,6 +4,19 @@ import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
 import { GlobalPageSkeleton } from './components/Skeleton';
+import BlogNavbar from './components/BlogNavbar';
+import { BlogThemeProvider, useBlogTheme } from './pages/blog/BlogThemeContext';
+
+// Wrapper that reads blog theme context for Navbar + background
+function BlogRouteWrapper({ children }) {
+  const { isDark } = useBlogTheme();
+  return (
+    <div className="min-h-screen" style={{ background: isDark ? '#0c0f16' : '#f8f9fb' }}>
+      <Navbar theme={isDark ? 'dark' : 'light'} />
+      {children}
+    </div>
+  );
+}
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -18,6 +31,8 @@ const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile')
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
 const TalentSearch = lazy(() => import('./pages/recruiter/TalentSearch'));
+const BlogEditor = lazy(() => import('./pages/recruiter/BlogEditor'));
+const BlogPosts = lazy(() => import('./pages/recruiter/BlogPosts'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
 const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
@@ -84,6 +99,7 @@ function App() {
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="onboarding-kit" element={<OnboardingKit />} />
           <Route path="ai-search" element={<TalentSearch />} />
+
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
 
@@ -108,16 +124,18 @@ function App() {
 
         {/* Blog Routes */}
         <Route path="/blog" element={
-          <div className="min-h-screen bg-[#0c0f16]">
-            <Navbar theme="dark" />
-            <BlogLandingPage />
-          </div>
+          <BlogThemeProvider>
+            <BlogRouteWrapper>
+              <BlogLandingPage />
+            </BlogRouteWrapper>
+          </BlogThemeProvider>
         } />
         <Route path="/blog/:slug" element={
-          <div className="min-h-screen bg-[#0c0f16]">
-            <Navbar theme="dark" />
-            <BlogPostDetailsPage />
-          </div>
+          <BlogThemeProvider>
+            <BlogRouteWrapper>
+              <BlogPostDetailsPage />
+            </BlogRouteWrapper>
+          </BlogThemeProvider>
         } />
 
         <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />

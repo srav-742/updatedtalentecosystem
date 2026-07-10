@@ -11,7 +11,10 @@ const SignupPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [role, setRole] = useState(location.state?.role || null); // 'recruiter' or 'seeker'
+    const [role, setRole] = useState(() => {
+        const queryParams = new URLSearchParams(location.search);
+        return queryParams.get('role') || location.state?.role || null;
+    }); // 'recruiter' or 'seeker'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });

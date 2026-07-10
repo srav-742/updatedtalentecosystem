@@ -10,6 +10,14 @@ const Hero = ({ theme = 'light' }) => {
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const isLight = theme === 'light';
 
+    React.useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('book-calibration') === 'true') {
+            setIsModalOpen(true);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
+
     return (
         <section className="relative pt-32 pb-20 overflow-hidden">
             {/* Background Glows */}

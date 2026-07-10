@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus, FileText } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';

@@ -239,22 +239,23 @@ const getAnalyticsData = async (req, res) => {
             candidates.push(candidateObj);
         }
         
-        // Sync to separate collections (as requested: store recruiters data separately and separate for candidate)
-        for (const r of recruiters) {
-            await Recruiter.findOneAndUpdate({ userId: r._id }, {
-                name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, createdAt: r.createdAt
-            }, { upsert: true });
-        }
-        for (const c of candidates) {
-            await Candidate.findOneAndUpdate({ userId: c._id }, {
-                name: c.name,
-                email: c.email,
-                phone: c.phone,
-                skills: c.skills,
-                location: c.location,
-                createdAt: c.createdAt
-            }, { upsert: true });
-        }
+        // Sync to separate collections in parallel (as requested: store recruiters data separately and separate for candidate)
+        await Promise.all([
+            ...recruiters.map(r => 
+                Recruiter.findOneAndUpdate(
+                    { userId: r._id },
+                    { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, createdAt: r.createdAt },
+                    { upsert: true }
+                )
+            ),
+            ...candidates.map(c => 
+                Candidate.findOneAndUpdate(
+                    { userId: c._id },
+                    { name: c.name, email: c.email, phone: c.phone, skills: c.skills, location: c.location, createdAt: c.createdAt },
+                    { upsert: true }
+                )
+            )
+        ]);
 
         res.json({
             recruiters,
