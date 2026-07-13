@@ -180,14 +180,12 @@ export default function SecureExamWrapperEnhanced({
                 metadata: meta,
             });
 
-            // Trigger non-blocking toast overlay suppressed for candidate
-            /*
+            // Trigger non-blocking toast overlay for candidate
             const toastId = Date.now() + Math.random();
             setToasts((prev) => [...prev, { id: toastId, type, detail }]);
             setTimeout(() => {
                 setToasts((prev) => prev.filter((t) => t.id !== toastId));
             }, 4000);
-            */
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -426,35 +424,33 @@ export default function SecureExamWrapperEnhanced({
                             style={{ transform: "scaleX(-1)", aspectRatio: "4/3" }}
                         />
 
-                        {/* AI telemetry warning badges hidden from candidate */}
-                        {/* (
-                            <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                                {faceMeshReady && (
-                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                        <Eye size={8} />
-                                        {faceCount === 1 ? "1 face" : `${faceCount} faces`}
-                                    </span>
-                                )}
-                                {objectModelReady && (
-                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                        <Camera size={8} />
-                                        {objectModelType?.toUpperCase()}
-                                    </span>
-                                )}
-                                {detections.some((d) => d.class === "cell phone") && (
-                                    <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                        <Smartphone size={8} />
-                                        PHONE
-                                    </span>
-                                )}
-                                {faceCount > 1 && (
-                                    <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                        <Users size={8} />
-                                        {faceCount}
-                                    </span>
-                                )}
-                            </div>
-                        )*/}
+                        {/* AI telemetry warning badges */}
+                        <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                            {faceMeshReady && (
+                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                    <Eye size={8} />
+                                    {faceCount === 1 ? "1 face" : `${faceCount} faces`}
+                                </span>
+                            )}
+                            {objectModelReady && (
+                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                    <Camera size={8} />
+                                    {objectModelType?.toUpperCase()}
+                                </span>
+                            )}
+                            {detections.some((d) => d.class === "cell phone") && (
+                                <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                    <Smartphone size={8} />
+                                    PHONE
+                                </span>
+                            )}
+                            {faceCount > 1 && (
+                                <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                    <Users size={8} />
+                                    {faceCount}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
@@ -467,12 +463,12 @@ export default function SecureExamWrapperEnhanced({
                     muted
                     playsInline
                     style={{
-                        position: "absolute",
-                        top: "0px",
-                        left: "0px",
-                        width: "1px",
-                        height: "1px",
-                        opacity: 0.001,
+                        position: "fixed",
+                        top: "-9999px",
+                        left: "-9999px",
+                        width: "640px",
+                        height: "480px",
+                        opacity: 0,
                         pointerEvents: "none",
                         zIndex: -1,
                     }}

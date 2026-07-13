@@ -31,7 +31,7 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 2000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.25, // Lowered from 0.5 to make detection much more sensitive
+    phoneConfidenceThreshold: 0.6,  // Increased to 0.6 to reduce false positive phone/object detections
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
@@ -124,6 +124,10 @@ export function useAIProctoring({
     const sideGazeStartRef = useRef(null);
     const sideGazeViolationEmittedRef = useRef(false);
 
+    // Streaks for filtering false positive detections
+    const multipleFacesStreakRef = useRef(0);
+    const objectStreakRef = useRef({});
+
     // Keep refs current
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
     useEffect(() => { isAnsweringRef.current = isAnswering; }, [isAnswering]);
@@ -171,8 +175,8 @@ export function useAIProctoring({
                 mesh.setOptions({
                     maxNumFaces: 3,
                     refineLandmarks: true,  // Enables 10-point iris mesh
-                    minDetectionConfidence: 0.5,
-                    minTrackingConfidence: 0.5,
+                    minDetectionConfidence: 0.75, // Increased from 0.5 to prevent background false positives
+                    minTrackingConfidence: 0.75, // Increased from 0.5 to stabilize face tracking
                 });
 
                 mesh.onResults((results) => {
@@ -236,11 +240,29 @@ export function useAIProctoring({
     // ── Process FaceMesh results ────────────────────────────────────────────
     const processFaceMeshResults = useCallback((results) => {
         const faces = results.multiFaceLandmarks || [];
-        const count = faces.length;
+        
+        // Filter out faces that are too small (e.g. background photos/reflections)
+        const validFaces = faces.filter(face => {
+            if (!face || face.length < 10) return false;
+            let minX = 1, maxX = 0, minY = 1, maxY = 0;
+            for (let i = 0; i < face.length; i++) {
+                const pt = face[i];
+                if (pt.x < minX) minX = pt.x;
+                if (pt.x > maxX) maxX = pt.x;
+                if (pt.y < minY) minY = pt.y;
+                if (pt.y > maxY) maxY = pt.y;
+            }
+            const width = maxX - minX;
+            const height = maxY - minY;
+            return width > 0.15 && height > 0.15; // Must be at least 15% of frame width/height
+        });
+
+        const count = validFaces.length;
         setFaceCount(count);
 
         // ── Presence detection ──────────────────────────────────────────────
         if (count === 0) {
+            multipleFacesStreakRef.current = 0;
             if (!noPersonTimerRef.current) {
                 noPersonTimerRef.current = setTimeout(() => {
                     if (isActiveRef.current) {
@@ -264,15 +286,20 @@ export function useAIProctoring({
         }
 
         if (count > 1) {
-            emitViolation(
-                "MULTIPLE_PEOPLE",
-                `${count} faces detected in camera frame. (Ranking: 7)`,
-                { faceCount: count }
-            );
+            multipleFacesStreakRef.current += 1;
+            if (multipleFacesStreakRef.current >= 3) { // Require 3 consecutive frames (~1.5s) to trigger
+                emitViolation(
+                    "MULTIPLE_PEOPLE",
+                    `${count} faces detected in camera frame. (Ranking: 7)`,
+                    { faceCount: count }
+                );
+            }
+        } else {
+            multipleFacesStreakRef.current = 0;
         }
 
         // Process the primary face (index 0) for gaze and head pose
-        const face = faces[0];
+        const face = validFaces[0];
         setLandmarks(face);
 
         let isLookingSide = false;
@@ -457,14 +484,26 @@ export function useAIProctoring({
                     setDetections(predictions || []);
                     console.log("[AI-Proctoring] COCO-SSD predictions:", predictions);
 
+                    const activeObjects = new Set();
                     for (const pred of predictions) {
                         const objConfig = SUSPICIOUS_OBJECTS[pred.class];
                         if (objConfig && pred.score >= T.phoneConfidenceThreshold) {
-                            emitViolation(
-                                objConfig.type,
-                                `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
-                                { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
-                            );
+                            activeObjects.add(pred.class);
+                            objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
+                            if (objectStreakRef.current[pred.class] >= 2) { // Must be detected in 2 consecutive checks
+                                emitViolation(
+                                    objConfig.type,
+                                    `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
+                                    { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
+                                );
+                            }
+                        }
+                    }
+
+                    // Reset streak for objects not detected in this frame
+                    for (const key of Object.keys(objectStreakRef.current)) {
+                        if (!activeObjects.has(key)) {
+                            objectStreakRef.current[key] = 0;
                         }
                     }
                 }

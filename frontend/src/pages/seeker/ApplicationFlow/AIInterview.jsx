@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
-import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 
 const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
@@ -51,71 +50,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const [coreState, setCoreState] = useState('idle');
     const latestTranscriptRef = useRef('');
 
-    // --- AI Webcam Detection State ---
-    const [model, setModel] = useState(null);
-    const [warnings, setWarnings] = useState(0);
-    const [isKickedOut, setIsKickedOut] = useState(false);
-    const [personCount, setPersonCount] = useState(1);
-    const webcamRef = useRef(null);
-    const detectionIntervalRef = useRef(null);
-    const MAX_WARNINGS = 20;
     const normalizeQuestionText = (text = '') =>
         String(text)
             .replace(/\r\n/g, '\n')
             .replace(/[ \t]+\n/g, '\n')
             .replace(/\n{3,}/g, '\n\n')
             .trim();
-
-    useEffect(() => {
-        // Preload COCO-SSD mode for person detection
-        cocoSsd.load()
-            .then(loadedModel => setModel(loadedModel))
-            .catch(() => null);
-
-        return () => {
-            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-        };
-    }, []);
-
-    // Webcam Detection Loop
-    useEffect(() => {
-        if (step === "interview" && !isKickedOut) {
-            detectionIntervalRef.current = setInterval(async () => {
-                if (webcamRef.current && webcamRef.current.video?.readyState === 4 && model) {
-                    try {
-                        const predictions = await model.detect(webcamRef.current.video);
-                        const persons = predictions.filter(p => p.class === "person");
-                        setPersonCount(persons.length);
-
-                        if (persons.length !== 1) {
-                            setWarnings(prev => {
-                                const next = prev + 1;
-                                // We no longer kick the candidate out, only track warnings
-                                return next;
-                            });
-                        }
-                    } catch (error) {
-                        return;
-                    }
-                }
-            }, 3000); // Check every 3 seconds
-        } else {
-            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-        }
-        return () => {
-            if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-        };
-    }, [step, model, isKickedOut]);
-
-    useEffect(() => {
-        if (!isKickedOut) {
-            return;
-        }
-
-        stopAndUploadFullSessionRecording().catch(() => {
-            setRecordingNotice('Interview ended early, and the partial recording could not be uploaded.');
-        });
-    }, [isKickedOut]);
 
     // Synced Typewriter Effect — calculates delay from audio duration
     const typeText = (text, customDelay) => {
@@ -755,36 +695,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         });
     };
 
-    if (isKickedOut) {
-        return (
-            <div className="max-w-2xl mx-auto px-6 py-20 text-center animate-in zoom-in duration-300">
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="bg-white rounded-[32px] p-10 shadow-xl border border-red-100"
-                >
-                    <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[28px] mx-auto flex items-center justify-center mb-6 shadow-sm border border-red-100">
-                        <AlertTriangle size={40} />
-                    </div>
-                    <h2 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">Interview Terminated</h2>
-                    <p className="text-gray-600 mb-8 max-w-sm mx-auto leading-relaxed">
-                        We repeatedly detected multiple people or no one in the camera frame. To ensure integrity, this interview session has been automatically closed.
-                    </p>
-                    <button
-                        onClick={() => {
-                            setStep('ready');
-                            setWarnings(0);
-                            setIsKickedOut(false);
-                            setSessionId(null);
-                        }}
-                        className="w-full py-5 bg-red-600 text-white rounded-[24px] font-bold hover:bg-red-700 transition-all shadow-xl active:scale-95 text-lg"
-                    >
-                        Return to Start
-                    </button>
-                </motion.div>
-            </div>
-        );
-    }
+
 
     if (step === 'ready') {
         return (
@@ -1005,26 +916,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             </div>
                             {/* Webcam Mini View - INCREASED SIZE */}
                             <div className="flex items-center gap-4">
-                                <AnimatePresence>
-                                    {/* warnings > 0 && (
-                                        <motion.div
-                                            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
-                                            className="flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-full animate-pulse"
-                                        >
-                                            <AlertTriangle size={12} className="text-red-500" />
-                                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
-                                                {personCount === 0 ? "No Face" : "Multiple People"} ({warnings}/{MAX_WARNINGS})
-                                            </span>
-                                        </motion.div>
-                                    )*/}
-                                </AnimatePresence>
                                 <div className="w-48 h-36 rounded-[16px] bg-black overflow-hidden relative border-2 border-gray-200 shadow-md">
                                     <video 
                                         autoPlay 
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            webcamRef.current = el ? { video: el } : null;
                                             if(el && fullSessionStreamRef.current) {
                                                 const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
                                                 if (camTrack) el.srcObject = new MediaStream([camTrack]);
