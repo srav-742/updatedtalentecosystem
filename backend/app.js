@@ -200,6 +200,7 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/cloudinary-test", cloudinaryTestRoutes);
 app.use('/api/proctoring', proctoringRoutes);
 app.use('/api/proctoring-enhanced', require('./routes/proctoringRoutesEnhanced'));
+app.use('/api/proctoring-pipeline', require('./routes/proctoringEventRoutes'));
 app.use("/api/content", contentRoutes);
 app.use("/api", require("./blog"));
 app.use('/api', videoIntroRoutes);
