@@ -102,6 +102,7 @@ export function useAIProctoring({
     const cocoModelRef = useRef(null);
     const onnxSessionRef = useRef(null);
     const canvasRef = useRef(null);
+    const detectionCanvasRef = useRef(null); // Off-screen canvas for COCO-SSD frame capture
     const rafIdRef = useRef(null);
     const objectRafRef = useRef(null);
     const isActiveRef = useRef(isActive);
@@ -111,8 +112,10 @@ export function useAIProctoring({
     const processFaceMeshResultsRef = useRef(null);
 
     // Cooldown refs to avoid spamming violations
+    // Phone/object violations use a shorter cooldown (3s) for real-time response
     const lastViolationTimeRef = useRef({});
     const VIOLATION_COOLDOWN_MS = 5000;
+    const PHONE_VIOLATION_COOLDOWN_MS = 3000;
 
     // No-person timeout
     const noPersonTimerRef = useRef(null);
@@ -138,7 +141,11 @@ export function useAIProctoring({
     const emitViolation = useCallback((type, detail, meta = {}) => {
         const now = Date.now();
         const lastTime = lastViolationTimeRef.current[type] || 0;
-        if (now - lastTime < VIOLATION_COOLDOWN_MS) return;
+        // Phone/object detections use shorter cooldown for real-time alerting
+        const cooldown = (type === 'PHONE_DETECTED' || type === 'OBJECT_DETECTED')
+            ? PHONE_VIOLATION_COOLDOWN_MS
+            : VIOLATION_COOLDOWN_MS;
+        if (now - lastTime < cooldown) return;
         lastViolationTimeRef.current[type] = now;
 
         onViolationRef.current(type, detail, {
@@ -468,9 +475,23 @@ export function useAIProctoring({
         };
     }, [isActive, faceMeshReady, videoElement, T.detectionIntervalMs]);
 
-    // ── Object detection loop (COCO-SSD) ────────────────────────────────────
+    // ── Object detection loop (COCO-SSD via canvas frame capture) ───────────
+    // We draw the video frame to an off-screen canvas before running COCO-SSD.
+    // Browsers throttle frame decoding on hidden/off-screen <video> elements,
+    // but canvas drawImage() always captures the latest decoded frame regardless
+    // of visibility — completely bypassing the browser throttling issue.
     useEffect(() => {
         if (!isActive || !objectModelReady || !videoElement) return;
+
+        // Create the off-screen detection canvas once
+        if (!detectionCanvasRef.current) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            detectionCanvasRef.current = canvas;
+        }
+        const canvas = detectionCanvasRef.current;
+        const ctx = canvas.getContext('2d');
 
         const intervalId = setInterval(async () => {
             if (!isActiveRef.current) return;
@@ -480,9 +501,19 @@ export function useAIProctoring({
 
             try {
                 if (cocoModelRef.current) {
-                    const predictions = await cocoModelRef.current.detect(video);
+                    // Capture the current frame to canvas — bypasses browser video throttling
+                    try {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    } catch (drawErr) {
+                        return; // Skip this frame if draw fails
+                    }
+
+                    const predictions = await cocoModelRef.current.detect(canvas);
                     setDetections(predictions || []);
-                    console.log("[AI-Proctoring] COCO-SSD predictions:", predictions);
+
+                    if (predictions && predictions.length > 0) {
+                        console.log("[AI-Proctoring] COCO-SSD detected objects:", predictions.map(p => `${p.class}(${(p.score * 100).toFixed(0)}%)`).join(', '));
+                    }
 
                     const activeObjects = new Set();
                     for (const pred of predictions) {
@@ -490,7 +521,7 @@ export function useAIProctoring({
                         if (objConfig && pred.score >= T.phoneConfidenceThreshold) {
                             activeObjects.add(pred.class);
                             objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
-                            if (objectStreakRef.current[pred.class] >= 1) { // Alert immediately on first detection to ensure real-time response
+                            if (objectStreakRef.current[pred.class] >= 1) {
                                 emitViolation(
                                     objConfig.type,
                                     `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
@@ -508,7 +539,8 @@ export function useAIProctoring({
                     }
                 }
             } catch (err) {
-                // Object detection frame error, continue
+                // Object detection frame error — continue silently
+                console.warn("[AI-Proctoring] COCO-SSD frame error:", err.message);
             }
         }, T.objectDetectionIntervalMs);
 

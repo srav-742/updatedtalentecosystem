@@ -45,6 +45,10 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const [interviewTerminated, setInterviewTerminated] = useState(false);
     const [securityResetting, setSecurityResetting] = useState(false);
 
+    // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
+    // receives the correct stream via props and triggers a proper re-render
+    const [cameraStreamState, setCameraStreamState] = useState(null);
+
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -800,6 +804,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     camStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    // Update React state so SecureExamWrapper receives the real stream
+                                    setCameraStreamState(fullSessionStreamRef.current);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Camera access denied."); }
                             }}
@@ -839,6 +845,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    // Update React state so SecureExamWrapper receives the real stream
+                                    setCameraStreamState(fullSessionStreamRef.current);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Screen share denied."); }
                             }}
@@ -890,7 +898,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
                 requireCamera={true}
-                cameraStream={fullSessionStreamRef.current}
+                cameraStream={cameraStreamState}
                 showWebcamPreview={false}
                 isAnswering={coreState === 'listening'}
                 warningLimit={3}
