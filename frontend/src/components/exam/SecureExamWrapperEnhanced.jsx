@@ -464,13 +464,13 @@ export default function SecureExamWrapperEnhanced({
                     playsInline
                     style={{
                         position: "fixed",
-                        top: "-9999px",
-                        left: "-9999px",
+                        bottom: "0px",
+                        right: "0px",
                         width: "640px",
                         height: "480px",
-                        opacity: 0,
+                        opacity: 0.001,
                         pointerEvents: "none",
-                        zIndex: -1,
+                        zIndex: -100,
                     }}
                 />
             )}

@@ -31,11 +31,11 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 2000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.6,  // Increased to 0.6 to reduce false positive phone/object detections
+    phoneConfidenceThreshold: 0.45, // Lowered to 0.45 to detect mobile phones perfectly and reliably
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
-    objectDetectionIntervalMs: 1000, // Lowered from 2000 to run check every 1 second
+    objectDetectionIntervalMs: 1000, // Run check every 1 second
     onnxLoadTimeoutMs: 8000,      // Max time to wait for ONNX model before fallback
 };
 
@@ -216,8 +216,8 @@ export function useAIProctoring({
                 
                 if (cancelled) return;
 
-                console.log("[AI-Proctoring] Loading COCO-SSD neural network...");
-                const model = await cocoSsd.load();
+                console.log("[AI-Proctoring] Loading COCO-SSD neural network (mobilenet_v2)...");
+                const model = await cocoSsd.load({ base: "mobilenet_v2" });
 
                 if (cancelled) return;
 
@@ -490,7 +490,7 @@ export function useAIProctoring({
                         if (objConfig && pred.score >= T.phoneConfidenceThreshold) {
                             activeObjects.add(pred.class);
                             objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
-                            if (objectStreakRef.current[pred.class] >= 2) { // Must be detected in 2 consecutive checks
+                            if (objectStreakRef.current[pred.class] >= 1) { // Alert immediately on first detection to ensure real-time response
                                 emitViolation(
                                     objConfig.type,
                                     `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
