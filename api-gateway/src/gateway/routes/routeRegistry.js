@@ -755,6 +755,18 @@ const registryRaw = [
   },
   {
     version: 'v1',
+    method: 'GET',
+    path: '/api/v1/admin/blogs/:id',
+    serviceKey: ServiceKeys.BACKEND,
+    authRequired: true,
+    permissions: ['ADMIN_READ'],
+    policies: ['AdminPolicy'],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'default',
+    tags: ['Blog', 'Admin', 'Detail']
+  },
+  {
+    version: 'v1',
     method: 'POST',
     path: '/api/v1/admin/blogs',
     serviceKey: ServiceKeys.BACKEND,

@@ -19,9 +19,19 @@ router.post('/v1/blogs/subscribe', blogController.subscribeNewsletter);
 // Admin Protected Endpoints
 // ==========================================
 router.get('/v1/admin/blogs', authMiddleware, roleCheck('admin'), blogController.adminGetBlogPosts);
+router.get('/v1/admin/blogs/:id', authMiddleware, roleCheck('admin'), blogController.adminGetBlogPostById);
 router.post('/v1/admin/blogs', authMiddleware, roleCheck('admin'), blogValidator.validateCreatePost, blogController.createBlogPost);
 router.put('/v1/admin/blogs/:id', authMiddleware, roleCheck('admin'), blogValidator.validateUpdatePost, blogController.updateBlogPost);
 router.delete('/v1/admin/blogs/:id', authMiddleware, roleCheck('admin'), blogController.deleteBlogPost);
 router.post('/v1/admin/blogs/upload-cover', authMiddleware, roleCheck('admin'), upload.single('image'), blogController.uploadCoverImage);
+router.post('/v1/admin/blogs/upload', authMiddleware, roleCheck('admin'), upload.single('image'), blogController.uploadCoverImage);
+
+// Compatibility Aliases (/v1/blogs/admin -> /v1/admin/blogs)
+router.get('/v1/blogs/admin', authMiddleware, roleCheck('admin'), blogController.adminGetBlogPosts);
+router.get('/v1/blogs/admin/:id', authMiddleware, roleCheck('admin'), blogController.adminGetBlogPostById);
+router.post('/v1/blogs/admin', authMiddleware, roleCheck('admin'), blogValidator.validateCreatePost, blogController.createBlogPost);
+router.put('/v1/blogs/admin/:id', authMiddleware, roleCheck('admin'), blogValidator.validateUpdatePost, blogController.updateBlogPost);
+router.delete('/v1/blogs/admin/:id', authMiddleware, roleCheck('admin'), blogController.deleteBlogPost);
+router.post('/v1/blogs/admin/upload', authMiddleware, roleCheck('admin'), upload.single('image'), blogController.uploadCoverImage);
 
 module.exports = router;

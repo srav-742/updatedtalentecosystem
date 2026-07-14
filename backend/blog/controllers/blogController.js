@@ -181,6 +181,31 @@ class BlogController {
     }
 
     /**
+     * Get a specific blog post by ID (admin view including drafts)
+     */
+    async adminGetBlogPostById(req, res) {
+        try {
+            const { id } = req.params;
+            if (!mongoose.Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: 'Invalid blog post ID' });
+            }
+
+            const post = await blogRepository.findPostById(id);
+            if (!post) {
+                return res.status(404).json({ success: false, message: 'Blog post not found' });
+            }
+
+            return res.json({
+                success: true,
+                post
+            });
+        } catch (error) {
+            console.error('[BLOG-CONTROLLER] adminGetBlogPostById error:', error);
+            return res.status(500).json({ success: false, message: 'Failed to fetch blog post by ID', error: error.message });
+        }
+    }
+
+    /**
      * Create a new blog post
      */
     async createBlogPost(req, res) {

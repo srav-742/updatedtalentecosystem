@@ -8,6 +8,7 @@ import RiskShield from '../components/RiskShield';
 import ScalingModels from '../components/ScalingModels';
 import FounderFAQs from '../components/FounderFAQs';
 import FlowDiagram from '../components/FlowDiagram';
+import BlogSection from '../components/BlogSection';
 import CTA from '../components/CTA';
 import Footer from '../components/Footer';
 
@@ -36,6 +37,7 @@ const LandingPage = () => {
             <FlowDiagram theme={theme} />
             <RiskShield theme={theme} />
             <ScalingModels theme={theme} />
+            <BlogSection theme={theme} />
             <FounderFAQs theme={theme} />
             <CTA theme={theme} />
             <Footer theme={theme} />

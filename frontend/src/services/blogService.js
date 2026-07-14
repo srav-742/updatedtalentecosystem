@@ -21,7 +21,7 @@ export const getAllBlogPostsAdmin = async (params = {}) => {
     if (params.limit) queryParams.append("limit", params.limit);
     if (params.status) queryParams.append("status", params.status);
 
-    const response = await fetch(`${API_URL}/v1/blogs/admin?${queryParams.toString()}`, { headers });
+    const response = await fetch(`${API_URL}/v1/admin/blogs?${queryParams.toString()}`, { headers });
     if (!response.ok) throw new Error("Failed to fetch admin blog posts");
     return await response.json();
 };
@@ -32,7 +32,7 @@ export const getAllBlogPostsAdmin = async (params = {}) => {
 export const getBlogPostById = async (id) => {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, { headers });
+    const response = await fetch(`${API_URL}/v1/admin/blogs/${id}`, { headers });
     if (!response.ok) {
         if (response.status === 404) return null;
         throw new Error("Failed to fetch blog post");
@@ -46,7 +46,7 @@ export const getBlogPostById = async (id) => {
 export const createBlogPost = async (data) => {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    const response = await fetch(`${API_URL}/v1/blogs/admin`, {
+    const response = await fetch(`${API_URL}/v1/admin/blogs`, {
         method: "POST",
         headers,
         body: JSON.stringify(data)
@@ -64,7 +64,7 @@ export const createBlogPost = async (data) => {
 export const updateBlogPost = async (id, data) => {
     const headers = await getAuthHeaders();
     headers["Content-Type"] = "application/json";
-    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, {
+    const response = await fetch(`${API_URL}/v1/admin/blogs/${id}`, {
         method: "PUT",
         headers,
         body: JSON.stringify(data)
@@ -81,7 +81,7 @@ export const updateBlogPost = async (id, data) => {
  */
 export const deleteBlogPost = async (id) => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/v1/blogs/admin/${id}`, {
+    const response = await fetch(`${API_URL}/v1/admin/blogs/${id}`, {
         method: "DELETE",
         headers
     });
@@ -100,7 +100,7 @@ export const uploadBlogImage = async (file) => {
     const formData = new FormData();
     formData.append("image", file);
 
-    const response = await fetch(`${API_URL}/v1/blogs/admin/upload`, {
+    const response = await fetch(`${API_URL}/v1/admin/blogs/upload-cover`, {
         method: "POST",
         headers,
         body: formData
