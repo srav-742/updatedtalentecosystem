@@ -462,6 +462,9 @@ exports.unlockApplicant = async (req, res) => {
         recruiter.walletBalance = Number(((recruiter.walletBalance || 0) - cost).toFixed(2));
         await recruiter.save();
 
+        const { syncUserToProfile } = require('../utils/dbSync');
+        await syncUserToProfile(recruiter);
+
         // Create or update unlock entry
         if (!unlockRecord) {
             unlockRecord = new UnlockedApplicant({
@@ -511,3 +514,77 @@ exports.unlockApplicant = async (req, res) => {
         });
     }
 };
+
+/**
+ * Deduct wallet balance to pay for Premium Upgrade
+ * POST /api/wallet/pay-upgrade
+ */
+exports.payUpgradeWithWallet = async (req, res) => {
+    try {
+        const { userId, amount = 10 } = req.body;
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "User ID is required." });
+        }
+
+        const cost = Number(amount);
+        let user = null;
+        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
+            user = await User.findById(userId);
+        }
+        if (!user) {
+            user = await User.findOne({ uid: userId });
+        }
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+
+        if ((user.walletBalance || 0) < cost) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient wallet balance. You need ₹${cost.toFixed(2)} to upgrade, but have ₹${(user.walletBalance || 0).toFixed(2)}. Please top up your wallet first.`
+            });
+        }
+
+        // Deduct balance and update user to Premium
+        user.walletBalance = Number(((user.walletBalance || 0) - cost).toFixed(2));
+        user.isPro = true;
+        user.hiringPattern = 'Premium Recruiter';
+        await user.save();
+
+        const { syncUserToProfile } = require('../utils/dbSync');
+        await syncUserToProfile(user);
+
+        // Record paid transaction
+        const receiptId = `upgrade_wallet_${user._id.toString().slice(-6)}_${Date.now()}`;
+        const transaction = new Transaction({
+            userId: user._id,
+            orderId: `ord_upgrade_wallet_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            paymentId: `pay_upgrade_wallet_${Date.now()}`,
+            amount: cost * 100, // in Paisa
+            status: 'paid',
+            type: 'premium_upgrade',
+            receipt: receiptId,
+            metadata: {
+                paymentMethod: 'wallet',
+                plan: 'Premium Recruiter'
+            }
+        });
+        await transaction.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Successfully upgraded to Premium Recruiter using wallet balance!",
+            balance: user.walletBalance,
+            user
+        });
+    } catch (error) {
+        console.error("[WALLET-UPGRADE-ERROR] Details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to upgrade using wallet balance.",
+            error: error.message
+        });
+    }
+};
+

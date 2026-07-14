@@ -49,8 +49,11 @@ const PUBLIC_ROUTES = [
     { method: 'POST', pattern: /^\/api\/v1\/blogs\/subscribe$/i },
     { method: '*', pattern: /^\/api\/proctoring(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/proctoring-enhanced(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i }
+    { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/wallet(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/payments(\/.*)?$/i }
 ];
+
 
 const gatewayMiddleware = async (req, res, next) => {
     try {

@@ -123,11 +123,20 @@ const Applicants = () => {
             setUnlockingInProgress(true);
         },
         onSuccess: (data) => {
+            if (data && typeof data.balance === 'number') {
+                queryClient.setQueryData(['wallet', 'balance', userId], data.balance);
+                try {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    storedUser.walletBalance = data.balance;
+                    localStorage.setItem('user', JSON.stringify(storedUser));
+                } catch (e) {}
+            }
             queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
             queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
             window.dispatchEvent(new Event('wallet-update'));
             setUnlockingItem(null);
         },
+
         onError: (err) => {
             const msg = err.response?.data?.message || "Failed to unlock applicant.";
             setUnlockError(msg);

@@ -9,6 +9,7 @@ import {
     Check, 
     Sparkles, 
     AlertTriangle,
+    Wallet,
     Crown,
     ArrowLeft
 } from 'lucide-react';
@@ -18,21 +19,80 @@ export default function PaymentUpgrade() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [verifying, setVerifying] = useState(false);
+    const [walletLoading, setWalletLoading] = useState(false);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [user, setUser] = useState(null);
+    const [walletBalance, setWalletBalance] = useState(0);
     const [errorMsg, setErrorMsg] = useState("");
 
-    // Load logged-in user from localStorage on mount
+    // Load logged-in user from localStorage on mount and fetch wallet balance
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             try {
-                setUser(JSON.parse(storedUser));
+                const parsed = JSON.parse(storedUser);
+                setUser(parsed);
+                setWalletBalance(parsed.walletBalance || 0);
+
+                const uid = parsed.uid || parsed._id || parsed.id;
+                if (uid) {
+                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                    axios.get(`${apiUrl}/wallet/balance/${uid}`)
+                        .then(res => {
+                            if (res.data && res.data.success) {
+                                setWalletBalance(res.data.balance);
+                            }
+                        })
+                        .catch(err => console.error("Failed to fetch fresh wallet balance:", err));
+                }
             } catch (err) {
                 console.error("Failed to parse user details from local storage.", err);
             }
         }
     }, []);
+
+    const handleWalletPayment = async () => {
+        if (!user) {
+            setErrorMsg("You must be logged in to make a payment.");
+            return;
+        }
+
+        setWalletLoading(true);
+        setErrorMsg("");
+
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const userId = user.uid || user._id || user.id;
+
+            const res = await axios.post(`${apiUrl}/wallet/pay-upgrade`, {
+                userId,
+                amount: 10
+            });
+
+            if (res.data && res.data.success) {
+                setPaymentSuccess(true);
+                const newBal = res.data.balance;
+                const updatedUser = {
+                    ...user,
+                    hiringPattern: "Premium Recruiter",
+                    isPro: true,
+                    walletBalance: newBal
+                };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                setWalletBalance(newBal);
+                window.dispatchEvent(new Event('wallet-update'));
+            } else {
+                setErrorMsg(res.data?.message || "Failed to upgrade using wallet.");
+            }
+        } catch (err) {
+            console.error("Wallet payment error:", err);
+            setErrorMsg(err.response?.data?.message || "Could not complete wallet payment.");
+        } finally {
+            setWalletLoading(false);
+        }
+    };
+
 
     const handlePayment = async () => {
         if (!user) {
@@ -228,27 +288,46 @@ export default function PaymentUpgrade() {
                             {/* Payment Upgrade Action Card */}
                             <div className="mt-6 p-5 rounded-2xl bg-blue-500/5 border border-blue-500/10 text-center space-y-4">
                                 <p className="text-xs text-slate-300 leading-relaxed">
-                                    To activate your premium license key in the database and unlock full candidate tracking features, complete the payment secure checkout below.
+                                    To activate your premium license key in the database and unlock full candidate tracking features, choose your preferred payment method below.
                                 </p>
                                 
-                                <button
-                                    onClick={handlePayment}
-                                    disabled={loading || verifying}
-                                    className="inline-flex w-full py-4 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-center gap-2.5 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="animate-spin" size={18} />
-                                            Initializing Checkout...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CreditCard size={18} />
-                                            Pay ₹10.00 INR via Razorpay
-                                        </>
-                                    )}
-                                </button>
+                                <div className="space-y-3">
+                                    {/* Option A: Pay via Wallet */}
+                                    <button
+                                        onClick={handleWalletPayment}
+                                        disabled={walletLoading || loading || verifying}
+                                        className="inline-flex w-full py-3.5 px-6 font-bold rounded-2xl bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-between cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {walletLoading ? <Loader2 className="animate-spin" size={18} /> : <Wallet size={18} />}
+                                            <span>Pay ₹10.00 via Wallet</span>
+                                        </div>
+                                        <span className="text-xs font-semibold px-2.5 py-1 bg-black/15 rounded-lg">
+                                            Balance: ₹{walletBalance.toFixed(2)}
+                                        </span>
+                                    </button>
+
+                                    {/* Option B: Pay via Razorpay */}
+                                    <button
+                                        onClick={handlePayment}
+                                        disabled={loading || verifying || walletLoading}
+                                        className="inline-flex w-full py-3.5 px-6 font-bold rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 items-center justify-center gap-2.5 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={18} />
+                                                Initializing Checkout...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CreditCard size={18} />
+                                                Pay ₹10.00 INR via Razorpay (Card/UPI)
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
+
 
                             <div className="flex items-center justify-center gap-2 mt-4 text-[9px] text-slate-500 uppercase tracking-widest font-semibold">
                                 <ShieldCheck size={14} className="text-blue-400" />

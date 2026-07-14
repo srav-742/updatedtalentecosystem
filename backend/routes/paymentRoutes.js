@@ -16,5 +16,7 @@ router.get('/wallet/balance/:userId', paymentController.getWalletBalance);
 router.post('/wallet/topup/order', paymentController.createWalletTopupOrder);
 router.post('/wallet/topup/verify', paymentController.verifyWalletTopup);
 router.post('/wallet/unlock', paymentController.unlockApplicant);
+router.post('/wallet/pay-upgrade', paymentController.payUpgradeWithWallet);
+
 
 module.exports = router;

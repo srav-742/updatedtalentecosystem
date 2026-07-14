@@ -28,7 +28,11 @@ const authMiddleware = async (req, res, next) => {
 
         // Method 2: Fallback to x-user-id (if Firebase Admin is missing or token fails)
         if (userIdHeader) {
-            const user = await User.findOne({ uid: userIdHeader });
+            const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+            const query = OBJECT_ID_REGEX.test(userIdHeader)
+                ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
+                : { uid: userIdHeader };
+            const user = await User.findOne(query);
             if (user) {
                 req.user = user;
                 return next();
@@ -40,10 +44,15 @@ const authMiddleware = async (req, res, next) => {
         // Final fallback: If we have a userId header, try one last time to find the user
         if (userIdHeader) {
             try {
-                const user = await User.findOne({ uid: userIdHeader });
+                const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+                const query = OBJECT_ID_REGEX.test(userIdHeader)
+                    ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
+                    : { uid: userIdHeader };
+                const user = await User.findOne(query);
                 if (user) { req.user = user; return next(); }
             } catch (e) {}
         }
+
         
         return res.status(401).json({ message: "Unauthorized" });
     }
