@@ -48,11 +48,11 @@ export default function BlogPosts() {
                 if (publicRes && publicRes.posts) {
                     setPosts(publicRes.posts);
                 } else {
-                    setPosts(getMockPosts());
+                    setPosts([]);
                 }
             } catch (fallbackErr) {
-                console.error("All fetch attempts failed, using high-quality mock data:", fallbackErr);
-                setPosts(getMockPosts());
+                console.error("Fetch attempts failed:", fallbackErr);
+                setPosts([]);
             }
         } finally {
             setLoading(false);
