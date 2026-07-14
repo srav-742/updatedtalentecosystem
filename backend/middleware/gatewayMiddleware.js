@@ -130,10 +130,25 @@ const gatewayMiddleware = async (req, res, next) => {
             return next();
         }
 
-        // ─── Step 1: Validate Client Credentials ──────────────────────────
+        // Check if route is public (use baseUrl + path to match patterns starting with /api)
+        const isPublic = PUBLIC_ROUTES.some(route => {
+            const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
+            const isPathMatch = route.pattern.test(fullPath);
+            return isMethodMatch && isPathMatch;
+        });
+
         const clientId = req.headers['x-client-id'];
         const clientSecret = req.headers['x-client-secret'];
 
+        if (isPublic) {
+            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${fullPath}`);
+            if (clientId && clientSecret) {
+                req.client = await validateClient(clientId, clientSecret).catch(() => null);
+            }
+            return next();
+        }
+
+        // ─── Step 1: Validate Client Credentials for Private Routes ──────
         if (!clientId || !clientSecret) {
             return res.status(401).json({
                 success: false,
@@ -151,18 +166,6 @@ const gatewayMiddleware = async (req, res, next) => {
 
         // Attach client info to request
         req.client = client;
-
-        // Check if route is public (use baseUrl + path to match patterns starting with /api)
-        const isPublic = PUBLIC_ROUTES.some(route => {
-            const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
-            const isPathMatch = route.pattern.test(fullPath);
-            return isMethodMatch && isPathMatch;
-        });
-
-        if (isPublic) {
-            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${fullPath}`);
-            return next();
-        }
 
         // ─── Step 2: Validate Access Token ────────────────────────────────
         if (!authHeader || !authHeader.startsWith('Bearer ')) {

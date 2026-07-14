@@ -6,7 +6,6 @@ const app = require('./app');
 
 const { startCleanupJob } = require('./services/cleanupService');
 const seedAdmin = require('./utils/seedAdmin');
-const seedBlogs = require('./utils/seedBlogs');
 const fs = require('fs');
 const path = require('path');
 
@@ -26,7 +25,6 @@ const startServer = async () => {
         app.listen(PORT, async () => {
             console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);
             await seedAdmin();
-            await seedBlogs();
             startCleanupJob();
         });
     } catch (err) {
