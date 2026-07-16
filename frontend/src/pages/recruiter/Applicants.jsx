@@ -12,6 +12,7 @@ import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
 import TopUpModal from '../../components/TopUpModal';
+import ShareModal from '../../components/ShareModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Applicants = () => {
@@ -194,17 +195,14 @@ const Applicants = () => {
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
     const [selectedVideoApplicationId, setSelectedVideoApplicationId] = useState(null);
-    const [copiedId, setCopiedId] = useState(null);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [shareApplicationId, setShareApplicationId] = useState(null);
+    const [shareCandidateName, setShareCandidateName] = useState('');
 
-    const handleShareInterview = (applicationId) => {
-        if (!applicationId) return;
-        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            setCopiedId(applicationId);
-            setTimeout(() => setCopiedId(null), 2000);
-        }).catch((err) => {
-            console.error('Failed to copy share link:', err);
-        });
+    const handleShareInterview = (applicationId, candidateName) => {
+        setShareApplicationId(applicationId);
+        setShareCandidateName(candidateName || '');
+        setIsShareModalOpen(true);
     };
 
     // Generated Resume Modal
@@ -784,10 +782,10 @@ const Applicants = () => {
                                                                     </button>
                                                                     {interviewMeta.canView && (
                                                                         <button
-                                                                            onClick={() => handleShareInterview(app.id)}
+                                                                            onClick={() => handleShareInterview(app.id, app.name)}
                                                                             className="w-full text-left px-4 py-3 text-xs font-bold text-purple-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5"
                                                                         >
-                                                                            <Share2 size={14} /> {copiedId === app.id ? 'Link Copied!' : 'Share Interview'}
+                                                                            <Share2 size={14} /> Share Interview
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -861,11 +859,11 @@ const Applicants = () => {
                             <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleShareInterview(selectedVideoApplicationId)}
+                                    onClick={() => handleShareInterview(selectedVideoApplicationId, jobApplicants.find(a => a.id === selectedVideoApplicationId)?.name)}
                                     className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Share2 size={13} />
-                                    {copiedId === selectedVideoApplicationId ? 'Link Copied!' : 'Share Interview'}
+                                    Share Interview
                                 </button>
                                 <button
                                     onClick={() => {
@@ -910,6 +908,18 @@ const Applicants = () => {
                 onClose={() => setUploadModalOpen(false)}
                 jobId={targetJobId}
                 onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['applicants', userId] })}
+            />
+
+            {/* Share Modal */}
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => {
+                    setIsShareModalOpen(false);
+                    setShareApplicationId(null);
+                    setShareCandidateName('');
+                }}
+                applicationId={shareApplicationId}
+                candidateName={shareCandidateName}
             />
 
             {/* Unlock Confirmation Modal */}
