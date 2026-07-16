@@ -29,7 +29,25 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const handleShareInterview = () => {
-        setIsShareModalOpen(true);
+        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
+        const formattedCandidate = application?.applicantName || 'Candidate';
+
+        if (navigator.share) {
+            navigator.share({
+                title: `AI Interview Review: ${formattedCandidate}`,
+                text: `Review candidate ${formattedCandidate}'s AI interview recording on hire1percent:`,
+                url: shareUrl
+            })
+            .then(() => console.log('Native share successful'))
+            .catch((err) => {
+                if (err.name !== 'AbortError') {
+                    console.error('Native share failed:', err);
+                    setIsShareModalOpen(true);
+                }
+            });
+        } else {
+            setIsShareModalOpen(true);
+        }
     };
 
     useEffect(() => {
@@ -501,7 +519,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         </div>
                         <div className="flex items-center gap-3">
                             <button
-                                onClick={() => setIsShareModalOpen(true)}
+                                onClick={handleShareInterview}
                                 className="bg-white hover:bg-gray-100 text-purple-600 border-2 border-purple-600 px-6 py-4 rounded-xl font-bold text-lg transition-colors flex items-center gap-2"
                             >
                                 <Share2 className="w-5 h-5" />

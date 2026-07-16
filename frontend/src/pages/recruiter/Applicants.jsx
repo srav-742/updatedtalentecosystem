@@ -200,9 +200,31 @@ const Applicants = () => {
     const [shareCandidateName, setShareCandidateName] = useState('');
 
     const handleShareInterview = (applicationId, candidateName) => {
-        setShareApplicationId(applicationId);
-        setShareCandidateName(candidateName || '');
-        setIsShareModalOpen(true);
+        if (!applicationId) return;
+        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
+        const formattedCandidate = candidateName || 'Candidate';
+
+        if (navigator.share) {
+            navigator.share({
+                title: `AI Interview Review: ${formattedCandidate}`,
+                text: `Review candidate ${formattedCandidate}'s AI interview recording on hire1percent:`,
+                url: shareUrl
+            })
+            .then(() => console.log('Native share successful'))
+            .catch((err) => {
+                // If sharing was aborted/cancelled by user, ignore. Otherwise, fall back.
+                if (err.name !== 'AbortError') {
+                    console.error('Native share failed:', err);
+                    setShareApplicationId(applicationId);
+                    setShareCandidateName(formattedCandidate);
+                    setIsShareModalOpen(true);
+                }
+            });
+        } else {
+            setShareApplicationId(applicationId);
+            setShareCandidateName(formattedCandidate);
+            setIsShareModalOpen(true);
+        }
     };
 
     // Generated Resume Modal
