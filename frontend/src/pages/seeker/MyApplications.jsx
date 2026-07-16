@@ -164,23 +164,37 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-                                        <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
-                                            {timeline.map((step, index) => (
-                                                <TimelineRow
-                                                    key={`${application._id}-${step.label}`}
-                                                    step={step}
-                                                    isCurrent={index === currentIndex}
-                                                />
-                                            ))}
+                                    <div className="mt-5 space-y-4">
+                                        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                                            <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
+                                                {timeline.map((step, index) => (
+                                                    <TimelineRow
+                                                        key={`${application._id}-${step.label}`}
+                                                        step={step}
+                                                        isCurrent={index === currentIndex}
+                                                    />
+                                                ))}
+                                            </div>
+
+                                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                                <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
+                                                <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
+                                                <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
+                                                <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
+                                            </div>
                                         </div>
 
-                                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                            <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
-                                            <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
-                                            <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
-                                            <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
-                                        </div>
+                                        {!application.interviewScore && application.jobId?.mockInterview?.enabled && (
+                                            <div className="flex justify-end pt-2">
+                                                <Link
+                                                    to={`/seeker/apply/${application.jobId?._id || application.jobId}`}
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-sm"
+                                                >
+                                                    <BriefcaseBusiness size={14} />
+                                                    Resume Application Flow
+                                                </Link>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </article>

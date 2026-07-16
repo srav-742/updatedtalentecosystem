@@ -1,4 +1,5 @@
-require('dotenv').config({ path: 'c:/Users/sravy/OneDrive/Desktop/Talent ecosystem/backend/.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const Application = require('./models/Application');
