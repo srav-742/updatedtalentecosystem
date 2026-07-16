@@ -58,6 +58,7 @@ const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
 const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
 const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
 const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
+const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
 
 function App() {
   return (
@@ -146,6 +147,7 @@ function App() {
         <Route path="/automated-hiring" element={<AutomatedHiring />} />
         <Route path="/candidate-screening" element={<CandidateScreening />} />
         <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+        <Route path="/public/interview/:applicationId" element={<PublicInterviewDetail />} />
 
         {/* PascalCase aliases */}
         <Route path="/AIInterviewPlatform" element={<AIInterviewPlatform />} />

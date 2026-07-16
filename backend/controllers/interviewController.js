@@ -259,4 +259,157 @@ const getInterviewDetails = async (req, res) => {
     }
 };
 
-module.exports = { getInterviewDetails };
+const getPublicInterviewDetails = async (req, res) => {
+    try {
+        const { applicationId } = req.params;
+
+        if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ message: 'Invalid application ID' });
+        }
+
+        const application = await Application.findById(applicationId).populate('jobId').populate('user');
+        if (!application) {
+            return res.status(404).json({ message: 'Application not found' });
+        }
+
+        let socialUser = application.user;
+        if (!socialUser && application.userId) {
+            const User = require('../models/User');
+            socialUser = await User.findOne({
+                $or: [
+                    { uid: application.userId },
+                    { _id: mongoose.Types.ObjectId.isValid(application.userId) ? application.userId : null },
+                    { email: application.applicantEmail }
+                ]
+            });
+        }
+
+        if (hasLegacyUniformQuestionScores(application.interviewAnswers)) {
+            application.interviewAnswers = application.interviewAnswers.slice(0, MAX_INTERVIEW_QUESTIONS).map((answer) => {
+                const rescored = scoreInterviewAnswer({
+                    questionText: answer.question,
+                    answerText: answer.answer,
+                    jobSkills: application.jobId?.skills || [],
+                    jobDescription: application.jobId?.description || ''
+                });
+
+                return {
+                    question: answer.question,
+                    answer: answer.answer,
+                    score: rescored.score,
+                    marks: rescored.marks,
+                    feedback: rescored.feedback
+                };
+            });
+
+            application.interviewScore = averageInterviewScore(application.interviewAnswers);
+            await application.save();
+        }
+
+        const questions = Array.isArray(application.interviewAnswers)
+            ? application.interviewAnswers.slice(0, MAX_INTERVIEW_QUESTIONS)
+            : [];
+
+        const overallInterviewScore = Number(application.interviewScore || averageInterviewScore(questions) || 0);
+        const overallInterviewMarks = roundToTenth(overallInterviewScore / 10);
+
+        // ── Query Proctoring Violations ──
+        const ProctoringViolation = require('../models/ProctoringViolation');
+        const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+
+        const jobIdStr = application.jobId?._id?.toString() || application.jobId?.toString();
+        const sessionIdStr = application.recordingSessionId;
+
+        const queryConditions = [];
+        if (jobIdStr && sessionIdStr) {
+            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        }
+        if (application.userId) {
+            queryConditions.push({ userId: application.userId });
+        }
+
+        let baseViolations = [];
+        let enhancedViolations = [];
+
+        if (queryConditions.length > 0) {
+            const query = { $or: queryConditions };
+            
+            const allBase = await ProctoringViolation.find(query).sort({ timestamp: 1 }).lean();
+            const allEnhanced = await ProctoringViolationEnhanced.find(query).sort({ timestamp: 1 }).lean();
+
+            baseViolations = allBase.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+
+            enhancedViolations = allEnhanced.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+        }
+
+        const mappedViolations = [
+            ...baseViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: 'medium',
+                    rating,
+                    isAnswering: false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            }),
+            ...enhancedViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: v.severity || 'medium',
+                    rating,
+                    isAnswering: v.isAnswering || false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            })
+        ];
+
+        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // ── Query Proctoring Report ──
+        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
+        let proctoringReport = null;
+        if (examIdStr) {
+            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
+            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
+                try {
+                    proctoringReport = await updateProctoringReport(examIdStr, application.userId);
+                } catch (reportErr) {
+                    console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
+                }
+            }
+        }
+
+        res.json(
+            buildRecruiterInterviewPayload(
+                application,
+                socialUser,
+                questions,
+                overallInterviewScore,
+                overallInterviewMarks,
+                mappedViolations,
+                proctoringReport
+            )
+        );
+    } catch (error) {
+        console.error('[GET PUBLIC INTERVIEW DETAILS ERROR]', error);
+        res.status(500).json({ message: 'Failed to fetch public interview details', error: error.message });
+    }
+};
+
+module.exports = { getInterviewDetails, getPublicInterviewDetails };

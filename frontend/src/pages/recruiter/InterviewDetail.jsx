@@ -15,7 +15,8 @@ import {
     ShieldAlert,
     ShieldCheck,
     AlertTriangle,
-    Clock
+    Clock,
+    Share2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
@@ -24,6 +25,17 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [copied, setCopied] = useState(false);
+
+    const handleShareInterview = () => {
+        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }).catch((err) => {
+            console.error('Failed to copy share link:', err);
+        });
+    };
 
     useEffect(() => {
         const fetchInterviewDetails = async () => {
@@ -492,12 +504,21 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                 <div className="text-2xl font-black text-purple-600">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors"
-                        >
-                            Close Interview
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleShareInterview}
+                                className="bg-white hover:bg-gray-100 text-purple-600 border-2 border-purple-600 px-6 py-4 rounded-xl font-bold text-lg transition-colors flex items-center gap-2"
+                            >
+                                <Share2 className="w-5 h-5" />
+                                {copied ? 'Link Copied!' : 'Share Interview'}
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors"
+                            >
+                                Close Interview
+                            </button>
+                        </div>
                     </div>
                 </div>
             </motion.div>

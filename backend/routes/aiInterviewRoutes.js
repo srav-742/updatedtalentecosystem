@@ -7,7 +7,7 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
 const InterviewSession = require('../models/InterviewSession');
 const Job = require('../models/Job');
-const { getInterviewDetails } = require('../controllers/interviewController');
+const { getInterviewDetails, getPublicInterviewDetails } = require('../controllers/interviewController');
 const {
     averageInterviewScore,
     clamp,
@@ -1225,5 +1225,8 @@ router.post('/next', async (req, res) => {
 
 // Get interview details for recruiter
 router.get('/interview-details/:applicationId', getInterviewDetails);
+
+// Get public interview details for sharing
+router.get('/public/interview-details/:applicationId', getPublicInterviewDetails);
 
 module.exports = router; 
