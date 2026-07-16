@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2 } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -193,6 +193,19 @@ const Applicants = () => {
     // Video Intro Modal
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
+    const [selectedVideoApplicationId, setSelectedVideoApplicationId] = useState(null);
+    const [copiedId, setCopiedId] = useState(null);
+
+    const handleShareInterview = (applicationId) => {
+        if (!applicationId) return;
+        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            setCopiedId(applicationId);
+            setTimeout(() => setCopiedId(null), 2000);
+        }).catch((err) => {
+            console.error('Failed to copy share link:', err);
+        });
+    };
 
     // Generated Resume Modal
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
@@ -773,6 +786,14 @@ const Applicants = () => {
                                                                     >
                                                                         <Filter size={14} /> Reset Status
                                                                     </button>
+                                                                    {interviewMeta.canView && (
+                                                                        <button
+                                                                            onClick={() => handleShareInterview(app.id)}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-purple-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <Share2 size={14} /> {copiedId === app.id ? 'Link Copied!' : 'Share Interview'}
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         )}
@@ -842,12 +863,24 @@ const Applicants = () => {
                     <div className="relative w-full max-w-4xl bg-[#1a1d24] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in duration-300">
                         <div className="p-6 border-b border-white/10 flex items-center justify-between">
                             <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
-                            <button
-                                onClick={() => setShowVideoModal(false)}
-                                className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
-                            >
-                                <XCircle size={24} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleShareInterview(selectedVideoApplicationId)}
+                                    className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Share2 size={13} />
+                                    {copiedId === selectedVideoApplicationId ? 'Link Copied!' : 'Share Interview'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowVideoModal(false);
+                                        setSelectedVideoApplicationId(null);
+                                    }}
+                                    className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
+                                >
+                                    <XCircle size={24} />
+                                </button>
+                            </div>
                         </div>
                         <div className="aspect-video bg-black">
                             <video
