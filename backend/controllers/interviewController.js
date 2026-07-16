@@ -412,4 +412,133 @@ const getPublicInterviewDetails = async (req, res) => {
     }
 };
 
-module.exports = { getInterviewDetails, getPublicInterviewDetails };
+const getProctoringDetails = async (req, res) => {
+    try {
+        const { applicationId } = req.params;
+
+        // 🔒 Verify recruiter/admin session
+        const recruiterId = req.headers['x-user-id'];
+        if (!recruiterId) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+        const User = require('../models/User');
+        const recruiter = await User.findOne({ uid: recruiterId });
+        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+
+        if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ message: 'Invalid application ID' });
+        }
+
+        const application = await Application.findById(applicationId).populate('jobId');
+        if (!application) {
+            return res.status(404).json({ message: 'Application not found' });
+        }
+
+        // ── Query Proctoring Violations ──
+        const ProctoringViolation = require('../models/ProctoringViolation');
+        const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+
+        const jobIdStr = application.jobId?._id?.toString() || application.jobId?.toString();
+        const sessionIdStr = application.recordingSessionId;
+
+        const queryConditions = [];
+        if (jobIdStr && sessionIdStr) {
+            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        }
+        if (application.userId) {
+            queryConditions.push({ userId: application.userId });
+        }
+
+        let baseViolations = [];
+        let enhancedViolations = [];
+
+        if (queryConditions.length > 0) {
+            const query = { $or: queryConditions };
+            
+            const allBase = await ProctoringViolation.find(query).sort({ timestamp: 1 }).lean();
+            const allEnhanced = await ProctoringViolationEnhanced.find(query).sort({ timestamp: 1 }).lean();
+
+            baseViolations = allBase.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+
+            enhancedViolations = allEnhanced.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+        }
+
+        const mappedViolations = [
+            ...baseViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: 'medium',
+                    rating,
+                    isAnswering: false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            }),
+            ...enhancedViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: v.severity || 'medium',
+                    rating,
+                    isAnswering: v.isAnswering || false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            })
+        ];
+
+        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // ── Query Proctoring Report ──
+        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
+        let proctoringReport = null;
+        if (examIdStr) {
+            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
+            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
+                try {
+                    proctoringReport = await updateProctoringReport(examIdStr, application.userId);
+                } catch (reportErr) {
+                    console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
+                }
+            }
+        }
+
+        res.json({
+            application: {
+                id: application._id,
+                applicantName: application.applicantName,
+                applicantEmail: application.applicantEmail,
+                proctoringScore: application.proctoringScore
+            },
+            job: {
+                title: application.jobId?.title
+            },
+            interview: {
+                status: application.recordingStatus === 'uploaded' ? 'completed' : 'not_completed',
+                completedAt: application.resultsVisibleAt || application.appliedAt,
+                proctoringViolations: mappedViolations,
+                proctoringReport: proctoringReport
+            }
+        });
+    } catch (error) {
+        console.error('[GET PROCTORING DETAILS ERROR]', error);
+        res.status(500).json({ message: 'Failed to fetch proctoring details', error: error.message });
+    }
+};
+
+module.exports = { getInterviewDetails, getPublicInterviewDetails, getProctoringDetails };

@@ -24,7 +24,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
             setError(null);
             try {
                 const headers = await getAuthHeaders();
-                const res = await axios.get(`${API_URL}/interview-details/${applicationId}`, { headers });
+                const res = await axios.get(`${API_URL}/proctoring-details/${applicationId}`, { headers });
                 setData(res.data);
             } catch (err) {
                 console.error("Failed to fetch proctoring details:", err);

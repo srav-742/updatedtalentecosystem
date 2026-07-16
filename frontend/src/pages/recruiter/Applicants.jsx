@@ -302,11 +302,7 @@ const Applicants = () => {
     };
 
     // Handle View Proctoring Details
-    const handleViewProctoring = (applicationId, isInterviewLocked) => {
-        if (isInterviewLocked) {
-            setUnlockingItem({ id: applicationId, type: 'interview', cost: 10 });
-            return;
-        }
+    const handleViewProctoring = (applicationId) => {
         setSelectedProctoringApplicationId(applicationId);
         setShowProctoringDetail(true);
     };
@@ -721,10 +717,10 @@ const Applicants = () => {
                                                              <button
                                                                  onClick={(e) => {
                                                                      e.stopPropagation();
-                                                                     handleViewProctoring(app.id, app.isInterviewLocked);
+                                                                     handleViewProctoring(app.id);
                                                                  }}
-                                                                 className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-red-500 hover:text-red-400 hover:bg-red-500/10'}`}
-                                                                 title={app.isInterviewLocked ? "Unlock Proctoring Details (₹10)" : "View Proctoring Report"}
+                                                                 className="p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                                                                 title="View Proctoring Report"
                                                              >
                                                                  <Eye size={15} />
                                                              </button>

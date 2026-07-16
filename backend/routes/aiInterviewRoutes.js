@@ -7,7 +7,7 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Application = require('../models/Application');
 const InterviewSession = require('../models/InterviewSession');
 const Job = require('../models/Job');
-const { getInterviewDetails, getPublicInterviewDetails } = require('../controllers/interviewController');
+const { getInterviewDetails, getPublicInterviewDetails, getProctoringDetails } = require('../controllers/interviewController');
 const {
     averageInterviewScore,
     clamp,
@@ -1228,5 +1228,8 @@ router.get('/interview-details/:applicationId', getInterviewDetails);
 
 // Get public interview details for sharing
 router.get('/public/interview-details/:applicationId', getPublicInterviewDetails);
+
+// Get proctoring details for recruiters (free / no paywall checks)
+router.get('/proctoring-details/:applicationId', getProctoringDetails);
 
 module.exports = router; 

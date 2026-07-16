@@ -6,7 +6,7 @@ const multer = require("multer");
 const streamifier = require("streamifier");
 const cloudinary = require("../config/cloudinary");
 const Application = require("../models/Application");
-const { getInterviewDetails } = require("../controllers/interviewController");
+const { getInterviewDetails, getProctoringDetails } = require("../controllers/interviewController");
 
 const router = express.Router();
 const tempRecordingDir = path.join(__dirname, "..", "private_storage", "interview-recordings-temp");
@@ -337,6 +337,7 @@ router.post("/finalize-recording", async (req, res) => {
 });
 
 router.get("/interview-details/:applicationId", getInterviewDetails);
+router.get("/proctoring-details/:applicationId", getProctoringDetails);
 
 router.post(
     ["/upload-recording", "/interview/upload-recording"],
