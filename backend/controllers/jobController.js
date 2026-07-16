@@ -78,11 +78,17 @@ const updateJob = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
-        const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, req.body, { new: true });
+        
+        // Force the status to 'pending_approval' when updating a job
+        const jobData = { ...req.body };
+        jobData.status = 'pending_approval';
+        jobData.adminFeedback = { reason: '', reviewedAt: null };
+
+        const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true });
         clearJobsCache(); // Clear all job caches
         res.json(updatedJob);
     } catch (error) {
-        console.error("[GET-JOBS] Error:", error);
+        console.error("[UPDATE-JOB] Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
