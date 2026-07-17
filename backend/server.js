@@ -21,6 +21,8 @@ const startServer = async () => {
         // Connect to MongoDB first
         await connectDB();
 
+        // One-time cleanup block that deleted blog posts has been removed to prevent ephemeral file loss on restarts.
+
         const PORT = process.env.PORT || 5000;
         app.listen(PORT, async () => {
             console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);

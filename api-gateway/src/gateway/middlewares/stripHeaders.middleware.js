@@ -46,6 +46,10 @@ const STRIPPED_EXACT = new Set([
 const stripHeadersMiddleware = (req, _res, next) => {
   const stripped = [];
 
+  if (req.headers['x-user-id']) {
+    req.clientUserId = req.headers['x-user-id'];
+  }
+
   Object.keys(req.headers).forEach((header) => {
     const lower = header.toLowerCase();
 

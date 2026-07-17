@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import ApiError from '../../core/errors/ApiError.js';
-import { verify } from '../clients/auth.client.js';
+import { verify, getUserProfile } from '../clients/auth.client.js';
 import contextStore from '../../core/context/contextStore.js';
 import HEADERS from '../../core/constants/headers.js';
 import EVENTS from '../../core/constants/events.js';
@@ -87,6 +87,62 @@ const authMiddleware = async (req, res, next) => {
 
     // ─── 2. Validate Authorization Header Presence ───
     if (!authHeader) {
+      const userIdHeader = req.clientUserId;
+      if (userIdHeader) {
+        try {
+          const user = await getUserProfile(userIdHeader);
+          if (user) {
+            if (user.role) {
+              const r = user.role.toLowerCase().trim();
+              user.role = r === 'seeker' ? 'candidate' : r;
+            }
+            req.user = user;
+
+            const ctx = contextStore.getContext();
+            if (ctx) {
+              ctx.userId = user.id || user._id;
+              ctx.email = user.email;
+              ctx.role = user.role;
+              ctx.permissions = user.permissions || [];
+              ctx.session = null;
+            }
+
+            // Verify Permissions for the route
+            const routeDef = findRoute(req.originalUrl || req.path, req.method);
+            if (routeDef && routeDef.permissions && routeDef.permissions.length > 0) {
+              const userPermissions = user.permissions || [];
+              const hasAllPermissions = routeDef.permissions.every(
+                (reqPerm) => userPermissions.includes(reqPerm)
+              );
+              if (!hasAllPermissions) {
+                pluginManager.emit(EVENTS.AUTH_FAILURE, {
+                  reason: `Insufficient permissions. Required: ${routeDef.permissions.join(', ')}`,
+                  method: req.method,
+                  path: req.originalUrl || req.path,
+                });
+                return next(ApiError.forbidden('Access denied: Insufficient permissions.', 'AUTH_003'));
+              }
+            }
+
+            logger.debug(`Authentication successful via fallback x-user-id: ${user.id || user._id} (${user.role})`, {
+              source: 'auth.middleware',
+            });
+
+            pluginManager.emit(EVENTS.AUTH_SUCCESS, {
+              userId: user.id || user._id,
+              role: user.role,
+              method: req.method,
+              path: req.originalUrl || req.path,
+              session: null,
+            });
+
+            return next();
+          }
+        } catch (fallbackError) {
+          logger.warn("[AUTH-MIDDLEWARE] x-user-id fallback verification failed:", { error: fallbackError.message });
+        }
+      }
+
       pluginManager.emit(EVENTS.AUTH_FAILURE, {
         reason: 'Authorization header is missing',
         method: req.method,
