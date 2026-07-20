@@ -489,7 +489,11 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 }
 
                 try {
-                    // Get the real-time transcript from browser SpeechRecognition
+                    // Short 250ms buffer to allow SpeechRecognition to finalize last spoken word
+                    await new Promise(r => setTimeout(r, 250));
+
+                    // Capture current question number and transcript before submitting
+                    const capturedQNum = currentQNum;
                     const localTranscriptText = latestTranscriptRef.current || "";
 
                     // ── FAST PATH: Submit answer immediately using local transcript ──
@@ -501,7 +505,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                         const formData = new FormData();
                         formData.append('interviewId', sessionId);
                         formData.append('sessionId', sessionId);
-                        formData.append('questionNumber', currentQNum);
+                        formData.append('questionNumber', capturedQNum);
                         formData.append('audio', blob, 'answer.wav');
                         formData.append('localTranscript', localTranscriptText);
 

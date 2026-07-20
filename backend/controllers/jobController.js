@@ -147,10 +147,9 @@ const approveJob = async (req, res) => {
 // ADMIN: Reject a job with a reason
 const rejectJob = async (req, res) => {
     try {
-        const { reason } = req.body;
-        if (!reason || !reason.trim()) {
-            return res.status(400).json({ message: "A rejection reason is required." });
-        }
+        const rawReason = req.body?.reason || req.body?.adminReason || req.body?.rejectionReason || req.body?.feedback;
+        const reason = String(rawReason || '').trim() || "Rejected by Admin";
+        
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
@@ -158,7 +157,7 @@ const rejectJob = async (req, res) => {
             req.params.jobId,
             {
                 status: 'rejected',
-                adminFeedback: { reason: reason.trim(), reviewedAt: new Date() }
+                adminFeedback: { reason, reviewedAt: new Date() }
             },
             { new: true }
         );

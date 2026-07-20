@@ -800,8 +800,33 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                             if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || transcript.trim().length > currentStoredAnswer.trim().length + 5) {
                                 console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB with full STT transcript (${transcript.length} chars vs stored ${currentStoredAnswer.length} chars)`);
                                 
+                                const fullAnswer = transcript.trim();
+                                
+                                // Re-evaluate score with full answer
+                                const heuristic = scoreInterviewAnswer({
+                                    questionText: existingEval?.question || "",
+                                    answerText: fullAnswer,
+                                    jobSkills: session.jobSkills,
+                                    jobDescription: session.jobDescription
+                                });
+
                                 if (existingEval) {
-                                    existingEval.answer = transcript.trim();
+                                    existingEval.answer = fullAnswer;
+                                    existingEval.score = heuristic.score;
+                                    existingEval.marks = heuristic.marks;
+                                    existingEval.feedback = heuristic.feedback;
+                                }
+
+                                // Update session history
+                                let candCount = 0;
+                                for (let i = 0; i < (session.history || []).length; i++) {
+                                    if (session.history[i].role === 'candidate') {
+                                        candCount++;
+                                        if (candCount === targetQNum) {
+                                            session.history[i].content = fullAnswer;
+                                            break;
+                                        }
+                                    }
                                 }
 
                                 await saveSession(targetSessionId, session);
@@ -815,7 +840,10 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                                     if (app && app.interviewAnswers && app.interviewAnswers.length > 0) {
                                         const idx = app.interviewAnswers.findIndex(a => a.question === (existingEval?.question || app.interviewAnswers[targetQNum - 1]?.question));
                                         if (idx !== -1) {
-                                            app.interviewAnswers[idx].answer = transcript.trim();
+                                            app.interviewAnswers[idx].answer = fullAnswer;
+                                            app.interviewAnswers[idx].score = heuristic.score;
+                                            app.interviewAnswers[idx].marks = heuristic.marks;
+                                            app.interviewAnswers[idx].feedback = heuristic.feedback;
                                             await app.save();
                                             console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers updated for Q${targetQNum}`);
                                         }

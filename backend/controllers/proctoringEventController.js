@@ -276,7 +276,7 @@ const getScore = async (req, res) => {
             });
         }
 
-        const score = Math.max(0, 100 - report.totalPenaltyRating * 5);
+        const score = Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
 
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,

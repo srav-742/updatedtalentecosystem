@@ -301,7 +301,8 @@ const getJobCandidates = async (req, res) => {
 
         const candidates = applications.map(app => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const proctoringScore = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
+            const rawPenalty = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
+            const proctoringScore = Math.max(0, 100 - Math.round(rawPenalty * 2.5));
             
             return {
                 applicationId: app._id,
@@ -313,6 +314,7 @@ const getJobCandidates = async (req, res) => {
                 interviewScore: app.interviewScore || null,
                 finalScore: app.finalScore || null,
                 proctoringScore,
+                integrityPenalty: rawPenalty,
                 status: app.status,
                 appliedAt: app.appliedAt,
                 hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,

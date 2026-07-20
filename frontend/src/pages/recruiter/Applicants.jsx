@@ -482,7 +482,7 @@ const Applicants = () => {
                                     <option value="resumeScore" className="bg-[#1a1d24] text-white">Resume Score</option>
                                     <option value="assessmentScore" className="bg-[#1a1d24] text-white">Assessment Score</option>
                                     <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
-                                    <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Penalty Score</option>
+                                    <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Trust Score</option>
                                     <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
                                 </select>
                                 {sortBy !== 'none' && (
@@ -732,8 +732,8 @@ const Applicants = () => {
                                                  </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm">
-                                                             <span>{app.proctoringScore}</span>
+                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Trust Score: ${app.proctoringScore}/100 | Raw Penalty Points: ${app.integrityPenalty || 0}`}>
+                                                             <span>{app.proctoringScore}/100</span>
                                                              <button
                                                                  onClick={(e) => {
                                                                      e.stopPropagation();

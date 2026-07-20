@@ -20,8 +20,7 @@ async function transcribeAudio(audioPath) {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(audioPath));
             formData.append('model_id', 'scribe_v2');
-            // Enable language detection for multilingual support
-            formData.append('language_code', 'auto');
+            // Leaving language_code omitted enables ElevenLabs auto-detection
 
             const response = await axios.post(
                 'https://api.elevenlabs.io/v1/speech-to-text',
@@ -79,6 +78,43 @@ async function transcribeAudio(audioPath) {
         }
     } catch (error) {
         console.error("[STT-GROQ-WHISPER ERROR]:", error.response?.data || error.message);
+    }
+
+    // ── Attempt 3: Gemini 2.5 Flash Multimodal (Fallback — no file size limit) ──
+    try {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (geminiKey) {
+            console.log("[STT] Attempting Gemini 2.5 Flash STT fallback...");
+            const { GoogleAIFileManager } = require('@google/generative-ai/server');
+            const { GoogleGenerativeAI } = require('@google/generative-ai');
+            const fileManager = new GoogleAIFileManager(geminiKey);
+            const mimeType = audioPath.endsWith('.webm') ? 'video/webm' : audioPath.endsWith('.mp3') ? 'audio/mp3' : 'audio/wav';
+            const uploadResult = await fileManager.uploadFile(audioPath, {
+                mimeType,
+                displayName: 'Candidate Audio Answer'
+            });
+            let fileState = await fileManager.getFile(uploadResult.file.name);
+            let attempts = 0;
+            while (fileState.state === 'PROCESSING' && attempts < 15) {
+                await new Promise(r => setTimeout(r, 1000));
+                fileState = await fileManager.getFile(uploadResult.file.name);
+                attempts++;
+            }
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+            const result = await model.generateContent([
+                "Transcribe the candidate's exact spoken answer from this audio/video recording verbatim. Return ONLY the transcribed text without quotes, markdown, or commentary.",
+                { fileData: { fileUri: uploadResult.file.uri, mimeType: uploadResult.file.mimeType } }
+            ]);
+            fileManager.deleteFile(uploadResult.file.name).catch(() => null);
+            const transcript = result.response.text()?.trim() || "";
+            if (transcript && transcript.length > 1) {
+                console.log(`[STT] ✓ Gemini 2.5 Flash STT success | Length: ${transcript.length}`);
+                return transcript;
+            }
+        }
+    } catch (gErr) {
+        console.error("[STT-GEMINI ERROR]:", gErr.message);
     }
 
     // ── Final Safety Fallback ──

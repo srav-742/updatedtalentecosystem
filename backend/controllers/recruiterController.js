@@ -187,9 +187,9 @@ const getRecruiterApplications = async (req, res) => {
         }
 
         const appsWithScore = apps.map((app, index) => {
-            const appJobId = app.jobId?._id?.toString() || app.jobId?.toString();
-            const key = appJobId ? `${app.userId}_${appJobId}` : app.userId;
-            app.proctoringScore = applicationPenaltyMap[key] !== undefined ? applicationPenaltyMap[key] : (applicationPenaltyMap[app.userId] || 0);
+            const rawPenalty = applicationPenaltyMap[key] !== undefined ? applicationPenaltyMap[key] : (applicationPenaltyMap[app.userId] || 0);
+            app.integrityPenalty = rawPenalty;
+            app.proctoringScore = Math.max(0, 100 - Math.round(rawPenalty * 2.5));
             
             const flags = applicationFlagsMap[key] || applicationFlagsMap[app.userId];
             app.proctoringFlags = flags ? Array.from(flags) : [];
