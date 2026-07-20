@@ -117,6 +117,7 @@ export default function SecureExamWrapperEnhanced({
         warningLimit,
         resetLimit,
         onResetRequired: handleSecurityReset,
+        gracePeriod: 4000,
     });
 
     triggerViolationRef.current = triggerViolation;

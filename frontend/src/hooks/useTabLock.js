@@ -5,7 +5,8 @@ const useTabLock = (options = {}) => {
         maxWarnings = 3,
         onMaxWarningsExceeded,
         isActive = false,
-        warningTimeout = 3000 // Auto-hide warning after 3 seconds
+        warningTimeout = 3000, // Auto-hide warning after 3 seconds
+        gracePeriod = 3000
     } = options;
 
     const [warnings, setWarnings] = useState(0);
@@ -16,7 +17,16 @@ const useTabLock = (options = {}) => {
     const [isTerminated, setIsTerminated] = useState(false);
 
     const warningTimeoutRef = useRef(null);
+    const activatedAtRef = useRef(0);
     const callbacksRef = useRef({ onMaxWarningsExceeded });
+
+    useEffect(() => {
+        if (isActive) {
+            activatedAtRef.current = Date.now();
+        } else {
+            activatedAtRef.current = 0;
+        }
+    }, [isActive]);
 
     // Update callback ref to avoid stale closures
     useEffect(() => {
@@ -68,6 +78,11 @@ const useTabLock = (options = {}) => {
         if (!isActive || isTerminated) return;
 
         const handleBlur = () => {
+            // Ignore window_blur during initial startup grace period
+            if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
+                return;
+            }
+
             // Small delay to check if visibility also changed (avoid double counting)
             setTimeout(() => {
                 if (!document.hidden) {
@@ -80,7 +95,7 @@ const useTabLock = (options = {}) => {
         return () => {
             window.removeEventListener('blur', handleBlur);
         };
-    }, [isActive, isTerminated, triggerWarning]);
+    }, [isActive, isTerminated, triggerWarning, gracePeriod]);
 
     // Handle keyboard shortcuts
     useEffect(() => {

@@ -86,6 +86,7 @@ export function useStrictProctoring({
   warningLimit = 3,
   resetLimit = 4,
   onResetRequired,
+  gracePeriod = 3000,
 }) {
   const [violations, setViolations] = useState([]);
   const [violationCount, setViolationCount] = useState(0);
@@ -98,7 +99,16 @@ export function useStrictProctoring({
   const lockedRef = useRef(false);
   const resetTriggeredRef = useRef(false);
   const lastFocusViolationTs = useRef(0);
+  const activatedAtRef = useRef(0);
   const callbacksRef = useRef({ onResetRequired });
+
+  useEffect(() => {
+    if (isActive) {
+      activatedAtRef.current = Date.now();
+    } else {
+      activatedAtRef.current = 0;
+    }
+  }, [isActive]);
 
   useEffect(() => {
     callbacksRef.current.onResetRequired = onResetRequired;
@@ -198,6 +208,11 @@ export function useStrictProctoring({
         return;
       }
 
+      // Ignore fullscreen exits during initial startup grace period
+      if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
+        return;
+      }
+
       setTimeout(() => {
         if (!document.fullscreenElement && !resetTriggeredRef.current) {
           requestFullscreen();
@@ -214,7 +229,7 @@ export function useStrictProctoring({
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
     };
-  }, [isActive, requestFullscreen, triggerViolation]);
+  }, [isActive, requestFullscreen, triggerViolation, gracePeriod]);
 
   useEffect(() => {
     if (!isActive) {
@@ -239,6 +254,11 @@ export function useStrictProctoring({
     }
 
     const handleBlur = () => {
+      // Ignore blur events during initial startup grace period to allow permission popups & focus shifts
+      if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
+        return;
+      }
+
       triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
     };
 
@@ -246,7 +266,7 @@ export function useStrictProctoring({
     return () => {
       window.removeEventListener("blur", handleBlur);
     };
-  }, [isActive, triggerViolation]);
+  }, [isActive, triggerViolation, gracePeriod]);
 
   useEffect(() => {
     if (!isActive) {

@@ -22,6 +22,7 @@ export function useStrictProctoringEnhanced({
     warningLimit = 3,
     resetLimit = 4,
     onResetRequired,
+    gracePeriod = 3000,
     apiEndpoint = `${API_URL}/proctoring-enhanced/violation`,
 }) {
     const base = useStrictProctoring({
@@ -31,6 +32,7 @@ export function useStrictProctoringEnhanced({
         warningLimit,
         resetLimit,
         onResetRequired,
+        gracePeriod,
     });
 
     const { triggerViolation } = base;

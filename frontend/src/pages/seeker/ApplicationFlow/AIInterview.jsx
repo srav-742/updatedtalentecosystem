@@ -53,6 +53,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
     const latestTranscriptRef = useRef('');
+    // Accumulates ALL finalized speech segments across SpeechRecognition restarts
+    // so the full answer is never lost when the API auto-restarts
+    const confirmedTranscriptRef = useRef('');
 
     const normalizeQuestionText = (text = '') =>
         String(text)
@@ -449,6 +452,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             isRecordingRef.current = true;
             setTranscript('');
             latestTranscriptRef.current = '';
+            // Reset confirmed transcript for this new answer
+            confirmedTranscriptRef.current = '';
 
             let stream;
             let isReusedStream = false;
@@ -502,9 +507,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
 
                             if (!isWhisperInvalid) {
-                                // Prefer Whisper unless local transcript is significantly longer for short Whisper results
-                                if (answerText && answerText.length > whisperText.length * 2 && whisperText.length < 15) {
-                                    console.log("Using local transcript as Whisper returned an extremely short output:", whisperText);
+                                // Prefer whichever transcript has more text content to avoid truncating candidate answers
+                                if (answerText && answerText.trim().length > whisperText.length + 10 && answerText.trim().length > whisperText.length * 1.2) {
+                                    console.log("Preserving local transcript as it contains significantly more spoken text than Whisper STT:", { local: answerText, whisper: whisperText });
                                 } else {
                                     answerText = whisperText;
                                 }
@@ -555,8 +560,24 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     rec.interimResults = true;
 
                     rec.onresult = (e) => {
-                        let full = '';
-                        for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
+                        // Process only new results from e.resultIndex to avoid
+                        // reprocessing old results after a recognition restart
+                        let newFinalText = '';
+                        let interimText = '';
+                        for (let i = e.resultIndex; i < e.results.length; i++) {
+                            const r = e.results[i];
+                            if (r.isFinal) {
+                                newFinalText += r[0].transcript;
+                            } else {
+                                interimText += r[0].transcript;
+                            }
+                        }
+                        // Append finalized text to cross-restart accumulator
+                        if (newFinalText) {
+                            confirmedTranscriptRef.current = (confirmedTranscriptRef.current + ' ' + newFinalText).trim();
+                        }
+                        // Full display = all confirmed text + current interim
+                        const full = (confirmedTranscriptRef.current + ' ' + interimText).trim();
                         setTranscript(full);
                         latestTranscriptRef.current = full;
                     };

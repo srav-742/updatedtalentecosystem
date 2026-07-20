@@ -71,6 +71,9 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
     const latestTranscriptRef = useRef('');
+    // Accumulates ALL finalized speech segments across SpeechRecognition restarts
+    // so the full answer is never lost when the API auto-restarts
+    const confirmedTranscriptRef = useRef('');
 
     const normalizeQuestionText = (text = '') =>
         String(text)
@@ -449,6 +452,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             isRecordingRef.current = true;
             setTranscript('');
             latestTranscriptRef.current = '';
+            // Reset confirmed transcript for this new answer
+            confirmedTranscriptRef.current = '';
 
             let stream;
             let isReusedStream = false;
@@ -490,11 +495,13 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     // ── FAST PATH: Submit answer immediately using local transcript ──
                     await submitUserAnswer(localTranscriptText);
 
-                    // ── ASYNC BACKGROUND: Upload audio for archival/proctoring ──
+                    // ── ASYNC BACKGROUND: Upload audio for archival/proctoring & transcript rescue ──
                     try {
                         const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
                         const formData = new FormData();
                         formData.append('interviewId', sessionId);
+                        formData.append('sessionId', sessionId);
+                        formData.append('questionNumber', currentQNum);
                         formData.append('audio', blob, 'answer.wav');
                         formData.append('localTranscript', localTranscriptText);
 
@@ -539,17 +546,24 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     rec.maxAlternatives = 1;
 
                     rec.onresult = (e) => {
-                        let finalText = '';
+                        // Process only new results starting from e.resultIndex
+                        // to avoid reprocessing results from before this recognition session
+                        let newFinalText = '';
                         let interimText = '';
-                        for (let i = 0; i < e.results.length; i++) {
+                        for (let i = e.resultIndex; i < e.results.length; i++) {
                             const result = e.results[i];
                             if (result.isFinal) {
-                                finalText += result[0].transcript;
+                                newFinalText += result[0].transcript;
                             } else {
                                 interimText += result[0].transcript;
                             }
                         }
-                        const full = (finalText + interimText).trim();
+                        // Append any new finalized text to the confirmed (cross-restart) transcript
+                        if (newFinalText) {
+                            confirmedTranscriptRef.current = (confirmedTranscriptRef.current + ' ' + newFinalText).trim();
+                        }
+                        // Full display = everything confirmed so far + current interim
+                        const full = (confirmedTranscriptRef.current + ' ' + interimText).trim();
                         setTranscript(full || '');
                         latestTranscriptRef.current = full || '';
                     };

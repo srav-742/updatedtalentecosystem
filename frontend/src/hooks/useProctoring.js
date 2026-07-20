@@ -31,7 +31,7 @@ const BLOCKED_COMBOS = [
   { meta: true, key: "m" },
 ];
 
-export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
+export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePeriod = 3000 }) {
   const [violations, setViolations] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
@@ -39,6 +39,15 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
   const countRef = useRef(0);
   const lockedRef = useRef(false);
   const lastBlurTs = useRef(0); // debounce duplicate blur+visibility events
+  const activatedAtRef = useRef(0);
+
+  useEffect(() => {
+    if (isActive) {
+      activatedAtRef.current = Date.now();
+    } else {
+      activatedAtRef.current = 0;
+    }
+  }, [isActive]);
 
   // ── Force fullscreen ──────────────────────────────────────────────────
   const requestFullscreen = useCallback(() => {
@@ -51,82 +60,74 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
     }
   }, []);
 
-  // ── Lock exam UI (hard overlay) ───────────────────────────────────────
-  const lockExam = useCallback((msg) => {
+  // ── Lock session & show overlay ───────────────────────────────────────
+  const lockSession = useCallback((msg) => {
     lockedRef.current = true;
     setExamLocked(true);
     setWarningMessage(msg);
     setShowWarning(true);
   }, []);
 
-  const unlockExam = useCallback(() => {
+  // Candidate clicks "Return to Exam"
+  const unlockSession = useCallback(() => {
     lockedRef.current = false;
     setExamLocked(false);
     setShowWarning(false);
-    // Return to fullscreen when they come back
-    requestFullscreen();
-    // Refocus the window aggressively
+    requestFullscreen(); // Re-enter fullscreen on return
     window.focus();
-    document.documentElement.focus?.();
   }, [requestFullscreen]);
 
-  // ── Core violation recorder ───────────────────────────────────────────
+  // ── Record violation & handle thresholds ──────────────────────────────
   const recordViolation = useCallback(
     (type, detail) => {
-      if (!isActive) return;
-
-      // Debounce — blur + visibilitychange fire within ms of each other
+      // Debounce window blur if called right after tab switch or within 800ms
       const now = Date.now();
-      if (now - lastBlurTs.current < 500 &&
-        (type === "TAB_SWITCH" || type === "WINDOW_BLUR")) {
-        return; // duplicate event, skip
+      if ((type === "WINDOW_BLUR" || type === "TAB_SWITCH") && now - lastBlurTs.current < 800) {
+        return;
       }
-      lastBlurTs.current = now;
+      if (type === "WINDOW_BLUR" || type === "TAB_SWITCH") {
+        lastBlurTs.current = now;
+      }
 
-      countRef.current += 1;
-      const count = countRef.current;
+      const count = countRef.current + 1;
+      countRef.current = count;
 
-      const v = { type, detail, count, timestamp: new Date().toISOString() };
-      setViolations((prev) => [...prev, v]);
-      logViolation({ examId, userId, ...v });
+      const violation = {
+        type,
+        detail,
+        count,
+        timestamp: new Date().toISOString(),
+      };
 
-      lockExam(
-        `⛔ WARNING: ${detail}.\n\n` +
-        `Total warnings/flags logged: ${count}.\n\n` +
-        `Click "Return to Exam" to continue.`
-      );
+      setViolations((prev) => [...prev, violation]);
+      logViolation({ examId, userId, ...violation });
+
+      if (count === 1) {
+        lockSession(
+          `Warning (1/3): ${detail}.\n\nPlease stay on this page in fullscreen mode. Click "Return to Exam" to continue.`
+        );
+      } else if (count === 2) {
+        lockSession(
+          `FINAL WARNING (2/3): ${detail}.\n\nOne more violation will automatically submit your exam. Click "Return to Exam" to continue.`
+        );
+      } else if (count >= 3) {
+        lockSession(
+          `EXAM TERMINATED: You have exceeded the maximum allowed violations (3/3).\n\nYour exam is being automatically submitted.`
+        );
+        setTimeout(() => {
+          onAutoSubmit?.(count);
+        }, 3000);
+      }
     },
-    [isActive, examId, userId, lockExam, onAutoSubmit]
+    [examId, userId, lockSession, onAutoSubmit]
   );
 
-  // Re-enter fullscreen when user exits it
-  useEffect(() => {
-    if (!isActive) return;
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isActive && !lockedRef.current) {
-        // Give browser 300ms, then force back
-        setTimeout(() => {
-          if (!document.fullscreenElement) requestFullscreen();
-        }, 300);
-        recordViolation("FULLSCREEN_EXIT", "Exited fullscreen mode");
-      }
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
-    };
-  }, [isActive, requestFullscreen, recordViolation]);
-
-  // ── 1. Tab visibility (catches Ctrl+Tab, clicking other tab) ─────────
+  // ── 1. Tab visibility (catches switching tabs, minimizing window) ─────
   useEffect(() => {
     if (!isActive) return;
     const handler = () => {
       if (document.hidden) {
         recordViolation("TAB_SWITCH", "You switched to another tab");
-      } else {
-        // Tab is visible again — keep exam locked until they manually dismiss
       }
     };
     document.addEventListener("visibilitychange", handler);
@@ -137,11 +138,14 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit }) {
   useEffect(() => {
     if (!isActive) return;
     const handler = () => {
+      if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
+        return;
+      }
       recordViolation("WINDOW_BLUR", "You switched to another application or window");
     };
     window.addEventListener("blur", handler);
     return () => window.removeEventListener("blur", handler);
-  }, [isActive, recordViolation]);
+  }, [isActive, recordViolation, gracePeriod]);
 
   // ── 3. Keyboard shortcut blocking ─────────────────────────────────────
   useEffect(() => {

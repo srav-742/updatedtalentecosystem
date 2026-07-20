@@ -25,6 +25,9 @@ const uploadAudio = async (req, res) => {
         if (isWhisperInvalid && localTranscript && localTranscript.trim().length > 0) {
             console.log(`[STT] Whisper returned invalid/empty. Falling back to local transcript: "${localTranscript}"`);
             transcript = localTranscript.trim();
+        } else if (localTranscript && localTranscript.trim().length > (transcript || "").trim().length + 10 && localTranscript.trim().length > (transcript || "").trim().length * 1.3) {
+            console.log(`[STT] Local transcript has significantly more spoken content than Whisper. Using local transcript.`);
+            transcript = localTranscript.trim();
         }
 
         // Cleanup only if NOT in private_storage (regular uploads)

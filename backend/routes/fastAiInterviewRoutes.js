@@ -771,12 +771,62 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
             const path = require('path');
             const fs = require('fs-extra');
             const audioPath = path.resolve(req.file.path);
+            const { sessionId, interviewId, questionNumber, localTranscript } = req.body;
+            const targetSessionId = sessionId || interviewId;
 
-            // Optionally run transcription for logging/verification
             try {
                 const transcriptionService = require('../transcription_service');
                 const transcript = await transcriptionService.transcribeAudio(audioPath);
                 console.log(`[FAST-AUDIO-ASYNC] Background transcription: "${transcript}"`);
+
+                if (transcript && transcript.trim().length > 0 && targetSessionId) {
+                    const normalizedBg = transcript.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
+                    const invalidWhisperPhrases = [
+                        "thank you", "e ai", "legend by", "watching", "by subtitle", 
+                        "subtitles by", "english subtitles", "you", "e aí",
+                        "i am describing my technical experience and relevant skills for this specific role"
+                    ];
+                    const isBgInvalid = invalidWhisperPhrases.includes(normalizedBg);
+
+                    if (!isBgInvalid) {
+                        const session = await loadSession(targetSessionId);
+                        if (session) {
+                            const targetQNum = Number(questionNumber) || session.answerEvaluations?.length || 1;
+                            const targetEvalIndex = (session.answerEvaluations || []).findIndex(e => e.questionNumber === targetQNum);
+                            const existingEval = targetEvalIndex !== -1 ? session.answerEvaluations[targetEvalIndex] : null;
+                            const currentStoredAnswer = existingEval ? existingEval.answer : (localTranscript || "");
+
+                            // Rescue: If background transcript has more content or existing answer is short/empty
+                            if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || transcript.trim().length > currentStoredAnswer.trim().length + 5) {
+                                console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB with full STT transcript (${transcript.length} chars vs stored ${currentStoredAnswer.length} chars)`);
+                                
+                                if (existingEval) {
+                                    existingEval.answer = transcript.trim();
+                                }
+
+                                await saveSession(targetSessionId, session);
+
+                                // Update Application collection in MongoDB
+                                try {
+                                    const app = await Application.findOne({
+                                        userId: session.userId,
+                                        jobId: new mongoose.Types.ObjectId(session.jobId)
+                                    });
+                                    if (app && app.interviewAnswers && app.interviewAnswers.length > 0) {
+                                        const idx = app.interviewAnswers.findIndex(a => a.question === (existingEval?.question || app.interviewAnswers[targetQNum - 1]?.question));
+                                        if (idx !== -1) {
+                                            app.interviewAnswers[idx].answer = transcript.trim();
+                                            await app.save();
+                                            console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers updated for Q${targetQNum}`);
+                                        }
+                                    }
+                                } catch (dbErr) {
+                                    console.error("[FAST-RESCUE] DB update error:", dbErr.message);
+                                }
+                            }
+                        }
+                    }
+                }
             } catch (e) {
                 console.warn("[FAST-AUDIO-ASYNC] Background transcription failed:", e.message);
             }
