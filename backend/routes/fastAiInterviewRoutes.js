@@ -598,6 +598,21 @@ async function finalizeInterview(session, sessionId) {
             ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
             : 0;
 
+        // Fetch existing application to avoid overwriting fuller rescued answers
+        const existingApp = await Application.findOne({ userId: session.userId, jobId: session.jobId }).lean();
+        const finalAnswers = session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
+            const existing = existingApp?.interviewAnswers?.[idx];
+            const useExisting = existing?.answer && existing.answer.trim().length > (entry.answer || "").trim().length + 5;
+            
+            return {
+                question: entry.question || existing?.question || "",
+                answer: useExisting ? existing.answer : (entry.answer || ""),
+                score: useExisting && typeof existing.score === 'number' ? existing.score : (entry.score || 0),
+                marks: useExisting && typeof existing.marks === 'number' ? existing.marks : (entry.marks || 0),
+                feedback: useExisting && existing.feedback ? existing.feedback : (entry.feedback || "")
+            };
+        });
+
         // Update Application document
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
@@ -608,13 +623,7 @@ async function finalizeInterview(session, sessionId) {
                 metrics: {
                     ownershipMindset: ownershipScore
                 },
-                interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map(entry => ({
-                    question: entry.question,
-                    answer: entry.answer,
-                    score: entry.score,
-                    marks: entry.marks,
-                    feedback: entry.feedback
-                }))
+                interviewAnswers: finalAnswers
             },
             { upsert: true }
         );
@@ -790,17 +799,17 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
 
                     if (!isBgInvalid) {
                         const session = await loadSession(targetSessionId);
+                        const targetQNum = Number(questionNumber) || 1;
+                        const fullAnswer = transcript.trim();
+
                         if (session) {
-                            const targetQNum = Number(questionNumber) || session.answerEvaluations?.length || 1;
                             const targetEvalIndex = (session.answerEvaluations || []).findIndex(e => e.questionNumber === targetQNum);
                             const existingEval = targetEvalIndex !== -1 ? session.answerEvaluations[targetEvalIndex] : null;
                             const currentStoredAnswer = existingEval ? existingEval.answer : (localTranscript || "");
 
                             // Rescue: If background transcript has more content or existing answer is short/empty
-                            if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || transcript.trim().length > currentStoredAnswer.trim().length + 5) {
-                                console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB with full STT transcript (${transcript.length} chars vs stored ${currentStoredAnswer.length} chars)`);
-                                
-                                const fullAnswer = transcript.trim();
+                            if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || fullAnswer.length > currentStoredAnswer.trim().length + 5) {
+                                console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB session with full STT transcript (${fullAnswer.length} chars vs stored ${currentStoredAnswer.length} chars)`);
                                 
                                 // Re-evaluate score with full answer
                                 const heuristic = scoreInterviewAnswer({
@@ -851,6 +860,38 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                                 } catch (dbErr) {
                                     console.error("[FAST-RESCUE] DB update error:", dbErr.message);
                                 }
+                            }
+                        } else if (targetSessionId) {
+                            // Direct Rescue Fallback: If session was deleted upon finalization, update Application directly
+                            try {
+                                const app = await Application.findOne({
+                                    $or: [
+                                        { recordingSessionId: targetSessionId },
+                                        ...(mongoose.Types.ObjectId.isValid(targetSessionId) ? [{ _id: targetSessionId }] : [])
+                                    ]
+                                });
+                                if (app && app.interviewAnswers && app.interviewAnswers.length >= targetQNum) {
+                                    const idx = targetQNum - 1;
+                                    const currentAppAnswer = app.interviewAnswers[idx]?.answer || "";
+                                    if (!currentAppAnswer || currentAppAnswer.trim().length < 5 || fullAnswer.length > currentAppAnswer.trim().length + 5) {
+                                        console.log(`[FAST-RESCUE-DIRECT] Upgrading finalized Application Q${targetQNum} answer (${fullAnswer.length} chars)`);
+                                        const heuristic = scoreInterviewAnswer({
+                                            questionText: app.interviewAnswers[idx]?.question || "",
+                                            answerText: fullAnswer,
+                                            jobSkills: [],
+                                            jobDescription: ""
+                                        });
+
+                                        app.interviewAnswers[idx].answer = fullAnswer;
+                                        app.interviewAnswers[idx].score = heuristic.score;
+                                        app.interviewAnswers[idx].marks = heuristic.marks;
+                                        app.interviewAnswers[idx].feedback = heuristic.feedback;
+                                        await app.save();
+                                        console.log(`[FAST-RESCUE-DIRECT] MongoDB Application updated directly for Q${targetQNum}`);
+                                    }
+                                }
+                            } catch (directErr) {
+                                console.error("[FAST-RESCUE-DIRECT] DB update error:", directErr.message);
                             }
                         }
                     }

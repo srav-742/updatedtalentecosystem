@@ -495,21 +495,56 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     // Capture current question number and transcript before submitting
                     const capturedQNum = currentQNum;
                     const localTranscriptText = latestTranscriptRef.current || "";
+                    let finalAnswerText = localTranscriptText;
 
-                    // ── FAST PATH: Submit answer immediately using local transcript ──
-                    await submitUserAnswer(localTranscriptText);
+                    const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('interviewId', sessionId);
+                    formData.append('sessionId', sessionId);
+                    formData.append('questionNumber', capturedQNum);
+                    formData.append('audio', blob, 'answer.wav');
+                    formData.append('localTranscript', localTranscriptText);
 
-                    // ── ASYNC BACKGROUND: Upload audio for archival/proctoring & transcript rescue ──
+                    // ── 1. SERVER STT (Whisper / ElevenLabs) for Complete Transcript ──
                     try {
-                        const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-                        const formData = new FormData();
-                        formData.append('interviewId', sessionId);
-                        formData.append('sessionId', sessionId);
-                        formData.append('questionNumber', capturedQNum);
-                        formData.append('audio', blob, 'answer.wav');
-                        formData.append('localTranscript', localTranscriptText);
+                        const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
+                        if (trRes.data?.text) {
+                            const whisperText = trRes.data.text.trim();
+                            const normalizedWhisper = whisperText.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
+                            
+                            const invalidWhisperPhrases = [
+                                "thank you", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí",
+                                "i am describing my technical experience and relevant skills for this specific role"
+                            ];
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
 
-                        // Fire-and-forget: does NOT block the UI
+                            if (!isWhisperInvalid) {
+                                // Keep local transcript only if it has significantly more text content
+                                if (localTranscriptText && localTranscriptText.trim().length > whisperText.length + 15 && localTranscriptText.trim().length > whisperText.length * 1.3) {
+                                    console.log("[FAST] Preserving local transcript (contains more spoken text):", { local: localTranscriptText, whisper: whisperText });
+                                    finalAnswerText = localTranscriptText;
+                                } else {
+                                    finalAnswerText = whisperText;
+                                }
+                            } else {
+                                console.log("[FAST] Whisper STT result invalid or hallucinated. Using local transcript:", localTranscriptText);
+                            }
+                        }
+                    } catch (sttErr) {
+                        console.warn("[FAST] Audio STT upload failed, falling back to local transcript:", sttErr.message);
+                    }
+
+                    if (finalAnswerText) {
+                        setTranscript(finalAnswerText);
+                        latestTranscriptRef.current = finalAnswerText;
+                    }
+
+                    // ── 2. SUBMIT COMPLETE ANSWER TO /next-fast ──
+                    await submitUserAnswer(finalAnswerText);
+
+                    // ── 3. ASYNC BACKGROUND: Archival / proctoring audio upload ──
+                    try {
                         axios.post(`${API_URL}/interview/upload-audio-async`, formData).catch(bgErr => {
                             console.warn("[FAST] Background audio upload failed:", bgErr);
                         });
