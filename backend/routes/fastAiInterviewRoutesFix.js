@@ -975,6 +975,21 @@ async function finalizeInterview(session, sessionId) {
             ? Math.round((session.answerEvaluations.reduce((sum, e) => sum + (typeof e.marks === 'number' ? e.marks : 0), 0) / (session.answerEvaluations.length * 10)) * 70)
             : Math.round(evaluation.score * 0.70);
 
+        // Fetch existing application to avoid overwriting fuller rescued answers
+        const existingApp = await Application.findOne({ userId: session.userId, jobId: session.jobId }).lean();
+        const finalAnswers = session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
+            const existing = existingApp?.interviewAnswers?.[idx];
+            const useExisting = existing?.answer && existing.answer.trim().length > (entry.answer || "").trim().length + 5;
+            
+            return {
+                question: entry.question || existing?.question || "",
+                answer: useExisting ? existing.answer : (entry.answer || ""),
+                score: useExisting && typeof existing.score === 'number' ? existing.score : (entry.score || 0),
+                marks: useExisting && typeof existing.marks === 'number' ? existing.marks : (entry.marks || 0),
+                feedback: useExisting && existing.feedback ? existing.feedback : (entry.feedback || "")
+            };
+        });
+
         // Update Application document
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
@@ -985,13 +1000,7 @@ async function finalizeInterview(session, sessionId) {
                 metrics: {
                     ownershipMindset: ownershipScore
                 },
-                interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map(entry => ({
-                    question: entry.question,
-                    answer: entry.answer,
-                    score: entry.score,
-                    marks: entry.marks,
-                    feedback: entry.feedback
-                }))
+                interviewAnswers: finalAnswers
             },
             { upsert: true }
         );
