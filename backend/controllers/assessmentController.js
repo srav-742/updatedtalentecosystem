@@ -98,16 +98,8 @@ NO extra text, explanations, or markdown.
         }
 
         // ✅ Robust JSON Extraction
-        let parsed;
-        try {
-            let cleanedResponse = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            const firstBrace = cleanedResponse.indexOf('{');
-            const lastBrace = cleanedResponse.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
-            }
-            parsed = JSON.parse(cleanedResponse);
-        } catch (e) {
+        const parsed = safeParseAIJson(rawResponse, null);
+        if (!parsed) {
             console.error("[ASSESSMENT JSON PARSE FAILED]:", rawResponse.substring(0, 500));
             return res.status(503).json({ message: "AI returned invalid JSON formatting." });
         }

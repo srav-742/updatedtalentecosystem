@@ -2,6 +2,7 @@ const ContentPost = require("../models/contentPost");
 const { fetchNews } = require("../services/newsService");
 const { fetchHackerNews } = require("../services/hackerNewsService");
 const { generateAIContent } = require("../services/aiService");
+const { safeParseAIJson } = require("../utils/aiClients");
 
 // Core logic that can be reused by cron jobs
 exports.generateContentLogic = async () => {
@@ -126,14 +127,8 @@ Return the Job Description as a structured JSON object:
 Return ONLY the JSON. No markdown.
 `;
         const raw = await generateAIContent(prompt);
-        // Basic parser for AI output
-        let jd;
-        try {
-            let cleaned = raw.replace(/```json/g, "").replace(/```/g, "").trim();
-            jd = JSON.parse(cleaned);
-        } catch (e) {
-            jd = { title: "New Role", responsibilities: [raw], skills: [], about: "" };
-        }
+        const fallbackObj = { title: "New Role", responsibilities: [raw], skills: [], about: "" };
+        const jd = safeParseAIJson(raw, fallbackObj);
         res.json(jd);
     } catch (err) {
         res.status(500).json({ error: "Failed to generate JD", details: err.message });

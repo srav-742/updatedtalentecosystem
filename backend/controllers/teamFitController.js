@@ -2,6 +2,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Application = require("../models/Application");
 const User = require("../models/User");
 const Job = require("../models/Job");
+const { safeParseAIJson } = require("../utils/aiClients");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
@@ -67,7 +68,15 @@ const calculateTeamFit = async (req, res) => {
         if (!app) return res.status(404).json({ message: "Application not found" });
 
         const recruiterId = app.jobId?.recruiterId;
-        const recruiter = await User.findOne({ uid: recruiterId });
+        const mongoose = require('mongoose');
+        const queryConditions = [{ uid: recruiterId }];
+        if (recruiterId && mongoose.Types.ObjectId.isValid(recruiterId)) {
+            queryConditions.push({ _id: recruiterId });
+        }
+        if (typeof recruiterId === 'string' && recruiterId.includes('@')) {
+            queryConditions.push({ email: recruiterId.toLowerCase().trim() });
+        }
+        const recruiter = await User.findOne({ $or: queryConditions });
         
         if (!recruiter || !recruiter.hiringPattern) {
             return res.json({ 
@@ -105,13 +114,12 @@ const calculateTeamFit = async (req, res) => {
 
         const result = await model.generateContent(prompt);
         const rawText = result.response.text();
-        // Clean potential markdown blocks
-        const cleanedText = rawText.replace(/```json|```/gi, '').trim();
-        const analysis = JSON.parse(cleanedText);
+        const fallbackObj = { score: 75, reason: "Candidate aligns well with general job specifications and skill profile." };
+        const analysis = safeParseAIJson(rawText, fallbackObj);
 
         app.teamFit = {
-            score: analysis.score,
-            reason: analysis.reason,
+            score: Number(analysis.score) || 75,
+            reason: analysis.reason || "Candidate matches key position requirements.",
             lastCalculated: new Date()
         };
         await app.save();

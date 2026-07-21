@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require("uuid");
 const agentConfigs = require("../config/agentConfigs");
 const sessionManager = require("../services/sessionManager");
 const { generateSpeech } = require("../services/tts.service");
-const { callInterviewAI } = require("../utils/aiClients");
+const { callInterviewAI, safeParseAIJson } = require("../utils/aiClients");
 const pdfParse = require("pdf-parse");
 
 // Mapping of agent roles to suitable podcast-host/conversational voices
@@ -101,7 +101,7 @@ async function startSession(req, res) {
       try {
         const jsonText = await callInterviewAI(resumePrompt, 1000, true);
         if (jsonText) {
-          parsedResumeData = JSON.parse(cleanJson(jsonText));
+          parsedResumeData = safeParseAIJson(jsonText, null);
         }
       } catch (err) {
         console.warn("Failed to analyze resume with AI:", err.message);
@@ -171,8 +171,8 @@ STRICT RULES:
       rawText = await callInterviewAI("Start the interview.", 1000, true, systemPrompt);
       if (!rawText) throw new Error("No response from AI providers");
 
-      const cleaned = cleanJson(rawText);
-      jsonResponse = JSON.parse(cleaned);
+      jsonResponse = safeParseAIJson(rawText, null) || {};
+      if (!jsonResponse.question) throw new Error("Parsed JSON missing question field");
     } catch(err) {
       console.warn("Start session AI failure:", err.message);
       const questionMatch = rawText && rawText.match(/"question":\s*"([^"]+)"/);
@@ -286,12 +286,12 @@ STRICT RULES:
       
       if (!rawText) throw new Error("No response from AI providers");
 
-      const cleaned = cleanJson(rawText);
-      jsonResponse = JSON.parse(cleaned);
+      jsonResponse = safeParseAIJson(rawText, null) || {};
       
       if (!jsonResponse.question && jsonResponse.evaluation?.next_focus) {
           jsonResponse.question = jsonResponse.evaluation.next_focus;
       }
+      if (!jsonResponse.question) throw new Error("Parsed JSON missing question field");
     } catch(err) {
       console.warn("Respond AI failure (Using Adaptive Fallbacks):", err.message);
       
@@ -392,7 +392,7 @@ Rubric categories to use: ${JSON.stringify(config.evaluationRubric)}`;
     try {
       const evalResult = await callInterviewAI(prompt, 2000, true, config.systemPrompt);
       if (evalResult) {
-        evalData = JSON.parse(cleanJson(evalResult));
+        evalData = safeParseAIJson(evalResult, null);
       }
     } catch (aiErr) {
       console.warn("AI Evaluation failed, using local fallback calculation:", aiErr.message);

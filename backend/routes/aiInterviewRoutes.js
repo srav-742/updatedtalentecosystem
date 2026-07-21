@@ -793,21 +793,10 @@ function stripMarkdownJson(rawText = '') {
         .trim();
 }
 
-function parseJsonObject(rawText = '') {
-    const cleaned = stripMarkdownJson(rawText);
-    if (!cleaned) return null;
+const { safeParseAIJson } = require('../utils/aiClients');
 
-    try {
-        return JSON.parse(cleaned);
-    } catch (_) {
-        const match = cleaned.match(/\{[\s\S]*\}/);
-        if (!match) return null;
-        try {
-            return JSON.parse(match[0]);
-        } catch (_) {
-            return null;
-        }
-    }
+function parseJsonObject(rawText = '') {
+    return safeParseAIJson(rawText, null);
 }
 
 function normalizeAiEvaluation(parsed, heuristic) {

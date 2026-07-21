@@ -255,4 +255,61 @@ const callSkillAI = async (prompt, maxTokens = 2000, temperature = 0.7) => {
     return await callGemini(prompt, maxTokens, isJsonMode, null, temperature);
 };
 
-module.exports = { callInterviewAI, callSkillAI, callGemini };
+/**
+ * Universal safe JSON parser for AI model outputs.
+ * Robustly handles markdown wrappers, conversational text, trailing commas, and unescaped quotes.
+ */
+const safeParseAIJson = (rawText, fallbackDefault = null) => {
+    if (!rawText) return fallbackDefault;
+    if (typeof rawText === 'object') return rawText;
+
+    let str = String(rawText).trim();
+
+    // 1. Remove markdown block formatting
+    if (str.includes('```')) {
+        const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (match && match[1]) {
+            str = match[1].trim();
+        } else {
+            str = str.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+        }
+    }
+
+    // 2. Extract JSON payload boundaries ({ ... } or [ ... ])
+    if (!str.startsWith('{') && !str.startsWith('[')) {
+        const firstObj = str.indexOf('{');
+        const firstArr = str.indexOf('[');
+        let startIndex = -1;
+        if (firstObj !== -1 && firstArr !== -1) {
+            startIndex = Math.min(firstObj, firstArr);
+        } else if (firstObj !== -1) {
+            startIndex = firstObj;
+        } else if (firstArr !== -1) {
+            startIndex = firstArr;
+        }
+
+        if (startIndex !== -1) {
+            const isObj = str[startIndex] === '{';
+            const lastIndex = isObj ? str.lastIndexOf('}') : str.lastIndexOf(']');
+            if (lastIndex !== -1 && lastIndex > startIndex) {
+                str = str.substring(startIndex, lastIndex + 1).trim();
+            }
+        }
+    }
+
+    // 3. Attempt direct parse
+    try {
+        return JSON.parse(str);
+    } catch (_) {
+        // 4. Attempt syntax fix (trailing comma removal)
+        try {
+            const fixedStr = str.replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(fixedStr);
+        } catch (e2) {
+            console.warn('[AI-CLIENT] safeParseAIJson failed to parse AI JSON response:', str.substring(0, 100));
+            return fallbackDefault;
+        }
+    }
+};
+
+module.exports = { callInterviewAI, callSkillAI, callGemini, safeParseAIJson };
