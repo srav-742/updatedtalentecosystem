@@ -141,7 +141,15 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
       if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
         return;
       }
-      recordViolation("WINDOW_BLUR", "You switched to another application or window");
+      setTimeout(() => {
+        if (!document.hidden && document.hasFocus()) {
+          return;
+        }
+        if (document.hidden) {
+          return; // Handled by visibilitychange as TAB_SWITCH
+        }
+        recordViolation("WINDOW_BLUR", "You switched to another application or window");
+      }, 350);
     };
     window.addEventListener("blur", handler);
     return () => window.removeEventListener("blur", handler);

@@ -732,8 +732,8 @@ const Applicants = () => {
                                                  </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Trust Score: ${app.proctoringScore}/100 | Raw Penalty Points: ${app.integrityPenalty || 0}`}>
-                                                             <span>{app.proctoringScore}/100</span>
+                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Raw Penalty Points: ${app.integrityPenalty || 0}`}>
+                                                             <span>{app.integrityPenalty ?? app.proctoringScore ?? 0}</span>
                                                              <button
                                                                  onClick={(e) => {
                                                                      e.stopPropagation();

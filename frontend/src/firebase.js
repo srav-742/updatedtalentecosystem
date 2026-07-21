@@ -162,9 +162,10 @@ export const getAuthHeaders = async () => {
     if (storedUserStr) {
         try {
             const storedUser = JSON.parse(storedUserStr);
-            if (storedUser && storedUser.uid) {
-                console.log("[AUTH-HEADERS] Using local storage user identification:", storedUser.uid);
-                headers['x-user-id'] = storedUser.uid;
+            const fallbackUserId = storedUser?.uid || storedUser?._id || storedUser?.id;
+            if (fallbackUserId) {
+                console.log("[AUTH-HEADERS] Using local storage user identification:", fallbackUserId);
+                headers['x-user-id'] = fallbackUserId;
 
                 // Add Authorization header using stored JWT if it exists!
                 const localAccessToken = localStorage.getItem('accessToken');

@@ -182,16 +182,22 @@ const getRecruiterApplications = async (req, res) => {
             const UnlockedApplicant = require('../models/UnlockedApplicant');
             const unlockedRecords = await UnlockedApplicant.find({ recruiterId: reqUser._id }).lean();
             unlockedRecords.forEach(r => {
-                unlockedAppMap.set(r.applicationId.toString(), r.unlockedItems || []);
+                if (r && r.applicationId) {
+                    unlockedAppMap.set(r.applicationId.toString(), r.unlockedItems || []);
+                }
             });
         }
 
         const appsWithScore = apps.map((app, index) => {
-            const rawPenalty = applicationPenaltyMap[key] !== undefined ? applicationPenaltyMap[key] : (applicationPenaltyMap[app.userId] || 0);
+            const jobIdStr = app.jobId?._id?.toString() || app.jobId?.toString();
+            const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
+            const rawPenalty = applicationPenaltyMap[appKey] !== undefined 
+                ? applicationPenaltyMap[appKey] 
+                : (applicationPenaltyMap[app.userId] || 0);
             app.integrityPenalty = rawPenalty;
-            app.proctoringScore = Math.max(0, 100 - Math.round(rawPenalty * 2.5));
+            app.proctoringScore = rawPenalty;
             
-            const flags = applicationFlagsMap[key] || applicationFlagsMap[app.userId];
+            const flags = applicationFlagsMap[appKey] || applicationFlagsMap[app.userId];
             app.proctoringFlags = flags ? Array.from(flags) : [];
             
             let isResumeLocked = true;

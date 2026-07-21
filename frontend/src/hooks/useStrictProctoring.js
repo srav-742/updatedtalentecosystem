@@ -216,10 +216,9 @@ export function useStrictProctoring({
       setTimeout(() => {
         if (!document.fullscreenElement && !resetTriggeredRef.current) {
           requestFullscreen();
+          triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
         }
-      }, 250);
-
-      triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
+      }, 400);
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -259,7 +258,17 @@ export function useStrictProctoring({
         return;
       }
 
-      triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
+      // Small delay to verify if candidate actually left the page/window or if focus remains on document
+      setTimeout(() => {
+        if (!document.hidden && document.hasFocus()) {
+          return; // Candidate is still focused on page elements
+        }
+        if (document.hidden) {
+          // Handled by visibilitychange as TAB_SWITCH
+          return;
+        }
+        triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
+      }, 350);
     };
 
     window.addEventListener("blur", handleBlur);

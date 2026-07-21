@@ -74,12 +74,16 @@ const getInterviewDetails = async (req, res) => {
         const { applicationId } = req.params;
 
         // 🔒 Pro recruiter validation check
-        const recruiterId = req.headers['x-user-id'];
+        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
         const User = require('../models/User');
-        const recruiter = await User.findOne({ uid: recruiterId });
+        const recruiterQuery = [{ uid: recruiterId }];
+        if (mongoose.Types.ObjectId.isValid(recruiterId)) {
+            recruiterQuery.push({ _id: recruiterId });
+        }
+        const recruiter = await User.findOne({ $or: recruiterQuery });
         if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
@@ -101,7 +105,7 @@ const getInterviewDetails = async (req, res) => {
 
             const UnlockedApplicant = require('../models/UnlockedApplicant');
             const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
-            const isUnlockedInterview = isUnlocked && isUnlocked.unlockedItems.includes('interview');
+            const isUnlockedInterview = isUnlocked && Array.isArray(isUnlocked.unlockedItems) && isUnlocked.unlockedItems.includes('interview');
 
             const isAdmin = recruiter.role === 'admin';
             if (!isAdmin && !isUnlockedInterview) {
@@ -148,7 +152,7 @@ const getInterviewDetails = async (req, res) => {
                 };
             });
 
-            application.interviewScore = averageInterviewScore(application.interviewAnswers);
+            application.interviewScore = Math.round(averageInterviewScore(application.interviewAnswers) * 0.70);
             await application.save();
         }
 
@@ -302,7 +306,7 @@ const getPublicInterviewDetails = async (req, res) => {
                 };
             });
 
-            application.interviewScore = averageInterviewScore(application.interviewAnswers);
+            application.interviewScore = Math.round(averageInterviewScore(application.interviewAnswers) * 0.70);
             await application.save();
         }
 
@@ -417,12 +421,16 @@ const getProctoringDetails = async (req, res) => {
         const { applicationId } = req.params;
 
         // 🔒 Verify recruiter/admin session
-        const recruiterId = req.headers['x-user-id'];
+        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Recruiter status required." });
         }
         const User = require('../models/User');
-        const recruiter = await User.findOne({ uid: recruiterId });
+        const recruiterQuery = [{ uid: recruiterId }];
+        if (mongoose.Types.ObjectId.isValid(recruiterId)) {
+            recruiterQuery.push({ _id: recruiterId });
+        }
+        const recruiter = await User.findOne({ $or: recruiterQuery });
         if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Recruiter status required." });
         }
