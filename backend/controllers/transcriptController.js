@@ -27,6 +27,44 @@ const sanitizeViolationDetail = (type, detail, rating) => {
     return cleanDetail;
 };
 
+const calculateCandidateScores = (app, assessmentSubmission) => {
+    let dynInterview = app.interviewScore || 0;
+    const answers = app.interviewAnswers || [];
+
+    if (answers.length > 0) {
+        const validMarks = answers.filter(q => typeof q.marks === 'number' && !isNaN(q.marks));
+        if (validMarks.length > 0) {
+            const totalMarks = validMarks.reduce((s, q) => s + q.marks, 0);
+            const maxPossible = answers.length * 10;
+            if (maxPossible > 0) {
+                dynInterview = Math.round((totalMarks / maxPossible) * 70);
+            }
+        } else {
+            const validScores = answers.filter(q => typeof q.score === 'number' && !isNaN(q.score));
+            if (validScores.length > 0) {
+                const avgScore = validScores.reduce((s, q) => s + q.score, 0) / validScores.length;
+                dynInterview = Math.round((avgScore > 1 ? avgScore / 100 : avgScore) * 70);
+            }
+        }
+    }
+
+    const dynResume = app.resumeMatchPercent || 0;
+    
+    let dynAssessment = app.assessmentScore || 0;
+    if (assessmentSubmission && assessmentSubmission.totalQuestions > 0) {
+        dynAssessment = Math.round((assessmentSubmission.correctAnswers / assessmentSubmission.totalQuestions) * 20);
+    }
+
+    const computedFinalScore = dynResume + dynAssessment + dynInterview;
+
+    return {
+        resumeScore: dynResume,
+        assessmentScore: dynAssessment,
+        interviewScore: dynInterview,
+        finalScore: computedFinalScore
+    };
+};
+
 /**
  * GET /api/transcripts/:applicationId
  * Returns a fully aggregated candidate evaluation transcript for admin view.
@@ -144,6 +182,17 @@ const getTranscript = async (req, res) => {
             }
         }
 
+        // Unified score calculation
+        const scoreData = calculateCandidateScores(application, assessment);
+
+        // Auto-heal DB if stored scores were out-of-sync
+        if (application.finalScore !== scoreData.finalScore || application.interviewScore !== scoreData.interviewScore) {
+            Application.updateOne(
+                { _id: application._id },
+                { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
+            ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL] Error updating DB:', err));
+        }
+
         // 7. Build the unified transcript
         const transcript = {
             generatedAt: new Date().toISOString(),
@@ -196,7 +245,7 @@ const getTranscript = async (req, res) => {
                 } : null,
             },
             assessment: assessment ? {
-                score: assessment.score || 0,
+                score: scoreData.assessmentScore,
                 totalQuestions: assessment.totalQuestions || 0,
                 correctAnswers: assessment.correctAnswers || 0,
                 submittedAt: assessment.submittedAt,
@@ -211,7 +260,7 @@ const getTranscript = async (req, res) => {
                 })),
             } : null,
             interview: {
-                score: application.interviewScore || null,
+                score: scoreData.interviewScore,
                 totalQuestions: application.interviewAnswers?.length || 0,
                 completedAt: application.updatedAt || null,
                 questions: (application.interviewAnswers || []).map((q, idx) => ({
@@ -227,10 +276,10 @@ const getTranscript = async (req, res) => {
                 proctoringReport: proctoringReport || null,
             },
             scores: {
-                resumeMatch: application.resumeMatchPercent || null,
-                assessmentScore: application.assessmentScore || null,
-                interviewScore: application.interviewScore || null,
-                finalScore: application.finalScore || null,
+                resumeMatch: scoreData.resumeScore,
+                assessmentScore: scoreData.assessmentScore,
+                interviewScore: scoreData.interviewScore,
+                finalScore: scoreData.finalScore,
                 ownershipScore: application.metrics?.ownershipMindset || null,
                 teamFitScore: application.teamFit?.score || null,
             },
@@ -303,16 +352,26 @@ const getJobCandidates = async (req, res) => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
             const rawPenalty = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
             const proctoringScore = rawPenalty;
-            
+
+            // Compute live accurate scores using unified score calculator
+            const scoreData = calculateCandidateScores(app, null);
+
+            // Auto-heal DB document if out-of-sync
+            if (app.finalScore !== scoreData.finalScore || app.interviewScore !== scoreData.interviewScore) {
+                Application.updateOne(
+                    { _id: app._id },
+                    { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
+                ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL-LIST] Error updating DB:', err));
+            }
             return {
                 applicationId: app._id,
                 name: app.applicantName || 'Unknown',
                 email: app.applicantEmail || '',
                 profilePic: app.applicantPic || null,
-                resumeScore: app.resumeMatchPercent || null,
-                assessmentScore: app.assessmentScore || null,
-                interviewScore: app.interviewScore || null,
-                finalScore: app.finalScore || null,
+                resumeScore: scoreData.resumeScore,
+                assessmentScore: scoreData.assessmentScore,
+                interviewScore: scoreData.interviewScore,
+                finalScore: scoreData.finalScore,
                 proctoringScore,
                 integrityPenalty: rawPenalty,
                 status: app.status,

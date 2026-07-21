@@ -1088,12 +1088,14 @@ router.post('/next', async (req, res) => {
             const ownershipScore = ownershipEvals.length > 0 
                 ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
                 : 0;
-            // ─────────────────────────────────────────────────────────────────────
+            const computedInterviewScore = session.answerEvaluations && session.answerEvaluations.length > 0
+                ? Math.round((session.answerEvaluations.reduce((sum, e) => sum + (typeof e.marks === 'number' ? e.marks : 0), 0) / (session.answerEvaluations.length * 10)) * 70)
+                : Math.round(evaluation.score * 0.70);
 
             await Application.findOneAndUpdate(
                 { userId: session.userId, jobId: session.jobId },
                 {
-                    interviewScore: Math.round(evaluation.score * 0.70),
+                    interviewScore: computedInterviewScore,
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
                     // ─── OWNERSHIP VETTING SCORE LOGIC: Persistence ──────────────────
@@ -1117,28 +1119,9 @@ router.post('/next', async (req, res) => {
             if (app) {
                 const r = Number(app.resumeMatchPercent || 0);
                 const a = Number(app.assessmentScore || 0);
-                const i = Number(app.interviewScore || 0);
+                const i = Number(app.interviewScore || computedInterviewScore || 0);
 
-                let totalScore = 0;
-                let numModules = 0;
-                const job = app.jobId;
-
-                if (job) {
-                    if (job.resumeAnalysis && job.resumeAnalysis.enabled) {
-                        totalScore += r;
-                        numModules++;
-                    }
-                    if (job.assessment && job.assessment.enabled) {
-                        totalScore += a;
-                        numModules++;
-                    }
-                    if (job.mockInterview && job.mockInterview.enabled) {
-                        totalScore += i;
-                        numModules++;
-                    }
-                }
-
-                // Final Score is simply the sum of all components (max 20 + 30 + 50 = 100)
+                app.interviewScore = i;
                 app.finalScore = r + a + i;
 
                 if (app.finalScore >= 55) app.status = 'SHORTLISTED';

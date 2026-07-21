@@ -971,11 +971,15 @@ async function finalizeInterview(session, sessionId) {
             ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
             : 0;
 
+        const computedInterviewScore = session.answerEvaluations && session.answerEvaluations.length > 0
+            ? Math.round((session.answerEvaluations.reduce((sum, e) => sum + (typeof e.marks === 'number' ? e.marks : 0), 0) / (session.answerEvaluations.length * 10)) * 70)
+            : Math.round(evaluation.score * 0.70);
+
         // Update Application document
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
             {
-                interviewScore: Math.round(evaluation.score * 0.70),
+                interviewScore: computedInterviewScore,
                 status: 'APPLIED',
                 resultsVisibleAt: new Date(),
                 metrics: {
@@ -998,9 +1002,10 @@ async function finalizeInterview(session, sessionId) {
         if (app) {
             const r = Number(app.resumeMatchPercent || 0);
             const a = Number(app.assessmentScore || 0);
-            const i = Number(app.interviewScore || 0);
+            const i = Number(app.interviewScore || computedInterviewScore || 0);
             const job = app.jobId;
 
+            app.interviewScore = i;
             app.finalScore = r + a + i;
 
             // FIX: Only shortlist if interview score > 0 when interview module is enabled
