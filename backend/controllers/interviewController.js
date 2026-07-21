@@ -69,6 +69,8 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
     }
 });
 
+const { findRecruiterUser } = require('../utils/userResolver');
+
 const getInterviewDetails = async (req, res) => {
     try {
         const { applicationId } = req.params;
@@ -78,12 +80,7 @@ const getInterviewDetails = async (req, res) => {
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
-        const User = require('../models/User');
-        const recruiterQuery = [{ uid: recruiterId }];
-        if (mongoose.Types.ObjectId.isValid(recruiterId)) {
-            recruiterQuery.push({ _id: recruiterId });
-        }
-        const recruiter = await User.findOne({ $or: recruiterQuery });
+        const recruiter = await findRecruiterUser(recruiterId);
         if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
@@ -425,12 +422,7 @@ const getProctoringDetails = async (req, res) => {
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Recruiter status required." });
         }
-        const User = require('../models/User');
-        const recruiterQuery = [{ uid: recruiterId }];
-        if (mongoose.Types.ObjectId.isValid(recruiterId)) {
-            recruiterQuery.push({ _id: recruiterId });
-        }
-        const recruiter = await User.findOne({ $or: recruiterQuery });
+        const recruiter = await findRecruiterUser(recruiterId);
         if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Recruiter status required." });
         }

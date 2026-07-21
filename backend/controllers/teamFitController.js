@@ -3,6 +3,7 @@ const Application = require("../models/Application");
 const User = require("../models/User");
 const Job = require("../models/Job");
 const { safeParseAIJson } = require("../utils/aiClients");
+const { findRecruiterUser } = require("../utils/userResolver");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
@@ -68,15 +69,7 @@ const calculateTeamFit = async (req, res) => {
         if (!app) return res.status(404).json({ message: "Application not found" });
 
         const recruiterId = app.jobId?.recruiterId;
-        const mongoose = require('mongoose');
-        const queryConditions = [{ uid: recruiterId }];
-        if (recruiterId && mongoose.Types.ObjectId.isValid(recruiterId)) {
-            queryConditions.push({ _id: recruiterId });
-        }
-        if (typeof recruiterId === 'string' && recruiterId.includes('@')) {
-            queryConditions.push({ email: recruiterId.toLowerCase().trim() });
-        }
-        const recruiter = await User.findOne({ $or: queryConditions });
+        const recruiter = await findRecruiterUser(recruiterId);
         
         if (!recruiter || !recruiter.hiringPattern) {
             return res.json({ 

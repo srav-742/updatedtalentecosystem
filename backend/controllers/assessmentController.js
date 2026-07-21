@@ -5,7 +5,8 @@ const QuestionLog = require('../models/QuestionLog');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { callSkillAI } = require('../utils/aiClients');
+const { callSkillAI, safeParseAIJson } = require('../utils/aiClients');
+const { findRecruiterUser } = require('../utils/userResolver');
 const { generateHash } = require('../utils/helpers');
 
 
@@ -302,11 +303,7 @@ const getAssessmentDetails = async (req, res) => {
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
-        const queryConditions = [{ uid: recruiterId }];
-        if (mongoose.Types.ObjectId.isValid(recruiterId)) {
-            queryConditions.push({ _id: recruiterId });
-        }
-        const recruiter = await User.findOne({ $or: queryConditions });
+        const recruiter = await findRecruiterUser(recruiterId);
         if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }

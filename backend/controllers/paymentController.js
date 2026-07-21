@@ -2,6 +2,7 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const { findRecruiterUser } = require('../utils/userResolver');
 
 // Initialize Razorpay Instance with environment variables
 const razorpay = new Razorpay({
@@ -24,14 +25,8 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // Validate user exists in DB (can be Mongo ID or Firebase UID)
-        let user = null;
-        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
-            user = await User.findById(userId);
-        }
-        if (!user) {
-            user = await User.findOne({ uid: userId });
-        }
+        // Validate user exists in DB (supports Mongo ID, Firebase UID, Email)
+        const user = await findRecruiterUser(userId);
 
         if (!user) {
             return res.status(404).json({ 
@@ -198,13 +193,7 @@ exports.getPaymentStatus = async (req, res) => {
     try {
         const { userId } = req.params;
 
-        let user = null;
-        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
-            user = await User.findById(userId);
-        }
-        if (!user) {
-            user = await User.findOne({ uid: userId });
-        }
+        const user = await findRecruiterUser(userId);
 
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
@@ -238,13 +227,7 @@ exports.getPaymentStatus = async (req, res) => {
 exports.getWalletBalance = async (req, res) => {
     try {
         const { userId } = req.params;
-        let user = null;
-        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
-            user = await User.findById(userId);
-        }
-        if (!user) {
-            user = await User.findOne({ uid: userId });
-        }
+        const user = await findRecruiterUser(userId);
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
         }
@@ -275,13 +258,7 @@ exports.createWalletTopupOrder = async (req, res) => {
                 message: "Amount and userId are required." 
             });
         }
-        let user = null;
-        if (typeof userId === 'string' && userId.length === 24 && /^[0-9a-fA-F]{24}$/.test(userId)) {
-            user = await User.findById(userId);
-        }
-        if (!user) {
-            user = await User.findOne({ uid: userId });
-        }
+        const user = await findRecruiterUser(userId);
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
         }
@@ -420,13 +397,7 @@ exports.unlockApplicant = async (req, res) => {
         }
 
         // Find recruiter
-        let recruiter = null;
-        if (typeof recruiterId === 'string' && recruiterId.length === 24 && /^[0-9a-fA-F]{24}$/.test(recruiterId)) {
-            recruiter = await User.findById(recruiterId);
-        }
-        if (!recruiter) {
-            recruiter = await User.findOne({ uid: recruiterId });
-        }
+        const recruiter = await findRecruiterUser(recruiterId);
         if (!recruiter) {
             return res.status(404).json({ success: false, message: "Recruiter user not found." });
         }
