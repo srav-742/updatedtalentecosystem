@@ -173,57 +173,80 @@ NO extra text, explanations, or markdown.
    =========================== */
 const submitAssessment = async (req, res) => {
     try {
-        const { jobId, userId, sessionId, questions, answers } = req.body;
+        const { jobId, userId, sessionId, questions, answers, terminated, terminationReason } = req.body;
 
-        if (!jobId || !userId || !sessionId || !Array.isArray(questions) || !Array.isArray(answers)) {
+        if (!jobId || !userId || !sessionId || !Array.isArray(questions)) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
+        const isTerminated = terminated === true || terminated === "true";
+        const safeAnswers = Array.isArray(answers) ? answers : [];
+
+        // Sanitize questions array
+        const sanitizedQuestions = questions.map(q => ({
+            type: (q.type || 'mcq').toLowerCase(),
+            skill: q.skill || 'General',
+            question: q.question || 'Untitled Question',
+            difficulty: q.difficulty || 'medium',
+            options: Array.isArray(q.options) ? q.options : [],
+            correctAnswer: q.correctAnswer,
+            starterCode: q.starterCode || ''
+        }));
+
         let correctCount = 0;
-        const processedAnswers = answers.map((ans, idx) => {
-            const question = questions[idx];
-            let isCorrect = false;
-            let score = 0;
+        const processedAnswers = [];
 
-            if (question.type === 'mcq') {
-                const correctOption = question.options[question.correctAnswer];
-                isCorrect = ans.userAnswer === correctOption;
-                score = isCorrect ? 1 : 0;
-                if (isCorrect) correctCount++;
-            } else if (question.type === 'coding') {
-                if (ans.userAnswer && ans.userAnswer.trim().length > 20) {
-                    isCorrect = true;
-                    score = 1;
-                    correctCount++;
+        if (!isTerminated) {
+            safeAnswers.forEach((ans, idx) => {
+                const question = sanitizedQuestions[idx];
+                if (!question) return;
+
+                let isCorrect = false;
+                let score = 0;
+
+                if (question.type === 'mcq') {
+                    const correctOptionIndex = typeof question.correctAnswer === 'number' ? question.correctAnswer : 0;
+                    const correctOption = Array.isArray(question.options) ? question.options[correctOptionIndex] : '';
+                    isCorrect = ans.userAnswer === correctOption;
+                    score = isCorrect ? 1 : 0;
+                    if (isCorrect) correctCount++;
+                } else if (question.type === 'coding') {
+                    if (ans.userAnswer && typeof ans.userAnswer === 'string' && ans.userAnswer.trim().length > 20) {
+                        isCorrect = true;
+                        score = 1;
+                        correctCount++;
+                    }
                 }
-            }
 
-            return {
-                questionId: question._id || null,
-                question: question.question,
-                questionType: question.type,
-                skill: question.skill || 'General',
-                userAnswer: ans.userAnswer,
-                correctAnswer: question.type === 'mcq' ? question.options[question.correctAnswer] : question.starterCode,
-                isCorrect,
-                score
-            };
-        });
+                processedAnswers.push({
+                    questionId: question._id || null,
+                    question: question.question,
+                    questionType: question.type,
+                    skill: question.skill,
+                    userAnswer: ans.userAnswer,
+                    correctAnswer: question.type === 'mcq' ? (Array.isArray(question.options) ? question.options[question.correctAnswer] : '') : (question.starterCode || '// Write your solution here'),
+                    isCorrect,
+                    score
+                });
+            });
+        }
 
-        const finalScore = Math.round((correctCount / questions.length) * 20);
+        const finalScore = isTerminated ? 0 : (sanitizedQuestions.length > 0 ? Math.round((correctCount / sanitizedQuestions.length) * 20) : 0);
 
         const submission = await AssessmentSubmission.create({
             jobId,
             userId,
             sessionId,
-            questions,
+            questions: sanitizedQuestions,
             answers: processedAnswers,
-            totalQuestions: questions.length,
-            correctAnswers: correctCount,
-            score: finalScore
+            totalQuestions: sanitizedQuestions.length,
+            correctAnswers: isTerminated ? 0 : correctCount,
+            score: finalScore,
+            terminated: isTerminated,
+            terminationReason: isTerminated ? (terminationReason || 'Assessment security limit exceeded') : undefined
         });
 
-        console.log(`[ASSESSMENT] ✅ Submission saved for user ${userId} - Score: ${finalScore}%`);
+        console.log(`[ASSESSMENT] ✅ Submission saved for user ${userId} - Score: ${finalScore}% (Terminated: ${isTerminated})`);
 
         // Update/Upsert the Application document
         let resolvedName;
@@ -282,8 +305,8 @@ const submitAssessment = async (req, res) => {
             success: true,
             submissionId: submission._id,
             score: finalScore,
-            totalQuestions: questions.length,
-            correctAnswers: correctCount
+            totalQuestions: sanitizedQuestions.length,
+            correctAnswers: isTerminated ? 0 : correctCount
         });
     } catch (error) {
         console.error("[SUBMIT ASSESSMENT ERROR]", error);

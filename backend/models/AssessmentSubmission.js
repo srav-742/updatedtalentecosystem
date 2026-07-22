@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
-    type: { type: String, enum: ['mcq', 'coding'], required: true },
-    skill: { type: String, required: true },
-    question: { type: String, required: true },
+    type: { type: String, enum: ['mcq', 'coding', 'MCQ', 'CODING'], required: true, default: 'mcq' },
+    skill: { type: String, required: true, default: 'General' },
+    question: { type: String, required: true, default: 'Untitled Question' },
     difficulty: { type: String, default: 'medium' },
     options: [String],
     correctAnswer: mongoose.Mixed,
@@ -12,8 +12,8 @@ const questionSchema = new mongoose.Schema({
 
 const answerSchema = new mongoose.Schema({
     questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'QuestionLog' },
-    question: { type: String, required: true },
-    questionType: { type: String, enum: ['mcq', 'coding'], required: true },
+    question: { type: String, required: true, default: 'Untitled Question' },
+    questionType: { type: String, enum: ['mcq', 'coding', 'MCQ', 'CODING'], required: true, default: 'mcq' },
     skill: String,
     userAnswer: mongoose.Mixed,
     correctAnswer: mongoose.Mixed,
@@ -31,6 +31,8 @@ const assessmentSubmissionSchema = new mongoose.Schema({
     totalQuestions: { type: Number, required: true },
     correctAnswers: { type: Number, default: 0 },
     score: { type: Number, required: true },
+    terminated: { type: Boolean, default: false },
+    terminationReason: { type: String },
     submittedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

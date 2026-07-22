@@ -28,6 +28,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
     const [score, setScore] = useState(null);
     const [error, setError] = useState(null);
     const [securityResetting, setSecurityResetting] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     const assessmentType = (job.assessment?.type || 'mcq').toUpperCase();
     const totalQuestions = questions.length || job.assessment?.totalQuestions || 5;
@@ -90,6 +91,8 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
     };
 
     const finishAssessment = async () => {
+        setSubmitting(true);
+        setError(null);
         let correct = 0;
         const formattedAnswers = [];
 
@@ -118,25 +121,25 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
         const finalScore = Math.round((correct / questions.length) * 20);
 
         try {
-            const submitRes = await axios.post(`${API_URL}/submit-assessment`, {
+            await axios.post(`${API_URL}/submit-assessment`, {
                 jobId: job._id,
                 userId: user.uid,
                 sessionId,
                 questions,
                 answers: formattedAnswers
             });
-
-            await axios.post(`${API_URL}/applications`, {
-                jobId: job._id,
-                userId: user.uid,
-                assessmentScore: finalScore,
-                assessmentSubmissionId: submitRes.data.submissionId
-            });
+            // Successfully submitted!
+            setScore(finalScore);
         } catch (submitError) {
-            console.warn('Assessment score save failed:', submitError);
+            console.error('Assessment submission failed:', submitError);
+            setError(
+                submitError.response?.data?.message ||
+                submitError.message ||
+                'Failed to save your assessment. Please check your connection and try again.'
+            );
+        } finally {
+            setSubmitting(false);
         }
-
-        setScore(finalScore);
     };
 
     const handleAssessmentSecurityReset = async (violation) => {
@@ -478,6 +481,13 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                         </div>
                     )}
 
+                    {error ? (
+                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 animate-pulse">
+                            <AlertCircle size={18} />
+                            {error}
+                        </div>
+                    ) : null}
+
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <div className="text-sm text-gray-500">
                             {question.type === 'mcq'
@@ -487,11 +497,20 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
 
                         <button
                             onClick={nextQuestion}
-                            disabled={!answers[currentQIndex]}
-                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${answers[currentQIndex] ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
+                            disabled={!answers[currentQIndex] || submitting}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${answers[currentQIndex] && !submitting ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
                         >
-                            {currentQIndex === questions.length - 1 ? 'Finish assessment' : 'Next question'}
-                            <ArrowRight size={18} />
+                            {submitting ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    {currentQIndex === questions.length - 1 ? 'Finish assessment' : 'Next question'}
+                                    <ArrowRight size={18} />
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
