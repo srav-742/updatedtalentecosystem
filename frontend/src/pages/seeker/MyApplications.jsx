@@ -62,12 +62,7 @@ const getTimeline = (status) => {
     ];
 };
 
-const Metric = ({ label, value }) => (
-    <div className="rounded-[1.5rem] border border-black/10 bg-[#fbf8f3] p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">{label}</p>
-        <p className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">{value}</p>
-    </div>
-);
+
 
 const TimelineRow = ({ step, isCurrent }) => (
     <div className="flex items-start gap-4">
@@ -165,23 +160,14 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                     </div>
                                 ) : (
                                     <div className="mt-5 space-y-4">
-                                        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-                                            <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
-                                                {timeline.map((step, index) => (
-                                                    <TimelineRow
-                                                        key={`${application._id}-${step.label}`}
-                                                        step={step}
-                                                        isCurrent={index === currentIndex}
-                                                    />
-                                                ))}
-                                            </div>
-
-                                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                                <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
-                                                <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
-                                                <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
-                                                <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
-                                            </div>
+                                        <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
+                                            {timeline.map((step, index) => (
+                                                <TimelineRow
+                                                    key={`${application._id}-${step.label}`}
+                                                    step={step}
+                                                    isCurrent={index === currentIndex}
+                                                />
+                                            ))}
                                         </div>
 
                                         {!application.interviewScore && application.jobId?.mockInterview?.enabled && (
