@@ -98,7 +98,7 @@ const handleStatusCallback = async (req, res) => {
  */
 const analyzeAllCandidates = async (req, res) => {
     try {
-        const users = await User.find({ role: 'seeker' });
+        const users = await User.find({ role: 'candidate' });
         const analysis = [];
 
         for (const user of users) {

@@ -13,15 +13,15 @@ const LoginPage = () => {
     const [role, setRole] = useState(() => {
         const params = new URLSearchParams(location.search);
         const roleParam = params.get('role');
-        if (roleParam === 'recruiter' || roleParam === 'seeker' || roleParam === 'admin') {
+        if (roleParam === 'recruiter' || roleParam === 'candidate' || roleParam === 'admin') {
             return roleParam;
         }
         
         const fromPath = location.state?.from?.pathname || '';
-        if (fromPath.startsWith('/seeker')) return 'seeker';
+        if (fromPath.startsWith('/candidate')) return 'candidate';
         if (fromPath.startsWith('/recruiter')) return 'recruiter';
         return null;
-    }); // 'recruiter', 'seeker', or 'admin'
+    }); // 'recruiter', 'candidate', or 'admin'
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -284,7 +284,7 @@ const LoginPage = () => {
             } else if (role === 'admin') {
                 navigate('/admin', { replace: true });
             } else {
-                navigate(role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker', { replace: true });
+                navigate(role === 'recruiter' ? '/recruiter/my-jobs' : '/candidate', { replace: true });
             }
         } catch (error) {
             console.error("[LOGIN-ERROR]", error);
@@ -321,7 +321,7 @@ const LoginPage = () => {
                 const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
                 // Mismatch = one is seeker and the other is staff
                 if (existingIsStaff !== targetIsStaff) {
-                    const friendlyExisting = existingProfile.role === 'seeker' ? 'Candidate' : 'Recruiter / Admin';
+                    const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
                     throw new Error(
                         `This Google account is registered as a "${existingProfile.role}". ` +
                         `Please go back and select "${friendlyExisting}" login.`
@@ -359,7 +359,7 @@ const LoginPage = () => {
             } else if (targetRole === 'recruiter') {
                 navigate('/recruiter/my-jobs', { replace: true });
             } else {
-                navigate('/seeker', { replace: true });
+                navigate('/candidate', { replace: true });
             }
 
             // Step 4: If it's a brand-new user, save their profile to the backend
@@ -612,7 +612,7 @@ const LoginPage = () => {
                     whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
 
-                    onClick={() => handleRoleSelect('seeker')}
+                    onClick={() => handleRoleSelect('candidate')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">

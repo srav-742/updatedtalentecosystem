@@ -90,9 +90,9 @@ const PublicJobDetails = () => {
         if (storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
-                if (parsedUser && parsedUser.uid && parsedUser.role === 'seeker') {
+                if (parsedUser && parsedUser.uid && (parsedUser.role === 'seeker' || parsedUser.role === 'candidate')) {
                     // Navigate directly to the application flow without prompt
-                    navigate(`/seeker/apply/${job._id}`);
+                    navigate(`/candidate/apply/${job._id}`);
                     return;
                 }
             } catch (e) {
@@ -100,9 +100,9 @@ const PublicJobDetails = () => {
             }
         }
 
-        // Navigate to login page with seeker role pre-selected and return URL to the application flow
-        navigate('/login?role=seeker', {
-            state: { from: { pathname: `/seeker/apply/${job._id}` } }
+        // Navigate to login page with candidate role pre-selected and return URL to the application flow
+        navigate('/login?role=candidate', {
+            state: { from: { pathname: `/candidate/apply/${job._id}` } }
         });
     };
 

@@ -107,11 +107,11 @@ function App() {
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
 
-        {/* Public Seeker Job Details — accessible without login */}
-        <Route path="/seeker/job/:id" element={<PublicJobDetails />} />
+        {/* Public Candidate Job Details — accessible without login */}
+        <Route path="/candidate/job/:id" element={<PublicJobDetails />} />
 
-        {/* Seeker Routes */}
-        <Route path="/seeker" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
+        {/* Candidate Routes */}
+        <Route path="/candidate" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
           <Route index element={<SeekerDashboard />} />
           <Route path="jobs" element={<BrowseJobs />} />
           <Route path="job/:id" element={<JobDetails />} />

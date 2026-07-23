@@ -32,8 +32,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['seeker', 'recruiter', 'admin'],
-      default: 'seeker',
+      enum: ['candidate', 'recruiter', 'admin'],
+      default: 'candidate',
       index: true,
     },
     tokenVersion: {

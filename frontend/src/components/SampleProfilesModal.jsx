@@ -56,7 +56,7 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
             const fetchSampleSeekers = async () => {
                 setLoading(true);
                 try {
-                    const res = await axios.get(`${API_URL}/sample-seekers`);
+                    const res = await axios.get(`${API_URL}/sample-candidates`);
                     // Filter out seekers with no data or private names if necessary
                     const validSeekers = res.data.filter(s => s.name && s.skills?.length > 0);
                     setRealSeekers(validSeekers);

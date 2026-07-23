@@ -199,7 +199,7 @@ const getAnalyticsData = async (req, res) => {
         const users = await User.find({}, 'name email role company designation skills phone isPro createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
-        const seekers = users.filter(u => u.role === 'seeker');
+        const seekers = users.filter(u => u.role === 'candidate');
         
         // Fetch ResumeProfiles in one batch for seekers to enrich their location and skills
         const seekerUids = seekers.map(u => u.uid).filter(Boolean);
@@ -296,7 +296,7 @@ const deleteUser = async (req, res) => {
         const user = await User.findById(userId);
         if (user) {
             if (user.role === 'recruiter') await Recruiter.deleteOne({ userId: user._id });
-            if (user.role === 'seeker') await Candidate.deleteOne({ userId: user._id });
+            if (user.role === 'candidate') await Candidate.deleteOne({ userId: user._id });
             await User.findByIdAndDelete(userId);
         }
         res.json({ message: "User deleted successfully" });
@@ -308,7 +308,7 @@ const deleteUser = async (req, res) => {
 
 const getSampleSeekers = async (req, res) => {
     try {
-        const seekers = await User.find({ role: 'seeker' }, '-password');
+        const seekers = await User.find({ role: 'candidate' }, '-password');
         res.json(seekers);
     } catch (error) {
         console.error("[GET-SAMPLE-SEEKERS] Error:", error);

@@ -14,7 +14,7 @@ const SignupPage = () => {
     const [role, setRole] = useState(() => {
         const queryParams = new URLSearchParams(location.search);
         return queryParams.get('role') || location.state?.role || null;
-    }); // 'recruiter' or 'seeker'
+    }); // 'recruiter' or 'candidate'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -76,7 +76,7 @@ const SignupPage = () => {
             } else {
                 setMessage({ type: 'success', text: "Account created successfully!" });
                 if (role === 'admin') navigate('/admin');
-                else navigate('/seeker');
+                else navigate('/candidate');
             }
 
         } catch (error) {
@@ -117,7 +117,7 @@ const SignupPage = () => {
                 const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
                 const targetIsStaff  = role === 'recruiter' || role === 'admin';
                 if (existingIsStaff !== targetIsStaff) {
-                    const friendlyExisting = existingProfile.role === 'seeker' ? 'Candidate' : 'Recruiter / Admin';
+                    const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
                     throw new Error(
                         `This email is already registered as a ${existingProfile.role}. ` +
                         `Please go to the Login page and select "${friendlyExisting}".`
@@ -150,7 +150,7 @@ const SignupPage = () => {
             } else {
                 setMessage({ type: 'success', text: "Account created! Logging in..." });
                 if (role === 'admin') navigate('/admin');
-                else navigate('/seeker');
+                else navigate('/candidate');
             }
 
         } catch (error) {
@@ -202,7 +202,7 @@ const SignupPage = () => {
                     whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
                     whileTap={{ scale: 0.98 }}
 
-                    onClick={() => handleRoleSelect('seeker')}
+                    onClick={() => handleRoleSelect('candidate')}
                     className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">

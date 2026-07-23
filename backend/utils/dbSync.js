@@ -36,7 +36,7 @@ const syncUserToProfile = async (userOrId) => {
                 { upsert: true, new: true }
             );
             console.log(`[dbSync] Successfully synced Recruiter profile for User ${user.email}`);
-        } else if (user.role === 'seeker') {
+        } else if (user.role === 'candidate') {
             // Seeker - Candidate Profile
             // Attempt to enrich with location from ResumeProfile
             const resumeProfile = await ResumeProfile.findOne({

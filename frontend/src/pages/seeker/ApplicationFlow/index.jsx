@@ -49,7 +49,7 @@ const ApplicationFlow = () => {
 
                 // Check for existing application to resume state
                 try {
-                    const appsRes = await axios.get(`${API_URL}/applications/seeker/${storedUser.uid || storedUser._id || storedUser.id}`);
+                    const appsRes = await axios.get(`${API_URL}/applications/candidate/${storedUser.uid || storedUser._id || storedUser.id}`);
                     const existingApp = appsRes.data.find(app => (app.jobId._id || app.jobId) === jobId);
 
                     if (existingApp) {

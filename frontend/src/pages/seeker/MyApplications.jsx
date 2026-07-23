@@ -225,7 +225,7 @@ const MyApplications = () => {
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`);
             return res.data;
         },
         enabled: !!userId

@@ -180,7 +180,7 @@ ${resumeText.substring(0, 7000)}
                 phone,
                 location,
                 uid: userId,
-                role: 'seeker',
+                role: 'candidate',
                 skills: flatSkills,
                 education: (parsedData.education || []).map(edu => ({
                     institution: edu.institution || '',

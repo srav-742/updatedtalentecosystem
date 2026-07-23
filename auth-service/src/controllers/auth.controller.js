@@ -391,7 +391,7 @@ export const signupCandidate = async (req, res, next) => {
       throw ApiError.badRequest('This email is already registered.', ERROR_CODES.AUTH_006);
     }
 
-    const candidateRole = await getOrCreateRoleAndPermissions('seeker', []);
+    const candidateRole = await getOrCreateRoleAndPermissions('candidate', []);
 
     const hashedPassword = await passwordService.hashPassword(password);
 
@@ -399,7 +399,7 @@ export const signupCandidate = async (req, res, next) => {
       email,
       password: hashedPassword,
       name,
-      role: 'seeker',
+      role: 'candidate',
       roleRef: candidateRole._id,
       isActive: true,
       profilePic: profilePic || '',
@@ -441,7 +441,7 @@ export const forgotPassword = async (req, res, next) => {
   try {
     const { email, role } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
-    const dbRole = role === 'candidate' ? 'seeker' : role;
+    const dbRole = role;
 
     const user = await UserRepository.findByEmail(normalizedEmail);
     if (!user || user.role !== dbRole) {

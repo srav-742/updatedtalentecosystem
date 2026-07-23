@@ -16,7 +16,7 @@ const syncUser = async (req, res) => {
             if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
-            user = new User({ uid, email, name, profilePic, role: role || 'seeker' });
+            user = new User({ uid, email, name, profilePic, role: role || 'candidate' });
             await user.save();
         } else {
             // Check if someone is trying to sync to admin who shouldn't

@@ -7,10 +7,10 @@ import CreatePasswordModal from '../../components/CreatePasswordModal';
 import { prefetchSeekerRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/seeker' },
-    { label: 'Browse Jobs', icon: Briefcase, path: '/seeker/jobs' },
-    { label: 'My Applications', icon: Clock, path: '/seeker/applications' },
-    { label: 'Profile', icon: UserCircle, path: '/seeker/profile' }
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/candidate' },
+    { label: 'Browse Jobs', icon: Briefcase, path: '/candidate/jobs' },
+    { label: 'My Applications', icon: Clock, path: '/candidate/applications' },
+    { label: 'Profile', icon: UserCircle, path: '/candidate/profile' }
 ];
 
 const SeekerLayout = () => {
@@ -27,8 +27,8 @@ const SeekerLayout = () => {
     }, []);
 
     useEffect(() => {
-        // Only redirect if user has a role and it's not seeker OR admin
-        if (user.role && user.role !== 'seeker' && user.role !== 'admin') {
+        // Only redirect if user has a role and it's not seeker/candidate OR admin
+        if (user.role && user.role !== 'seeker' && user.role !== 'candidate' && user.role !== 'admin') {
             navigate('/recruiter');
             return;
         }
@@ -114,7 +114,7 @@ const SeekerLayout = () => {
                             <NavLink
                                 key={item.path}
                                 to={item.path}
-                                end={item.path === '/seeker'}
+                                end={item.path === '/candidate'}
                                 onClick={() => setIsSidebarOpen(false)}
                                 title={isMinimized ? item.label : undefined}
                                 className={({ isActive }) => `
@@ -134,7 +134,7 @@ const SeekerLayout = () => {
                     })}
 
                     <NavLink
-                        to="/seeker/mock-interview"
+                        to="/candidate/mock-interview"
                         onClick={() => setIsSidebarOpen(false)}
                         title={isMinimized ? "Mock Interview" : undefined}
                         className={({ isActive }) => `

@@ -46,12 +46,12 @@ const searchCandidates = async (req, res) => {
             3. For the "experience" array, search inside "experience.role", "experience.company", and "experience.description" using regex.
                Example: { "experience.description": { "$regex": "React", "$options": "i" } }
             4. Use $or to search across name, designation, bio, and experience if the query is a general role.
-            5. Role MUST be exactly "seeker".
+            5. Role MUST be exactly "candidate".
 
             Example output for "React developer":
             {
                 "filter": {
-                    "role": "seeker",
+                    "role": "candidate",
                     "$or": [
                         { "skills": { "$elemMatch": { "$regex": "React", "$options": "i" } } },
                         { "designation": { "$regex": "React", "$options": "i" } },
@@ -77,7 +77,7 @@ const searchCandidates = async (req, res) => {
             // Safe fallback using broad regex
             interpreted = {
                 filter: {
-                    role: "seeker",
+                    role: "candidate",
                     $or: [
                         { name: { $regex: query, $options: "i" } },
                         { bio: { $regex: query, $options: "i" } },
@@ -91,15 +91,15 @@ const searchCandidates = async (req, res) => {
             };
         }
 
-        // Ensure we only search seekers
+        // Ensure we only search candidates
         const finalFilter = interpreted.filter || interpreted;
-        finalFilter.role = "seeker";
+        finalFilter.role = "candidate";
 
         console.log("[AI-SEARCH] Executing Filter:", JSON.stringify(finalFilter));
 
         // Use unified aggregation lookup pipeline to join User and ResumeProfile
         const candidates = await User.aggregate([
-            { $match: { role: "seeker" } },
+            { $match: { role: "candidate" } },
             {
                 $lookup: {
                     from: "resumeprofiles",
