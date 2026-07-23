@@ -151,7 +151,7 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                                 Remove
                                             </button>
                                             <Link
-                                                to={`/seeker/job/${application.jobId?._id}`}
+                                                to={`/candidate/job/${application.jobId?._id}`}
                                                 className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
                                             >
                                                 Apply Now
@@ -173,7 +173,7 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                         {!application.interviewScore && application.jobId?.mockInterview?.enabled && (
                                             <div className="flex justify-end pt-2">
                                                 <Link
-                                                    to={`/seeker/apply/${application.jobId?._id || application.jobId}`}
+                                                    to={`/candidate/apply/${application.jobId?._id || application.jobId}`}
                                                     className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-sm"
                                                 >
                                                     <BriefcaseBusiness size={14} />

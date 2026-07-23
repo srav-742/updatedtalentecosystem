@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
@@ -155,6 +155,15 @@ function App() {
         <Route path="/AutomatedHiring" element={<AutomatedHiring />} />
         <Route path="/CandidateScreening" element={<CandidateScreening />} />
         <Route path="/ResumeAnalysis" element={<ResumeAnalysis />} />
+        {/* Redirects from old /seeker paths to /candidate */}
+        <Route path="/seeker" element={<Navigate to="/candidate" replace />} />
+        <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />
+        <Route path="/seeker/job/:id" element={<Navigate to="/candidate/job/:id" replace />} />
+        <Route path="/seeker/apply/:jobId" element={<Navigate to="/candidate/apply/:jobId" replace />} />
+        <Route path="/seeker/applications" element={<Navigate to="/candidate/applications" replace />} />
+        <Route path="/seeker/profile" element={<Navigate to="/candidate/profile" replace />} />
+        <Route path="/seeker/mock-interview" element={<Navigate to="/candidate/mock-interview" replace />} />
+        <Route path="/seeker/community" element={<Navigate to="/candidate/community" replace />} />
       </Routes>
       </Suspense>
     </BrowserRouter>
