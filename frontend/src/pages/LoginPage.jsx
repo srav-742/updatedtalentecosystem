@@ -96,51 +96,30 @@ const LoginPage = () => {
         setForgotMessage({ type: '', text: '' });
         setDevOtpText('');
 
-        const isFirebaseUser = role !== 'admin';
-
-        if (isFirebaseUser) {
-            try {
-                await resetPasswordWithFirebase(forgotEmail);
-                setForgotMessage({ 
-                    type: 'success', 
-                    text: "A password reset link has been sent to your email by Firebase. Please check your inbox." 
-                });
-                setTimeout(() => {
-                    setForgotPasswordMode(false);
-                    setFormData({ email: forgotEmail, password: '' });
-                }, 4000);
-            } catch (error) {
-                console.error("[FORGOT-PASSWORD-FIREBASE-ERROR]", error);
-                setForgotMessage({ type: 'error', text: error.message || "Failed to send Firebase reset email." });
-            } finally {
-                setForgotLoading(false);
+        try {
+            const response = await axios.post(`${API_URL}/forgot-password`, {
+                email: forgotEmail,
+                role: role
+            });
+            
+            if (response.data.devOtp) {
+                setDevOtpText(response.data.devOtp);
             }
-        } else {
-            try {
-                const response = await axios.post(`${API_URL}/forgot-password`, {
-                    email: forgotEmail,
-                    role: role
-                });
-                
-                if (response.data.devOtp) {
-                    setDevOtpText(response.data.devOtp);
-                }
-                
-                setForgotMessage({ type: 'success', text: response.data.message || "Verification code sent to your email." });
-                setForgotStep(2);
-                
-            } catch (error) {
-                console.error("[FORGOT-PASSWORD-ERROR]", error);
-                let errMsg = "Failed to send reset code. Please ensure the email is correct.";
-                if (error.response?.data?.message) {
-                    errMsg = error.response.data.message;
-                } else if (error.message) {
-                    errMsg = error.message;
-                }
-                setForgotMessage({ type: 'error', text: errMsg });
-            } finally {
-                setForgotLoading(false);
+            
+            setForgotMessage({ type: 'success', text: response.data.message || "Verification code sent to your email." });
+            setForgotStep(2);
+            
+        } catch (error) {
+            console.error("[FORGOT-PASSWORD-ERROR]", error);
+            let errMsg = "Failed to send reset code. Please ensure the email is correct.";
+            if (error.response?.data?.message) {
+                errMsg = error.response.data.message;
+            } else if (error.message) {
+                errMsg = error.message;
             }
+            setForgotMessage({ type: 'error', text: errMsg });
+        } finally {
+            setForgotLoading(false);
         }
     };
 
@@ -784,9 +763,11 @@ const LoginPage = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-end">
-                                        <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
-                                    </div>
+                                    {role === 'admin' && (
+                                        <div className="flex items-center justify-end">
+                                            <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
+                                        </div>
+                                    )}
 
                                     <button
                                         type="submit"

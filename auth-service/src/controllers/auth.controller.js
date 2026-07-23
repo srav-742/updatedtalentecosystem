@@ -577,7 +577,7 @@ export const resetPassword = async (req, res, next) => {
   try {
     const { email, role, otp, newPassword } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
-    const dbRole = role === 'candidate' ? 'seeker' : role;
+    const dbRole = role;
 
     let verifiedOtp = null;
     if (otp) {
@@ -797,7 +797,7 @@ export const googleLogin = async (req, res, next) => {
         throw ApiError.badRequest('Role is required for first-time Google signup.', ERROR_CODES.VALIDATION_001);
       }
 
-      const dbRoleName = role === 'candidate' ? 'seeker' : role;
+      const dbRoleName = role;
       const defaultPerms = dbRoleName === 'recruiter' ? ['POST_JOB'] : [];
       const userRoleRef = await getOrCreateRoleAndPermissions(dbRoleName, defaultPerms);
 
@@ -813,9 +813,9 @@ export const googleLogin = async (req, res, next) => {
 
       isNewUser = true;
     } else {
-      const requestedRole = role === 'candidate' ? 'seeker' : role;
+      const requestedRole = role;
       if (requestedRole && user.role !== requestedRole) {
-        throw ApiError.badRequest(`This email is already registered as a ${user.role === 'seeker' ? 'candidate' : user.role}. Please log in with that role.`, ERROR_CODES.AUTH_002);
+        throw ApiError.badRequest(`This email is already registered as a ${user.role}. Please log in with that role.`, ERROR_CODES.AUTH_002);
       }
 
       if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {

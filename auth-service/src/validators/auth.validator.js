@@ -146,7 +146,7 @@ export const validateForgotPassword = (req, res, next) => {
     return next(ApiError.badRequest('Invalid email format.', ERROR_CODES.VALIDATION_001));
   }
 
-  const allowedRoles = ['seeker', 'recruiter', 'admin'];
+  const allowedRoles = ['candidate', 'seeker', 'recruiter', 'admin'];
   if (!allowedRoles.includes(role)) {
     return next(ApiError.badRequest(`Role must be one of: ${allowedRoles.join(', ')}`, ERROR_CODES.VALIDATION_001));
   }
