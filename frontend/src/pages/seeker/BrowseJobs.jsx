@@ -91,7 +91,7 @@ const BrowseJobs = () => {
         });
     }, [jobs, searchTerm]);
 
-    const getShareUrl = (jobId) => `${window.location.origin}/seeker/job/${jobId}`;
+    const getShareUrl = (jobId) => `${window.location.origin}/candidate/job/${jobId}`;
 
     const handleCopyLink = async (e, jobId) => {
         e.preventDefault();
@@ -329,7 +329,7 @@ const BrowseJobs = () => {
                             </div>
 
                             <Link
-                                to={`/seeker/job/${job._id}`}
+                                to={`/candidate/job/${job._id}`}
                                 className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                             >
                                 View role

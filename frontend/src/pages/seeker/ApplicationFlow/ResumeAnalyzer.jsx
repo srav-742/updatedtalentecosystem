@@ -1354,7 +1354,7 @@ ${projectsFlat}
 
                             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
                                 <button
-                                    onClick={() => navigate('/seeker/jobs')}
+                                    onClick={() => navigate('/candidate/jobs')}
                                     className="rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                                 >
                                     Back to jobs
@@ -1472,7 +1472,7 @@ ${projectsFlat}
 
                         <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                             <button
-                                onClick={() => navigate('/seeker/jobs')}
+                                onClick={() => navigate('/candidate/jobs')}
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                             >
                                 <ArrowLeft size={18} />
@@ -1511,7 +1511,7 @@ ${projectsFlat}
                     ) : null}
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <button
-                            onClick={() => navigate('/seeker/jobs')}
+                            onClick={() => navigate('/candidate/jobs')}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                         >
                             <ArrowLeft size={18} />

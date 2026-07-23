@@ -71,7 +71,7 @@ const ApplicationFlow = () => {
                         } else if (resumeDone && assessmentDone && videoDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
                         } else if (resumeDone && assessmentDone && videoDone && interviewDone) {
-                            navigate('/seeker/applications');
+                            navigate('/candidate/applications');
                         }
 
                         setStepIndex(targetIndex);
@@ -113,7 +113,7 @@ const ApplicationFlow = () => {
         if (stepIndex < enabledSteps.length - 1) {
             setStepIndex(stepIndex + 1);
         } else {
-            navigate('/seeker/applications');
+            navigate('/candidate/applications');
         }
     };
 
@@ -241,7 +241,7 @@ const ApplicationFlow = () => {
                             onSecurityReset={handleSecurityResetToResume}
                             onComplete={(result) => {
                                 setInterviewResult(result);
-                                navigate('/seeker/applications');
+                                navigate('/candidate/applications');
                             }}
                         />
                     )}
@@ -249,7 +249,7 @@ const ApplicationFlow = () => {
                     {!currentStep && (
                         <div className="text-center py-20">
                             <h2 className="text-2xl font-bold text-gray-900 mb-4">No steps enabled for this job</h2>
-                            <button onClick={() => navigate('/seeker/jobs')} className="px-6 py-2 bg-blue-600 text-white rounded-xl">Back to Jobs</button>
+                            <button onClick={() => navigate('/candidate/jobs')} className="px-6 py-2 bg-blue-600 text-white rounded-xl">Back to Jobs</button>
                         </div>
                     )}
                 </AnimatePresence>

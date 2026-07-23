@@ -21,19 +21,19 @@ const quickActions = [
     {
         title: 'Browse Jobs',
         description: 'Explore current roles and move directly into the candidate workflow.',
-        path: '/seeker/jobs',
+        path: '/candidate/jobs',
         icon: Briefcase
     },
     {
         title: 'My Applications',
         description: 'Track every submitted role from review to final decision.',
-        path: '/seeker/applications',
+        path: '/candidate/applications',
         icon: FileText
     },
     {
         title: 'Profile Settings',
         description: 'Keep your public candidate profile and links ready for recruiters.',
-        path: '/seeker/profile',
+        path: '/candidate/profile',
         icon: UserCircle
     }
 ];
@@ -100,14 +100,14 @@ const SeekerDashboard = () => {
 
                         <div className="mt-8 flex flex-wrap gap-3">
                             <Link
-                                to="/seeker/jobs"
+                                to="/candidate/jobs"
                                 className="inline-flex items-center gap-2 rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                             >
                                 Browse roles
                                 <ArrowRight size={18} />
                             </Link>
                             <Link
-                                to="/seeker/applications"
+                                to="/candidate/applications"
                                 className="inline-flex items-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                             >
                                 Track applications
@@ -214,7 +214,7 @@ const SeekerDashboard = () => {
                     </div>
 
                     <Link
-                        to="/seeker/profile"
+                        to="/candidate/profile"
                         className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                     >
                         Update profile

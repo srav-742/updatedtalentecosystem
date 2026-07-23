@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
@@ -59,6 +59,17 @@ const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
 const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
 const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
+
+function SeekerJobRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/candidate/job/${id}`} replace />;
+}
+
+function SeekerApplyRedirect() {
+  const { jobId } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/candidate/apply/${jobId}${location.search}`} replace />;
+}
 
 function App() {
   return (
@@ -158,8 +169,8 @@ function App() {
         {/* Redirects from old /seeker paths to /candidate */}
         <Route path="/seeker" element={<Navigate to="/candidate" replace />} />
         <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />
-        <Route path="/seeker/job/:id" element={<Navigate to="/candidate/job/:id" replace />} />
-        <Route path="/seeker/apply/:jobId" element={<Navigate to="/candidate/apply/:jobId" replace />} />
+        <Route path="/seeker/job/:id" element={<SeekerJobRedirect />} />
+        <Route path="/seeker/apply/:jobId" element={<SeekerApplyRedirect />} />
         <Route path="/seeker/applications" element={<Navigate to="/candidate/applications" replace />} />
         <Route path="/seeker/profile" element={<Navigate to="/candidate/profile" replace />} />
         <Route path="/seeker/mock-interview" element={<Navigate to="/candidate/mock-interview" replace />} />

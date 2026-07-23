@@ -181,7 +181,7 @@ const LockedState = () => (
         </div>
 
         <button
-            onClick={() => window.location.assign('/seeker/jobs')}
+            onClick={() => window.location.assign('/candidate/jobs')}
             className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
         >
             Apply for a job

@@ -180,7 +180,7 @@ const SeekerProfile = () => {
                 } catch (err) {
                     console.error("Failed to analyze MLOps resume or submit application:", err);
                 }
-                navigate('/seeker/jobs');
+                navigate('/candidate/jobs');
                 return;
             }
 
@@ -603,7 +603,7 @@ const SeekerProfile = () => {
                                     {mlopsJobId ? (
                                         <button
                                             type="button"
-                                            onClick={() => navigate(`/seeker/apply/${mlopsJobId}`)}
+                                            onClick={() => navigate(`/candidate/apply/${mlopsJobId}`)}
                                             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
                                         >
                                             Proceed to Skill Assessment & Interview
@@ -614,7 +614,7 @@ const SeekerProfile = () => {
                                             {new URLSearchParams(location.search).get('jobId') && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => navigate(`/seeker/apply/${new URLSearchParams(location.search).get('jobId')}`)}
+                                                    onClick={() => navigate(`/candidate/apply/${new URLSearchParams(location.search).get('jobId')}`)}
                                                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
                                                 >
                                                     Continue Job Application
@@ -623,7 +623,7 @@ const SeekerProfile = () => {
                                             )}
                                             <button
                                                 type="button"
-                                                onClick={() => navigate('/seeker/mock-interview')}
+                                                onClick={() => navigate('/candidate/mock-interview')}
                                                 className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
                                             >
                                                 AI Interview Practice

@@ -52,7 +52,7 @@ const PublicJobDetails = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showShareMenu]);
 
-    const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
+    const getShareUrl = () => `${window.location.origin}/candidate/job/${job._id}`;
 
     const handleCopyLink = async () => {
         try {

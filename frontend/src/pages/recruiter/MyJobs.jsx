@@ -61,7 +61,7 @@ const MyJobs = () => {
     };
 
     const handleCopyLink = async (jobId) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${jobId}`;
+        const shareUrl = `${window.location.origin}/candidate/job/${jobId}`;
         try {
             await navigator.clipboard.writeText(shareUrl);
             setCopiedJobId(jobId);
@@ -72,27 +72,27 @@ const MyJobs = () => {
     };
 
     const handleShareWhatsApp = (job) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/candidate/job/${job._id}`;
         const text = `Check out this job posting for ${job.title}: ${shareUrl}`;
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
         window.open(whatsappUrl, '_blank');
     };
 
     const handleShareLinkedIn = (job) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/candidate/job/${job._id}`;
         const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
         window.open(linkedinUrl, '_blank');
     };
 
     const handleShareTwitter = (job) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/candidate/job/${job._id}`;
         const text = `We are hiring for ${job.title}! Apply here:`;
         const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
         window.open(twitterUrl, '_blank');
     };
 
     const handleShareEmail = (job) => {
-        const shareUrl = `${window.location.origin}/seeker/job/${job._id}`;
+        const shareUrl = `${window.location.origin}/candidate/job/${job._id}`;
         const subject = `Job Opportunity: ${job.title}`;
         const body = `Hi,\n\nWe are looking for a ${job.title} in ${job.location}.\n\nView details and apply here:\n${shareUrl}\n\nBest regards,\n${user.name || 'Recruiter'}`;
         const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;

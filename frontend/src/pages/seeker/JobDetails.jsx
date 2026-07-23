@@ -109,7 +109,7 @@ const JobDetails = () => {
         );
     }
 
-    const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
+    const getShareUrl = () => `${window.location.origin}/candidate/job/${job._id}`;
 
     const handleCopyLink = async () => {
         try {
@@ -263,7 +263,7 @@ const JobDetails = () => {
                             </p>
                             <div className="mt-6">
                                 <Link
-                                    to="/seeker/applications"
+                                    to="/candidate/applications"
                                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                                 >
                                     Track your application
@@ -303,14 +303,14 @@ const JobDetails = () => {
                                 ) : (
                                     <>
                                         <Link
-                                            to={`/seeker/apply/${job._id}`}
+                                            to={`/candidate/apply/${job._id}`}
                                             className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
                                         >
                                             <FileUp size={18} />
                                             Upload and analyze resume
                                         </Link>
                                         <Link
-                                            to={`/seeker/apply/${job._id}?method=create`}
+                                            to={`/candidate/apply/${job._id}?method=create`}
                                             className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                                         >
                                             <Wand2 size={18} />
