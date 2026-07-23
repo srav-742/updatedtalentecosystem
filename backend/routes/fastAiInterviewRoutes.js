@@ -853,8 +853,32 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                                             app.interviewAnswers[idx].score = heuristic.score;
                                             app.interviewAnswers[idx].marks = heuristic.marks;
                                             app.interviewAnswers[idx].feedback = heuristic.feedback;
+
+                                            // Recalculate average interview score and final score
+                                            const totalQuestions = app.interviewAnswers.length;
+                                            const scoresList = app.interviewAnswers.map(a => a.score || 0);
+                                            const marksList = app.interviewAnswers.map(a => a.marks || 0);
+                                            const avgScore = Math.round(scoresList.reduce((sum, s) => sum + s, 0) / Math.max(totalQuestions, 1));
+                                            
+                                            app.interviewScore = Math.round(avgScore * 0.70);
+                                            app.finalScore = Number(app.resumeMatchPercent || 0) + Number(app.assessmentScore || 0) + app.interviewScore;
+                                            if (app.finalScore >= 55) {
+                                                app.status = 'SHORTLISTED';
+                                            } else {
+                                                app.status = 'APPLIED';
+                                            }
+
+                                            const halfIndex = Math.ceil(totalQuestions / 2);
+                                            const ownershipMarks = marksList.slice(halfIndex - 1);
+                                            app.metrics = {
+                                                ...app.metrics,
+                                                ownershipMindset: ownershipMarks.length > 0
+                                                    ? Math.round(ownershipMarks.reduce((sum, m) => sum + m, 0) / ownershipMarks.length)
+                                                    : 0
+                                            };
+
                                             await app.save();
-                                            console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers updated for Q${targetQNum}`);
+                                            console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers & overall score updated for Q${targetQNum}`);
                                         }
                                     }
                                 } catch (dbErr) {
@@ -886,6 +910,30 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                                         app.interviewAnswers[idx].score = heuristic.score;
                                         app.interviewAnswers[idx].marks = heuristic.marks;
                                         app.interviewAnswers[idx].feedback = heuristic.feedback;
+
+                                        // Recalculate average interview score and final score
+                                        const totalQuestions = app.interviewAnswers.length;
+                                        const scoresList = app.interviewAnswers.map(a => a.score || 0);
+                                        const marksList = app.interviewAnswers.map(a => a.marks || 0);
+                                        const avgScore = Math.round(scoresList.reduce((sum, s) => sum + s, 0) / Math.max(totalQuestions, 1));
+                                        
+                                        app.interviewScore = Math.round(avgScore * 0.70);
+                                        app.finalScore = Number(app.resumeMatchPercent || 0) + Number(app.assessmentScore || 0) + app.interviewScore;
+                                        if (app.finalScore >= 55) {
+                                            app.status = 'SHORTLISTED';
+                                        } else {
+                                            app.status = 'APPLIED';
+                                        }
+
+                                        const halfIndex = Math.ceil(totalQuestions / 2);
+                                        const ownershipMarks = marksList.slice(halfIndex - 1);
+                                        app.metrics = {
+                                            ...app.metrics,
+                                            ownershipMindset: ownershipMarks.length > 0
+                                                ? Math.round(ownershipMarks.reduce((sum, m) => sum + m, 0) / ownershipMarks.length)
+                                                : 0
+                                        };
+
                                         await app.save();
                                         console.log(`[FAST-RESCUE-DIRECT] MongoDB Application updated directly for Q${targetQNum}`);
                                     }
