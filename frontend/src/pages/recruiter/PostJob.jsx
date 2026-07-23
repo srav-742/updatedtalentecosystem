@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '../../firebase';
 
 const PostJob = () => {
@@ -13,6 +14,14 @@ const PostJob = () => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
+    const recruiterId = user.uid || user._id || user.id || '';
+    const storedClientId = localStorage.getItem('h1p_client_id');
+    // Prioritize active recruiter ID so switching accounts automatically uses client_<recruiterId>
+    const effectiveClientId = (recruiterId ? `client_${recruiterId}` : '') || storedClientId || '';
+    const effectiveClientSecret = (storedClientId === `client_${recruiterId}` ? localStorage.getItem('h1p_client_secret') : null) || user.clientSecret || '';
+
+    const queryClient = useQueryClient();
+
     useEffect(() => {
         if (!user.uid && !user._id && !user.id) {
             navigate('/login');
@@ -20,6 +29,31 @@ const PostJob = () => {
             navigate('/seeker');
         }
     }, [user, navigate]);
+
+    // Preflight access check for /api/jobs — goes through the Java API Gateway
+    const { isLoading: checkingAccess, error: accessError } = useQuery({
+        queryKey: ['checkJobAccess', recruiterId],
+        queryFn: async () => {
+            if (!recruiterId) return false;
+            const accessTokenUUID = localStorage.getItem('accessToken') || user.accessToken || user.token || '';
+            try {
+                await axios.get('http://localhost:9090/backend_service/api/jobs', {
+                    headers: { 'ACCESS_TOKEN': accessTokenUUID }
+                });
+                return true;
+            } catch (err) {
+                if (err.response?.status === 403) {
+                    const forbidden = new Error('Forbidden');
+                    forbidden.status = 403;
+                    throw forbidden;
+                }
+                // For 401 or network errors from gateway, swallow silently.
+                return true;
+            }
+        },
+        enabled: !!recruiterId,
+        retry: false
+    });
 
     const [jobData, setJobData] = useState({
         title: '',
@@ -116,7 +150,7 @@ const PostJob = () => {
         setLoading(true);
         try {
             const recruiterId = user.uid || user._id || user.id;
-            
+
             if (!recruiterId) {
                 alert("You must be logged in to post a job.");
                 navigate('/login');
@@ -141,7 +175,12 @@ const PostJob = () => {
             if (editJobId) {
                 await axios.put(`${API_URL}/jobs/${editJobId}`, dataToSave);
             } else {
-                await axios.post(`${API_URL}/jobs`, dataToSave);
+                const accessTokenUUID = localStorage.getItem('accessToken') || user.accessToken || user.token || '';
+                await axios.post('http://localhost:9090/backend_service/api/jobs', dataToSave, {
+                    headers: {
+                        'ACCESS_TOKEN': accessTokenUUID
+                    }
+                });
             }
 
             setSuccess(true);
@@ -151,13 +190,7 @@ const PostJob = () => {
             const data = error.response?.data;
             const errorMessage = data?.message || 'Failed to save job. Please try again.';
             const detailedError = data?.error;
-            const validationErrors = data?.errors;
-            
-            let fullMessage = errorMessage;
-            if (detailedError) fullMessage += `\nError: ${detailedError}`;
-            if (validationErrors) fullMessage += `\n\nDetails:\n${validationErrors.join('\n')}`;
-            
-            alert(fullMessage);
+            alert(detailedError ? `${errorMessage} (${detailedError})` : errorMessage);
         } finally {
             setLoading(false);
         }
@@ -165,22 +198,48 @@ const PostJob = () => {
 
     if (success) {
         return (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6">
-                <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="w-24 h-24 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mb-6 border-2 border-amber-500/30"
-                >
-                    <Clock size={44} />
-                </motion.div>
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                    <h1 className="text-3xl font-bold mb-3">Job Submitted for Review</h1>
-                    <p className="text-gray-400 max-w-md mx-auto leading-relaxed">
-                        Your job posting is now <span className="text-amber-400 font-bold">pending admin approval</span>. You'll be able to see the status in your job listings. Once approved, it will be visible to candidates.
-                    </p>
-                    <p className="text-gray-600 text-sm mt-4">Redirecting to your job listings...</p>
-                </motion.div>
+            <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-2xl relative overflow-hidden text-center">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-green-500/20 flex items-center justify-center text-green-400 mb-6 border border-green-500/20">
+                    <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Job Posted Successfully!</h2>
+                <p className="text-gray-400 text-sm mb-6">Your job listing is now live and candidates can start applying.</p>
+                <div className="animate-pulse text-xs text-blue-400 font-medium">Redirecting to your jobs...</div>
             </div>
+        );
+    }
+
+    if (checkingAccess) {
+        return (
+            <div className="flex items-center justify-center h-[60vh]">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+        );
+    }
+
+    if (accessError) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900"
+            >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[60px] rounded-full pointer-events-none" />
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 border border-amber-500/20">
+                    <Zap className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold mb-3">Access Required</h2>
+                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                    You don't have access to this feature. Contact the hire1percent team to get the access of posting a job.
+                </p>
+                <button
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['checkJobAccess'] })}
+                    className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
+                >
+                    Check Access Again
+                </button>
+            </motion.div>
         );
     }
 

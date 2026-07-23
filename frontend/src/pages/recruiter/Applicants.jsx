@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2 } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, Zap, Briefcase } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -19,6 +19,13 @@ const Applicants = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+    
+    const userId = user.uid || user._id || user.id;
+    const storedClientId = localStorage.getItem('h1p_client_id');
+    // Prioritize active user ID so switching accounts automatically uses client_<userId>
+    const effectiveClientId = (userId ? `client_${userId}` : '') || storedClientId || '';
+    const effectiveClientSecret = (storedClientId === `client_${userId}` ? localStorage.getItem('h1p_client_secret') : null) || user.clientSecret || '';
+
     const [isPro, setIsPro] = useState(() => {
         const u = JSON.parse(localStorage.getItem('user') || '{}');
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
@@ -30,8 +37,6 @@ const Applicants = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchParams] = useSearchParams();
     const targetJobId = searchParams.get('jobId');
-
-    const userId = user.uid || user._id || user.id;
 
     // Fetch wallet balance
     const { data: walletBalance = user.walletBalance || 0 } = useQuery({
@@ -53,24 +58,54 @@ const Applicants = () => {
             if (res.data) {
                 const isPremium = res.data.hiringPattern === "Premium Recruiter" || res.data.isPro === true;
                 setIsPro(isPremium);
-                const updatedUser = { ...user, ...res.data, isPro: isPremium, role: user.role };
-                localStorage.setItem('user', JSON.stringify(updatedUser));
+                return res.data;
             }
-            return res.data;
+            return null;
+        },
+        enabled: !!userId
+    });
+
+    // Fetch recruiter's jobs to filter applicants
+    const { data: jobs = [], isLoading: loadingJobs } = useQuery({
+        queryKey: ['recruiterJobs', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
+            return res.data || [];
         },
         enabled: !!userId
     });
 
     // Fetch applicants list using React Query
-    const { data: rawApplicants = [], isLoading: loading } = useQuery({
+    const { data: rawApplicants = [], isLoading: loading, error } = useQuery({
         queryKey: ['applicants', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
-            return res.data;
+            
+            // Get session token directly from logged-in user session
+            const accessTokenUUID = localStorage.getItem('accessToken') || user.accessToken || user.token || '';
+
+            // Directly call backend via gateway on port 9090
+            try {
+                const res = await axios.get(`http://localhost:9090/backend_service/api/applications?recruiterId=${userId}`, {
+                    headers: {
+                        'ACCESS_TOKEN': accessTokenUUID
+                    }
+                });
+                return res.data;
+            } catch (err) {
+                if (err.response?.status === 403) {
+                    const forbidden = new Error('Forbidden');
+                    forbidden.status = 403;
+                    throw forbidden;
+                }
+                throw err;
+            }
         },
-        enabled: !!userId
+        enabled: !!userId,
+        retry: false
     });
+
 
     const applicants = useMemo(() => {
         let mapped = rawApplicants.map((app, index) => ({
@@ -371,6 +406,58 @@ const Applicants = () => {
             pillClass: 'bg-purple-500/5 border-purple-500/10 text-purple-400'
         };
     };
+
+    if (loadingJobs || loading) {
+        return <ApplicantsSkeleton />;
+    }
+
+    if (jobs.length === 0) {
+        return (
+            <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900 animate-in fade-in duration-300">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none" />
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-6 border border-blue-500/20">
+                    <Briefcase className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold mb-3">Post a Job to View Applicants</h2>
+                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                    You haven't posted any jobs yet. Post a job first to start receiving and viewing candidate applications.
+                </p>
+                <button
+                    type="button"
+                    onClick={() => navigate('/recruiter/post-job')}
+                    className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
+                >
+                    Post a Job Now
+                </button>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900"
+            >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[60px] rounded-full pointer-events-none" />
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 border border-amber-500/20">
+                    <Zap className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold mb-3">Access Required</h2>
+                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                    You don't have access to view applicants. Contact the hire1percent team to get the access for viewing applicants.
+                </p>
+                <button
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['applicants'] })}
+                    className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
+                >
+                    Check Access Again
+                </button>
+            </motion.div>
+        );
+    }
 
     return (
         <div className="space-y-8 min-h-[80vh]" onClick={() => setActiveMenuId(null)}>

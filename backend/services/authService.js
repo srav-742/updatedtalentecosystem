@@ -186,41 +186,84 @@ const getUserRoles = (user) => {
     return roles;
 };
 
+// ─── In-memory resource cache ─────────────────────────────────────────────
+// Avoids hitting MongoDB on every single request. Busted by seedAdmin after
+// seeding so new rules are visible immediately.
+let _resourceCache = null;
+let _resourceCacheTime = 0;
+const RESOURCE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const _getResources = async () => {
+    if (_resourceCache && Date.now() - _resourceCacheTime < RESOURCE_CACHE_TTL) {
+        return _resourceCache;
+    }
+    _resourceCache = await Resource.find({}).populate('allowedRoles').lean();
+    _resourceCacheTime = Date.now();
+    return _resourceCache;
+};
+
+const clearResourceCache = () => {
+    _resourceCache = null;
+    _resourceCacheTime = 0;
+};
+
 /**
- * Check if a user's roles allow access to a specific resource
+ * Returns a specificity score for a path pattern.
+ * Higher score = more specific = wins over lower-scoring patterns.
+ *
+ *   Exact match  (/api/jobs/create)   → length + 2000  (max priority)
+ *   Single-level (/api/jobs/*)        → prefix_len + 1000
+ *   Deep wildcard(/api/jobs/**)       → prefix_len        (min priority)
+ */
+const _patternSpecificity = (pattern) => {
+    if (pattern.endsWith('/**')) return (pattern.length - 3);
+    if (pattern.endsWith('/*'))  return (pattern.length - 2) + 1000;
+    return pattern.length + 2000;
+};
+
+/**
+ * Check if a user's roles allow access to a specific resource.
+ *
+ * Strict deny-by-default + most-specific-match-wins:
+ *  1. All resource rules that match the path AND method are collected.
+ *  2. They are sorted by pattern specificity (exact > /* > /**).
+ *  3. The MOST SPECIFIC matching rule governs the decision.
+ *  4. If NO rule matches at all → ACCESS DENIED (fail-closed).
+ *
  * @param {string[]} userRoles - Array of role names the user has
- * @param {string} path - The API path being accessed
- * @param {string} method - The HTTP method (GET, POST, etc.)
- * @returns {boolean} - Whether access should be granted
+ * @param {string}   path      - The API path being accessed
+ * @param {string}   method    - The HTTP method (GET, POST, DELETE, etc.)
+ * @returns {Promise<boolean>} - true = allowed, false = denied
  */
 const checkResourceAccess = async (userRoles, path, method) => {
-    // Find matching resources for this path and method
-    const resources = await Resource.find({}).populate('allowedRoles');
+    const resources = await _getResources();
 
-    for (const resource of resources) {
-        const pattern = resource.pathPattern;
-        const resourceMethod = resource.method;
+    // ── Step 1: collect every rule that matches this request ──────────────
+    const matches = resources.filter(resource => {
+        const isPathMatch   = matchPath(path, resource.pathPattern);
+        const isMethodMatch = resource.method === 'ALL' ||
+                              resource.method === method.toUpperCase();
+        return isPathMatch && isMethodMatch;
+    });
 
-        // Check if the path matches the pattern
-        const isPathMatch = matchPath(path, pattern);
-        const isMethodMatch = resourceMethod === 'ALL' || resourceMethod === method.toUpperCase();
-
-        if (isPathMatch && isMethodMatch) {
-            // Check if any of the user's roles match the allowed roles
-            const allowedRoleNames = resource.allowedRoles.map(r => r.name);
-            const hasAccess = userRoles.some(role => allowedRoleNames.includes(role));
-
-            if (!hasAccess) {
-                return false; // Explicitly denied — user's roles don't match
-            }
-            return true; // Access granted
-        }
+    // ── Step 2: strict deny-by-default ───────────────────────────────────
+    if (matches.length === 0) {
+        // No rule covers this path/method — access is DENIED.
+        // Every legitimate route must have an explicit resource rule in MongoDB.
+        return false;
     }
 
-    // If no resource rule matches, default to allowing access
-    // (only explicitly protected routes are restricted)
-    return true;
+    // ── Step 3: most-specific-match wins ─────────────────────────────────
+    // Sort descending by specificity so matches[0] is the most specific.
+    matches.sort((a, b) =>
+        _patternSpecificity(b.pathPattern) - _patternSpecificity(a.pathPattern)
+    );
+
+    const bestMatch = matches[0];
+    const allowedRoleNames = bestMatch.allowedRoles.map(r => r.name);
+    return userRoles.some(role => allowedRoleNames.includes(role));
 };
+
 
 /**
  * Match a request path against a resource pattern
@@ -280,6 +323,7 @@ module.exports = {
     getClientRoles,
     getUserRoles,
     checkResourceAccess,
+    clearResourceCache,
     refreshAccessToken,
     JWT_SECRET,
     JWT_REFRESH_SECRET

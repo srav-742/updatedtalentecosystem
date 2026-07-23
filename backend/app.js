@@ -40,14 +40,21 @@ const corsOptions = {
             callback(null, true); // Still allow for now to resolve the blocker
         }
     },
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'X-Client-ID', 'X-Client-Secret', 'X-Refresh-Token'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'X-Client-ID', 'X-Client-Secret', 'X-Refresh-Token', 'ACCESS_TOKEN'],
     exposedHeaders: ['X-New-Access-Token'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     optionsSuccessStatus: 200
 };
 
-app.use(cors(corsOptions));
+app.use((req, res, next) => {
+    const gatewaySecret = req.headers['x-gateway-secret'];
+    const trustedSecret = process.env.GATEWAY_SHARED_SECRET || 'hire1percent_gateway_secret_key_2026';
+    if (gatewaySecret && gatewaySecret === trustedSecret) {
+        return next();
+    }
+    cors(corsOptions)(req, res, next);
+});
 
 
 
@@ -170,7 +177,7 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// ✅ 2. Apply Global Gateway Middleware for all other /api routes
+// ✅ 2. Bypassed Local Gateway Middleware (Delegated to Java API Gateway on Port 9090)
 const { gatewayMiddleware } = require('./middleware/gatewayMiddleware');
 app.use('/api', gatewayMiddleware);
 

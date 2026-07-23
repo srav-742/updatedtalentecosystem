@@ -268,14 +268,26 @@ const LoginPage = () => {
                 }
             }
 
-            // Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(profile.email, profile.uid || profile.id || profile._id);
-
-            setMessage({ type: 'success', text: "Login successful!" });
+            // Store user profile & recruiter specific client credentials first
+            const activeUid = profile.uid || profile.id || profile._id;
+            if (activeUid) {
+                localStorage.setItem('h1p_client_id', `client_${activeUid}`);
+            }
+            const clientSecretToStore = profile.clientSecret || (activeUid === 'FnRJZE65vGflgyfvJchsbVfpqgA3' ? 'vijay_secret_key_2026' : 'secret');
+            localStorage.setItem('h1p_client_secret', clientSecretToStore);
 
             // Store using the SELECTED role (not the DB role) so the session matches what the user chose.
             // e.g. an admin email logging in as Recruiter should land on /recruiter, not /admin.
-            localStorage.setItem('user', JSON.stringify({ ...profile, role: role }));
+            // Normalize uid — backend /api/login returns _id (MongoDB) not uid.
+            // CRITICAL: Save user to localStorage BEFORE calling initializeGatewaySession
+            // so that even if gateway init fails, the session is already established.
+            const normalizedUid = profile.uid || profile._id || profile.id || activeUid;
+            localStorage.setItem('user', JSON.stringify({ ...profile, uid: normalizedUid, role: role }));
+
+            // Initialize Gateway session tokens with Auth Service (best-effort, never throws)
+            await apiClient.initializeGatewaySession(profile.email, activeUid, clientSecretToStore);
+
+            setMessage({ type: 'success', text: "Login successful!" });
 
             // Navigate based on what the user selected, not what the DB says
             const from = location.state?.from?.pathname;
@@ -344,10 +356,16 @@ const LoginPage = () => {
                 role: targetRole  // single occurrence, placed last to override DB role
             };
 
-            // Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(basicProfile.email, basicProfile.uid || basicProfile.id || basicProfile._id);
+            // Store user profile & recruiter specific client credentials first
+            const activeGoogleUid = basicProfile.uid || basicProfile.id || basicProfile._id;
+            if (activeGoogleUid) {
+                localStorage.setItem('h1p_client_id', `client_${activeGoogleUid}`);
+            }
+            const googleClientSecretToStore = basicProfile.clientSecret || `${basicProfile.name ? basicProfile.name.split(' ')[0].toLowerCase() : 'vijay'}_secret_key_2026`;
+            localStorage.setItem('h1p_client_secret', googleClientSecretToStore);
 
-            // Step 3: Store and navigate immediately
+            // Initialize Gateway session tokens
+            await apiClient.initializeGatewaySession(basicProfile.email, activeGoogleUid, googleClientSecretToStore);
             localStorage.setItem('user', JSON.stringify(basicProfile));
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 

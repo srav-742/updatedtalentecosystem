@@ -82,9 +82,12 @@ const RecruiterLayout = () => {
                     // Never let a background DB fetch overwrite the role — if the DB has
                     // a stale or mismatched role, the user would get silently redirected
                     // to /seeker when clicking sidebar links like 'Post Job'.
+                    // Also always preserve uid — MongoDB returns _id, not uid.
+                    const preservedUid = user.uid || user._id || user.id;
                     localStorage.setItem('user', JSON.stringify({
                         ...user,
                         ...profileData,
+                        uid: preservedUid,  // ← always keep uid intact
                         role: user.role  // ← pin to login-session role
                     }));
                 }
@@ -104,6 +107,10 @@ const RecruiterLayout = () => {
             console.error('Firebase signOut error:', e);
         }
         localStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('h1p_client_id');
+        localStorage.removeItem('h1p_client_secret');
         navigate('/login');
     };
 

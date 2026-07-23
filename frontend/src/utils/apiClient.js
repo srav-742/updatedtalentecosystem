@@ -103,6 +103,7 @@ const apiRequest = async (endpoint, options = {}, retry = true) => {
     // Add auth tokens if available
     if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
+        headers['ACCESS_TOKEN'] = accessToken;
     }
     if (refreshToken) {
         headers['X-Refresh-Token'] = refreshToken;
@@ -120,7 +121,11 @@ const apiRequest = async (endpoint, options = {}, retry = true) => {
     }
 
     // If 401 and we haven't retried yet, attempt token refresh
-    if (response.status === 401 && retry) {
+    // IMPORTANT: Never clear session for Java API Gateway (port 9090) 401s —
+    // those are gateway-level rejections, not Node backend session failures.
+    const isGatewayUrl = url.includes(':9090');
+
+    if (response.status === 401 && retry && !isGatewayUrl) {
         try {
             const responseData = await response.clone().json().catch(() => ({}));
 
@@ -191,9 +196,42 @@ const apiClient = {
     },
 
     /**
-     * Request new gateway session tokens and store them in localStorage
+     * Request new gateway session tokens and store them in localStorage.
+     * This is BEST-EFFORT — it will NEVER throw or redirect to login.
+     * Login always completes whether or not the gateway session succeeds.
      */
-    initializeGatewaySession: async (email, uid) => {
+    initializeGatewaySession: async (email, uid, clientSecret = null) => {
+        // Step 1: Try Java API Gateway OAuth (Port 9090)
+        if (uid) {
+            try {
+                const clientId = `client_${uid}`;
+                const storedSecret = localStorage.getItem('h1p_client_secret');
+                const secretToUse = clientSecret || storedSecret || 'secret';
+                const credentials = btoa(`${clientId}:${secretToUse}`);
+
+                const res = await fetch('http://localhost:9090/oauth-service/oauth/authenticate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${credentials}`,
+                        'Content-Type': 'application/json'
+                    }
+                }).catch(() => null);
+
+                if (res && res.ok) {
+                    const authResponse = await res.json().catch(() => null);
+                    if (authResponse && authResponse.accessToken) {
+                        setTokens(authResponse.accessToken, authResponse.refreshToken || '');
+                        console.log('[API-CLIENT] Java Gateway OAuth session initialized for:', clientId);
+                        return { accessToken: authResponse.accessToken, refreshToken: authResponse.refreshToken };
+                    }
+                }
+                console.warn('[API-CLIENT] Java Gateway OAuth skipped (not ok or no token). Trying Node fallback.');
+            } catch (oauthErr) {
+                console.warn('[API-CLIENT] Java Gateway OAuth error (non-fatal):', oauthErr.message);
+            }
+        }
+
+        // Step 2: Fallback to Node Gateway token endpoint — also best-effort, never throws
         try {
             const response = await fetch(`${API_URL}/gateway/token`, {
                 method: 'POST',
@@ -205,24 +243,25 @@ const apiClient = {
                 body: JSON.stringify({ email, uid })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Failed to exchange gateway tokens');
-            }
-
-            const data = await response.json();
-            const payload = data.data || data;
-            if (payload.accessToken && payload.refreshToken) {
-                setTokens(payload.accessToken, payload.refreshToken);
-                console.log('[API-CLIENT] Gateway session initialized successfully for:', email);
-                return { accessToken: payload.accessToken, refreshToken: payload.refreshToken };
+            if (response.ok) {
+                const data = await response.json().catch(() => null);
+                const payload = data?.data || data;
+                if (payload?.accessToken && payload?.refreshToken) {
+                    setTokens(payload.accessToken, payload.refreshToken);
+                    console.log('[API-CLIENT] Node gateway session initialized for:', email);
+                    return { accessToken: payload.accessToken, refreshToken: payload.refreshToken };
+                }
             } else {
-                throw new Error('Incomplete token response from gateway');
+                console.warn('[API-CLIENT] Node gateway/token returned non-ok status:', response.status);
             }
-        } catch (error) {
-            console.error('[API-CLIENT] Gateway session initialization failed:', error.message);
-            throw error;
+        } catch (nodeErr) {
+            console.warn('[API-CLIENT] Node gateway token fetch failed (non-fatal):', nodeErr.message);
         }
+
+        // Both failed — log warning but DO NOT throw or redirect.
+        // The user session (localStorage.user) is already saved by LoginPage before this call.
+        console.warn('[API-CLIENT] Gateway session initialization skipped — user session is intact.');
+        return null;
     },
 
     // Token management utilities

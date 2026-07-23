@@ -108,62 +108,124 @@ const seedAdmin = async () => {
         console.error('[SEED] Failed to seed default client:', error.message);
     }
 
-    // 4. Seed premium_recruiter role and /api/applications/recruiter/** resource restriction
+    // 4. Seed roles + comprehensive RBAC resource rules (strict deny-by-default support)
     try {
         const Role = require('../models/Role');
         const Resource = require('../models/Resource');
+        const { clearResourceCache } = require('../services/authService');
 
-        // Find or create 'admin' and 'premium_recruiter' roles
-        const adminRole = await Role.findOne({ name: 'admin' });
-        if (!adminRole) {
-            console.warn('[SEED] Admin role not found. Ensure roles are initialized.');
+        // ─── Ensure all required roles exist ──────────────────────────────────
+        const ensureRole = async (name, description) => {
+            let role = await Role.findOne({ name });
+            if (!role) {
+                role = new Role({ name, description });
+                await role.save();
+                console.log(`[SEED] Created role: ${name}`);
+            }
+            return role;
+        };
+
+        const adminRole          = await ensureRole('admin',            'Platform administrator');
+        const recruiterRole      = await ensureRole('recruiter',        'Standard recruiter');
+        const premiumRole        = await ensureRole('premium_recruiter','Pro recruiter with applicant access');
+        const userRole           = await ensureRole('user',             'Job seeker / candidate');
+        const seekerRole         = await ensureRole('seeker',           'Job seeker (alias)');
+
+        // ─── Role group shortcuts ──────────────────────────────────────────────
+        const ADMIN_ONLY          = [adminRole._id];
+        const RECRUITER_AND_ABOVE = [adminRole._id, recruiterRole._id, premiumRole._id];
+        const ALL_AUTHENTICATED   = [adminRole._id, recruiterRole._id, premiumRole._id, userRole._id, seekerRole._id];
+
+        // ─── Rule definitions ─────────────────────────────────────────────────
+        // ORDER DOES NOT MATTER here — specificity scoring handles priority at
+        // query time. Just make sure every route group is covered.
+        const rules = [
+            // ── Admin-only management (must be MORE specific than /api/**) ─────
+            { p: '/api/admin/**',                 m: 'ALL',    d: 'Admin management routes',                    r: ADMIN_ONLY },
+
+            // ── Jobs ──────────────────────────────────────────────────────────
+            { p: '/api/jobs/**',                  m: 'ALL',    d: 'Job CRUD for recruiters + admin',            r: RECRUITER_AND_ABOVE },
+
+            // ── Recruiter dashboard ───────────────────────────────────────────
+            { p: '/api/recruiter/**',             m: 'ALL',    d: 'Recruiter-specific routes',                  r: RECRUITER_AND_ABOVE },
+            { p: '/api/recruiter-upload/**',      m: 'ALL',    d: 'Recruiter bulk-upload routes',               r: RECRUITER_AND_ABOVE },
+            { p: '/api/calibration/**',           m: 'ALL',    d: 'Calibration & scoring (recruiter)',          r: RECRUITER_AND_ABOVE },
+            { p: '/api/team-fit/**',              m: 'ALL',    d: 'Team-fit analysis (recruiter)',              r: RECRUITER_AND_ABOVE },
+
+            // ── Applications (recruiter sub-path already seeded, kept for specificity) ──
+            { p: '/api/applications/recruiter/**',m: 'GET',    d: 'Recruiter applicant list',                   r: RECRUITER_AND_ABOVE },
+            { p: '/api/applications/**',          m: 'ALL',    d: 'Application routes for all authenticated',   r: ALL_AUTHENTICATED },
+
+            // ── Resume / Profile ──────────────────────────────────────────────
+            { p: '/api/resume/**',                m: 'ALL',    d: 'Resume routes',                              r: ALL_AUTHENTICATED },
+            { p: '/api/user-resumes/**',          m: 'ALL',    d: 'User resume upload routes',                  r: ALL_AUTHENTICATED },
+            { p: '/api/profile/**',               m: 'ALL',    d: 'Profile routes',                             r: ALL_AUTHENTICATED },
+            { p: '/api/users/**',                 m: 'ALL',    d: 'User data routes',                           r: ALL_AUTHENTICATED },
+
+            // ── Interviews ────────────────────────────────────────────────────
+            { p: '/api/interview/**',             m: 'ALL',    d: 'AI interview routes',                        r: ALL_AUTHENTICATED },
+            { p: '/api/transcripts/**',           m: 'ALL',    d: 'Interview transcript routes',                r: ALL_AUTHENTICATED },
+
+            // ── Assessments ───────────────────────────────────────────────────
+            { p: '/api/assessment/**',            m: 'ALL',    d: 'Assessment routes',                          r: ALL_AUTHENTICATED },
+            { p: '/api/proctoring/**',            m: 'ALL',    d: 'Proctoring routes',                          r: ALL_AUTHENTICATED },
+            { p: '/api/proctoring-enhanced/**',   m: 'ALL',    d: 'Enhanced proctoring routes',                 r: ALL_AUTHENTICATED },
+
+            // ── Voice / AI Agent ──────────────────────────────────────────────
+            { p: '/api/voice/**',                 m: 'ALL',    d: 'Voice routes',                               r: ALL_AUTHENTICATED },
+            { p: '/api/v2/voice/**',              m: 'ALL',    d: 'Voice v2 routes',                            r: ALL_AUTHENTICATED },
+            { p: '/api/voice-agent/**',           m: 'ALL',    d: 'Voice agent routes',                         r: ALL_AUTHENTICATED },
+            { p: '/api/agent/**',                 m: 'ALL',    d: 'AI agent routes',                            r: ALL_AUTHENTICATED },
+
+            // ── Search ────────────────────────────────────────────────────────
+            { p: '/api/search/**',                m: 'ALL',    d: 'Search routes',                              r: ALL_AUTHENTICATED },
+            { p: '/api/ai-search/**',             m: 'ALL',    d: 'AI semantic search routes',                  r: ALL_AUTHENTICATED },
+
+            // ── Payments ─────────────────────────────────────────────────────
+            { p: '/api/payments/**',              m: 'ALL',    d: 'Payment routes',                             r: ALL_AUTHENTICATED },
+
+            // ── Content / Community / Insights ────────────────────────────────
+            { p: '/api/content/**',               m: 'ALL',    d: 'Blog / content routes',                      r: ALL_AUTHENTICATED },
+            { p: '/api/community/**',             m: 'ALL',    d: 'Community routes',                           r: ALL_AUTHENTICATED },
+            { p: '/api/insights/**',              m: 'ALL',    d: 'Insight / analytics routes',                 r: ALL_AUTHENTICATED },
+            { p: '/api/v1/**',                    m: 'ALL',    d: 'v1 API (blog, etc.)',                        r: ALL_AUTHENTICATED },
+
+            // ── Video / Media ─────────────────────────────────────────────────
+            { p: '/api/video-intro/**',           m: 'ALL',    d: 'Video intro routes',                         r: ALL_AUTHENTICATED },
+            { p: '/api/cloudinary-test/**',       m: 'ALL',    d: 'Cloudinary test routes',                     r: RECRUITER_AND_ABOVE },
+
+            // ── Catch-all: least specific — handles any new route not listed above ──
+            // More-specific rules above will always win over this fallback.
+            { p: '/api/**',                       m: 'ALL',    d: 'Catch-all authenticated route',              r: ALL_AUTHENTICATED },
+        ];
+
+        // ─── Upsert each rule ─────────────────────────────────────────────────
+        let created = 0, updated = 0;
+        for (const rule of rules) {
+            const existing = await Resource.findOne({ pathPattern: rule.p, method: rule.m });
+            if (!existing) {
+                await new Resource({
+                    pathPattern:  rule.p,
+                    method:       rule.m,
+                    description:  rule.d,
+                    allowedRoles: rule.r
+                }).save();
+                created++;
+            } else {
+                existing.allowedRoles = rule.r;
+                existing.description  = rule.d;
+                await existing.save();
+                updated++;
+            }
         }
+        console.log(`[SEED] Resource rules: ${created} created, ${updated} updated (${rules.length} total)`);
 
-        let premiumRecruiterRole = await Role.findOne({ name: 'premium_recruiter' });
-        if (!premiumRecruiterRole) {
-            premiumRecruiterRole = new Role({
-                name: 'premium_recruiter',
-                description: 'Paid/pro recruiter with access to applicants'
-            });
-            await premiumRecruiterRole.save();
-            console.log('[SEED] Created premium_recruiter role');
-        }
+        // Bust the in-memory cache so the running server picks up new rules immediately
+        clearResourceCache();
+        console.log('[SEED] Resource cache cleared — strict deny-by-default is now active');
 
-        // Find or create resource mapping
-        const pathPattern = '/api/applications/recruiter/**';
-        const existingResource = await Resource.findOne({ pathPattern, method: 'GET' });
-
-        const allowedRoles = [];
-        if (premiumRecruiterRole) allowedRoles.push(premiumRecruiterRole._id);
-        if (adminRole) allowedRoles.push(adminRole._id);
-
-        let recruiterRole = await Role.findOne({ name: 'recruiter' });
-        if (!recruiterRole) {
-            recruiterRole = new Role({
-                name: 'recruiter',
-                description: 'Standard recruiter'
-            });
-            await recruiterRole.save();
-            console.log('[SEED] Created recruiter role');
-        }
-        allowedRoles.push(recruiterRole._id);
-
-        if (!existingResource) {
-            const resource = new Resource({
-                pathPattern,
-                method: 'GET',
-                description: 'Recruiter applications - premium only',
-                allowedRoles
-            });
-            await resource.save();
-            console.log('[SEED] Created premium applicants resource restriction');
-        } else {
-            existingResource.allowedRoles = allowedRoles;
-            await existingResource.save();
-            console.log('[SEED] Synced/Updated premium applicants resource restriction');
-        }
     } catch (error) {
-        console.error('[SEED] Failed to seed premium recruiter roles/resources:', error.message);
+        console.error('[SEED] Failed to seed RBAC resource rules:', error.message);
     }
 };
 

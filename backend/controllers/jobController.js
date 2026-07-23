@@ -98,11 +98,37 @@ const deleteJob = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
-        await Job.findByIdAndDelete(req.params.jobId);
+
+        const job = await Job.findById(req.params.jobId);
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
+        // Ownership check: recruiters can only delete their own jobs (any status)
+        // Admins can delete any job
+        const reqUser = req.user;
+        if (reqUser && reqUser.role !== 'admin') {
+            const recruiterId = job.recruiterId;
+            const userId = reqUser._id ? reqUser._id.toString() : null;
+            const userUid = reqUser.uid || null;
+
+            const isOwner = (
+                (userId && recruiterId === userId) ||
+                (userUid && recruiterId === userUid)
+            );
+
+            if (!isOwner) {
+                return res.status(403).json({
+                    message: "Access denied. You can only delete your own job postings."
+                });
+            }
+        }
+
+        await job.deleteOne();
         clearJobsCache(); // Clear all job caches
         res.json({ message: "Job deleted successfully" });
     } catch (error) {
-        console.error("[GET-JOBS] Error:", error);
+        console.error("[DELETE-JOB] Error:", error);
         res.status(500).json({ message: error.message });
     }
 };

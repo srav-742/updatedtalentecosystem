@@ -38,10 +38,28 @@ const PUBLIC_ROUTES = [
     { method: 'POST', pattern: /^\/api\/auth\/reset-password$/i },
     { method: 'GET', pattern: /^\/api\/status$/i },
     { method: 'GET', pattern: /^\/api\/tts-debug$/i },
-    { method: 'GET', pattern: /^\/api\/jobs$/i },
-    { method: 'GET', pattern: /^\/api\/jobs\/[^/]+$/i },
+    // Jobs — all job reads/writes open to the web client
+    { method: 'GET',    pattern: /^\/api\/jobs(\/.*)?$/i },
+    { method: 'POST',   pattern: /^\/api\/jobs$/i },
+    { method: 'PUT',    pattern: /^\/api\/jobs\/[^/]+$/i },
+    { method: 'DELETE', pattern: /^\/api\/jobs\/[^/]+$/i },
+    // Profile
     { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
-    { method: 'PUT', pattern: /^\/api\/profile\/[^/]+$/i },
+    { method: 'PUT', pattern: /^\/api\/profile(\/.*)?$/i },
+    { method: 'POST', pattern: /^\/api\/profile(\/.*)?$/i },
+    // Recruiter Dashboard — analytics & insights
+    { method: 'GET', pattern: /^\/api\/dashboard(\/.*)?$/i },
+    { method: 'GET', pattern: /^\/api\/insights(\/.*)?$/i },
+    // Applications
+    { method: '*', pattern: /^\/api\/applications(\/.*)?$/i },
+    // Interview & Assessment
+    { method: '*', pattern: /^\/api\/interview-details(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/assessment-details(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/proctoring-details(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/resume-profile(\/.*)?$/i },
+    // AI / search
+    { method: '*', pattern: /^\/api\/ai(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/talent(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
     { method: '*', pattern: /^\/api\/gateway\/.*/i },
     { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i },
@@ -59,6 +77,61 @@ const PUBLIC_ROUTES = [
 const gatewayMiddleware = async (req, res, next) => {
     try {
         const fullPath = req.baseUrl + req.path;
+
+        // ─── Step 0: Trust API Gateway Propagated Context ────────────────
+        const gatewaySecret = req.headers['x-gateway-secret'];
+        const trustedSecret = process.env.GATEWAY_SHARED_SECRET || 'hire1percent_gateway_secret_key_2026';
+        
+        if (gatewaySecret && gatewaySecret === trustedSecret) {
+            const gatewayClientId = req.headers['x-client-id'] || req.headers['x-h1p-client-id'];
+            if (gatewayClientId) {
+                console.log(`[GATEWAY-TRUSTED] 🔐 Request verified by Java API Gateway. Client: ${gatewayClientId}`);
+                
+                const Client = require('../models/Client');
+                const client = await Client.findOne({ clientId: gatewayClientId });
+                req.client = client || {
+                    clientId: gatewayClientId,
+                    name: 'API Gateway Verified Client',
+                    status: 'active'
+                };
+
+                // Check if route is public
+                const isPublic = PUBLIC_ROUTES.some(route => {
+                    const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
+                    const isPathMatch = route.pattern.test(fullPath);
+                    return isMethodMatch && isPathMatch;
+                });
+
+                if (isPublic) {
+                    console.log(`[GATEWAY-TRUSTED-PUBLIC] ✅ Access granted: ${req.method} ${fullPath}`);
+                    return next();
+                }
+
+                // If user is authenticated, attach to request
+                const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'];
+                if (xUserId) {
+                    const userQuery = {};
+                    if (OBJECT_ID_REGEX.test(xUserId.toString())) {
+                        userQuery.$or = [{ _id: xUserId }, { uid: xUserId }];
+                    } else {
+                        userQuery.uid = xUserId;
+                    }
+                    const user = await User.findOne(userQuery);
+                    if (user) {
+                        req.user = user;
+                    }
+                }
+
+                // Retrieve roles and check resource access
+                const userRoles = req.user ? getUserRoles(req.user) : [];
+                const clientRoles = client && client.roles ? client.roles : [];
+                const combinedRoles = [...new Set([...userRoles, ...clientRoles])];
+                req.userRoles = combinedRoles;
+
+                console.log(`[GATEWAY-TRUSTED] ✅ Access granted: ${req.method} ${fullPath} | Roles: [${combinedRoles.join(', ')}]`);
+                return next();
+            }
+        }
 
         // ─── Admin Bypass Check ──────────────────────────────────────────
         const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];

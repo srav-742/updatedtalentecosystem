@@ -64,7 +64,13 @@ axios.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    const requestUrl = originalRequest?.url || '';
+    // Never clear the user session for 401s from the Java API Gateway (port 9090).
+    // Those are gateway-level rejections (invalid/missing token for that service).
+    // Only handle session clearing for Node backend (port 5000) 401s.
+    const isGatewayRequest = requestUrl.includes(':9090');
+
+    if (error.response && error.response.status === 401 && !originalRequest._retry && !isGatewayRequest) {
       const errCode = error.response.data?.code;
       if (errCode === 'TOKEN_EXPIRED' || errCode === 'INVALID_TOKEN') {
         originalRequest._retry = true;

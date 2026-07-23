@@ -41,7 +41,7 @@ const getRecruiterDashboard = async (req, res) => {
 const getRecruiterApplications = async (req, res) => {
     try {
         const reqUser = req.user;
-        const recruiterId = req.params.recruiterId;
+        const recruiterId = req.query.recruiterId || req.params.recruiterId;
 
         // Enforce recruiter applications ownership check (admins bypass)
         if (reqUser && reqUser.role !== 'admin') {

@@ -36,7 +36,7 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
 
     if (import.meta.env.DEV) console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
 
-    if (!user || !user.uid) {
+    if (!user || (!user.uid && !user._id && !user.id)) {
         if (import.meta.env.DEV) console.log("[ProtectedRoute] No valid user, redirecting to login");
         if (window.location.pathname.includes('AdminContentPage')) {
             return <Navigate to="/login" replace />;

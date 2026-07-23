@@ -16,6 +16,7 @@ const MyJobs = () => {
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
+    const [deleteConfirmJob, setDeleteConfirmJob] = useState(null); // job object to confirm delete
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
 
     const userId = user.uid || user._id || user.id;
@@ -48,12 +49,21 @@ const MyJobs = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+            setDeleteConfirmJob(null);
+        },
+        onError: (error) => {
+            console.error('[DELETE-JOB]', error?.response?.data?.message || error.message);
+            setDeleteConfirmJob(null);
         }
     });
 
-    const handleDelete = async (jobId) => {
-        if (!window.confirm('Are you sure you want to delete this job posting?')) return;
-        deleteJobMutation.mutate(jobId);
+    const handleDelete = (job) => {
+        setDeleteConfirmJob(job);
+    };
+
+    const confirmDelete = () => {
+        if (!deleteConfirmJob) return;
+        deleteJobMutation.mutate(deleteConfirmJob._id);
     };
 
     const toggleShareMenu = (jobId) => {
@@ -170,11 +180,14 @@ const MyJobs = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
+                <AnimatePresence mode="popLayout">
                 {filteredJobs.length > 0 ? filteredJobs.map((job) => (
-                    <React.Fragment key={job._id}>
                     <motion.div
+                        key={job._id}
+                        layout
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: -12, transition: { duration: 0.25 } }}
                         className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative"
                     >
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full" />
@@ -361,27 +374,32 @@ const MyJobs = () => {
                                             <Edit3 size={20} className="text-gray-400 group-hover/btn:text-blue-400" />
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(job._id)}
-                                            className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-red-500/10 transition-all group/btn"
+                                            onClick={() => handleDelete(job)}
+                                            disabled={deleteJobMutation.isPending && deleteConfirmJob?._id === job._id}
+                                            className="p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-red-500/10 transition-all group/btn disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Delete job posting"
                                         >
-                                            <Trash2 size={20} className="text-gray-400 group-hover/btn:text-red-400" />
+                                            {deleteJobMutation.isPending && deleteConfirmJob?._id === job._id
+                                                ? <svg className="animate-spin w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                                : <Trash2 size={20} className="text-gray-400 group-hover/btn:text-red-400" />
+                                            }
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </motion.div>
-                    {/* Rejection reason notice */}
-                    {job.status === 'rejected' && job.adminFeedback?.reason && (
-                        <div className="mx-6 mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
-                            <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">Rejected by Admin</p>
-                                <p className="text-red-300/80 text-sm font-medium">{job.adminFeedback.reason}</p>
+
+                        {/* Rejection reason notice */}
+                        {job.status === 'rejected' && job.adminFeedback?.reason && (
+                            <div className="mx-6 mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                                <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">Rejected by Admin</p>
+                                    <p className="text-red-300/80 text-sm font-medium">{job.adminFeedback.reason}</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    </React.Fragment>
+                        )}
+                    </motion.div>
                 )) : (
                     <div className="p-24 text-center border-2 border-dashed border-white/5 rounded-[4rem] bg-white/[0.01]">
                         <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8">
@@ -394,6 +412,7 @@ const MyJobs = () => {
                         </Link>
                     </div>
                 )}
+                </AnimatePresence>
             </div>
 
             <BulkUploadModal
@@ -405,6 +424,193 @@ const MyJobs = () => {
                 jobId={selectedJobId}
                 onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
             />
+
+            {/* Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteConfirmJob && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style={{ backgroundColor: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(16px)' }}
+                        onClick={() => !deleteJobMutation.isPending && setDeleteConfirmJob(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                            className="relative w-full max-w-[420px] overflow-hidden"
+                            style={{
+                                borderRadius: '28px',
+                                background: '#0d0f17',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                padding: '28px',
+                                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Ambient top blue tint glow */}
+                            <div style={{
+                                position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                                width: '240px', height: '120px',
+                                background: 'radial-gradient(ellipse, rgba(59, 130, 246, 0.12) 0%, transparent 70%)',
+                                pointerEvents: 'none'
+                            }} />
+
+                            <div style={{ position: 'relative', zIndex: 10 }}>
+                                {/* Header row */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+                                    <div>
+                                        <div style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                            padding: '4px 12px', borderRadius: '9999px',
+                                            background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                                            color: '#f87171', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+                                            marginBottom: '8px'
+                                        }}>
+                                            <Trash2 size={12} style={{ color: '#f87171' }} /> Remove Job
+                                        </div>
+                                        <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
+                                            Delete Posting
+                                        </h3>
+                                    </div>
+                                    <button
+                                        onClick={() => !deleteJobMutation.isPending && setDeleteConfirmJob(null)}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            width: '36px', height: '36px', borderRadius: '12px',
+                                            background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.12)',
+                                            color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            cursor: 'pointer', fontSize: '16px', fontWeight: 600, transition: 'all 0.15s',
+                                            opacity: deleteJobMutation.isPending ? 0.4 : 1
+                                        }}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                {/* Job preview card */}
+                                <div style={{
+                                    borderRadius: '16px', background: 'rgba(255, 255, 255, 0.04)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)', padding: '16px',
+                                    marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '14px'
+                                }}>
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+                                        background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                                        color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <Briefcase size={20} style={{ color: '#f87171' }} />
+                                    </div>
+                                    <div style={{ overflow: 'hidden' }}>
+                                        <div style={{
+                                            fontSize: '16px', fontWeight: 800, color: '#ffffff',
+                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                            textTransform: 'capitalize'
+                                        }}>
+                                            {deleteConfirmJob.title}
+                                        </div>
+                                        <div style={{ marginTop: '4px' }}>
+                                            {deleteConfirmJob.status === 'pending_approval' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#fbbf24',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.25)'
+                                                }}>
+                                                    <Clock size={9} style={{ color: '#fbbf24' }} /> Awaiting Approval
+                                                </span>
+                                            )}
+                                            {deleteConfirmJob.status === 'approved' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#34d399',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.25)'
+                                                }}>
+                                                    <CheckCircle2 size={9} style={{ color: '#34d399' }} /> Live Now
+                                                </span>
+                                            )}
+                                            {deleteConfirmJob.status === 'rejected' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#f87171',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(248, 113, 113, 0.12)', border: '1px solid rgba(248, 113, 113, 0.25)'
+                                                }}>
+                                                    <XCircle size={9} style={{ color: '#f87171' }} /> Rejected
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Confirmation warning */}
+                                <p style={{ fontSize: '14px', color: '#9ca3af', lineHeight: 1.6, marginBottom: '24px', fontWeight: 500 }}>
+                                    Are you sure you want to delete this job posting? All candidate applications and related data will be permanently removed.
+                                </p>
+
+                                {/* Action buttons */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <button
+                                        onClick={() => setDeleteConfirmJob(null)}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            flex: 1, padding: '14px 0', borderRadius: '14px',
+                                            background: 'rgba(255, 255, 255, 0.08)',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            color: '#ffffff', fontSize: '14px', fontWeight: 700,
+                                            cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center',
+                                            opacity: deleteJobMutation.isPending ? 0.4 : 1
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
+                                    >
+                                        Keep It
+                                    </button>
+                                    <button
+                                        onClick={confirmDelete}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            flex: 1.4, padding: '14px 0', borderRadius: '14px',
+                                            background: deleteJobMutation.isPending ? '#991b1b' : '#dc2626',
+                                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                                            color: '#ffffff', fontSize: '14px', fontWeight: 800,
+                                            cursor: deleteJobMutation.isPending ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.15s', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', gap: '8px',
+                                            boxShadow: '0 6px 20px rgba(220, 38, 38, 0.35)'
+                                        }}
+                                        onMouseEnter={e => { if (!deleteJobMutation.isPending) e.currentTarget.style.background = '#ef4444'; }}
+                                        onMouseLeave={e => { if (!deleteJobMutation.isPending) e.currentTarget.style.background = '#dc2626'; }}
+                                    >
+                                        {deleteJobMutation.isPending ? (
+                                            <>
+                                                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24" style={{ color: '#ffffff' }}>
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                                </svg>
+                                                <span style={{ color: '#ffffff' }}>Deleting...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 size={16} style={{ color: '#ffffff' }} />
+                                                <span style={{ color: '#ffffff' }}>Yes, Delete It</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
