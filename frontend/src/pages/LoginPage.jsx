@@ -7,6 +7,12 @@ import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedir
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
+const CLIENT_SECRETS_MAP = {
+    'client_S39nehUJA1h802vd39XdUw1a33U2': 'Rohith_123',
+    'client_Vxt80WooRYdH8paz58b7N0eTfdq1': 'sanjay_secret_key_2026',
+    'client_FnRJZE65vGflgyfvJchsbVfpqgA3': 'vijay_secret_key_2026',
+};
+
 const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -273,7 +279,7 @@ const LoginPage = () => {
             if (activeUid) {
                 localStorage.setItem('h1p_client_id', `client_${activeUid}`);
             }
-            const clientSecretToStore = profile.clientSecret || (activeUid === 'FnRJZE65vGflgyfvJchsbVfpqgA3' ? 'vijay_secret_key_2026' : 'secret');
+            const clientSecretToStore = profile.clientSecret || CLIENT_SECRETS_MAP[`client_${activeUid}`] || 'secret';
             localStorage.setItem('h1p_client_secret', clientSecretToStore);
 
             // Store using the SELECTED role (not the DB role) so the session matches what the user chose.
@@ -361,7 +367,7 @@ const LoginPage = () => {
             if (activeGoogleUid) {
                 localStorage.setItem('h1p_client_id', `client_${activeGoogleUid}`);
             }
-            const googleClientSecretToStore = basicProfile.clientSecret || `${basicProfile.name ? basicProfile.name.split(' ')[0].toLowerCase() : 'vijay'}_secret_key_2026`;
+            const googleClientSecretToStore = basicProfile.clientSecret || CLIENT_SECRETS_MAP[`client_${activeGoogleUid}`] || 'secret';
             localStorage.setItem('h1p_client_secret', googleClientSecretToStore);
 
             // Initialize Gateway session tokens

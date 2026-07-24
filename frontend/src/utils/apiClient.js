@@ -17,6 +17,12 @@ import { API_URL } from '../firebase';
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';
 
+const CLIENT_SECRETS_MAP = {
+    'client_S39nehUJA1h802vd39XdUw1a33U2': 'Rohith_123',
+    'client_Vxt80WooRYdH8paz58b7N0eTfdq1': 'sanjay_secret_key_2026',
+    'client_FnRJZE65vGflgyfvJchsbVfpqgA3': 'vijay_secret_key_2026',
+};
+
 /**
  * Get stored tokens from localStorage
  */
@@ -206,7 +212,7 @@ const apiClient = {
             try {
                 const clientId = `client_${uid}`;
                 const storedSecret = localStorage.getItem('h1p_client_secret');
-                const secretToUse = clientSecret || storedSecret || 'secret';
+                const secretToUse = clientSecret || storedSecret || CLIENT_SECRETS_MAP[clientId] || 'secret';
                 const credentials = btoa(`${clientId}:${secretToUse}`);
 
                 const res = await fetch('http://localhost:9090/oauth-service/oauth/authenticate', {

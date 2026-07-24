@@ -38,11 +38,8 @@ const PUBLIC_ROUTES = [
     { method: 'POST', pattern: /^\/api\/auth\/reset-password$/i },
     { method: 'GET', pattern: /^\/api\/status$/i },
     { method: 'GET', pattern: /^\/api\/tts-debug$/i },
-    // Jobs — all job reads/writes open to the web client
+    // Jobs — only job browsing is public
     { method: 'GET',    pattern: /^\/api\/jobs(\/.*)?$/i },
-    { method: 'POST',   pattern: /^\/api\/jobs$/i },
-    { method: 'PUT',    pattern: /^\/api\/jobs\/[^/]+$/i },
-    { method: 'DELETE', pattern: /^\/api\/jobs\/[^/]+$/i },
     // Profile
     { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'PUT', pattern: /^\/api\/profile(\/.*)?$/i },
@@ -50,8 +47,6 @@ const PUBLIC_ROUTES = [
     // Recruiter Dashboard — analytics & insights
     { method: 'GET', pattern: /^\/api\/dashboard(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/insights(\/.*)?$/i },
-    // Applications
-    { method: '*', pattern: /^\/api\/applications(\/.*)?$/i },
     // Interview & Assessment
     { method: '*', pattern: /^\/api\/interview-details(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/assessment-details(\/.*)?$/i },
@@ -313,6 +308,15 @@ const gatewayMiddleware = async (req, res, next) => {
 
         req.user = user;
         req.tokenRefreshed = tokenRefreshed;
+
+        // ─── Client-Level Verification for Recruiter Role ────────────────
+        if (user.role === 'recruiter' && clientId === 'hire1percent_web_client') {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied. Recruiters must use a registered custom Client ID and Client Secret.",
+                requiredAction: 'Please configure your custom Client ID and Client Secret in the app.'
+            });
+        }
 
         // ─── Step 5: Role-Based Resource Access Check ────────────────────
         const userRoles = getUserRoles(user);

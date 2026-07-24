@@ -42,13 +42,12 @@ const PostJob = () => {
                 });
                 return true;
             } catch (err) {
-                if (err.response?.status === 403) {
-                    const forbidden = new Error('Forbidden');
-                    forbidden.status = 403;
+                if (err.response?.status === 403 || err.response?.status === 401) {
+                    const forbidden = new Error(err.response?.data?.message || 'Access Denied');
+                    forbidden.status = err.response?.status;
                     throw forbidden;
                 }
-                // For 401 or network errors from gateway, swallow silently.
-                return true;
+                throw err;
             }
         },
         enabled: !!recruiterId,
