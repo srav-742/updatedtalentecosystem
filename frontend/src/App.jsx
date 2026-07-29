@@ -19,6 +19,7 @@ function BlogRouteWrapper({ children }) {
 }
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const AssessmentsHome = lazy(() => import('./pages/AssessmentsHome'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -78,7 +79,9 @@ function App() {
 
       <Suspense fallback={<GlobalPageSkeleton />}>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<AssessmentsHome />} />
+        <Route path="/service" element={<LandingPage />} />
+        <Route path="/assessments-home" element={<Navigate to="/" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/signup" element={<SignupPage />} />

@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hire 1% | Unified AI Technical Screening & Skill Assessments</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0c0f16',
+                        cardBg: '#0f131c',
+                        cardBorder: 'rgba(255, 255, 255, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-[#0c0f16] text-white selection:bg-blue-500/30 overflow-x-hidden dark:bg-[#0c0f16] dark:text-white">
+
+    <!-- NAV BAR -->
+    <nav class="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f16]/80 backdrop-blur-md transition-colors duration-300 id-navbar">
+        <div class="container mx-auto px-6 py-4 flex items-center justify-between">
+            <a href="#" class="flex items-center space-x-2 group">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <span class="text-white font-bold text-xl">H</span>
+                </div>
+                <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 id-logo-text">
+                    hire1percent
+                </span>
+            </a>
+            
+            <div class="flex items-center space-x-6">
+                <!-- Theme Toggle -->
+                <button onclick="toggleTheme()" class="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-gray-300 hover:text-white" id="theme-toggle-btn">
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+                </button>
+                <a href="#demo-section" class="px-5 py-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-xl text-xs transition-all duration-300 shadow-md shadow-blue-500/10">
+                    Book Demo
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ─── SECTION 1: HERO ─── -->
+    <section class="relative pt-36 pb-24 overflow-hidden">
+        <div class="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[140px] -z-10 bg-blue-600/10 hero-glow-1"></div>
+        <div class="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[110px] -z-10 bg-teal-500/10 hero-glow-2"></div>
+
+        <div class="container mx-auto px-6 text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/30 bg-blue-500/5 mb-8">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                <span class="text-[11px] font-black uppercase tracking-[0.15em] text-blue-400">
+                    Unified AI Technical Screening &amp; Proctored Assessments
+                </span>
+            </div>
+            <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08] max-w-5xl mx-auto text-white id-hero-title">
+                Filter the Top 1% Tech Talent.<br>
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">
+                    Unified Pipelines.
+                </span>
+                <br>
+                <span class="text-gray-200 id-hero-subtitle">Zero Tool Bloat.</span>
+            </h1>
+            <p class="max-w-2xl mx-auto text-lg md:text-xl mb-12 leading-relaxed text-gray-400 id-hero-desc">
+                Replace fragmented recruitment tools with one unified AI driven Pipeline. Automatically rank candidates, run proctored technical assessments with native anti-cheating detection, and conduct async video interviews — all in one place.
+            </p>
+
+            <div class="flex flex-col items-center gap-5 mb-12">
+                <a
+                    href="#demo-section"
+                    class="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base"
+                >
+                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                    Book a 15-Minute Live Demo
+                </a>
+
+                <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold text-gray-400 id-hero-badges">
+                    <span class="flex items-center gap-1.5">⏱️ 5-Minute Setup</span>
+                    <span class="w-px h-3 bg-white/20 divider-line"></span>
+                    <span class="flex items-center gap-1.5">🛡️ Anti-Cheating Proctored Assessments</span>
+                    <span class="w-px h-3 bg-white/20 divider-line"></span>
+                    <span class="flex items-center gap-1.5">✅ No Tool Switching</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                <div class="p-6 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-0.5 card-bg-var">
+                    <p class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">70%</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400 metric-label">Reduction in Time-to-Hire</p>
+                </div>
+                <div class="p-6 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-0.5 card-bg-var">
+                    <p class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">100%</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400 metric-label">Proctoring Integrity</p>
+                </div>
+                <div class="p-6 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-0.5 card-bg-var">
+                    <p class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">Zero</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400 metric-label">Tool Bloat</p>
+                </div>
+                <div class="p-6 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-0.5 card-bg-var">
+                    <p class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">10x</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400 metric-label">Faster Quality Hires</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── SECTION 2: AGITATION ─── -->
+    <section class="py-24 border-y border-white/5 bg-[#0f131c] id-agitation-sec">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-rose-500/20 bg-rose-500/8 text-rose-400 text-xs font-black uppercase tracking-wider mb-4">
+                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> The Problem
+                </div>
+                <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-agitation-title">
+                    Modern Tech Hiring is Broken by
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-orange-400">
+                        SaaS Bloat and Unverified Skills
+                    </span>
+                </h2>
+                <p class="text-base leading-relaxed text-gray-400 id-agitation-desc">
+                    The traditional technical recruitment pipeline is leaking time and money at every stage.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                <!-- Pain 1 -->
+                <div class="p-7 rounded-[1.75rem] border border-white/8 bg-white/4 hover:bg-white/6 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-orange-500/10 border border-orange-500/20">
+                        <i data-lucide="file-text" class="w-5 h-5 text-orange-400"></i>
+                    </div>
+                    <h3 class="text-lg font-black mb-2 tracking-tight text-white card-title">Resume Noise Overload</h3>
+                    <p class="text-sm leading-relaxed text-gray-400 card-desc">Sifting through hundreds of AI-generated resumes for a single engineering opening while top developers drop out of slow, friction-heavy pipelines.</p>
+                </div>
+                <!-- Pain 2 -->
+                <div class="p-7 rounded-[1.75rem] border border-white/8 bg-white/4 hover:bg-white/6 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-amber-500/10 border border-amber-500/20">
+                        <i data-lucide="bot-message-square" class="w-5 h-5 text-amber-400"></i>
+                    </div>
+                    <h3 class="text-lg font-black mb-2 tracking-tight text-white card-title">Cheating &amp; AI Test Fraud</h3>
+                    <p class="text-sm leading-relaxed text-gray-400 card-desc">Unproctored coding assessments allow candidates to use external AI assistants, copy-paste answers, or switch tabs, resulting in artificial screening scores.</p>
+                </div>
+                <!-- Pain 3 -->
+                <div class="p-7 rounded-[1.75rem] border border-white/8 bg-white/4 hover:bg-white/6 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-purple-500/10 border border-purple-500/20">
+                        <i data-lucide="clock" class="w-5 h-5 text-purple-400"></i>
+                    </div>
+                    <h3 class="text-lg font-black mb-2 tracking-tight text-white card-title">Manager Review Bottlenecks</h3>
+                    <p class="text-sm leading-relaxed text-gray-400 card-desc">Waiting days for busy engineering leads to join preliminary sync calls just to evaluate basic candidate communication before the real interviews can begin.</p>
+                </div>
+                <!-- Pain 4 -->
+                <div class="p-7 rounded-[1.75rem] border border-white/8 bg-white/4 hover:bg-white/6 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-rose-500/10 border border-rose-500/20">
+                        <i data-lucide="credit-card" class="w-5 h-5 text-rose-400"></i>
+                    </div>
+                    <h3 class="text-lg font-black mb-2 tracking-tight text-white card-title">The Multi-Tool Stack Tax</h3>
+                    <p class="text-sm leading-relaxed text-gray-400 card-desc">Paying separate monthly subscriptions for an ATS, coding test platform, video interview software, and verification plugins — with separate logins and zero integration.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── SECTION 3: UNIQUE MECHANISM ─── -->
+    <section class="py-24">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/8 text-blue-400 text-xs font-black uppercase tracking-wider mb-4">
+                    <i data-lucide="zap" class="w-3.5 h-3.5"></i> How It Works
+                </div>
+                <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-mechanism-title">
+                    One Unified Pipeline.
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">Total Evaluation Integrity.</span>
+                </h2>
+                <p class="text-base leading-relaxed text-gray-400 id-mechanism-desc">
+                    Hire 1% eliminates tool switching by consolidating resume parsing, technical evaluation, and candidate review into three seamless steps.
+                </p>
+            </div>
+
+            <!-- Pipeline flow -->
+            <div class="flex flex-col md:flex-row items-center justify-center gap-3 mb-16 max-w-4xl mx-auto">
+                <div class="flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-blue-500/25 bg-blue-500/10 text-blue-300 font-bold text-sm whitespace-nowrap flow-badge-var">
+                    <span class="text-[10px] font-black opacity-50">Step 01</span>
+                    <span>AI Resume Parse</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 shrink-0 hidden md:block text-gray-600 flow-arrow"></i>
+                <div class="flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-teal-500/25 bg-teal-500/10 text-teal-300 font-bold text-sm whitespace-nowrap flow-badge-var">
+                    <span class="text-[10px] font-black opacity-50">Step 02</span>
+                    <span>Proctored Assessment</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 shrink-0 hidden md:block text-gray-600 flow-arrow"></i>
+                <div class="flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-purple-500/25 bg-purple-500/10 text-purple-300 font-bold text-sm whitespace-nowrap flow-badge-var">
+                    <span class="text-[10px] font-black opacity-50">Step 03</span>
+                    <span>Async Video Interview</span>
+                </div>
+            </div>
+
+            <!-- 3 Cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Card 1 -->
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5 text-blue-400"></i>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-3 block">Step 01</span>
+                    <h3 class="text-xl font-black mb-3 tracking-tight text-white">Automated Resume Parsing & Skill Alignment</h3>
+                    <p class="text-sm leading-relaxed mb-6 text-gray-400">Stop manually reading every PDF. Our AI engine parses candidate resumes, extracts core stack competencies, and automatically ranks applicants against your role requirements — dropping resume noise immediately.</p>
+                    <ul class="space-y-2.5 text-xs font-semibold text-gray-300">
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Skill extraction & gap analysis</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Auto-rank against role requirements</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Removes AI-generated resume noise</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 bg-teal-500/10 border border-teal-500/20 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-teal-400"></i>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-3 block">Step 02</span>
+                    <h3 class="text-xl font-black mb-3 tracking-tight text-white">Proctored AI Technical Assessments</h3>
+                    <p class="text-sm leading-relaxed mb-6 text-gray-400">Deploy coding evaluations with active session integrity verification. Our engine monitors the candidate workspace to verify honest, native code execution and prevent test manipulation.</p>
+                    <ul class="space-y-2.5 text-xs font-semibold text-gray-300">
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Real-time browser focus tracking</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Tab-switch detection validation</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Biometric face verification checks</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="video" class="w-5 h-5 text-purple-400"></i>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-3 block">Step 03</span>
+                    <h3 class="text-xl font-black mb-3 tracking-tight text-white">Async Video Interviews & Dashboard Review</h3>
+                    <p class="text-sm leading-relaxed mb-6 text-gray-400">Candidates complete AI-generated mock interview questions at their own pace. Logged-in hiring teams review the complete candidate evaluation — MCQ scores, validation summary, and full video interview — all in one unified recruiter dashboard.</p>
+                    <ul class="space-y-2.5 text-xs font-semibold text-gray-300">
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Candidates record on their own schedule</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>AI scores answers automatically</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-teal-400"></i>
+                            <span>Full picture available in the recruiter dashboard</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── SECTION 4: PROOF & INTEGRITY SHOWCASE ─── -->
+    <section class="py-24 border-t border-white/5 bg-[#0f131c] id-proof-sec">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/8 text-emerald-400 text-xs font-black uppercase tracking-wider mb-4">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Proof of Performance
+                </div>
+                <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-proof-title">
+                    Built for Engineering Teams Who
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400">Demand Proof, Not Promises</span>
+                </h2>
+                <p class="text-base leading-relaxed text-gray-400 id-proof-desc">
+                    Skip resume sifting and get direct, verified evaluation scores right on your dashboard.
+                </p>
+            </div>
+
+            <!-- Artifact Mockups Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
+                <!-- Artifact A: Proctoring Audit Log -->
+                <div class="rounded-[2rem] border border-white/5 bg-white/5 overflow-hidden card-bg-var">
+                    <div class="px-6 py-4 border-b border-white/5 bg-black/20 flex items-center justify-between mockup-header-var">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-rose-400"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-rose-400">Live Proctoring Audit Log</span>
+                        </div>
+                        <span class="text-[9px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">LIVE MONITORING</span>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <div class="p-4 rounded-xl border border-rose-100 bg-rose-50/60 dark:border-rose-500/15 dark:bg-rose-500/5 flex items-center justify-between gap-3 c-log-row-var">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-rose-500"></span>
+                                    <p class="text-[10px] font-black uppercase text-rose-400">TAB SWITCH FLAGGED</p>
+                                    <span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400">HIGH</span>
+                                </div>
+                                <p class="text-[10px] truncate text-gray-400">Candidate switched browser tabs temporarily</p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <p class="text-rose-400 font-extrabold text-sm">+6</p>
+                                <p class="text-[9px] text-gray-500">00:14:22</p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 rounded-xl border border-amber-100 bg-amber-50/60 dark:border-amber-500/15 dark:bg-amber-500/5 flex items-center justify-between gap-3 c-log-row-var">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-amber-400"></span>
+                                    <p class="text-[10px] font-black uppercase text-rose-400">EYE LOOKING AWAY</p>
+                                    <span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">MEDIUM</span>
+                                </div>
+                                <p class="text-[10px] truncate text-gray-400">Rhythmic horizontal eye movement detected</p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <p class="text-rose-400 font-extrabold text-sm">+4</p>
+                                <p class="text-[9px] text-gray-500">00:08:08</p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 rounded-xl border border-amber-100 bg-amber-50/60 dark:border-amber-500/15 dark:bg-amber-500/5 flex items-center justify-between gap-3 c-log-row-var">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-amber-400"></span>
+                                    <p class="text-[10px] font-black uppercase text-rose-400">HEAD TURNED</p>
+                                    <span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">MEDIUM</span>
+                                </div>
+                                <p class="text-[10px] truncate text-gray-400">Head turned excessively to the right</p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <p class="text-rose-400 font-extrabold text-sm">+3</p>
+                                <p class="text-[9px] text-gray-500">00:08:26</p>
+                            </div>
+                        </div>
+                        <p class="text-xs leading-relaxed pt-2 text-gray-400 feedback-note">
+                            Every assessment generates a complete audit trail. Know exactly how candidates performed and whether they stayed focused on the test.
+                        </p>
+                    </div>
+                </div>                <!-- Artifact B: Recruiter Insights Dashboard -->
+                <div class="rounded-[2rem] border border-white/5 bg-white/5 overflow-hidden card-bg-var">
+                    <div class="px-6 py-4 border-b border-white/5 bg-black/20 flex items-center justify-between mockup-header-var">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-blue-400">Recruiter Insights Dashboard</span>
+                        </div>
+                        <span class="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">ACTIVE SESSION</span>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div class="p-3 rounded-2xl border border-white/5 bg-white/5 text-center card-bg-var">
+                                <p class="text-xl font-extrabold text-blue-500">12</p>
+                                <p class="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-1">Open Pipelines</p>
+                            </div>
+                            <div class="p-3 rounded-2xl border border-white/5 bg-white/5 text-center card-bg-var">
+                                <p class="text-xl font-extrabold text-teal-400">85%</p>
+                                <p class="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-1">Completion Rate</p>
+                            </div>
+                            <div class="p-3 rounded-2xl border border-white/5 bg-white/5 text-center card-bg-var">
+                                <p class="text-xl font-extrabold text-purple-400">1,240</p>
+                                <p class="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-1">Screened Candidates</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <p class="text-xs font-black uppercase tracking-wider mb-2 text-white list-title">Top Ranked Candidates</p>
+                            
+                            <div class="p-3 rounded-xl border border-white/5 bg-white/5 flex items-center justify-between gap-4 card-bg-var">
+                                <div>
+                                    <p class="text-xs font-bold text-white cand-name">Aarav Sharma</p>
+                                    <p class="text-[9px] text-gray-400 cand-role">AI/ML Scientist</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-extrabold text-emerald-400">96/100</p>
+                                    <p class="text-[8px] font-black text-gray-500 uppercase">Strongly Recommended</p>
+                                </div>
+                            </div>
+
+                            <div class="p-3 rounded-xl border border-white/5 bg-white/5 flex items-center justify-between gap-4 card-bg-var">
+                                <div>
+                                    <p class="text-xs font-bold text-white cand-name">Ananya Sen</p>
+                                    <p class="text-[9px] text-gray-400 cand-role">Senior Full-Stack Developer</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-extrabold text-emerald-400">94/100</p>
+                                    <p class="text-[8px] font-black text-gray-500 uppercase">Strongly Recommended</p>
+                                </div>
+                            </div>
+
+                            <div class="p-3 rounded-xl border border-white/5 bg-white/5 flex items-center justify-between gap-4 card-bg-var">
+                                <div>
+                                    <p class="text-xs font-bold text-white cand-name">Vikram Malhotra</p>
+                                    <p class="text-[9px] text-gray-400 cand-role">Frontend Architect</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-extrabold text-emerald-400">92/100</p>
+                                    <p class="text-[8px] font-black text-gray-500 uppercase">Recommended</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-xs leading-relaxed pt-4 text-gray-400 feedback-note">
+                            Hiring teams see the complete candidate picture in one place — resume ranking, technical results, proctoring logs, and video interview — all inside the recruiter dashboard.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <!-- Metrics Row -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 text-center transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <p class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-3">70%</p>
+                    <p class="text-sm font-semibold leading-snug text-gray-400 metric-text">Reduction in overall Time-to-Hire</p>
+                </div>
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 text-center transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <p class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 mb-3">100%</p>
+                    <p class="text-sm font-semibold leading-snug text-gray-400 metric-text">Proctoring Audit Visibility</p>
+                </div>
+                <div class="p-8 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/8 text-center transition-all duration-300 hover:-translate-y-1 card-bg-var">
+                    <p class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-3">Single</p>
+                    <p class="text-sm font-semibold leading-snug text-gray-400 metric-text">Subscription replacing legacy point solutions</p>
+                </div>
+            </div>        </div>
+    </section>
+
+    <!-- ─── SECTION 5: TOOL CONSOLIDATION TABLE ─── -->
+    <section class="py-24">
+        <div class="container mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-14">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/8 text-amber-400 text-xs font-black uppercase tracking-wider mb-4">
+                    <i data-lucide="trending-down" class="w-3.5 h-3.5"></i> Cost Comparison
+                </div>
+                <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-table-title">
+                    Stop Paying the<br>
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-400">Fragmented Tool Tax</span>
+                </h2>
+                <p class="text-base leading-relaxed text-gray-400 id-table-desc">Compare how Hire 1% simplifies your recruiting operations:</p>
+            </div>
+
+            <div class="max-w-4xl mx-auto">
+                <div class="rounded-[2rem] border border-white/8 overflow-hidden shadow-xl table-container-var">
+                    <!-- Header -->
+                    <div class="grid grid-cols-3 bg-white/5 border-b border-white/8 table-header-var text-center">
+                        <div class="px-6 py-4 text-left">
+                            <p class="text-xs font-black uppercase tracking-wider text-gray-500 col-header">Feature / Capability</p>
+                        </div>
+                        <div class="px-6 py-4 border-x border-white/8 col-border-var">
+                            <p class="text-xs font-black uppercase tracking-wider text-rose-400">Legacy Multi-Tool Stack</p>
+                        </div>
+                        <div class="px-6 py-4">
+                            <p class="text-xs font-black uppercase tracking-wider text-emerald-400">Hire 1% Platform</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">AI Resume Parsing & Scoring</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-rose-400">Requires separate ATS</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Built-in</span>
+                        </div>
+                    </div>
+                    <!-- Row 2 -->
+                    <div class="grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">Proctored Technical Tests</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="minus" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-amber-400">Expensive point solution</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Built-in</span>
+                        </div>
+                    </div>
+                    <!-- Row 3 -->
+                    <div class="grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">Anti-Cheating Proctoring Engine</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-rose-400">Third-party plugin needed</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Tab-switch & Focus tracking</span>
+                        </div>
+                    </div>
+                    <!-- Row 4 -->
+                    <div class="grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">Async Video Mock Interviews</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-rose-400">Separate SaaS bill</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Built-in</span>
+                        </div>
+                    </div>
+                    <!-- Row 5 -->
+                    <div class="grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">Unified Candidate Dashboard</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="minus" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-amber-400">Fragmented across tools</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Single Platform</span>
+                        </div>
+                    </div>
+                    <!-- Row 6 -->
+                    <div class="grid grid-cols-3 border-b-0 hover:bg-white/3 transition-colors duration-200 row-var">
+                        <div class="px-6 py-5 flex items-center"><p class="text-sm font-bold text-white row-title">Workflow Friction</p></div>
+                        <div class="px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-rose-400">High (Multiple logins)</span>
+                        </div>
+                        <div class="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                            <span class="text-[10px] font-semibold text-emerald-400">Zero friction</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── SECTION 6: FAQ ─── -->
+    <section class="py-24 border-t border-white/5 bg-[#0f131c] id-faq-sec">
+        <div class="container mx-auto px-6 max-w-4xl">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-faq-title">Frequently Asked Questions</h2>
+                <p class="text-gray-400 id-faq-desc">Everything you need to know about the hire1percent assessment platform.</p>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- FAQ 1 -->
+                <div class="rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300 card-bg-var faq-item">
+                    <button onclick="toggleFaq(0)" class="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-lg text-white">
+                        <span>How does the AI validate session integrity?</span>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-300 shrink-0 faq-icon"></i>
+                    </button>
+                    <div class="faq-content overflow-hidden max-h-0 transition-all duration-300 opacity-0 border-white/10 border-t-0">
+                        <p class="px-6 py-5 text-sm leading-relaxed text-gray-400">
+                            Our proctoring engine monitors workspace focus (tracking tab switches, window blur, and fullscreen exits) and webcam streams (detecting eye movements, face presence, and phone use). It also checks system telemetry to detect secondary monitors and hardware changes mid-test.
+                        </p>
+                    </div>
+                </div>
+                <!-- FAQ 2 -->
+                <div class="rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300 card-bg-var faq-item">
+                    <button onclick="toggleFaq(1)" class="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-lg text-white">
+                        <span>Are the assessment questions unique?</span>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-300 shrink-0 faq-icon"></i>
+                    </button>
+                    <div class="faq-content overflow-hidden max-h-0 transition-all duration-300 opacity-0 border-white/10 border-t-0">
+                        <p class="px-6 py-5 text-sm leading-relaxed text-gray-400">
+                            Yes. Our AI engine dynamically constructs custom assessments based on your exact job descriptions. This guarantees that assessment questions are unique and fresh, preventing search engine leaks.
+                        </p>
+                    </div>
+                </div>
+                <!-- FAQ 3 -->
+                <div class="rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300 card-bg-var faq-item">
+                    <button onclick="toggleFaq(2)" class="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-lg text-white">
+                        <span>Who can view the candidate scores and reports?</span>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-300 shrink-0 faq-icon"></i>
+                    </button>
+                    <div class="faq-content overflow-hidden max-h-0 transition-all duration-300 opacity-0 border-white/10 border-t-0">
+                        <p class="px-6 py-5 text-sm leading-relaxed text-gray-400">
+                            The detailed Candidate Insight Report—comprising MCQ scoring, AI interview dialogue transcripts, and session integrity data—is generated exclusively for the recruiter dashboard. Candidates do not see their numeric scores; they are only notified of their final status.
+                        </p>
+                    </div>
+                </div>
+                <!-- FAQ 4 -->
+                <div class="rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300 card-bg-var faq-item">
+                    <button onclick="toggleFaq(3)" class="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-lg text-white">
+                        <span>Can candidates take this assessment on mobile?</span>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-300 shrink-0 faq-icon"></i>
+                    </button>
+                    <div class="faq-content overflow-hidden max-h-0 transition-all duration-300 opacity-0 border-white/10 border-t-0">
+                        <p class="px-6 py-5 text-sm leading-relaxed text-gray-400">
+                            For general candidate assessments and strict verification checks, candidates are required to use a webcam-equipped laptop or desktop computer.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── SECTION 7: FINAL CTA ─── -->
+    <section id="demo-section" class="relative py-28 overflow-hidden bg-clear id-cta-sec">
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full blur-[150px] -z-10 bg-blue-600/5 cta-glow-1"></div>
+        <div class="absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full blur-[120px] -z-10 bg-teal-500/5 cta-glow-2"></div>
+
+        <div class="container mx-auto px-6 text-center max-w-4xl">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/8 text-blue-400 text-xs font-black uppercase tracking-wider mb-6">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Get Started Today
+            </div>
+            <h2 class="text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none text-white id-cta-title">
+                Ready to Hire the<br>
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">True Top 1%?</span>
+            </h2>
+            <p class="text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed text-gray-400 id-cta-desc">
+                Join forward-thinking tech teams, scale-ups, and recruitment firms using Hire 1% to automate screening and safeguard assessment integrity.
+            </p>
+
+            <div class="max-w-2xl mx-auto rounded-[2rem] border border-white/8 p-10 mb-8 bg-white/4 card-bg-var">
+                <div class="flex items-center justify-center gap-3 mb-6">
+                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center bg-blue-500/15 icon-bg-var">
+                        <i data-lucide="calendar" class="w-6 h-6 text-blue-500"></i>
+                    </div>
+                    <div class="text-left">
+                        <p class="font-black text-lg text-white">Schedule a 15-Minute Demo</p>
+                        <p class="text-xs text-gray-400 desc-var">Pick a time that works for you</p>
+                    </div>
+                </div>
+                
+                <div class="rounded-2xl border border-white/8 p-6 mb-6 text-center bg-white/5 inner-card-var">
+                    <p class="text-sm font-semibold mb-1 text-gray-400 label-var">Calendar Booking Module</p>
+                    <p class="text-xs text-gray-500 desc-var">Calendly / booking embed goes here</p>
+                </div>
+                
+                <button
+                    class="w-full inline-flex items-center justify-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base cursor-pointer"
+                >
+                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                    Schedule Your 15-Minute Live Demo
+                </button>
+                <p class="text-xs mt-4 text-gray-500 footer-var">
+                    No credit card required. Experience the proctored assessment engine in action today.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-white/10 bg-[#0c0f16]/90 py-12 id-footer transition-colors duration-300">
+        <div class="container mx-auto px-6 text-center text-gray-500 text-sm">
+            <p>&copy; 2026 hire1percent. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- INTERACTIVE SCRIPTS -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // FAQ Toggle Logic
+        function toggleFaq(index) {
+            const faqItems = document.querySelectorAll('.faq-item');
+            faqItems.forEach((item, i) => {
+                const content = item.querySelector('.faq-content');
+                const icon = item.querySelector('.faq-icon');
+                if (i === index) {
+                    const isClosed = content.classList.contains('max-h-0');
+                    if (isClosed) {
+                        content.classList.remove('max-h-0', 'opacity-0');
+                        content.classList.add('max-h-48', 'opacity-100', 'border-t');
+                        icon.style.transform = 'rotate(180deg)';
+                    } else {
+                        content.classList.remove('max-h-48', 'opacity-100', 'border-t');
+                        content.classList.add('max-h-0', 'opacity-0');
+                        icon.style.transform = 'rotate(0deg)';
+                    }
+                } else {
+                    content.classList.remove('max-h-48', 'opacity-100', 'border-t');
+                    content.classList.add('max-h-0', 'opacity-0');
+                    icon.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+            const navbar = document.querySelector('.id-navbar');
+            const footer = document.querySelector('.id-footer');
+            const logoText = document.querySelector('.id-logo-text');
+
+            if (isDark) {
+                // Switch to Light Theme
+                html.classList.remove('dark');
+                document.body.className = 'min-h-screen bg-white text-gray-900 selection:bg-blue-500/20 overflow-x-hidden';
+                navbar.className = 'fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md transition-colors duration-300 id-navbar';
+                footer.className = 'border-t border-gray-200 bg-gray-50 py-12 id-footer transition-colors duration-300';
+                logoText.className = 'text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 id-logo-text';
+                
+                // Hero elements
+                document.querySelector('.id-hero-title').className = 'text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08] max-w-5xl mx-auto text-gray-900 id-hero-title';
+                document.querySelector('.id-hero-subtitle').className = 'text-gray-600 id-hero-subtitle';
+                document.querySelector('.id-hero-desc').className = 'max-w-2xl mx-auto text-lg md:text-xl mb-12 leading-relaxed text-gray-600 id-hero-desc';
+                document.querySelector('.id-hero-badges').className = 'flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold text-gray-500 id-hero-badges';
+                document.querySelectorAll('.divider-line').forEach(el => el.className = 'w-px h-3 bg-gray-300 divider-line');
+                
+                // Section backgrounds
+                document.querySelector('.id-agitation-sec').className = 'py-24 border-y border-gray-100 bg-gray-50/50 id-agitation-sec';
+                document.querySelector('.id-agitation-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-gray-900 id-agitation-title';
+                document.querySelector('.id-agitation-desc').className = 'text-base leading-relaxed text-gray-600 id-agitation-desc';
+
+                document.querySelector('.id-mechanism-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-gray-900 id-mechanism-title';
+                document.querySelector('.id-mechanism-desc').className = 'text-base leading-relaxed text-gray-600 id-mechanism-desc';
+                document.querySelectorAll('.flow-badge-var').forEach(el => {
+                    if (el.innerText.includes('Step 01')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-blue-200 bg-blue-50 text-blue-700 font-bold text-sm whitespace-nowrap flow-badge-var';
+                    if (el.innerText.includes('Step 02')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-teal-200 bg-teal-50 text-teal-700 font-bold text-sm whitespace-nowrap flow-badge-var';
+                    if (el.innerText.includes('Step 03')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-purple-200 bg-purple-50 text-purple-700 font-bold text-sm whitespace-nowrap flow-badge-var';
+                });
+
+                document.querySelector('.id-proof-sec').className = 'py-24 border-t border-gray-100 bg-gray-50/50 id-proof-sec';
+                document.querySelector('.id-proof-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-gray-900 id-proof-title';
+                document.querySelector('.id-proof-desc').className = 'text-base leading-relaxed text-gray-600 id-proof-desc';
+
+                document.querySelector('.id-table-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-gray-900 id-table-title';
+                document.querySelector('.id-table-desc').className = 'text-base leading-relaxed text-gray-600 id-table-desc';
+
+                document.querySelector('.id-faq-sec').className = 'py-24 border-t border-gray-100 bg-gray-50/50 id-faq-sec';
+                document.querySelector('.id-faq-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-gray-900 id-faq-title';
+                document.querySelector('.id-faq-desc').className = 'text-gray-600 id-faq-desc';
+
+                document.querySelector('.id-cta-sec').className = 'relative py-28 overflow-hidden bg-clear id-cta-sec';
+                document.querySelector('.id-cta-title').className = 'text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none text-gray-900 id-cta-title';
+                document.querySelector('.id-cta-desc').className = 'text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed text-gray-600 id-cta-desc';
+
+                // Change all cards style
+                document.querySelectorAll('.card-bg-var').forEach(el => {
+                    el.classList.remove('bg-white/5', 'bg-white/4', 'border-white/5', 'border-white/8', 'hover:bg-white/8', 'hover:bg-white/6');
+                    el.classList.add('bg-white', 'border-gray-200', 'shadow-sm', 'hover:shadow-md');
+                });
+                document.querySelectorAll('.card-title').forEach(el => el.className = 'text-lg font-black mb-2 tracking-tight text-gray-900 card-title');
+                document.querySelectorAll('.card-desc').forEach(el => el.className = 'text-sm leading-relaxed text-gray-600 card-desc');
+
+                // Mockup details
+                document.querySelector('.mockup-header-var').className = 'px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between mockup-header-var';
+                document.querySelector('.list-title').className = 'text-sm font-bold mb-3 text-gray-900 list-title';
+                document.querySelectorAll('.cand-name').forEach(el => el.className = 'text-sm font-bold text-gray-900 cand-name');
+                document.querySelectorAll('.cand-role').forEach(el => el.className = 'text-[10px] text-gray-500 cand-role');
+                document.querySelector('.feedback-note').className = 'text-xs leading-relaxed pt-6 text-center text-gray-500 feedback-note';
+
+                // Table styles
+                document.querySelector('.table-container-var').className = 'rounded-[2rem] border border-gray-200 overflow-hidden shadow-xl table-container-var';
+                document.querySelector('.table-header-var').className = 'grid grid-cols-3 bg-gray-50 border-b border-gray-200 table-header-var text-center';
+                document.querySelector('.col-header').className = 'text-xs font-black uppercase tracking-wider text-gray-400 col-header';
+                document.querySelectorAll('.col-border-var').forEach(el => el.className = 'px-6 py-4 border-x border-gray-200 col-border-var');
+                document.querySelectorAll('.col-border-light-var').forEach(el => el.className = 'px-6 py-5 border-x border-gray-100 col-border-light-var flex flex-col items-center justify-center gap-1');
+                document.querySelectorAll('.row-var').forEach(el => el.className = 'grid grid-cols-3 border-b border-gray-100 hover:bg-gray-50/60 transition-colors duration-200 row-var');
+                document.querySelectorAll('.row-title').forEach(el => el.className = 'text-sm font-bold text-gray-800 row-title');
+
+                // Metric text
+                document.querySelectorAll('.metric-text').forEach(el => el.className = 'text-sm font-semibold leading-snug text-gray-600 metric-text');
+
+                // FAQ styles
+                document.querySelectorAll('.faq-item button').forEach(el => el.classList.remove('text-white'));
+                document.querySelectorAll('.faq-item button').forEach(el => el.classList.add('text-gray-900'));
+                document.querySelectorAll('.faq-content p').forEach(el => el.className = 'px-6 py-5 text-sm leading-relaxed text-gray-600');
+
+                // CTA card internals
+                document.querySelector('.icon-bg-var').className = 'w-12 h-12 rounded-2xl flex items-center justify-center bg-blue-100 icon-bg-var';
+                document.querySelector('.inner-card-var').className = 'rounded-2xl border border-gray-200 p-6 mb-6 text-center bg-white inner-card-var';
+                document.querySelector('.label-var').className = 'text-sm font-semibold mb-1 text-gray-500 label-var';
+                document.querySelectorAll('.desc-var').forEach(el => el.className = 'text-xs text-gray-400 desc-var');
+                document.querySelector('.footer-var').className = 'text-xs mt-4 text-gray-400 footer-var';
+
+                // Glow variables
+                document.querySelector('.hero-glow-1').className = 'absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[140px] -z-10 bg-blue-200/30 hero-glow-1';
+                document.querySelector('.hero-glow-2').className = 'absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[110px] -z-10 bg-teal-100/40 hero-glow-2';
+                document.querySelector('.cta-glow-1').className = 'absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full blur-[150px] -z-10 bg-blue-100/60 cta-glow-1';
+                document.querySelector('.cta-glow-2').className = 'absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full blur-[120px] -z-10 bg-teal-100/50 cta-glow-2';
+
+            } else {
+                // Switch to Dark Theme
+                html.classList.add('dark');
+                document.body.className = 'min-h-screen bg-[#0c0f16] text-white selection:bg-blue-500/30 overflow-x-hidden';
+                navbar.className = 'fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0c0f16]/80 backdrop-blur-md transition-colors duration-300 id-navbar';
+                footer.className = 'border-t border-white/10 bg-[#0c0f16]/90 py-12 id-footer transition-colors duration-300';
+                logoText.className = 'text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 id-logo-text';
+                
+                // Hero elements
+                document.querySelector('.id-hero-title').className = 'text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08] max-w-5xl mx-auto text-white id-hero-title';
+                document.querySelector('.id-hero-subtitle').className = 'text-gray-200 id-hero-subtitle';
+                document.querySelector('.id-hero-desc').className = 'max-w-2xl mx-auto text-lg md:text-xl mb-12 leading-relaxed text-gray-400 id-hero-desc';
+                document.querySelector('.id-hero-badges').className = 'flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold text-gray-400 id-hero-badges';
+                document.querySelectorAll('.divider-line').forEach(el => el.className = 'w-px h-3 bg-white/20 divider-line');
+                
+                // Section backgrounds
+                document.querySelector('.id-agitation-sec').className = 'py-24 border-y border-white/5 bg-[#0f131c] id-agitation-sec';
+                document.querySelector('.id-agitation-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-agitation-title';
+                document.querySelector('.id-agitation-desc').className = 'text-base leading-relaxed text-gray-400 id-agitation-desc';
+
+                document.querySelector('.id-mechanism-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-mechanism-title';
+                document.querySelector('.id-mechanism-desc').className = 'text-base leading-relaxed text-gray-400 id-mechanism-desc';
+                document.querySelectorAll('.flow-badge-var').forEach(el => {
+                    if (el.innerText.includes('Step 01')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-blue-500/25 bg-blue-500/10 text-blue-300 font-bold text-sm whitespace-nowrap flow-badge-var';
+                    if (el.innerText.includes('Step 02')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-teal-500/25 bg-teal-500/10 text-teal-300 font-bold text-sm whitespace-nowrap flow-badge-var';
+                    if (el.innerText.includes('Step 03')) el.className = 'flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-purple-500/25 bg-purple-500/10 text-purple-300 font-bold text-sm whitespace-nowrap flow-badge-var';
+                });
+
+                document.querySelector('.id-proof-sec').className = 'py-24 border-t border-white/5 bg-[#0f131c] id-proof-sec';
+                document.querySelector('.id-proof-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-proof-title';
+                document.querySelector('.id-proof-desc').className = 'text-base leading-relaxed text-gray-400 id-proof-desc';
+
+                document.querySelector('.id-table-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-table-title';
+                document.querySelector('.id-table-desc').className = 'text-base leading-relaxed text-gray-400 id-table-desc';
+
+                document.querySelector('.id-faq-sec').className = 'py-24 border-t border-white/5 bg-[#0f131c] id-faq-sec';
+                document.querySelector('.id-faq-title').className = 'text-3xl md:text-5xl font-black mb-4 tracking-tight text-white id-faq-title';
+                document.querySelector('.id-faq-desc').className = 'text-gray-400 id-faq-desc';
+
+                document.querySelector('.id-cta-sec').className = 'relative py-28 overflow-hidden bg-clear id-cta-sec';
+                document.querySelector('.id-cta-title').className = 'text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none text-white id-cta-title';
+                document.querySelector('.id-cta-desc').className = 'text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed text-gray-400 id-cta-desc';
+
+                // Change all cards style
+                document.querySelectorAll('.card-bg-var').forEach(el => {
+                    el.classList.remove('bg-white', 'border-gray-200', 'shadow-sm', 'hover:shadow-md');
+                    el.classList.add('bg-white/5', 'bg-white/4', 'border-white/5', 'border-white/8', 'hover:bg-white/8', 'hover:bg-white/6');
+                });
+                document.querySelectorAll('.card-title').forEach(el => el.className = 'text-lg font-black mb-2 tracking-tight text-white card-title');
+                document.querySelectorAll('.card-desc').forEach(el => el.className = 'text-sm leading-relaxed text-gray-400 card-desc');
+
+                // Mockup details
+                document.querySelector('.mockup-header-var').className = 'px-6 py-4 border-b border-white/5 bg-black/20 flex items-center justify-between mockup-header-var';
+                document.querySelector('.list-title').className = 'text-sm font-bold mb-3 text-white list-title';
+                document.querySelectorAll('.cand-name').forEach(el => el.className = 'text-sm font-bold text-white cand-name');
+                document.querySelectorAll('.cand-role').forEach(el => el.className = 'text-[10px] text-gray-400 cand-role');
+                document.querySelector('.feedback-note').className = 'text-xs leading-relaxed pt-6 text-center text-gray-400 feedback-note';
+
+                // Table styles
+                document.querySelector('.table-container-var').className = 'rounded-[2rem] border border-white/8 overflow-hidden shadow-xl table-container-var';
+                document.querySelector('.table-header-var').className = 'grid grid-cols-3 bg-white/5 border-b border-white/8 table-header-var text-center';
+                document.querySelector('.col-header').className = 'text-xs font-black uppercase tracking-wider text-gray-500 col-header';
+                document.querySelectorAll('.col-border-var').forEach(el => el.className = 'px-6 py-4 border-x border-white/8 col-border-var');
+                document.querySelectorAll('.col-border-light-var').forEach(el => el.className = 'px-6 py-5 border-x border-white/5 col-border-light-var flex flex-col items-center justify-center gap-1');
+                document.querySelectorAll('.row-var').forEach(el => el.className = 'grid grid-cols-3 border-b border-white/5 hover:bg-white/3 transition-colors duration-200 row-var');
+                document.querySelectorAll('.row-title').forEach(el => el.className = 'text-sm font-bold text-white row-title');
+
+                // Metric text
+                document.querySelectorAll('.metric-text').forEach(el => el.className = 'text-sm font-semibold leading-snug text-gray-400 metric-text');
+
+                // FAQ styles
+                document.querySelectorAll('.faq-item button').forEach(el => el.classList.remove('text-gray-900'));
+                document.querySelectorAll('.faq-item button').forEach(el => el.classList.add('text-white'));
+                document.querySelectorAll('.faq-content p').forEach(el => el.className = 'px-6 py-5 text-sm leading-relaxed text-gray-400');
+
+                // CTA card internals
+                document.querySelector('.icon-bg-var').className = 'w-12 h-12 rounded-2xl flex items-center justify-center bg-blue-500/15 icon-bg-var';
+                document.querySelector('.inner-card-var').className = 'rounded-2xl border border-white/8 p-6 mb-6 text-center bg-white/5 inner-card-var';
+                document.querySelector('.label-var').className = 'text-sm font-semibold mb-1 text-gray-400 label-var';
+                document.querySelectorAll('.desc-var').forEach(el => el.className = 'text-xs text-gray-500 desc-var');
+                document.querySelector('.footer-var').className = 'text-xs mt-4 text-gray-500 footer-var';
+
+                // Glow variables
+                document.querySelector('.hero-glow-1').className = 'absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[140px] -z-10 bg-blue-600/10 hero-glow-1';
+                document.querySelector('.hero-glow-2').className = 'absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[110px] -z-10 bg-teal-500/10 hero-glow-2';
+                document.querySelector('.cta-glow-1').className = 'absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full blur-[150px] -z-10 bg-blue-600/5 cta-glow-1';
+                document.querySelector('.cta-glow-2').className = 'absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full blur-[120px] -z-10 bg-teal-500/5 cta-glow-2';
+            }
+        }
+    </script>
+</body>
+</html>
