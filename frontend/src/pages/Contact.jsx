@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Mail, MessageSquare, Shield, Info, MapPin, Send } from 'lucide-react';
+import { Mail, MessageSquare, Info, Send } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
@@ -25,22 +25,6 @@ const Contact = () => {
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Left: Contact Info */}
             <div className="space-y-8">
-              <div className="p-8 rounded-[3rem] bg-white/5 border border-white/10 hover:border-blue-500/30 transition-all group">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
-                    <Shield className="w-6 h-6" />
-                  </div>
-                  <h2 className="text-2xl font-bold">Grievance Officer</h2>
-                </div>
-                <p className="text-gray-400 mb-4 pl-14">
-                  For legal disputes or data protection concerns (India IT Act compliance):
-                </p>
-                <div className="pl-14 space-y-2">
-                  <p className="flex items-center gap-2 text-white"><Mail className="w-4 h-4 text-blue-400" /> grievance@hire1percent.com</p>
-                  <p className="flex items-center gap-2 text-white"><MapPin className="w-4 h-4 text-blue-400" /> Tech Hub, Bengaluru, India</p>
-                </div>
-              </div>
-
               <div className="p-8 rounded-[3rem] bg-white/5 border border-white/10 hover:border-teal-500/30 transition-all group">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="p-3 rounded-2xl bg-teal-500/20 text-teal-400 group-hover:scale-110 transition-transform">
@@ -52,7 +36,7 @@ const Contact = () => {
                   For account issues, job listings, or technical support:
                 </p>
                 <div className="pl-14 space-y-2">
-                  <p className="flex items-center gap-2 text-white"><Mail className="w-4 h-4 text-teal-400" /> support@hire1percent.com</p>
+                  <p className="flex items-center gap-2 text-white"><Mail className="w-4 h-4 text-teal-400" /> web3hire1percent@gmail.com</p>
                   <p className="flex items-center gap-2 text-white"><Info className="w-4 h-4 text-teal-400" /> Help Center available 24/7</p>
                 </div>
               </div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { 
     Zap, CheckCircle2, AlertTriangle, ShieldCheck, 
     FileText, Video, ChevronDown, Sparkles, 
@@ -9,16 +8,26 @@ import {
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import CalibrationModal from '../components/CalibrationModal';
 
 const AssessmentsHome = () => {
     const [theme, setTheme] = useState(() => {
         if (typeof window === 'undefined') return 'light';
         return localStorage.getItem('landing-theme') || 'light';
     });
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('landing-theme', theme);
     }, [theme]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('book-calibration') === 'true') {
+            setIsModalOpen(true);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     const isLight = theme === 'light';
 
@@ -134,14 +143,14 @@ const AssessmentsHome = () => {
                     </p>
 
                     <div className="flex flex-col items-center gap-5 mb-12">
-                        <Link
-                            to="/contact"
+                        <button
                             id="hero-cta-demo"
+                            onClick={() => setIsModalOpen(true)}
                             className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base"
                         >
                             <Calendar size={18} />
                             Book a 15-Minute Live Demo
-                        </Link>
+                        </button>
 
                         <div className={`flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
                             <span className="flex items-center gap-1.5">⏱️ 5-Minute Setup</span>
@@ -497,11 +506,12 @@ const AssessmentsHome = () => {
                             <p className={`text-sm font-semibold mb-1 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>Calendar Booking Module</p>
                             <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>Calendly / booking embed goes here</p>
                         </div>
-                        <Link to="/contact" id="final-cta-demo"
+                        <button id="final-cta-demo"
+                            onClick={() => setIsModalOpen(true)}
                             className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base w-full justify-center">
                             <Calendar size={18} />
                             Schedule Your 15-Minute Live Demo
-                        </Link>
+                        </button>
                         <p className={`text-xs mt-4 ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>
                             No credit card required. Experience the proctored assessment engine in action today.
                         </p>
@@ -510,6 +520,7 @@ const AssessmentsHome = () => {
             </section>
 
             <Footer theme={theme} />
+            <CalibrationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
         </div>
     );
 };
