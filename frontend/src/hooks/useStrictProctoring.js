@@ -203,8 +203,14 @@ export function useStrictProctoring({
       return;
     }
 
+    let fullscreenTimer = null;
+
     const handleFullscreenChange = () => {
       if (document.fullscreenElement || resetTriggeredRef.current) {
+        if (fullscreenTimer) {
+          clearTimeout(fullscreenTimer);
+          fullscreenTimer = null;
+        }
         return;
       }
 
@@ -213,12 +219,13 @@ export function useStrictProctoring({
         return;
       }
 
-      setTimeout(() => {
+      // Ignore if candidate immediately returns to fullscreen within 2 seconds
+      fullscreenTimer = setTimeout(() => {
         if (!document.fullscreenElement && !resetTriggeredRef.current) {
           requestFullscreen();
           triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
         }
-      }, 400);
+      }, 2000);
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -227,6 +234,7 @@ export function useStrictProctoring({
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      if (fullscreenTimer) clearTimeout(fullscreenTimer);
     };
   }, [isActive, requestFullscreen, triggerViolation, gracePeriod]);
 
@@ -235,15 +243,26 @@ export function useStrictProctoring({
       return;
     }
 
+    let visibilityTimer = null;
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 2)");
+        // Trigger only if window remains hidden for more than 3 seconds
+        visibilityTimer = setTimeout(() => {
+          triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 2)");
+        }, 3000);
+      } else {
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (visibilityTimer) clearTimeout(visibilityTimer);
     };
   }, [isActive, triggerViolation]);
 
@@ -252,28 +271,35 @@ export function useStrictProctoring({
       return;
     }
 
+    let blurTimer = null;
+
     const handleBlur = () => {
-      // Ignore blur events during initial startup grace period to allow permission popups & focus shifts
+      // Ignore blur events during initial startup grace period
       if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
         return;
       }
 
-      // Small delay to verify if candidate actually left the page/window or if focus remains on document
-      setTimeout(() => {
-        if (!document.hidden && document.hasFocus()) {
-          return; // Candidate is still focused on page elements
+      // Ignore accidental blur events. Trigger only if window remains hidden/unfocused for more than 3 seconds.
+      blurTimer = setTimeout(() => {
+        if (!document.hidden && !document.hasFocus()) {
+          triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
         }
-        if (document.hidden) {
-          // Handled by visibilitychange as TAB_SWITCH
-          return;
-        }
-        triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
-      }, 350);
+      }, 3000);
+    };
+
+    const handleFocus = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
     };
 
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     return () => {
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      if (blurTimer) clearTimeout(blurTimer);
     };
   }, [isActive, triggerViolation, gracePeriod]);
 

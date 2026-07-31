@@ -24,6 +24,20 @@ const applicationSchema = new mongoose.Schema({
         enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
         default: 'pending'
     },
+    assessmentRecordingSessionId: { type: String, index: true },
+    assessmentRecordingPublicId: String,
+    assessmentRecordingAssetId: String,
+    assessmentRecordingUrl: String,
+    assessmentRecordingPlaybackUrl: String,
+    assessmentRecordingFormat: String,
+    assessmentRecordingDuration: Number,
+    assessmentRecordingBytes: Number,
+    assessmentRecordingUploadedAt: Date,
+    assessmentRecordingStatus: {
+        type: String,
+        enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
+        default: 'pending'
+    },
     proctoringResetCount: { type: Number, default: 0 },
     lastProctoringResetAt: Date,
     lastProctoringResetReason: String,

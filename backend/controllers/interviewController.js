@@ -80,9 +80,15 @@ const getInterviewDetails = async (req, res) => {
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
-        const recruiter = await findRecruiterUser(recruiterId);
-        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
+        const recruiterDoc = await findRecruiterUser(recruiterId);
+        if (!recruiterDoc || (recruiterDoc.role !== 'recruiter' && recruiterDoc.role !== 'admin')) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+        }
+
+        let recruiter = recruiterDoc;
+        if (recruiterDoc.role === 'recruiter') {
+            const User = require('../models/User');
+            recruiter = await User.findById(recruiterDoc._id);
         }
 
         if (recruiter.role === 'recruiter') {

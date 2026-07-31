@@ -45,7 +45,14 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         let cancelled = false;
 
         const initDetector = async () => {
-            // Attempt 1: Load ONNX Runtime Web + YOLO11 model
+            // ONNX Runtime + YOLO11 model loading is disabled until tensor
+            // processing is fully implemented. The previous code loaded the ONNX
+            // session but detectFrame() returned [] for ONNX, silently disabling
+            // all object detection. Force COCO-SSD fallback for production reliability.
+            //
+            // To re-enable ONNX in the future, uncomment this block AND implement
+            // the tensor preprocessing + NMS postprocessing in detectFrame().
+            /*
             try {
                 if (window.ort) {
                     console.log("[YOLO Detector] Attempting ONNX model load from", MODEL_PATH);
@@ -63,6 +70,8 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
             } catch (onnxErr) {
                 console.warn("[YOLO Detector] ONNX model load failed/not found, falling back to COCO-SSD:", onnxErr.message);
             }
+            */
+            console.log("[YOLO Detector] ONNX engine disabled (tensor processing not implemented). Using COCO-SSD.");
 
             // Attempt 2: Fallback to COCO-SSD
             try {

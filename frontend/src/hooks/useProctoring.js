@@ -125,34 +125,57 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
   // ── 1. Tab visibility (catches switching tabs, minimizing window) ─────
   useEffect(() => {
     if (!isActive) return;
+    let visibilityTimer = null;
+
     const handler = () => {
       if (document.hidden) {
-        recordViolation("TAB_SWITCH", "You switched to another tab");
+        visibilityTimer = setTimeout(() => {
+          recordViolation("TAB_SWITCH", "You switched to another tab");
+        }, 3000);
+      } else {
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
       }
     };
     document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
+    return () => {
+      document.removeEventListener("visibilitychange", handler);
+      if (visibilityTimer) clearTimeout(visibilityTimer);
+    };
   }, [isActive, recordViolation]);
 
   // ── 2. Window blur (catches Alt+Tab, second window, clicking taskbar) ─
   useEffect(() => {
     if (!isActive) return;
-    const handler = () => {
+    let blurTimer = null;
+
+    const handleBlur = () => {
       if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
         return;
       }
-      setTimeout(() => {
-        if (!document.hidden && document.hasFocus()) {
-          return;
+      blurTimer = setTimeout(() => {
+        if (!document.hidden && !document.hasFocus()) {
+          recordViolation("WINDOW_BLUR", "You switched to another application or window");
         }
-        if (document.hidden) {
-          return; // Handled by visibilitychange as TAB_SWITCH
-        }
-        recordViolation("WINDOW_BLUR", "You switched to another application or window");
-      }, 350);
+      }, 3000);
     };
-    window.addEventListener("blur", handler);
-    return () => window.removeEventListener("blur", handler);
+
+    const handleFocus = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
+    };
+
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      if (blurTimer) clearTimeout(blurTimer);
+    };
   }, [isActive, recordViolation, gracePeriod]);
 
   // ── 3. Keyboard shortcut blocking ─────────────────────────────────────
@@ -231,6 +254,6 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
     showWarning,
     warningMessage,
     examLocked,
-    dismissWarning: unlockExam, // only unlocks if < MAX_VIOLATIONS
+    dismissWarning: unlockSession, // only unlocks if < MAX_VIOLATIONS
   };
 }

@@ -112,24 +112,45 @@ const PublicInterviewDetail = () => {
                 </div>
 
                 {/* Video Recording Section */}
-                <div className="p-6 sm:p-8 bg-black/45">
-                    {videoUrl ? (
-                        <div className="relative aspect-video w-full bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 group">
-                            <video
-                                controls
-                                autoPlay
-                                className="w-full h-full object-contain"
-                                src={videoUrl}
-                            />
-                        </div>
-                    ) : (
-                        <div className="aspect-video w-full bg-white/5 border border-dashed border-white/15 rounded-3xl flex flex-col items-center justify-center p-8 text-center">
-                            <AlertCircle className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
-                            <h4 className="text-lg font-bold text-white">No Interview Recording Found</h4>
-                            <p className="text-gray-400 text-sm mt-2 max-w-sm">The candidate has not completed or uploaded their interview recording yet.</p>
+                <div className="p-6 sm:p-8 bg-black/45 space-y-6">
+                    {/* Assessment Recording */}
+                    {(application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl) && (
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Skill Assessment Recording</h3>
+                            <div className="relative aspect-video w-full bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 group">
+                                <video
+                                    controls
+                                    className="w-full h-full object-contain"
+                                    src={application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl}
+                                />
+                            </div>
                         </div>
                     )}
-                    {videoUrl && (
+
+                    {/* Interview Recording */}
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">
+                            {(application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl) ? "AI Interview Recording" : "Interview Recording"}
+                        </h3>
+                        {videoUrl ? (
+                            <div className="relative aspect-video w-full bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 group">
+                                <video
+                                    controls
+                                    autoPlay={!(application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl)}
+                                    className="w-full h-full object-contain"
+                                    src={videoUrl}
+                                />
+                            </div>
+                        ) : (
+                            <div className="aspect-video w-full bg-white/5 border border-dashed border-white/15 rounded-3xl flex flex-col items-center justify-center p-8 text-center">
+                                <AlertCircle className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
+                                <h4 className="text-lg font-bold text-white">No Interview Recording Found</h4>
+                                <p className="text-gray-400 text-sm mt-2 max-w-sm">The candidate has not completed or uploaded their interview recording yet.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {(videoUrl || application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl) && (
                         <div className="mt-4 flex items-center gap-3 text-sm text-gray-400 justify-center">
                             <PlayCircle className="w-4 h-4 text-purple-400" />
                             <span className="font-medium">Use the player controls to play, pause, or adjust volume</span>

@@ -69,8 +69,8 @@ export function useFaceAnalyzer({ isActive = false, videoElement = null }) {
                 mesh.setOptions({
                     maxNumFaces: 3,
                     refineLandmarks: true,
-                    minDetectionConfidence: 0.75,
-                    minTrackingConfidence: 0.75,
+                    minDetectionConfidence: 0.60,
+                    minTrackingConfidence: 0.60,
                 });
 
                 mesh.onResults((results) => {

@@ -48,7 +48,13 @@ const proctoringReportSchema = new mongoose.Schema({
         type: { type: String },
         detail: { type: String },
         timestamp: { type: Date },
-        rating: { type: Number }
+        rating: { type: Number },
+        startTime: { type: Date },
+        endTime: { type: Date },
+        duration: { type: Number }, // in seconds
+        maxConfidence: { type: Number },
+        evidenceFrames: { type: [String] }, // Base64 or Cloudinary URL lists
+        model: { type: String }
     }],
 }, { timestamps: true });
 

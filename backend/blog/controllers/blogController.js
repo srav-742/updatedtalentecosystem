@@ -3,7 +3,6 @@ const blogService = require('../services/blogService');
 const BlogCategory = require('../models/BlogCategory');
 const BlogPost = require('../models/BlogPost');
 const Lead = require('../../models/Lead');
-const cloudinary = require('../../config/cloudinary');
 const mongoose = require('mongoose');
 
 class BlogController {
@@ -352,7 +351,7 @@ class BlogController {
     }
 
     /**
-     * Upload cover image buffer directly to Cloudinary
+     * Upload cover image — converts to base64 data URI (no Cloudinary)
      */
     async uploadCoverImage(req, res) {
         try {
@@ -360,33 +359,19 @@ class BlogController {
                 return res.status(400).json({ success: false, message: 'No file uploaded' });
             }
 
-            const uploadResult = await new Promise((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream(
-                    {
-                        folder: 'blog-covers',
-                        resource_type: 'image',
-                        public_id: `cover_${Date.now()}`
-                    },
-                    (error, result) => {
-                        if (error) {
-                            console.error('[BLOG-CLOUDINARY-UPLOAD-ERROR]:', error);
-                            reject(error);
-                        } else {
-                            resolve(result);
-                        }
-                    }
-                );
-                uploadStream.end(req.file.buffer);
-            });
+            // Convert the image buffer to a base64 data URI
+            const mimeType = req.file.mimetype || 'image/jpeg';
+            const base64 = req.file.buffer.toString('base64');
+            const dataUri = `data:${mimeType};base64,${base64}`;
 
             return res.json({
                 success: true,
-                message: 'Cover image uploaded successfully',
-                url: uploadResult.secure_url
+                message: 'Cover image processed successfully',
+                url: dataUri
             });
         } catch (error) {
             console.error('[BLOG-CONTROLLER] uploadCoverImage error:', error);
-            return res.status(500).json({ success: false, message: 'Failed to upload cover image', error: error.message });
+            return res.status(500).json({ success: false, message: 'Failed to process cover image', error: error.message });
         }
     }
 }

@@ -230,6 +230,8 @@ const getRecruiterApplications = async (req, res) => {
                 app.videoIntroUrl = null;
                 app.recordingPlaybackUrl = null;
                 app.recordingUrl = null;
+                app.assessmentRecordingPlaybackUrl = null;
+                app.assessmentRecordingUrl = null;
             }
 
             return app;

@@ -8,15 +8,27 @@ import {
     Clock,
     User,
     Mail,
-    Briefcase
+    Briefcase,
+    Activity,
+    Image
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
+
+/**
+ * ProctoringDetail Component
+ * ──────────────────────────────────────────────────────────────────────────────
+ * Interactive recruiter report panel. Displays an audit timeline of confirmed
+ * violations, merged events, duration tracking, confidence metrics, and captured
+ * screenshot frames to assist manual reviews before final verdicts.
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
 
 const ProctoringDetail = ({ applicationId, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
         const fetchProctoringDetails = async () => {
@@ -118,7 +130,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                             onClick={onClose}
                             className="bg-white/15 hover:bg-white/25 rounded-full p-3 transition-colors shrink-0"
                         >
-                            <X className="w-6 h-6 animate-pulse" />
+                            <X className="w-6 h-6" />
                         </button>
                     </div>
                 </div>
@@ -217,7 +229,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                                     <thead>
                                         <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
                                             <th className="py-3 px-4">Event Violation Type</th>
-                                            <th className="py-3 px-4">Details</th>
+                                            <th className="py-3 px-4">Details & Intelligent Evidence</th>
                                             <th className="py-3 px-4 text-center">Score Penalty</th>
                                             <th className="py-3 px-4 text-center">Severity</th>
                                             <th className="py-3 px-4 text-right">Time Detected</th>
@@ -229,7 +241,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                                             if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
                                             else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
                                             else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
-                                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+                                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold animate-pulse";
 
                                             const typeLabel = String(v.type).replace(/_/g, ' ');
 
@@ -239,7 +251,35 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                                                         {typeLabel}
                                                     </td>
                                                     <td className="py-3 px-4 text-gray-600 leading-normal">
-                                                        {v.detail}
+                                                        <div className="font-semibold text-gray-800">{v.detail}</div>
+                                                        
+                                                        {/* Metadata and duration specs */}
+                                                        <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-gray-500 font-bold">
+                                                            {v.model && <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Model: {v.model}</span>}
+                                                            {v.duration > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">Duration: {v.duration}s</span>}
+                                                            {v.maxConfidence > 0 && <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">Max Confidence: {(v.maxConfidence * 100).toFixed(0)}%</span>}
+                                                        </div>
+
+                                                        {/* Expanded Evidence Screenshots Row */}
+                                                        {v.evidenceFrames && v.evidenceFrames.length > 0 && (
+                                                            <div className="mt-3">
+                                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                                    <Image size={10} />
+                                                                    Visual Evidence ({v.evidenceFrames.length})
+                                                                </div>
+                                                                <div className="flex gap-2.5 overflow-x-auto pb-1.5 pt-0.5">
+                                                                    {v.evidenceFrames.map((img, idx) => (
+                                                                        <img
+                                                                            key={idx}
+                                                                            src={img}
+                                                                            alt={`Evidence frame ${idx + 1}`}
+                                                                            className="h-12 w-16 rounded-lg object-cover cursor-zoom-in border border-gray-200 hover:border-red-500 hover:scale-105 transition-all shadow-sm"
+                                                                            onClick={() => setSelectedImage(img)}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="py-3 px-4 text-center font-bold text-red-600 bg-red-50/10">
                                                         +{v.rating || 0}
@@ -265,6 +305,24 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                     )}
                 </div>
             </motion.div>
+
+            {/* Premium Full Evidence Frame Viewer Overlay */}
+            {selectedImage && (
+                <div
+                    className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 cursor-zoom-out"
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div className="max-w-4xl max-h-[85vh] relative bg-white/5 p-2 rounded-3xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+                        <img src={selectedImage} alt="Full Evidence" className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl" />
+                        <button
+                            className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-2.5 hover:bg-black/80 transition-colors shadow-lg border border-white/10"
+                            onClick={() => setSelectedImage(null)}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

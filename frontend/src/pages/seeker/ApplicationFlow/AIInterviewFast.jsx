@@ -24,9 +24,26 @@ import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhance
  * ────────────────────────────────────────────────────────────────────────────
  */
 
-const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
-    const [step, setStep] = useState('ready');
-    const [sessionId, setSessionId] = useState(null);
+const AIInterviewFast = ({
+    job,
+    user,
+    onComplete,
+    onSecurityReset,
+    sharedStream,
+    setSharedStream,
+    sharedRecorder,
+    setSharedRecorder,
+    sharedSessionId,
+    setSharedSessionId,
+    sharedRecordingSessionId,
+    setSharedRecordingSessionId,
+    firstQuestionData,
+    setFirstQuestionData,
+    sharedChunkIndexRef,
+    sharedChunkUploadsRef
+}) => {
+    const [step, setStep] = useState(sharedSessionId ? 'interview' : 'ready');
+    const [sessionId, setSessionId] = useState(sharedSessionId || null);
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentQNum, setCurrentQNum] = useState(1);
     const [displayText, setDisplayText] = useState('');
@@ -38,7 +55,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const [finalScore, setFinalScore] = useState(null);
     const [ownershipScore, setOwnershipScore] = useState(null);
     const [feedback, setFeedback] = useState('');
-    const [recordingSessionId, setRecordingSessionId] = useState(null);
+    const [recordingSessionId, setRecordingSessionId] = useState(sharedRecordingSessionId || null);
     const [recordingNotice, setRecordingNotice] = useState('');
 
     // Tab lock state
@@ -47,7 +64,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
     // receives the correct stream via props and triggers a proper re-render
-    const [cameraStreamState, setCameraStreamState] = useState(null);
+    const [cameraStreamState, setCameraStreamState] = useState(sharedStream || null);
 
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
@@ -56,7 +73,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
-    const fullSessionStreamRef = useRef(null);
+    const fullSessionStreamRef = useRef(sharedStream || null);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -74,6 +91,16 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     // Accumulates ALL finalized speech segments across SpeechRecognition restarts
     // so the full answer is never lost when the API auto-restarts
     const confirmedTranscriptRef = useRef('');
+
+    // Keep camera stream state synced with the sharedStream prop so the
+    // video preview never goes blank when transitioning from SkillAssessment
+    useEffect(() => {
+        if (sharedStream) {
+            fullSessionStreamRef.current = sharedStream;
+            setCameraStreamState(sharedStream);
+        }
+    }, [sharedStream]);
+
 
     const normalizeQuestionText = (text = '') =>
         String(text)
@@ -120,12 +147,27 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     const playDecoupledAudio = (base64, text, audioMimeType) => {
         try {
-            const mimeType = base64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
-            const audioBlob = new Blob(
-                [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
-                { type: mimeType }
-            );
+            // Auto-resume AudioContext if suspended
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume().catch(e => console.warn("[AUDIO-CONTEXT] Resume failed in playDecoupledAudio:", e));
+            }
+
+            const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+            const mimeType = cleanBase64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
+            
+            // Highly optimized base64 to Uint8Array conversion (prevents call stack sizing and memory bottlenecks)
+            const binaryString = atob(cleanBase64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            const audioBlob = new Blob([bytes], { type: mimeType });
             const url = URL.createObjectURL(audioBlob);
+            
+            // Clear error listener before pausing/resetting to prevent unwanted triggers
+            audioPlayerRef.current.onerror = null;
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
             
@@ -137,7 +179,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
-            audioPlayerRef.current.play().catch(() => speakInBrowserFallback(text));
+            audioPlayerRef.current.play().catch((err) => {
+                // Ignore AbortError caused by normal play interruptions
+                if (err && err.name !== 'AbortError') {
+                    speakInBrowserFallback(text);
+                }
+            });
         } catch (err) {
             speakInBrowserFallback(text);
         }
@@ -145,6 +192,10 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     const fetchAndPlayAudio = async (text, activeSessionId) => {
         setCoreState('speaking');
+        // Auto-resume AudioContext if suspended
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().catch(e => console.warn("[AUDIO-CONTEXT] Resume failed in fetchAndPlayAudio:", e));
+        }
         try {
             const res = await axios.post(`${API_URL}/interview/tts`, { 
                 text, 
@@ -237,7 +288,13 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
             const recordStream = new MediaStream(recordTracks);
 
-            const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            let fullSessionRecorder;
+            try {
+                fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            } catch (mimeErr) {
+                console.warn("[MediaRecorder] Failed to initialize with options, trying default constructor:", mimeErr);
+                fullSessionRecorder = new MediaRecorder(recordStream);
+            }
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
             chunkUploadsRef.current = [];
@@ -311,8 +368,9 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             recorder.onstop = async () => {
                 try {
                     // Wait for all in-flight chunk uploads to settle
-                    if (chunkUploadsRef.current.length > 0) {
-                        await Promise.allSettled(chunkUploadsRef.current);
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
                     }
                     // Finalize is now async on the server — it responds immediately.
                     // The actual merge+upload happens in the background on the server.
@@ -333,7 +391,11 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     }
                     fullSessionStreamRef.current = null;
                     fullSessionRecorderRef.current = null;
-                    chunkUploadsRef.current = [];
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
                 }
             };
             recorder.stop();
@@ -343,6 +405,14 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const startInterviewTrigger = async () => {
         setStep('loading');
         try {
+            // Resume AudioContext inside user click gesture
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume().catch(e => console.warn(e));
+            }
+
             // ── Uses the EXISTING /interview/start endpoint (no change needed) ──
             const res = await axios.post(`${API_URL}/interview/start`, {
                 jobId: job._id,
@@ -458,11 +528,20 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             let stream;
             let isReusedStream = false;
             const existingAudioTracks = fullSessionStreamRef.current?.getAudioTracks();
-            if (existingAudioTracks && existingAudioTracks.length > 0) {
-                stream = new MediaStream([existingAudioTracks[0].clone()]);
-                isReusedStream = false;
+            // Only reuse an audio track if it is still live and enabled;
+            // ended or muted tracks produce silent recordings.
+            const liveAudioTrack = existingAudioTracks?.find(t => t.readyState === 'live' && t.enabled);
+            if (liveAudioTrack) {
+                try {
+                    stream = new MediaStream([liveAudioTrack.clone()]);
+                    isReusedStream = true;
+                } catch (cloneErr) {
+                    console.warn("[MIC] Failed to clone existing audio track, requesting fresh mic:", cloneErr);
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                    isReusedStream = false;
+                }
             } else {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
                 isReusedStream = false;
             }
 
@@ -642,6 +721,46 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         }
     };
 
+    // Pre-start loading effect
+    useEffect(() => {
+        if (sharedSessionId && firstQuestionData) {
+            const firstQuestion = normalizeQuestionText(firstQuestionData.question);
+            setCurrentQuestion(firstQuestion);
+            setDisplayText(firstQuestion);
+            
+            const activeSessionId = sharedSessionId;
+            const activeRecordingSessionId = firstQuestionData.recordingSessionId || null;
+            setSessionId(activeSessionId);
+            setRecordingSessionId(activeRecordingSessionId);
+            
+            // Set the stream ref
+            fullSessionStreamRef.current = sharedStream;
+            setCameraStreamState(sharedStream);
+            
+            // Transition to ready-shared step so we can get a user gesture
+            setStep('ready-shared');
+        }
+    }, [sharedSessionId]);
+
+    // Global User Gesture Listener to resume AudioContext
+    useEffect(() => {
+        const resumeAudio = () => {
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume()
+                    .then(() => console.log("[AUDIO-CONTEXT] Resumed via user gesture"))
+                    .catch(err => console.warn("[AUDIO-CONTEXT] Failed to resume via user gesture:", err));
+            }
+        };
+        window.addEventListener('click', resumeAudio);
+        window.addEventListener('touchstart', resumeAudio);
+        window.addEventListener('keydown', resumeAudio);
+        return () => {
+            window.removeEventListener('click', resumeAudio);
+            window.removeEventListener('touchstart', resumeAudio);
+            window.removeEventListener('keydown', resumeAudio);
+        };
+    }, []);
+
     // Warn users before they accidentally close the tab during an active recording
     useEffect(() => {
         const handleBeforeUnload = (e) => {
@@ -666,9 +785,19 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 try { recognitionRef.current.stop(); } catch(_) {}
             }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
-            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
+            
+            // Always stop the interview recorder on unmount if active
+            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+                fullSessionRecorderRef.current.stop();
+            }
+            
             stopStreamTracks(answerStreamRef.current);
-            stopStreamTracks(fullSessionStreamRef.current);
+            
+            // Only stop camera stream tracks if it was created locally (not shared/passed as a prop)
+            if (!sharedStream) {
+                stopStreamTracks(fullSessionStreamRef.current);
+            }
+            
             if (mixedStreamDestRef.current) {
                 stopStreamTracks(mixedStreamDestRef.current.stream);
                 mixedStreamDestRef.current = null;
@@ -717,17 +846,51 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         stopStreamTracks(answerStreamRef.current);
         answerStreamRef.current = null;
 
+        const activeRecId = recordingSessionId || sessionId;
+
         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-            fullSessionRecorderRef.current.onstop = null;
-            fullSessionRecorderRef.current.onerror = null;
-            fullSessionRecorderRef.current.stop();
+            const recorder = fullSessionRecorderRef.current;
+            recorder.onstop = async () => {
+                try {
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
+                    }
+                    if (activeRecId) {
+                        await axios.post(`${API_URL}/finalize-recording`, {
+                            sessionId: activeRecId,
+                            userId: user.uid,
+                            jobId: job._id
+                        });
+                    }
+                } catch (err) {
+                    console.error("Finalization failed on security reset:", err);
+                } finally {
+                    stopStreamTracks(fullSessionStreamRef.current);
+                    if (mixedStreamDestRef.current) {
+                        stopStreamTracks(mixedStreamDestRef.current.stream);
+                        mixedStreamDestRef.current = null;
+                    }
+                    fullSessionStreamRef.current = null;
+                    fullSessionRecorderRef.current = null;
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
+                }
+            };
+            try { recorder.stop(); } catch (_) {}
+        } else {
+            stopStreamTracks(fullSessionStreamRef.current);
+            if (mixedStreamDestRef.current) {
+                stopStreamTracks(mixedStreamDestRef.current.stream);
+                mixedStreamDestRef.current = null;
+            }
+            fullSessionStreamRef.current = null;
+            fullSessionRecorderRef.current = null;
         }
 
-        stopStreamTracks(fullSessionStreamRef.current);
-        if (mixedStreamDestRef.current) {
-            stopStreamTracks(mixedStreamDestRef.current.stream);
-            mixedStreamDestRef.current = null;
-        }
         if (audioContextRef.current) {
             try {
                 audioContextRef.current.close();
@@ -735,8 +898,6 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             audioContextRef.current = null;
         }
         mediaElementSourceRef.current = null;
-        fullSessionStreamRef.current = null;
-        fullSessionRecorderRef.current = null;
 
         await onSecurityReset?.({
             stage: 'interview',
@@ -746,6 +907,51 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     };
 
 
+
+    if (step === 'ready-shared') {
+        return (
+            <div className="max-w-2xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl text-center">
+                <div className="w-20 h-20 bg-black text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-2xl">
+                    <User size={36} />
+                </div>
+                <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight">AI Interview Ready</h2>
+                <p className="text-gray-500 mb-10 font-medium leading-relaxed max-w-md mx-auto text-sm">
+                    Your camera, screen sharing, and profile have been successfully initialized. Click below to begin the interview.
+                </p>
+                <button
+                    onClick={async () => {
+                        // Resume audio context on user gesture
+                        if (!audioContextRef.current) {
+                            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                        }
+                        const audioContext = audioContextRef.current;
+                        if (audioContext && audioContext.state === 'suspended') {
+                            await audioContext.resume().catch(e => console.warn(e));
+                        }
+                        
+                        const firstQuestion = normalizeQuestionText(firstQuestionData.question);
+                        const activeSessionId = sharedSessionId;
+                        const activeRecordingSessionId = firstQuestionData.recordingSessionId || null;
+                        
+                        setStep('interview');
+                        typeText(firstQuestion);
+                        
+                        await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
+                        
+                        if (firstQuestionData.audio) {
+                            setCoreState('speaking');
+                            playDecoupledAudio(firstQuestionData.audio, firstQuestion, firstQuestionData.audioMimeType);
+                        } else {
+                            fetchAndPlayAudio(firstQuestion, activeSessionId);
+                        }
+                    }}
+                    className="w-full py-6 bg-black text-white font-black text-xs uppercase tracking-[0.2em] rounded-[2rem] hover:bg-gray-800 transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95"
+                >
+                    Start AI Interview <ChevronRight size={18} />
+                </button>
+            </div>
+        );
+    }
 
     if (step === 'ready') {
         return (
@@ -832,9 +1038,15 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                     muted 
                                     playsInline 
                                     ref={el => { 
-                                        if(el) {
+                                        if(el && fullSessionStreamRef.current) {
                                             const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                            if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            if (camTrack) {
+                                                const stream = new MediaStream([camTrack]);
+                                                if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                    el.srcObject = stream;
+                                                    el.play().catch(() => {});
+                                                }
+                                            }
                                         }
                                     }}
                                     className="w-full h-full object-cover"
@@ -977,14 +1189,21 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            if(el && fullSessionStreamRef.current) {
-                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                                if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            if(el && cameraStreamState) {
+                                                const camTrack = cameraStreamState.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+                                                if (camTrack) {
+                                                    const stream = new MediaStream([camTrack]);
+                                                    if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                        el.srcObject = stream;
+                                                        el.play().catch(() => {});
+                                                    }
+                                                }
                                             }
                                         }}
-                                        className="w-full h-full object-cover mirrored"
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: "scaleX(-1)" }}
                                     />
-                                    {!fullSessionStreamRef.current && (
+                                    {!cameraStreamState && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>

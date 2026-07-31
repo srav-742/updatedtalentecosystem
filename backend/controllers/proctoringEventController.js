@@ -1,12 +1,15 @@
 const ProctoringReport = require('../models/ProctoringReport');
 const Application = require('../models/Application');
+const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
 const mongoose = require('mongoose');
+const redisService = require('../services/redisService');
+const queueService = require('../services/queueService');
 
 /**
- * Proctoring Event Controller (Single Collection Mode)
+ * Proctoring Event Controller (Single Collection & Cache-First Mode)
  * ──────────────────────────────────────────────────────────────────────────────
- * Directly logs, updates, and fetches proctoring flags into the central
- * ProctoringReport MongoDB collection.
+ * Logs proctoring violations, manages Redis caches for session scores,
+ * and pushes heavy reports compiling to BullMQ background workers.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -63,68 +66,87 @@ const getStatusAndVerdict = (penaltyRating) => {
     }
 };
 
-const updateReportWithViolations = async (examId, userId, newTimelineEntries) => {
-    const queryExamId = examId || `${userId}:default`;
-    const queryUserId = userId || 'unknown';
+/**
+ * Main report compiling logic (runs via BullMQ / Fallback async queue)
+ */
+const updateProctoringReport = async (examId, userId) => {
+    try {
+        const baseQuery = { examId, userId };
+        
+        // Fetch all enhanced violations logged for this session
+        const enhancedViolations = await ProctoringViolationEnhanced.find(baseQuery).sort({ timestamp: 1 }).lean();
+        
+        const timeline = enhancedViolations.map(v => ({
+            type: v.type,
+            detail: v.detail,
+            timestamp: v.timestamp || v.createdAt || new Date(),
+            rating: v.rating,
+            startTime: v.startTime,
+            endTime: v.endTime,
+            duration: v.duration,
+            maxConfidence: v.maxConfidence,
+            evidenceFrames: v.evidenceFrames,
+            model: v.model
+        }));
 
-    let report = await ProctoringReport.findOne({ examId: queryExamId });
+        const totalViolations = timeline.length;
+        const totalPenaltyRating = timeline.reduce((sum, v) => sum + (v.rating || 0), 0);
 
-    if (!report) {
-        // Find applicationId
+        const { status, verdict, summary } = getStatusAndVerdict(totalPenaltyRating);
+
+        // Map counts
+        const countsMap = {};
+        timeline.forEach(v => {
+            if (!countsMap[v.type]) {
+                countsMap[v.type] = { type: v.type, count: 0, rating: 0 };
+            }
+            countsMap[v.type].count += 1;
+            countsMap[v.type].rating += v.rating || 0;
+        });
+        const violationSummaryList = Object.values(countsMap);
+
         let applicationId = null;
-        const parts = queryExamId.split(':');
+        const parts = examId.split(':');
         const jobId = parts.length >= 2 ? parts[1] : null;
         if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
-            const app = await Application.findOne({
-                userId: queryUserId,
-                jobId: new mongoose.Types.ObjectId(jobId),
-            }).select('_id').lean();
+            const app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             if (app) applicationId = app._id;
         }
 
-        report = new ProctoringReport({
-            examId: queryExamId,
-            userId: queryUserId,
-            applicationId,
-            totalViolations: 0,
-            totalPenaltyRating: 0,
-            status: 'clean',
-            verdict: 'Seriousness Verified',
-            summary: 'No anomalies detected.',
-            violationSummaryList: [],
-            timeline: [],
-        });
-    }
+        const report = await ProctoringReport.findOneAndUpdate(
+            { examId },
+            {
+                examId,
+                userId,
+                applicationId,
+                totalViolations,
+                totalPenaltyRating,
+                status,
+                verdict,
+                summary,
+                violationSummaryList,
+                timeline
+            },
+            { upsert: true, new: true }
+        );
 
-    // Append new timeline entries
-    for (const entry of newTimelineEntries) {
-        report.timeline.push(entry);
-
-        // Update violationSummaryList
-        let summaryItem = report.violationSummaryList.find(s => s.type === entry.type);
-        if (!summaryItem) {
-            report.violationSummaryList.push({
-                type: entry.type,
-                count: 1,
-                rating: entry.rating,
+        // Update application integrity state
+        if (applicationId) {
+            await Application.findByIdAndUpdate(applicationId, {
+                integrityPenalty: totalPenaltyRating,
+                proctoringScore: Math.max(0, 100 - Math.round(totalPenaltyRating * 2.5)),
             });
-        } else {
-            summaryItem.count += 1;
-            summaryItem.rating += entry.rating;
         }
+
+        // Cache the compiled report in Redis
+        const cacheKey = `proctoring:report:${examId}`;
+        await redisService.set(cacheKey, report, 600); // 10 minutes cache
+
+        console.log(`[PROCTORING REPORT DIRECT UPDATED] examId: ${examId}, rating: ${totalPenaltyRating}, status: ${status}`);
+        return report;
+    } catch (err) {
+        console.error('[PROCTORING REPORT UPDATE ERROR]', err);
     }
-
-    report.totalViolations = report.timeline.length;
-    report.totalPenaltyRating = report.timeline.reduce((sum, item) => sum + (item.rating || 0), 0);
-
-    const { status, verdict, summary } = getStatusAndVerdict(report.totalPenaltyRating);
-    report.status = status;
-    report.verdict = verdict;
-    report.summary = summary;
-
-    await report.save();
-    console.log(`[PROCTORING REPORT DIRECT UPDATED] examId: ${queryExamId}, totalViolations: ${report.totalViolations}, rating: ${report.totalPenaltyRating}, status: ${status}`);
-    return report;
 };
 
 /**
@@ -133,11 +155,26 @@ const updateReportWithViolations = async (examId, userId, newTimelineEntries) =>
  */
 const logEvent = async (req, res) => {
     try {
-        const { candidateId, assessmentId, examId, eventType, detail, confidence, userId } = req.body;
+        const {
+            examId,
+            userId,
+            candidateId,
+            assessmentId,
+            eventType,
+            detail,
+            confidence,
+            durationMs,
+            severity,
+            proctoringScore,
+            signals,
+        } = req.body;
 
         if (!eventType) {
             return res.status(400).json({ message: 'Missing required field: eventType' });
         }
+
+        const targetExamId = examId || `${candidateId || userId}:${assessmentId || 'default'}`;
+        const targetUserId = userId || candidateId || 'unknown';
 
         const mapped = EVENT_TYPE_MAP[eventType] || {
             type: eventType.toUpperCase(),
@@ -145,34 +182,120 @@ const logEvent = async (req, res) => {
             detail: detail || 'Proctoring alert logged.',
         };
 
-        const timelineEntry = {
+        const rating = mapped.rating;
+        const durationSec = durationMs ? Math.round(durationMs / 1000) : (signals?.duration || 0);
+
+        // ── Deduplication / Merging ──────────────────────────────────────────
+        // Check if an active violation of this type already exists recently in DB (within 30 seconds)
+        const recentTime = new Date(Date.now() - 30000);
+        let violation = await ProctoringViolationEnhanced.findOne({
+            examId: targetExamId,
+            userId: targetUserId,
             type: mapped.type,
-            detail: detail || mapped.detail,
-            timestamp: new Date(),
-            rating: mapped.rating,
-        };
+            updatedAt: { $gte: recentTime }
+        });
 
-        const targetExamId = examId || `${candidateId || userId}:${assessmentId || 'default'}`;
-        const targetUserId = userId || candidateId || 'unknown';
+        if (violation) {
+            // Merge & update
+            violation.endTime = new Date();
+            violation.duration += durationSec;
+            violation.count += 1;
+            if (confidence) {
+                violation.maxConfidence = Math.max(violation.maxConfidence || 0, confidence);
+            }
+            if (signals?.snapshot && !violation.evidenceFrames.includes(signals.snapshot)) {
+                if (violation.evidenceFrames.length < 5) {
+                    violation.evidenceFrames.push(signals.snapshot);
+                }
+            }
+            violation.proctoringScore = proctoringScore || violation.proctoringScore;
+            await violation.save();
+            console.log(`[PROCTORING-DEDUPLICATED] Merged violation type ${mapped.type} for exam: ${targetExamId}`);
+        } else {
+            // Create new
+            const evidence = [];
+            if (signals?.snapshot) evidence.push(signals.snapshot);
+            if (signals?.evidenceFrames && Array.isArray(signals.evidenceFrames)) {
+                evidence.push(...signals.evidenceFrames.slice(0, 5));
+            }
 
-        const report = await updateReportWithViolations(targetExamId, targetUserId, [timelineEntry]);
+            violation = await ProctoringViolationEnhanced.create({
+                examId: targetExamId,
+                userId: targetUserId,
+                type: mapped.type,
+                detail: detail || mapped.detail,
+                count: 1,
+                severity: severity || 'medium',
+                rating,
+                confidence: confidence || null,
+                maxConfidence: confidence || null,
+                startTime: new Date(),
+                endTime: new Date(),
+                duration: durationSec,
+                evidenceFrames: evidence,
+                model: signals?.model || 'FaceMesh',
+                proctoringScore: proctoringScore || 100,
+                timestamp: new Date()
+            });
+            console.log(`[PROCTORING-ENHANCED] Logged new violation type ${mapped.type} for exam: ${targetExamId}`);
+        }
+
+        // ── Redis Cache-First Update ────────────────────────────────────────
+        // Immediately fetch cached report (if exists) and update score locally for instant client retrieval
+        const cacheKey = `proctoring:report:${targetExamId}`;
+        let cachedReport = await redisService.get(cacheKey);
+        
+        if (cachedReport) {
+            const index = cachedReport.timeline.findIndex(t => String(t._id) === String(violation._id));
+            const timelineEntry = {
+                _id: violation._id,
+                type: violation.type,
+                detail: violation.detail,
+                timestamp: violation.updatedAt,
+                rating: violation.rating,
+                startTime: violation.startTime,
+                endTime: violation.endTime,
+                duration: violation.duration,
+                maxConfidence: violation.maxConfidence,
+                evidenceFrames: violation.evidenceFrames,
+                model: violation.model
+            };
+
+            if (index !== -1) {
+                cachedReport.timeline[index] = timelineEntry;
+            } else {
+                cachedReport.timeline.push(timelineEntry);
+            }
+
+            cachedReport.totalViolations = cachedReport.timeline.length;
+            cachedReport.totalPenaltyRating = cachedReport.timeline.reduce((sum, item) => sum + (item.rating || 0), 0);
+
+            const { status, verdict, summary } = getStatusAndVerdict(cachedReport.totalPenaltyRating);
+            cachedReport.status = status;
+            cachedReport.verdict = verdict;
+            cachedReport.summary = summary;
+
+            await redisService.set(cacheKey, cachedReport, 600);
+        }
+
+        // ── BullMQ Background Job ────────────────────────────────────────────
+        // Queue the MongoDB report compile worker so it doesn't block Express main thread
+        await queueService.addJob('update-report', { examId: targetExamId, userId: targetUserId });
 
         return res.status(200).json({
             recorded: true,
-            examId: report.examId,
-            totalViolations: report.totalViolations,
-            totalPenaltyRating: report.totalPenaltyRating,
-            status: report.status,
+            examId: targetExamId,
+            score: proctoringScore || 100,
+            status: cachedReport ? cachedReport.status : 'clean',
         });
     } catch (error) {
         console.error('[PROCTORING REPORT LOG EVENT ERROR]', error);
-        return res.status(500).json({ message: 'Failed to log event to ProctoringReport', error: error.message });
+        return res.status(500).json({ message: 'Failed to log event', error: error.message });
     }
 };
 
 /**
  * Log multiple events in batch directly into ProctoringReport
- * POST /api/proctoring-pipeline/batch-events
  */
 const logBatchEvents = async (req, res) => {
     try {
@@ -185,48 +308,67 @@ const logBatchEvents = async (req, res) => {
         const targetExamId = examId || `${candidateId || userId}:${assessmentId || 'default'}`;
         const targetUserId = userId || candidateId || 'unknown';
 
-        const timelineEntries = events.map(evt => {
+        for (const evt of events) {
             const mapped = EVENT_TYPE_MAP[evt.eventType] || {
                 type: (evt.eventType || 'OBJECT_DETECTED').toUpperCase(),
                 rating: 4,
                 detail: evt.detail || 'Proctoring alert logged.',
             };
 
-            return {
+            await ProctoringViolationEnhanced.create({
+                examId: targetExamId,
+                userId: targetUserId,
                 type: mapped.type,
                 detail: evt.detail || mapped.detail,
-                timestamp: evt.timestamp ? new Date(evt.timestamp) : new Date(),
+                count: 1,
+                severity: evt.severity || 'medium',
                 rating: mapped.rating,
-            };
-        });
+                confidence: evt.confidence || null,
+                maxConfidence: evt.confidence || null,
+                startTime: evt.timestamp ? new Date(evt.timestamp) : new Date(),
+                endTime: evt.timestamp ? new Date(evt.timestamp) : new Date(),
+                duration: evt.duration || 0,
+                evidenceFrames: evt.evidenceFrames || [],
+                model: evt.model || 'Unknown',
+                timestamp: evt.timestamp ? new Date(evt.timestamp) : new Date()
+            });
+        }
 
-        const report = await updateReportWithViolations(targetExamId, targetUserId, timelineEntries);
+        // Queue report compiling
+        await queueService.addJob('update-report', { examId: targetExamId, userId: targetUserId });
 
         return res.status(200).json({
             recorded: true,
-            count: events.length,
-            totalViolations: report.totalViolations,
-            totalPenaltyRating: report.totalPenaltyRating,
-            status: report.status,
+            count: events.length
         });
     } catch (error) {
         console.error('[PROCTORING REPORT BATCH ERROR]', error);
-        return res.status(500).json({ message: 'Failed to log batch to ProctoringReport', error: error.message });
+        return res.status(500).json({ message: 'Failed to log batch events', error: error.message });
     }
 };
 
 /**
  * Get events timeline for an exam session
- * GET /api/proctoring-pipeline/events/:examId
  */
 const getEventsByExam = async (req, res) => {
     try {
         const { examId } = req.params;
+        
+        // Cache-First check
+        const cacheKey = `proctoring:report:${examId}`;
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+            return res.status(200).json({ events: cached.timeline || [], count: cached.timeline?.length || 0 });
+        }
+
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
             return res.status(200).json({ events: [], count: 0 });
         }
+
+        // Populate cache
+        await redisService.set(cacheKey, report, 600);
 
         return res.status(200).json({
             events: report.timeline || [],
@@ -240,17 +382,23 @@ const getEventsByExam = async (req, res) => {
 
 /**
  * Get session details from ProctoringReport
- * GET /api/proctoring-pipeline/session/:examId
  */
 const getSession = async (req, res) => {
     try {
         const { examId } = req.params;
+
+        // Cache-First check
+        const cacheKey = `proctoring:report:${examId}`;
+        const cached = await redisService.get(cacheKey);
+        if (cached) return res.status(200).json(cached);
+
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
             return res.status(404).json({ message: 'Proctoring report not found for this exam.' });
         }
 
+        await redisService.set(cacheKey, report, 600);
         return res.status(200).json(report);
     } catch (error) {
         console.error('[GET REPORT SESSION ERROR]', error);
@@ -260,11 +408,24 @@ const getSession = async (req, res) => {
 
 /**
  * Get current score/status from ProctoringReport
- * GET /api/proctoring-pipeline/score/:examId
  */
 const getScore = async (req, res) => {
     try {
         const { examId } = req.params;
+
+        // Cache-First check
+        const cacheKey = `proctoring:report:${examId}`;
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+            const score = Math.max(0, 100 - Math.round((cached.totalPenaltyRating || 0) * 2.5));
+            return res.status(200).json({
+                totalPenaltyRating: cached.totalPenaltyRating,
+                score,
+                status: cached.status,
+                verdict: cached.verdict,
+            });
+        }
+
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
@@ -277,6 +438,9 @@ const getScore = async (req, res) => {
         }
 
         const score = Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
+        
+        // Cache report
+        await redisService.set(cacheKey, report, 600);
 
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,
@@ -292,7 +456,6 @@ const getScore = async (req, res) => {
 
 /**
  * Log warning escalation to ProctoringReport
- * POST /api/proctoring-pipeline/warning
  */
 const logWarning = async (req, res) => {
     try {
@@ -300,15 +463,24 @@ const logWarning = async (req, res) => {
         const targetExamId = examId || `${userId}:default`;
         const targetUserId = userId || 'unknown';
 
-        const entry = {
+        const entry = await ProctoringViolationEnhanced.create({
+            examId: targetExamId,
+            userId: targetUserId,
             type: level === 'auto_submit' ? 'SCREEN_SHARE_STOPPED' : 'OBJECT_DETECTED',
             detail: message || `Escalated warning: ${level}`,
-            timestamp: new Date(),
+            count: 1,
+            severity: level === 'auto_submit' ? 'critical' : 'high',
             rating: level === 'auto_submit' ? 10 : 3,
-        };
+            startTime: new Date(),
+            endTime: new Date(),
+            model: 'Browser',
+            timestamp: new Date()
+        });
 
-        const report = await updateReportWithViolations(targetExamId, targetUserId, [entry]);
-        return res.status(200).json({ recorded: true, status: report.status });
+        // Queue report compiling
+        await queueService.addJob('update-report', { examId: targetExamId, userId: targetUserId });
+
+        return res.status(200).json({ recorded: true, status: 'warning_logged' });
     } catch (error) {
         console.error('[LOG WARNING ERROR]', error);
         return res.status(500).json({ message: 'Failed to log warning', error: error.message });
@@ -317,7 +489,6 @@ const logWarning = async (req, res) => {
 
 /**
  * Environment Check
- * POST /api/proctoring-pipeline/environment-check
  */
 const environmentCheck = async (req, res) => {
     try {
@@ -332,7 +503,6 @@ const environmentCheck = async (req, res) => {
 
 /**
  * Pipeline Summary from ProctoringReport
- * GET /api/proctoring-pipeline/summary
  */
 const getPipelineSummary = async (req, res) => {
     try {
@@ -367,4 +537,5 @@ module.exports = {
     logWarning,
     environmentCheck,
     getPipelineSummary,
+    updateProctoringReport
 };

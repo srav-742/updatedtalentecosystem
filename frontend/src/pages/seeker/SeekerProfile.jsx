@@ -246,10 +246,23 @@ const SeekerProfile = () => {
     useEffect(() => {
         if (fetchedProfile) {
             setProfileData({
-                ...fetchedProfile,
+                name: fetchedProfile.name || '',
+                email: fetchedProfile.email || '',
+                phone: fetchedProfile.phone || '',
+                bio: fetchedProfile.bio || '',
+                profilePic: fetchedProfile.profilePic || '',
                 skills: fetchedProfile.skills || [],
-                education: fetchedProfile.education || [],
-                experience: fetchedProfile.experience || [],
+                education: (fetchedProfile.education || []).map(edu => ({
+                    institution: edu.institution || '',
+                    degree: edu.degree || '',
+                    year: edu.year || ''
+                })),
+                experience: (fetchedProfile.experience || []).map(exp => ({
+                    company: exp.company || '',
+                    role: exp.role || '',
+                    duration: exp.duration || '',
+                    description: exp.description || ''
+                })),
                 githubUrl: fetchedProfile.githubUrl || '',
                 linkedinUrl: fetchedProfile.linkedinUrl || ''
             });
@@ -867,28 +880,28 @@ const SeekerProfile = () => {
                                             <input
                                                 type="text"
                                                 placeholder="Company"
-                                                value={item.company}
+                                                value={item.company || ''}
                                                 onChange={(event) => updateExperience(index, 'company', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20"
                                             />
                                             <input
                                                 type="text"
                                                 placeholder="Role"
-                                                value={item.role}
+                                                value={item.role || ''}
                                                 onChange={(event) => updateExperience(index, 'role', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20"
                                             />
                                             <input
                                                 type="text"
                                                 placeholder="Duration"
-                                                value={item.duration}
+                                                value={item.duration || ''}
                                                 onChange={(event) => updateExperience(index, 'duration', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20 md:col-span-2"
                                             />
                                             <textarea
                                                 rows={3}
                                                 placeholder="Description"
-                                                value={item.description}
+                                                value={item.description || ''}
                                                 onChange={(event) => updateExperience(index, 'description', event.target.value)}
                                                 className="rounded-[1.5rem] border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-gray-700 outline-none transition focus:border-black/20 md:col-span-2"
                                             />
@@ -934,21 +947,21 @@ const SeekerProfile = () => {
                                             <input
                                                 type="text"
                                                 placeholder="Institution"
-                                                value={item.institution}
+                                                value={item.institution || ''}
                                                 onChange={(event) => updateEducation(index, 'institution', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20 md:col-span-2"
                                             />
                                             <input
                                                 type="text"
                                                 placeholder="Degree"
-                                                value={item.degree}
+                                                value={item.degree || ''}
                                                 onChange={(event) => updateEducation(index, 'degree', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20"
                                             />
                                             <input
                                                 type="text"
                                                 placeholder="Year"
-                                                value={item.year}
+                                                value={item.year || ''}
                                                 onChange={(event) => updateEducation(index, 'year', event.target.value)}
                                                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-black/20"
                                             />

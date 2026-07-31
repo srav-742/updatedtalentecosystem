@@ -5,7 +5,9 @@ const userResumeSchema = new mongoose.Schema({
     title: { type: String, required: true },
     source: { type: String, enum: ['upload', 'builder'], default: 'upload' },
     fileUrl: String,
-    cloudinaryUrl: String,
+    cloudinaryUrl: String, // Kept for backward compatibility with existing resumes
+    fileBuffer: Buffer, // Raw PDF data stored directly in MongoDB
+    fileMimeType: { type: String, default: 'application/pdf' },
     fileName: String,
     resumeData: mongoose.Schema.Types.Mixed,
     isDefault: { type: Boolean, default: false },

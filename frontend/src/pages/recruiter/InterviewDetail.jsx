@@ -251,6 +251,31 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                 </div>
 
                 {/* Video Recording Section */}
+                {(application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl) && (
+                    <div className="p-8 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-emerald-200">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Video className="w-5 h-5 text-emerald-600" />
+                            Skill Assessment Recording
+                        </h3>
+                        <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
+                            <video
+                                controls
+                                className="w-full max-h-[500px]"
+                                src={application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl}
+                            />
+                        </div>
+                        <div className="mt-4 flex items-center gap-3 text-sm text-gray-600">
+                            <PlayCircle className="w-4 h-4 text-emerald-600" />
+                            <span className="font-medium">Click play to watch the candidate's skill assessment recording</span>
+                        </div>
+                        {application.assessmentRecordingSessionId && (
+                            <div className="mt-3 text-xs font-mono text-gray-500 break-all">
+                                Recording ID: {application.assessmentRecordingSessionId}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {(application.recordingPlaybackUrl || application.recordingUrl) && (
                     <div className="p-8 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200">
                         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">

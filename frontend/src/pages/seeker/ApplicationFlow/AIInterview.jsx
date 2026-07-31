@@ -136,6 +136,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 { type: blobType }
             );
             const url = URL.createObjectURL(audioBlob);
+            
+            // Clear error listener before pausing/resetting to prevent unwanted triggers
+            audioPlayerRef.current.onerror = null;
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
 
@@ -162,7 +165,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.playbackRate = 0.95; // Gentle, measured pace — not too slow
-            audioPlayerRef.current.play().catch(speakInBrowser);
+            audioPlayerRef.current.play().catch((err) => {
+                // Ignore AbortError caused by normal play interruptions
+                if (err && err.name !== 'AbortError') {
+                    speakInBrowser();
+                }
+            });
         } catch (err) {
             speakInBrowser();
         }
@@ -245,7 +253,13 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             const recordStream = new MediaStream(recordTracks);
 
-            const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            let fullSessionRecorder;
+            try {
+                fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            } catch (mimeErr) {
+                console.warn("[MediaRecorder] Failed to initialize with options, trying default constructor:", mimeErr);
+                fullSessionRecorder = new MediaRecorder(recordStream);
+            }
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
             chunkUploadsRef.current = [];
@@ -692,17 +706,51 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         stopStreamTracks(answerStreamRef.current);
         answerStreamRef.current = null;
 
+        const activeRecId = recordingSessionId || sessionId;
+
         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-            fullSessionRecorderRef.current.onstop = null;
-            fullSessionRecorderRef.current.onerror = null;
-            fullSessionRecorderRef.current.stop();
+            const recorder = fullSessionRecorderRef.current;
+            recorder.onstop = async () => {
+                try {
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
+                    }
+                    if (activeRecId) {
+                        await axios.post(`${API_URL}/finalize-recording`, {
+                            sessionId: activeRecId,
+                            userId: user.uid,
+                            jobId: job._id
+                        });
+                    }
+                } catch (err) {
+                    console.error("Finalization failed on security reset:", err);
+                } finally {
+                    stopStreamTracks(fullSessionStreamRef.current);
+                    if (mixedStreamDestRef.current) {
+                        stopStreamTracks(mixedStreamDestRef.current.stream);
+                        mixedStreamDestRef.current = null;
+                    }
+                    fullSessionStreamRef.current = null;
+                    fullSessionRecorderRef.current = null;
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
+                }
+            };
+            try { recorder.stop(); } catch (_) {}
+        } else {
+            stopStreamTracks(fullSessionStreamRef.current);
+            if (mixedStreamDestRef.current) {
+                stopStreamTracks(mixedStreamDestRef.current.stream);
+                mixedStreamDestRef.current = null;
+            }
+            fullSessionStreamRef.current = null;
+            fullSessionRecorderRef.current = null;
         }
 
-        stopStreamTracks(fullSessionStreamRef.current);
-        if (mixedStreamDestRef.current) {
-            stopStreamTracks(mixedStreamDestRef.current.stream);
-            mixedStreamDestRef.current = null;
-        }
         if (audioContextRef.current) {
             try {
                 audioContextRef.current.close();
@@ -710,8 +758,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             audioContextRef.current = null;
         }
         mediaElementSourceRef.current = null;
-        fullSessionStreamRef.current = null;
-        fullSessionRecorderRef.current = null;
 
         await onSecurityReset?.({
             stage: 'interview',
@@ -807,9 +853,15 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     muted 
                                     playsInline 
                                     ref={el => { 
-                                        if(el) {
+                                        if(el && fullSessionStreamRef.current) {
                                             const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                            if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            if (camTrack) {
+                                                const stream = new MediaStream([camTrack]);
+                                                if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                    el.srcObject = stream;
+                                                    el.play().catch(() => {});
+                                                }
+                                            }
                                         }
                                     }}
                                     className="w-full h-full object-cover"
@@ -951,14 +1003,21 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            if(el && fullSessionStreamRef.current) {
-                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                                if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            if(el && cameraStreamState) {
+                                                const camTrack = cameraStreamState.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+                                                if (camTrack) {
+                                                    const stream = new MediaStream([camTrack]);
+                                                    if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                        el.srcObject = stream;
+                                                        el.play().catch(() => {});
+                                                    }
+                                                }
                                             }
                                         }}
-                                        className="w-full h-full object-cover mirrored"
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: "scaleX(-1)" }}
                                     />
-                                    {!fullSessionStreamRef.current && (
+                                    {!cameraStreamState && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>

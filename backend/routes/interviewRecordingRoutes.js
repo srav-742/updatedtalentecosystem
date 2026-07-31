@@ -224,7 +224,7 @@ router.post("/upload-recording-chunk", chunkUpload.single("chunk"), (req, res) =
 });
 
 router.post("/finalize-recording", async (req, res) => {
-    const { sessionId, userId, jobId } = req.body;
+    const { sessionId, userId, jobId, type } = req.body;
 
     if (!sessionId || !userId || !jobId) {
         return res.status(400).json({ error: "sessionId, userId, and jobId are required" });
@@ -270,60 +270,73 @@ router.post("/finalize-recording", async (req, res) => {
             const mergedStats = await fs.promises.stat(mergedFilePath);
             console.log(`[FINALIZE-BG] Merged file size: ${(mergedStats.size / (1024 * 1024)).toFixed(1)} MB`);
 
-            // Determine recordingSessionId
-            const existingApp = await Application.findOne({ userId, jobId }).lean();
-            const recordingSessionId =
-                existingApp?.recordingSessionId ||
-                buildRecordingSessionId(userId, jobId);
+            const isAssessment = type === "assessment";
 
             // Upload via upload_large (chunked, no size limit)
             const uploadResult = await uploadRecordingToCloudinary(
                 mergedFilePath,
                 {
                     resource_type: "video",
-                    folder: "ai-interviews",
-                    public_id: recordingSessionId,
+                    folder: isAssessment ? "skill-assessments" : "ai-interviews",
+                    public_id: sessionId,
                     use_filename: false,
                     unique_filename: false,
                     overwrite: true,
                     type: "upload",
                     tags: [
-                        "ai-interview",
+                        isAssessment ? "skill-assessment" : "ai-interview",
                         `user-${sanitizeRecordingSegment(userId)}`,
                         `job-${sanitizeRecordingSegment(jobId)}`
                     ],
                     context: {
-                        alt: `Interview recording for ${userId}`,
-                        caption: `Interview recording ${recordingSessionId}`
+                        alt: isAssessment ? `Skill assessment recording for ${userId}` : `Interview recording for ${userId}`,
+                        caption: isAssessment ? `Skill assessment recording ${sessionId}` : `Interview recording ${sessionId}`
                     }
                 }
             );
 
             const playbackUrl = buildPlaybackUrl(uploadResult.public_id);
 
+            const updateFields = isAssessment ? {
+                assessmentRecordingSessionId: sessionId,
+                assessmentRecordingStatus: "uploaded",
+                assessmentRecordingPublicId: uploadResult.public_id,
+                assessmentRecordingAssetId: uploadResult.asset_id,
+                assessmentRecordingUrl: uploadResult.secure_url,
+                assessmentRecordingPlaybackUrl: playbackUrl,
+                assessmentRecordingFormat: uploadResult.format,
+                assessmentRecordingDuration: uploadResult.duration,
+                assessmentRecordingBytes: uploadResult.bytes || mergedStats.size,
+                assessmentRecordingUploadedAt: new Date()
+            } : {
+                recordingSessionId: sessionId,
+                recordingStatus: "uploaded",
+                recordingPublicId: uploadResult.public_id,
+                recordingAssetId: uploadResult.asset_id,
+                recordingUrl: uploadResult.secure_url,
+                recordingPlaybackUrl: playbackUrl,
+                recordingFormat: uploadResult.format,
+                recordingDuration: uploadResult.duration,
+                recordingBytes: uploadResult.bytes || mergedStats.size,
+                recordingUploadedAt: new Date()
+            };
+
             await Application.findOneAndUpdate(
                 { userId, jobId },
-                {
-                    recordingSessionId,
-                    recordingStatus: "uploaded",
-                    recordingPublicId: uploadResult.public_id,
-                    recordingAssetId: uploadResult.asset_id,
-                    recordingUrl: uploadResult.secure_url,
-                    recordingPlaybackUrl: playbackUrl,
-                    recordingFormat: uploadResult.format,
-                    recordingDuration: uploadResult.duration,
-                    recordingBytes: uploadResult.bytes || mergedStats.size,
-                    recordingUploadedAt: new Date()
-                },
+                updateFields,
                 { upsert: true, new: true }
             );
 
             console.log(`[FINALIZE-BG] Upload complete for session: ${sessionId} — ${uploadResult.secure_url}`);
         } catch (bgError) {
             console.error("[FINALIZE-BG] Background finalization failed:", bgError);
+            const isAssessment = type === "assessment";
+            const failFields = isAssessment 
+                ? { assessmentRecordingStatus: "upload_failed" }
+                : { recordingStatus: "upload_failed" };
             await Application.findOneAndUpdate(
                 { userId, jobId },
-                { recordingStatus: "upload_failed" },
+                failFields,
                 { upsert: true }
             ).catch(() => null);
         } finally {

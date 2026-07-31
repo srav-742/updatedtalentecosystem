@@ -1,5 +1,4 @@
 const UserResume = require('../models/UserResume');
-const cloudinary = require('../config/cloudinary');
 const pdf = require('pdf-parse');
 
 const uploadResume = async (req, res) => {
@@ -12,26 +11,7 @@ const uploadResume = async (req, res) => {
             return res.status(400).json({ message: "No resume file uploaded" });
         }
 
-        // 1. Upload file to Cloudinary as 'raw' (always using 'raw' to avoid PDF delivery security restrictions)
-        const uploadResult = await new Promise((resolve, reject) => {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                { 
-                    folder: 'candidate-resumes', 
-                    resource_type: 'raw',
-                    public_id: `resume_${userId}_${Date.now()}` 
-                },
-                (error, result) => {
-                    if (error) {
-                        console.error("[CLOUDINARY-UPLOAD-ERROR]:", error);
-                        reject(error);
-                    }
-                    else resolve(result);
-                }
-            );
-            uploadStream.end(req.file.buffer);
-        });
-
-        // 2. Parse PDF buffer using pdf-parse to extract text
+        // 1. Parse PDF buffer using pdf-parse to extract text
         let text = "";
         try {
             const pdfData = await pdf(req.file.buffer);
@@ -46,21 +26,22 @@ const uploadResume = async (req, res) => {
             }
         }
 
-        // 3. Mark all other resumes for this user as not default
+        // 2. Mark all other resumes for this user as not default
         await UserResume.updateMany({ userId }, { isDefault: false });
 
-        // 4. Create new UserResume record
+        // 3. Create new UserResume record — store PDF buffer directly in MongoDB
         const newResume = new UserResume({
             userId,
             title: req.file.originalname.replace('.pdf', '') || 'Uploaded Resume',
             source: 'upload',
-            cloudinaryUrl: uploadResult.secure_url,
+            fileBuffer: req.file.buffer,
+            fileMimeType: req.file.mimetype || 'application/pdf',
             fileName: req.file.originalname,
             isDefault: true
         });
         await newResume.save();
 
-        // 5. Build dynamic proxy URL using request host
+        // 4. Build dynamic proxy URL using request host
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const proxyUrl = `${baseUrl}/api/user-resumes/view/${newResume._id}`;
 
@@ -98,21 +79,29 @@ const viewResumeFile = async (req, res) => {
             return res.status(404).json({ message: "Resume not found" });
         }
 
+        const isPdf = resume.fileName?.toLowerCase().endsWith('.pdf');
+        const contentType = resume.fileMimeType || (isPdf ? 'application/pdf' : 'application/octet-stream');
+
+        // Serve from MongoDB buffer if available (new resumes)
+        if (resume.fileBuffer && resume.fileBuffer.length > 0) {
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Disposition', `inline; filename="${resume.fileName || 'resume'}"`);
+            return res.send(resume.fileBuffer);
+        }
+
+        // Fallback: fetch from Cloudinary for old resumes stored before this change
         const targetUrl = resume.cloudinaryUrl || resume.fileUrl;
         if (!targetUrl) {
             return res.status(400).json({ message: "No source file URL found" });
         }
 
-        console.log(`[PROXY] Fetching resume from Cloudinary: ${targetUrl}`);
+        console.log(`[PROXY] Fetching resume from Cloudinary (legacy): ${targetUrl}`);
         const axios = require('axios');
         const response = await axios({
             method: 'get',
             url: targetUrl,
             responseType: 'arraybuffer'
         });
-
-        const isPdf = resume.fileName?.toLowerCase().endsWith('.pdf') || targetUrl.toLowerCase().endsWith('.pdf');
-        const contentType = isPdf ? 'application/pdf' : 'application/octet-stream';
 
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Disposition', `inline; filename="${resume.fileName || 'resume'}"`);

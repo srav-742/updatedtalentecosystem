@@ -30,8 +30,11 @@ const DEFAULT_THRESHOLDS = {
     headTurnRatioLow: 0.5,        // Nose-to-cheek ratio < this → looking far left
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
-    noPersonTimeoutMs: 2000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.45, // Lowered to 0.45 to detect mobile phones perfectly and reliably
+    noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
+    phoneConfidenceThreshold: 0.45,
+    objectConfidenceThreshold: 0.50,
+    phoneRequiredFrames: 2,
+    objectRequiredFrames: 2,
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
@@ -45,15 +48,9 @@ const CAMERA_UTILS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0
 
 const SUSPICIOUS_OBJECTS = {
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 6 },
-    "remote": { type: "PHONE_DETECTED", label: "Remote control/device", ranking: 6 },
     "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 6 },
     "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 5 },
     "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 6 },
-    "backpack": { type: "OBJECT_DETECTED", label: "Backpack/bag", ranking: 4 },
-    "handbag": { type: "OBJECT_DETECTED", label: "Handbag/bag", ranking: 4 },
-    "suitcase": { type: "OBJECT_DETECTED", label: "Suitcase", ranking: 4 },
-    "keyboard": { type: "OBJECT_DETECTED", label: "External keyboard", ranking: 3 },
-    "mouse": { type: "OBJECT_DETECTED", label: "External mouse", ranking: 3 }
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -115,7 +112,8 @@ export function useAIProctoring({
     // Phone/object violations use a shorter cooldown (3s) for real-time response
     const lastViolationTimeRef = useRef({});
     const VIOLATION_COOLDOWN_MS = 5000;
-    const PHONE_VIOLATION_COOLDOWN_MS = 3000;
+    const PHONE_VIOLATION_COOLDOWN_MS = 10000;
+    const OBJECT_VIOLATION_COOLDOWN_MS = 20000;
 
     // No-person timeout
     const noPersonTimerRef = useRef(null);
@@ -130,6 +128,7 @@ export function useAIProctoring({
     // Streaks for filtering false positive detections
     const multipleFacesStreakRef = useRef(0);
     const objectStreakRef = useRef({});
+    const headTurnStreakRef = useRef(0);
 
     // Keep refs current
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
@@ -142,9 +141,11 @@ export function useAIProctoring({
         const now = Date.now();
         const lastTime = lastViolationTimeRef.current[type] || 0;
         // Phone/object detections use shorter cooldown for real-time alerting
-        const cooldown = (type === 'PHONE_DETECTED' || type === 'OBJECT_DETECTED')
+        const cooldown = type === 'PHONE_DETECTED'
             ? PHONE_VIOLATION_COOLDOWN_MS
-            : VIOLATION_COOLDOWN_MS;
+            : type === 'OBJECT_DETECTED'
+                ? OBJECT_VIOLATION_COOLDOWN_MS
+                : VIOLATION_COOLDOWN_MS;
         if (now - lastTime < cooldown) return;
         lastViolationTimeRef.current[type] = now;
 
@@ -182,8 +183,8 @@ export function useAIProctoring({
                 mesh.setOptions({
                     maxNumFaces: 3,
                     refineLandmarks: true,  // Enables 10-point iris mesh
-                    minDetectionConfidence: 0.75, // Increased from 0.5 to prevent background false positives
-                    minTrackingConfidence: 0.75, // Increased from 0.5 to stabilize face tracking
+                    minDetectionConfidence: 0.60, // Lowered from 0.75 to prevent valid face drops in bad lighting
+                    minTrackingConfidence: 0.60, // Lowered from 0.75 to prevent tracking drops
                 });
 
                 mesh.onResults((results) => {
@@ -261,7 +262,7 @@ export function useAIProctoring({
             }
             const width = maxX - minX;
             const height = maxY - minY;
-            return width > 0.15 && height > 0.15; // Must be at least 15% of frame width/height
+            return width > 0.08 && height > 0.08; // Lowered from 15% to 8% to prevent false NO_PEOPLE triggers when sitting back
         });
 
         const count = validFaces.length;
@@ -275,7 +276,7 @@ export function useAIProctoring({
                     if (isActiveRef.current) {
                         emitViolation(
                             "NO_PEOPLE",
-                            "No face detected in camera frame for over 2 seconds. (Ranking: 4)",
+                            "No face detected in camera frame for over 5 seconds. (Ranking: 4)",
                             { faceCount: 0 }
                         );
                     }
@@ -316,24 +317,37 @@ export function useAIProctoring({
         const leftCheek = face[234];
         const rightCheek = face[454];
 
+        let isHeadTurnedNow = false;
+        let headTurnDirection = null;
+        let currentHeadTurnRatio = 1.0;
+
         if (nose && leftCheek && rightCheek) {
             const distLeft = euclidean(nose, leftCheek);
             const distRight = euclidean(nose, rightCheek);
-            const ratio = distRight > 0.001 ? distLeft / distRight : 1;
-            setHeadTurnRatio(ratio);
+            currentHeadTurnRatio = distRight > 0.001 ? distLeft / distRight : 1;
+            setHeadTurnRatio(currentHeadTurnRatio);
 
-            if (ratio > T.headTurnRatioHigh || ratio < T.headTurnRatioLow) {
-                isLookingSide = true;
-                const direction = ratio > T.headTurnRatioHigh ? "right" : "left";
+            if (currentHeadTurnRatio > T.headTurnRatioHigh || currentHeadTurnRatio < T.headTurnRatioLow) {
+                isHeadTurnedNow = true;
+                headTurnDirection = currentHeadTurnRatio > T.headTurnRatioHigh ? "right" : "left";
+            }
+        }
+
+        if (isHeadTurnedNow) {
+            isLookingSide = true;
+            headTurnStreakRef.current += 1;
+            if (headTurnStreakRef.current >= 3) { // Require 3 consecutive frames (~1.5s) to trigger
                 const violationType = isAnsweringRef.current
                     ? "HEAD_TURNED_WHILE_ANSWERING"
                     : "HEAD_TURNED";
                 emitViolation(
                     violationType,
-                    `Head turned excessively to the ${direction}. (Ranking: 3)`,
-                    { headTurnRatio: ratio, direction }
+                    `Head turned excessively to the ${headTurnDirection}. (Ranking: 3)`,
+                    { headTurnRatio: currentHeadTurnRatio, direction: headTurnDirection }
                 );
             }
+        } else {
+            headTurnStreakRef.current = 0;
         }
 
         // ── Gaze (iris) tracking ────────────────────────────────────────────
@@ -518,15 +532,26 @@ export function useAIProctoring({
                     const activeObjects = new Set();
                     for (const pred of predictions) {
                         const objConfig = SUSPICIOUS_OBJECTS[pred.class];
-                        if (objConfig && pred.score >= T.phoneConfidenceThreshold) {
-                            activeObjects.add(pred.class);
-                            objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
-                            if (objectStreakRef.current[pred.class] >= 1) {
-                                emitViolation(
-                                    objConfig.type,
-                                    `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
-                                    { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
-                                );
+                        if (objConfig) {
+                            const requiredConfidence = pred.class === "cell phone"
+                                ? T.phoneConfidenceThreshold
+                                : T.objectConfidenceThreshold;
+
+                            if (pred.score >= requiredConfidence) {
+                                activeObjects.add(pred.class);
+                                objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
+
+                                const requiredFrames = pred.class === "cell phone"
+                                    ? T.phoneRequiredFrames
+                                    : T.objectRequiredFrames;
+
+                                if (objectStreakRef.current[pred.class] >= requiredFrames) {
+                                    emitViolation(
+                                        objConfig.type,
+                                        `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
+                                        { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
+                                    );
+                                }
                             }
                         }
                     }

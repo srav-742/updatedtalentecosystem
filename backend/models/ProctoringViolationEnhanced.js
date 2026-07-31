@@ -5,10 +5,8 @@ const mongoose = require('mongoose');
  * ──────────────────────────────────────────────────────────────────────────────
  * Extended violation model for the AI-proctoring engine.
  * Stores both the original browser-level violations and the new
- * camera-based AI detections with millisecond precision.
- *
- * This model lives alongside the original ProctoringViolation model —
- * it does NOT modify or replace the existing schema.
+ * camera-based AI detections with millisecond precision, including deduplicated
+ * temporal metrics.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -65,6 +63,7 @@ const proctoringViolationEnhancedSchema = new mongoose.Schema({
     count: {
         type: Number,
         required: true,
+        default: 1,
     },
     severity: {
         type: String,
@@ -80,6 +79,36 @@ const proctoringViolationEnhancedSchema = new mongoose.Schema({
         min: 0,
         max: 1,
         default: null,
+    },
+    maxConfidence: {
+        type: Number,
+        min: 0,
+        max: 1,
+        default: null,
+    },
+    startTime: {
+        type: Date,
+        default: Date.now,
+    },
+    endTime: {
+        type: Date,
+        default: Date.now,
+    },
+    duration: {
+        type: Number,
+        default: 0, // duration in seconds
+    },
+    evidenceFrames: {
+        type: [String], // Array of screenshot data URLs or Cloudinary URLs
+        default: [],
+    },
+    model: {
+        type: String,
+        default: 'Unknown', // 'FaceMesh' | 'COCO-SSD' | 'MoveNet' | 'SpeechCommands' | 'Browser'
+    },
+    proctoringScore: {
+        type: Number,
+        default: 100,
     },
     metadata: {
         type: mongoose.Schema.Types.Mixed,

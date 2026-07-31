@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain } from 'lucide-react';
@@ -24,6 +24,24 @@ const ApplicationFlow = () => {
     const [interviewResult, setInterviewResult] = useState(null);
     const [securityNotice, setSecurityNotice] = useState(null);
 
+    // Shared continuous recording state (between Skill Assessment and AI Interview)
+    const [sharedStream, setSharedStream] = useState(null);
+    const [sharedRecorder, setSharedRecorder] = useState(null);
+    const [sharedSessionId, setSharedSessionId] = useState(null);
+    const [sharedRecordingSessionId, setSharedRecordingSessionId] = useState(null);
+    const [firstQuestionData, setFirstQuestionData] = useState(null);
+    const sharedChunkIndexRef = useRef(0);
+    const sharedChunkUploadsRef = useRef([]);
+
+    // Stop streams on unmount
+    useEffect(() => {
+        return () => {
+            if (sharedStream) {
+                sharedStream.getTracks().forEach((t) => t.stop());
+            }
+        };
+    }, [sharedStream]);
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -38,11 +56,11 @@ const ApplicationFlow = () => {
                 const jobData = jobRes.data;
                 setJob(jobData);
 
-                // Define enabled steps
+                // Define enabled steps - Sequence updated: Resume -> Candidate Video Intro -> Skill Assessment -> AI Interview
                 const enabledSteps = [
                     { id: 'resume', enabled: jobData.resumeAnalysis?.enabled !== false },
-                    { id: 'assessment', enabled: jobData.assessment?.enabled },
                     { id: 'candidate-deck', enabled: jobData.mockInterview?.enabled }, // Required if interview is enabled
+                    { id: 'assessment', enabled: jobData.assessment?.enabled },
                     { id: 'interview', enabled: jobData.mockInterview?.enabled },
                 ].filter(s => s.enabled);
 
@@ -57,20 +75,20 @@ const ApplicationFlow = () => {
                         if (existingApp.resumeMatchPercent) setResumeData({ matchPercentage: existingApp.resumeMatchPercent });
                         if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
 
-                        // Determine the next pending step
+                        // Determine the next pending step based on the new sequence
                         const resumeDone = !enabledIds.includes('resume') || !!existingApp.resumeMatchPercent;
-                        const assessmentDone = !enabledIds.includes('assessment') || !!existingApp.assessmentScore;
                         const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl;
+                        const assessmentDone = !enabledIds.includes('assessment') || !!existingApp.assessmentScore;
                         const interviewDone = !enabledIds.includes('interview') || !!existingApp.interviewScore;
 
                         let targetIndex = 0;
-                        if (resumeDone && !assessmentDone && enabledIds.includes('assessment')) {
-                            targetIndex = enabledIds.indexOf('assessment');
-                        } else if (resumeDone && assessmentDone && !videoDone && enabledIds.includes('candidate-deck')) {
+                        if (resumeDone && !videoDone && enabledIds.includes('candidate-deck')) {
                             targetIndex = enabledIds.indexOf('candidate-deck');
-                        } else if (resumeDone && assessmentDone && videoDone && !interviewDone && enabledIds.includes('interview')) {
+                        } else if (resumeDone && videoDone && !assessmentDone && enabledIds.includes('assessment')) {
+                            targetIndex = enabledIds.indexOf('assessment');
+                        } else if (resumeDone && videoDone && assessmentDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
-                        } else if (resumeDone && assessmentDone && videoDone && interviewDone) {
+                        } else if (resumeDone && videoDone && assessmentDone && interviewDone) {
                             navigate('/candidate/applications');
                         }
 
@@ -100,8 +118,8 @@ const ApplicationFlow = () => {
 
     const enabledSteps = [
         { id: 'resume', label: 'Resume Analysis', icon: <FileText className="w-4 h-4" />, enabled: job.resumeAnalysis?.enabled !== false },
-        { id: 'assessment', label: 'Skill Assessment', icon: <Brain className="w-4 h-4" />, enabled: job.assessment?.enabled },
         { id: 'candidate-deck', label: 'Candidate Deck', icon: <Video className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
+        { id: 'assessment', label: 'Skill Assessment', icon: <Brain className="w-4 h-4" />, enabled: job.assessment?.enabled },
         { id: 'interview', label: 'AI Interview', icon: <CheckCircle className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
     ].filter(s => s.enabled);
 
@@ -124,6 +142,18 @@ const ApplicationFlow = () => {
     };
 
     const handleSecurityResetToResume = async ({ stage, reason, violation }) => {
+        // Clean up continuous recording if active
+        if (sharedStream) {
+            sharedStream.getTracks().forEach((t) => t.stop());
+            setSharedStream(null);
+        }
+        setSharedRecorder(null);
+        setSharedSessionId(null);
+        setSharedRecordingSessionId(null);
+        setFirstQuestionData(null);
+        sharedChunkIndexRef.current = 0;
+        sharedChunkUploadsRef.current = [];
+
         try {
             await axios.post(`${API_URL}/applications/proctoring-reset`, {
                 jobId: job._id,
@@ -204,6 +234,17 @@ const ApplicationFlow = () => {
                         />
                     )}
 
+                    {currentStep?.id === 'candidate-deck' && (
+                        <CandidateDeck
+                            key="candidate-deck"
+                            job={job}
+                            user={user}
+                            onComplete={(url) => {
+                                handleNext();
+                            }}
+                        />
+                    )}
+
                     {currentStep?.id === 'assessment' && (
                         <SkillAssessment
                             key="assessment"
@@ -216,22 +257,22 @@ const ApplicationFlow = () => {
                                 setAssessmentScore(score);
                                 handleNext();
                             }}
-                        />
-                    )}
-
-                    {currentStep?.id === 'candidate-deck' && (
-                        <CandidateDeck
-                            key="candidate-deck"
-                            job={job}
-                            user={user}
-                            onComplete={(url) => {
-                                handleNext();
-                            }}
+                            sharedStream={sharedStream}
+                            setSharedStream={setSharedStream}
+                            sharedRecorder={sharedRecorder}
+                            setSharedRecorder={setSharedRecorder}
+                            sharedSessionId={sharedSessionId}
+                            setSharedSessionId={setSharedSessionId}
+                            sharedRecordingSessionId={sharedRecordingSessionId}
+                            setSharedRecordingSessionId={setSharedRecordingSessionId}
+                            firstQuestionData={firstQuestionData}
+                            setFirstQuestionData={setFirstQuestionData}
+                            sharedChunkIndexRef={sharedChunkIndexRef}
+                            sharedChunkUploadsRef={sharedChunkUploadsRef}
                         />
                     )}
 
                     {currentStep?.id === 'interview' && (
-
                         <AIInterview
                             key="interview"
                             job={job}
@@ -243,6 +284,18 @@ const ApplicationFlow = () => {
                                 setInterviewResult(result);
                                 navigate('/candidate/applications');
                             }}
+                            sharedStream={sharedStream}
+                            setSharedStream={setSharedStream}
+                            sharedRecorder={sharedRecorder}
+                            setSharedRecorder={setSharedRecorder}
+                            sharedSessionId={sharedSessionId}
+                            setSharedSessionId={setSharedSessionId}
+                            sharedRecordingSessionId={sharedRecordingSessionId}
+                            setSharedRecordingSessionId={setSharedRecordingSessionId}
+                            firstQuestionData={firstQuestionData}
+                            setFirstQuestionData={setFirstQuestionData}
+                            sharedChunkIndexRef={sharedChunkIndexRef}
+                            sharedChunkUploadsRef={sharedChunkUploadsRef}
                         />
                     )}
 

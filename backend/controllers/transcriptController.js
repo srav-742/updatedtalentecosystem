@@ -222,6 +222,7 @@ const getTranscript = async (req, res) => {
                 resultsVisibleAt: application.resultsVisibleAt,
                 videoIntroUrl: application.videoIntroUrl || null,
                 recordingUrl: application.recordingPlaybackUrl || application.recordingUrl || null,
+                assessmentRecordingUrl: application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl || null,
             },
             resume: {
                 profile: resumeProfile ? {

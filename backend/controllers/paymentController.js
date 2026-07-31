@@ -397,10 +397,11 @@ exports.unlockApplicant = async (req, res) => {
         }
 
         // Find recruiter
-        const recruiter = await findRecruiterUser(recruiterId);
-        if (!recruiter) {
+        const recruiterDoc = await findRecruiterUser(recruiterId);
+        if (!recruiterDoc) {
             return res.status(404).json({ success: false, message: "Recruiter user not found." });
         }
+        const recruiter = await User.findById(recruiterDoc._id);
 
         // Find application
         const application = await Application.findById(applicationId);
