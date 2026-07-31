@@ -38,8 +38,11 @@ const getRecommendationSummary = async (req, res) => {
         const user = await User.findOne({ uid: userId }).lean();
         const resumeProfile = await ResumeProfile.findOne({ userId }).lean();
         const resumeAnalysis = await ResumeAnalysis.findOne({ userId, jobId }).lean();
-        const assessment = await AssessmentSubmission.findOne({ applicationId }).lean()
-            || await AssessmentSubmission.findOne({ userId, jobId }).lean();
+        const assessment = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+            : null)
+            || await AssessmentSubmission.findOne({ applicationId }).lean()
+            || await AssessmentSubmission.findOne({ userId, jobId }).sort({ submittedAt: -1 }).lean();
 
         // 4. Construct helper data structures for prompt
         const candidateName = application.applicantName || user?.name || 'Candidate';

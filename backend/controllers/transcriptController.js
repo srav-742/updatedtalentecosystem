@@ -99,8 +99,11 @@ const getTranscript = async (req, res) => {
         const resumeAnalysis = await ResumeAnalysis.findOne({ userId, jobId }).lean();
 
         // 6. Fetch skill assessment submission
-        const assessment = await AssessmentSubmission.findOne({ applicationId }).lean()
-            || await AssessmentSubmission.findOne({ userId, jobId }).lean();
+        const assessment = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+            : null)
+            || await AssessmentSubmission.findOne({ applicationId }).lean()
+            || await AssessmentSubmission.findOne({ userId, jobId }).sort({ submittedAt: -1 }).lean();
 
         // 6.5 Query Proctoring Violations
         const jobIdStr = jobId?.toString();

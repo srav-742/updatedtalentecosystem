@@ -370,10 +370,13 @@ const getAssessmentDetails = async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
-        const submission = await AssessmentSubmission.findOne({
-            jobId: application.jobId._id,
-            userId: application.userId
-        }).sort({ submittedAt: -1 });
+        const submission = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId) 
+            : null)
+            || await AssessmentSubmission.findOne({
+                jobId: application.jobId._id,
+                userId: application.userId
+            }).sort({ submittedAt: -1 });
 
         if (!submission) {
             // Fallback: use assessmentAnswers stored directly in the Application document
