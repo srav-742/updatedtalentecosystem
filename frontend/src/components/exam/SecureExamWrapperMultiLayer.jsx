@@ -68,27 +68,51 @@ export default function SecureExamWrapperMultiLayer({
         onResetRequired: onSecurityReset,
     });
 
-    // Camera acquisition
+    // Camera acquisition with automatic retrying and connection status checks
     const activeStream = cameraStream || localCameraStream;
 
     useEffect(() => {
         if (!requireCamera || !proctoringIsActive || cameraStream) return;
         let cancelled = false;
+        let retryTimeout = null;
 
-        const requestCamera = async () => {
+        const requestCamera = async (attemptsLeft = 5) => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.warn("[SecureExamWrapperMultiLayer] Browser does not support mediaDevices API");
+                return;
+            }
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480, facingMode: "user" },
                     audio: true,
                 });
-                if (!cancelled) setLocalCameraStream(stream);
+                if (!cancelled) {
+                    setLocalCameraStream(stream);
+                    console.log("[SecureExamWrapperMultiLayer] Webcam stream acquired successfully.");
+                }
             } catch (err) {
-                console.warn("[SecureExamWrapperMultiLayer] Camera access denied:", err);
+                console.warn(`[SecureExamWrapperMultiLayer] Camera access failed (attempts left: ${attemptsLeft - 1}):`, err);
+                if (attemptsLeft > 1 && !cancelled) {
+                    retryTimeout = setTimeout(() => requestCamera(attemptsLeft - 1), 3000);
+                }
             }
         };
 
         requestCamera();
-        return () => { cancelled = true; };
+
+        // Listen for new device connections/reconnects
+        const handleDeviceChange = () => {
+            console.log("[SecureExamWrapperMultiLayer] Audio/Video device change detected. Re-evaluating camera...");
+            requestCamera(3);
+        };
+
+        navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+
+        return () => {
+            cancelled = true;
+            if (retryTimeout) clearTimeout(retryTimeout);
+            navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+        };
     }, [requireCamera, proctoringIsActive, cameraStream]);
 
     // MediaStream attachment
