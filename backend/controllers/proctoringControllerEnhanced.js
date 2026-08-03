@@ -230,8 +230,12 @@ const logViolation = async (req, res) => {
             isAnswering: violation.isAnswering,
         });
 
-        // Trigger report update asynchronously
-        updateProctoringReport(examId, userId).catch(() => {});
+        // Trigger report update synchronously to guarantee saving in proctoringreports collection
+        try {
+            await updateProctoringReport(examId, userId);
+        } catch (reportErr) {
+            console.error('[PROCTORING REPORT UPDATE FAIL]', reportErr);
+        }
 
         return res.status(200).json({
             recorded: true,

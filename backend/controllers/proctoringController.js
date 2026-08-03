@@ -35,12 +35,12 @@ const logViolation = async (req, res) => {
             ranking: violation.rating
         });
 
-        // Trigger report update asynchronously
+        // Trigger report update synchronously
         try {
             const { updateProctoringReport } = require('./proctoringControllerEnhanced');
-            updateProctoringReport(examId, userId).catch(() => {});
-        } catch (_) {
-            // silent
+            await updateProctoringReport(examId, userId);
+        } catch (reportErr) {
+            console.error('[PROCTORING REPORT UPDATE FAIL]', reportErr);
         }
 
         return res.status(200).json({ recorded: true, violationId: violation._id });
