@@ -351,6 +351,7 @@ export function createBehaviorState() {
         activeTracks: {},           // trackId → track state
         noFaceStartTime: null,
         multipleFacesStartTime: null,
+        lastMultipleFacesTime: null,
         lookAwayStartTime: null,
         eyesClosedStartTime: null,
         talkingStartTime: null,
@@ -435,6 +436,7 @@ export function analyzeFrame(state, signals) {
         if (!state.multipleFacesStartTime) {
             state.multipleFacesStartTime = now;
         }
+        state.lastMultipleFacesTime = now;
         const multipleFacesDuration = now - state.multipleFacesStartTime;
         const faceResult = evaluateFacePresence({
             faceCount,
@@ -450,7 +452,9 @@ export function analyzeFrame(state, signals) {
             });
         }
     } else {
-        state.multipleFacesStartTime = null;
+        if (!state.lastMultipleFacesTime || (now - state.lastMultipleFacesTime > 1500)) {
+            state.multipleFacesStartTime = null;
+        }
     }
 
     state.lastFaceCount = faceCount;
