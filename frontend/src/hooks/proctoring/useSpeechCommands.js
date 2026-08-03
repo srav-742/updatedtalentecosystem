@@ -39,6 +39,11 @@ export function useSpeechCommands({ isActive = false, mediaStream = null, onVoic
 
         const initSpeechRecognizer = async () => {
             try {
+                // Ensure tf is loaded first
+                if (!window.tf) {
+                    console.log("[Speech Commands] Loading TFJS script dynamically...");
+                    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+                }
                 // Ensure speech commands library is loaded
                 await loadScript(SPEECH_COMMANDS_CDN);
                 if (cancelled) return;

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import * as tf from "@tensorflow/tfjs";
-import * as cocoSsd from "@tensorflow-models/coco-ssd";
+
 
 /**
  * useAIProctoring
@@ -219,13 +218,24 @@ export function useAIProctoring({
 
         const initObjectDetection = async () => {
             try {
+                console.log("[AI-Proctoring] Loading TensorFlow.js and COCO-SSD scripts from CDN...");
+                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+
+                const tf = window.tf;
+                const cocoSsd = window.cocoSsd;
+
+                if (!tf || !cocoSsd) {
+                    throw new Error("TensorFlow or COCO-SSD not found on window object");
+                }
+
                 console.log("[AI-Proctoring] Initializing TensorFlow backend...");
                 await tf.ready();
                 
                 if (cancelled) return;
 
-                console.log("[AI-Proctoring] Loading COCO-SSD neural network (mobilenet_v2)...");
-                const model = await cocoSsd.load({ base: "mobilenet_v2" });
+                console.log("[AI-Proctoring] Loading COCO-SSD neural network (mobilenet_v2) from local path...");
+                const model = await cocoSsd.load({ modelUrl: window.location.origin + "/models/coco-ssd/model.json" });
 
                 if (cancelled) return;
 
