@@ -48,6 +48,8 @@ During production deployment, several critical bugs occurred that prevented the 
 | **Screen Tracking** | `window.screen.isExtended` checked once on startup and did not listen to dragging or focal transitions. | Plugging in a secondary monitor mid-exam was not detected. | Added window `focus` and `resize` listeners to continuously check monitor configurations. |
 | **MIME / SPA Rewrites** | Vercel's SPA routing rewrote static extensionless shard files (`group1-shard*`) to `index.html`. | Browser failed to decode binary weights; phone detection silently crashed. | Added direct rewrite bypasses and `Content-Type: application/octet-stream` headers in `vercel.json`. |
 | **Confidence Thresholds** | The behavior engine enforced a strict `0.75` threshold. COCO-SSD MobileNet usually registers phones between `0.50–0.65`. | All valid phone detections were silently ignored. | Calibrated behavior engine to use `0.50` min confidence, `0.48` average, and lowered consecutive frames to `4`. |
+| **Tracking Jitter** | MediaPipe FaceMesh tracking can jitter or drop frames for 100ms. Strictly consecutive rules immediately reset the warning timers. | Face-absence and multiple-faces violations failed to trigger. | Integrated a `1.5s` temporal grace period filter before resetting face violation timers. |
+| **Event Mapping** | The proctoring backend/hook names (`multiple_faces_detected`, `no_face_detected`) did not match the strict overlay suppression lists. | Face violations instantly popped up the fullscreen lock screen. | Added missing AI event names to `AI_TYPES` and `SUPPRESSED_OVERLAY_TYPES` inside `useStrictProctoring.js`. |
 
 ---
 
@@ -130,6 +132,7 @@ If a phone is briefly flashed or misclassified for a single frame, the system di
 Using MediaPipe FaceMesh, we track the candidate's face count. Rather than triggering alerts immediately, we implement filters to block false positives:
 
 - **Poster / TV Filtering**: Computes bounding box variance over 20 frames. If the variance is <2 pixels, the face is classified as `static` (a wall poster, book cover, or reflection) and is ignored.
+- **Tracking Jitter Grace Filter**: When face counts fluctuate due to brief tracking drops or blink delays, the behavior engine maintains a `1.5s` grace period (`lastMultipleFacesTime`) before resetting the detection clock, ensuring reliable warnings when multiple faces are present.
 - **Temporal Filter**: A second face must be present for at least 3 seconds (`FACE_RULES.multipleFacesDelayMs`) before a warning is logged, filtering out transient people walking by in the background.
 
 ---
@@ -242,3 +245,6 @@ Real-time telemetry status is logged directly to the browser console and sent to
 5. **[behaviorEngine.js](file:///c:/Users/sravy/OneDrive/Desktop/Talent%20Ecosystem/updatedtalentecosystem/frontend/src/hooks/proctoring/behaviorEngine.js)**:
    - Adjusted `PHONE_RULES.minConfidence` to `0.50` and `minAverageConfidence` to `0.48`.
    - Lowered `minConsecutiveFrames` and `confirmationFrames` to `4` to prevent frame-drop resets.
+   - Added `lastMultipleFacesTime` state tracking to allow a `1.5s` drop grace period for face tracking.
+6. **[useStrictProctoring.js](file:///c:/Users/sravy/OneDrive/Desktop/Talent%20Ecosystem/updatedtalentecosystem/frontend/src/hooks/useStrictProctoring.js)**:
+   - Added `"multiple_faces_detected"` and `"no_face_detected"` to the suppressed AI event types Set to block screen locking.
