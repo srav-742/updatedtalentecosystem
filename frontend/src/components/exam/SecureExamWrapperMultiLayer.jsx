@@ -31,6 +31,7 @@ export default function SecureExamWrapperMultiLayer({
     onSecurityReset,
     onAutoSubmit,
 }) {
+    const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
     const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState(null);
     const [webcamPosition, setWebcamPosition] = useState({ x: 16, y: 16 });
@@ -303,6 +304,73 @@ export default function SecureExamWrapperMultiLayer({
             <div style={{ pointerEvents: needsScreenShare ? "none" : "auto", filter: needsScreenShare ? "blur(8px)" : "none" }}>
                 {children}
             </div>
+
+            {/* ── Debug Telemetry Panel (gated by url query debug=true) ─────── */}
+            {showDebugPanel && (
+                <div className="fixed bottom-24 left-6 z-[9999] w-72 rounded-2xl border border-blue-500/30 bg-slate-950/95 p-4 text-xs font-mono text-blue-400 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
+                    <h3 className="mb-2 text-sm font-bold text-white border-b border-blue-500/20 pb-1 flex items-center justify-between">
+                        <span>PIPELINE TELEMETRY</span>
+                        <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+                    </h3>
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Camera Stream:</span>
+                            <span className={activeStream ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{activeStream ? "ACTIVE" : "INACTIVE"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Pipeline Ready:</span>
+                            <span className={isReady ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{isReady ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>YOLO Engine:</span>
+                            <span className="text-white font-bold">{yoloEngine || "none"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Score:</span>
+                            <span className="text-white font-bold">{proctoringScore}/100</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Warning Level:</span>
+                            <span className="text-white font-bold">{warningLevel}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Face Count:</span>
+                            <span className="text-white font-bold">{faceState?.faceCount ?? 0}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Head Yaw Angle:</span>
+                            <span className="text-white font-bold">{faceState?.yawAngle?.toFixed(1) ?? "0.0"}°</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Eyes Closed:</span>
+                            <span className="text-white font-bold">{faceState?.eyesClosed ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Voices Detected:</span>
+                            <span className="text-white font-bold">{audioSignals?.multipleVoices ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Last Check:</span>
+                            <span className="text-white font-bold">{new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div className="pt-1">
+                            <span className="text-white font-bold block mb-1">Detections:</span>
+                            <div className="max-h-20 overflow-y-auto bg-black/40 p-1.5 rounded border border-white/10 text-[10px]">
+                                {trackedObjects.length === 0 ? (
+                                    <span className="text-gray-500">No objects tracked</span>
+                                ) : (
+                                    trackedObjects.map((d, i) => (
+                                        <div key={i} className="flex justify-between">
+                                            <span className="text-amber-400">{d.class}</span>
+                                            <span className="text-white">{(d.score * 100).toFixed(0)}%</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

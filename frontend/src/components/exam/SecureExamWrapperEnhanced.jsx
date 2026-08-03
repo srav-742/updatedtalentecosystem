@@ -47,6 +47,7 @@ export default function SecureExamWrapperEnhanced({
     onSecurityReset,
     aiThresholds = {},
 }) {
+    const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
     const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
     const [resetting, setResetting] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState(null);
@@ -396,9 +397,9 @@ export default function SecureExamWrapperEnhanced({
                     {requireCamera && (
                         <>
                             <span className="mx-1 h-4 w-px bg-black/10" />
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            <span className={`h-2.5 w-2.5 rounded-full ${getAIStatusColor()}`} />
                             <span className="text-[10px] uppercase tracking-wider text-gray-400">
-                                AI Active
+                                {getAIStatusText()}
                             </span>
                         </>
                     )}
@@ -541,6 +542,65 @@ export default function SecureExamWrapperEnhanced({
             >
                 {children}
             </div>
+
+            {/* ── Debug Telemetry Panel (gated by url query debug=true) ─────── */}
+            {showDebugPanel && (
+                <div className="fixed bottom-24 left-6 z-[9999] w-72 rounded-2xl border border-blue-500/30 bg-slate-950/95 p-4 text-xs font-mono text-blue-400 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
+                    <h3 className="mb-2 text-sm font-bold text-white border-b border-blue-500/20 pb-1 flex items-center justify-between">
+                        <span>PIPELINE TELEMETRY</span>
+                        <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+                    </h3>
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Camera Stream:</span>
+                            <span className={activeStream ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{activeStream ? "ACTIVE" : "INACTIVE"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>FaceMesh Ready:</span>
+                            <span className={faceMeshReady ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{faceMeshReady ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>COCO-SSD Ready:</span>
+                            <span className={objectModelReady ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{objectModelReady ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Model Engine:</span>
+                            <span className="text-white font-bold">{objectModelType || "none"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Face Count:</span>
+                            <span className="text-white font-bold">{faceCount}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Head Turn Ratio:</span>
+                            <span className="text-white font-bold">{headTurnRatio.toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Gaze Ratio:</span>
+                            <span className="text-white font-bold">{gazeRatio.toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Last Check:</span>
+                            <span className="text-white font-bold">{new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div className="pt-1">
+                            <span className="text-white font-bold block mb-1">Detections:</span>
+                            <div className="max-h-20 overflow-y-auto bg-black/40 p-1.5 rounded border border-white/10 text-[10px]">
+                                {detections.length === 0 ? (
+                                    <span className="text-gray-500">No objects detected</span>
+                                ) : (
+                                    detections.map((d, i) => (
+                                        <div key={i} className="flex justify-between">
+                                            <span className="text-amber-400">{d.class}</span>
+                                            <span className="text-white">{(d.score * 100).toFixed(0)}%</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

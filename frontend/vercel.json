@@ -1,7 +1,15 @@
 {
     "rewrites": [
         {
-            "source": "/((?!models/|assets/|.*\\..*).*)",
+            "source": "/models/:path*",
+            "destination": "/models/:path*"
+        },
+        {
+            "source": "/assets/:path*",
+            "destination": "/assets/:path*"
+        },
+        {
+            "source": "/((?!api/).*)",
             "destination": "/index.html"
         }
     ],
