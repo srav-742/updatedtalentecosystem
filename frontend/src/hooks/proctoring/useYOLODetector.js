@@ -87,8 +87,8 @@ const createProctoringWorker = () => {
 };
 
 // Global Session Cache for Worker & Main-Thread Fallback Model
-let globalWorker = null;
-let globalWorkerStatus = 'uninitialized'; // 'uninitialized' | 'initializing' | 'ready' | 'failed'
+let _globalWorker = null;
+let _globalWorkerStatus = 'uninitialized'; // 'uninitialized' | 'initializing' | 'ready' | 'failed'
 let globalWorkerInitPromise = null;
 let activeWorkerListener = null;
 
@@ -104,18 +104,18 @@ const initWorkerSession = (localOrigin) => {
         try {
             console.log("[YOLO Detector Diagnostics] Spawning global Web Worker...");
             const worker = createProctoringWorker();
-            globalWorker = worker;
-            globalWorkerStatus = 'initializing';
+            _globalWorker = worker;
+            _globalWorkerStatus = 'initializing';
 
             worker.onmessage = (e) => {
                 const { type, success, error } = e.data;
                 if (type === 'init-ready') {
                     if (success) {
                         console.log("[YOLO Detector Diagnostics] Global Web Worker initialized successfully.");
-                        globalWorkerStatus = 'ready';
+                        _globalWorkerStatus = 'ready';
                         resolve(worker);
                     } else {
-                        globalWorkerStatus = 'failed';
+                        _globalWorkerStatus = 'failed';
                         reject(new Error(error || "Worker initialization failed"));
                     }
                 }
@@ -127,7 +127,7 @@ const initWorkerSession = (localOrigin) => {
 
             worker.postMessage({ type: 'init', data: { origin: localOrigin } });
         } catch (err) {
-            globalWorkerStatus = 'failed';
+            _globalWorkerStatus = 'failed';
             reject(err);
         }
     });
@@ -262,6 +262,25 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         };
     }, [isActive]);
 
+    const runLocalDetect = useCallback(async (canvas) => {
+        if (!cocoModelRef.current) return [];
+        try {
+            const preds = await cocoModelRef.current.detect(canvas);
+            const filtered = preds
+                .filter(p => p.score >= CONFIDENCE_THRESHOLD)
+                .map(p => ({
+                    class: p.class,
+                    score: p.score,
+                    bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
+                }));
+            setDetections(filtered);
+            return filtered;
+        } catch (err) {
+            console.warn("[YOLO Detector] Local detection error:", err);
+            return [];
+        }
+    }, []);
+
     // Frame processing function
     const detectFrame = useCallback(async () => {
         if (!modelReady || !videoElement || videoElement.readyState < 2) return [];
@@ -301,26 +320,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         } else {
             return runLocalDetect(canvas);
         }
-    }, [modelReady, videoElement]);
-
-    const runLocalDetect = async (canvas) => {
-        if (!cocoModelRef.current) return [];
-        try {
-            const preds = await cocoModelRef.current.detect(canvas);
-            const filtered = preds
-                .filter(p => p.score >= CONFIDENCE_THRESHOLD)
-                .map(p => ({
-                    class: p.class,
-                    score: p.score,
-                    bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
-                }));
-            setDetections(filtered);
-            return filtered;
-        } catch (err) {
-            console.warn("[YOLO Detector] Local detection error:", err);
-            return [];
-        }
-    };
+    }, [modelReady, videoElement, runLocalDetect]);
 
     return {
         modelReady,

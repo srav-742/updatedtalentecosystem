@@ -107,8 +107,6 @@ export function useStrictProctoring({
   examId,
   userId,
   isActive,
-  warningLimit = 3,
-  resetLimit = 4,
   onResetRequired,
   gracePeriod = 3000,
 }) {

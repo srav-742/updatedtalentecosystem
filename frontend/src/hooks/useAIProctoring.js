@@ -175,10 +175,8 @@ export function useAIProctoring({
     const faceMeshRef = useRef(null);
     const cocoModelRef = useRef(null);
     const onnxSessionRef = useRef(null);
-    const canvasRef = useRef(null);
     const detectionCanvasRef = useRef(null); // Off-screen canvas for COCO-SSD frame capture
     const rafIdRef = useRef(null);
-    const objectRafRef = useRef(null);
     const isActiveRef = useRef(isActive);
     const isAnsweringRef = useRef(isAnswering);
     const videoRef = useRef(videoElement);
@@ -204,7 +202,6 @@ export function useAIProctoring({
 
     // Streaks for filtering false positive detections
     const multipleFacesStreakRef = useRef(0);
-    const objectStreakRef = useRef({});
     const objectHistoryRef = useRef({});
     const headTurnStreakRef = useRef(0);
 
@@ -540,7 +537,7 @@ export function useAIProctoring({
                 if (video && video.readyState >= 2 && faceMeshRef.current) {
                     try {
                         await faceMeshRef.current.send({ image: video });
-                    } catch (err) {
+                    } catch {
                         // FaceMesh may fail on certain frames, continue
                     }
                 }
@@ -588,7 +585,7 @@ export function useAIProctoring({
                     // Capture the current frame to canvas — bypasses browser video throttling
                     try {
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    } catch (drawErr) {
+                    } catch {
                         return; // Skip this frame if draw fails
                     }
 
