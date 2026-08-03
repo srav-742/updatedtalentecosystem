@@ -136,6 +136,21 @@ const initTfAndModel = async (localOrigin) => {
         console.log("[AI Proctoring Diagnostics] Loading COCO-SSD from local path:", localOrigin + "/models/coco-ssd/model.json");
         try {
             const model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+            
+            // Warm-up inference to compile WebGL shaders early and verify backend stability
+            try {
+                const tempCanvas = document.createElement("canvas");
+                tempCanvas.width = 1;
+                tempCanvas.height = 1;
+                await model.detect(tempCanvas);
+                console.log("[AI Proctoring Diagnostics] Model warm-up inference successful.");
+            } catch {
+                console.warn("[AI Proctoring Diagnostics] WebGL warm-up failed, forcing CPU fallback...");
+                await tf.setBackend("cpu");
+                await tf.ready();
+                window.__proctoring_diagnostics.tfBackend = "cpu";
+            }
+
             cachedCocoModel = model;
             window.__proctoring_diagnostics.modelLoaded = true;
             console.log(`[AI Proctoring Diagnostics] COCO-SSD loaded successfully in ${Date.now() - startTime}ms.`);
@@ -664,6 +679,21 @@ export function useAIProctoring({
                 const diag = window.__proctoring_diagnostics || {};
                 diag.errorHistory = diag.errorHistory || [];
                 diag.errorHistory.push({ phase: "frame-inference", error: err.message, ts: Date.now() });
+
+                // Self-healing fallback: If WebGL fails during inference, fallback to CPU
+                const tf = window.tf;
+                if (tf && tf.getBackend() === "webgl") {
+                    console.warn("[AI-Proctoring Diagnostics] WebGL inference failed, switching to CPU backend...");
+                    try {
+                        await tf.setBackend("cpu");
+                        await tf.ready();
+                        if (window.__proctoring_diagnostics) {
+                            window.__proctoring_diagnostics.tfBackend = "cpu";
+                        }
+                    } catch {
+                        // Silent fallback failure
+                    }
+                }
             }
         }, T.objectDetectionIntervalMs);
 

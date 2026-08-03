@@ -1,43 +1,7 @@
 {
     "rewrites": [
         {
-            "source": "/models/:path*",
-            "destination": "/models/:path*"
-        },
-        {
-            "source": "/assets/:path*",
-            "destination": "/assets/:path*"
-        },
-        {
-            "source": "/logo.png",
-            "destination": "/logo.png"
-        },
-        {
-            "source": "/favicon.ico",
-            "destination": "/favicon.ico"
-        },
-        {
-            "source": "/robots.txt",
-            "destination": "/robots.txt"
-        },
-        {
-            "source": "/pace.min.js",
-            "destination": "/pace.min.js"
-        },
-        {
-            "source": "/pace-theme-default.min.css",
-            "destination": "/pace-theme-default.min.css"
-        },
-        {
-            "source": "/googled8bb29d438601c6d.html",
-            "destination": "/googled8bb29d438601c6d.html"
-        },
-        {
-            "source": "/sitemap:path*",
-            "destination": "/sitemap:path*"
-        },
-        {
-            "source": "/(.*)",
+            "source": "/:path((?!models|assets|favicon.ico|robots.txt|logo.png|og-image.png|pace.min.js|pace-theme-default.min.css|ai-avatar.png|googled8bb29d438601c6d.html|sitemap).*)",
             "destination": "/index.html"
         }
     ],
