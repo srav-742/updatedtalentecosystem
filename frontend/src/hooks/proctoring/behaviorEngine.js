@@ -41,13 +41,13 @@ export const PHONE_RULES = {
     warningAfterMs: 3000,
     majorWarningAfterMs: 6000,
     autoSubmitAfterMs: 15000,
-    minConfidence: 0.75,
-    minAverageConfidence: 0.75,
-    minConsecutiveFrames: 10,
+    minConfidence: 0.50,            // Adjusted for COCO-SSD MobileNet V2 reliability
+    minAverageConfidence: 0.48,     // Adjusted for COCO-SSD MobileNet V2 reliability
+    minConsecutiveFrames: 4,        // Lowered to tolerate minor frame drops in tracking
     minPersistenceMs: 3000,
     staticMovementThreshold: 8,
     dynamicMovementThreshold: 18,
-    confirmationFrames: 10,
+    confirmationFrames: 4,          // Match consecutive frames for confirmation
 };
 
 export const OBJECT_RULES = {
