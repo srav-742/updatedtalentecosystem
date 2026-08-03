@@ -46,6 +46,8 @@ During production deployment, several critical bugs occurred that prevented the 
 | **Privacy Restrictions** | Deployed sites (HTTPS) block media device labels in `enumerateDevices()` until active camera permissions are granted. | Multiple camera check ran on startup and returned zero cameras/labels. | Implemented permission-aware retry loop (retrying every 2s until labels are available). |
 | **Initialization Race** | Speech commands loaded before `window.tf` was registered on the window object. | Script threw uncaught ReferenceError. | Refactored `useSpeechCommands.js` to dynamically load TFJS first if not present on `window`. |
 | **Screen Tracking** | `window.screen.isExtended` checked once on startup and did not listen to dragging or focal transitions. | Plugging in a secondary monitor mid-exam was not detected. | Added window `focus` and `resize` listeners to continuously check monitor configurations. |
+| **MIME / SPA Rewrites** | Vercel's SPA routing rewrote static extensionless shard files (`group1-shard*`) to `index.html`. | Browser failed to decode binary weights; phone detection silently crashed. | Added direct rewrite bypasses and `Content-Type: application/octet-stream` headers in `vercel.json`. |
+| **Confidence Thresholds** | The behavior engine enforced a strict `0.75` threshold. COCO-SSD MobileNet usually registers phones between `0.50–0.65`. | All valid phone detections were silently ignored. | Calibrated behavior engine to use `0.50` min confidence, `0.48` average, and lowered consecutive frames to `4`. |
 
 ---
 
@@ -112,10 +114,10 @@ To prevent false positives (like a candidate holding a book, cup, or wallet), th
 ```javascript
 // Temporal rules applied in behaviorEngine.js
 export const PHONE_RULES = {
-    minConfidence: 0.75,             // Confidence score must exceed 75%
-    minConsecutiveFrames: 10,       // Must be visible for 10 frames (~3 seconds at 3 FPS)
+    minConfidence: 0.50,             // Adjusted for COCO-SSD MobileNet V2 reliability
+    minAverageConfidence: 0.48,     // Adjusted for COCO-SSD MobileNet V2 reliability
+    minConsecutiveFrames: 4,        // tolerates minor frame drops in video streams
     minPersistenceMs: 3000,         // Cumulative visibility must exceed 3 seconds
-    detectionRate: 0.70,            // Must be detected in 70% of frames over a 5s window
 };
 ```
 
@@ -160,14 +162,28 @@ This prevents main-thread blocking, keeping page CPU usage < 15% and eliminating
 
 The following configurations were applied to ensure identical behavior in localhost and production:
 
-### 1. `vercel.json` Asset Caching
-Ensures fast, cached delivery of the model configuration and binary shards:
+### 1. `vercel.json` Asset Caching & Rewrites
+Ensures fast, cached delivery of the model configuration and binary shards, and blocks Vercel from rewriting extensionless weights to `index.html`:
 ```json
 {
+    "rewrites": [
+        {
+            "source": "/models/coco-ssd/:path*",
+            "destination": "/models/coco-ssd/:path*"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ],
     "headers": [
         {
-            "source": "/models/coco-ssd/(.*)",
+            "source": "/models/coco-ssd/group1-shard(.*)",
             "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/octet-stream"
+                },
                 {
                     "key": "Cache-Control",
                     "value": "public, max-age=31536000, immutable"
@@ -223,3 +239,6 @@ Real-time telemetry status is logged directly to the browser console and sent to
 4. **[useStrictProctoringEnhanced.js](file:///c:/Users/sravy/OneDrive/Desktop/Talent%20Ecosystem/updatedtalentecosystem/frontend/src/hooks/useStrictProctoringEnhanced.js)**:
    - Added retrying check loop inside `checkDevices` when camera labels are empty.
    - Added window `focus` and `resize` event listeners to check for secondary monitor extended states.
+5. **[behaviorEngine.js](file:///c:/Users/sravy/OneDrive/Desktop/Talent%20Ecosystem/updatedtalentecosystem/frontend/src/hooks/proctoring/behaviorEngine.js)**:
+   - Adjusted `PHONE_RULES.minConfidence` to `0.50` and `minAverageConfidence` to `0.48`.
+   - Lowered `minConsecutiveFrames` and `confirmationFrames` to `4` to prevent frame-drop resets.
