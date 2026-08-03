@@ -23,8 +23,8 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
     phoneConfidenceThreshold: 0.35, // Adjusted to 0.35 to allow moving average confirmation
-    objectConfidenceThreshold: 0.45,
-    phoneRequiredFrames: 2,
+    objectConfidenceThreshold: 0.40,
+    phoneRequiredFrames: 3,        // 3 seconds required for phone detection confirmation (3 x 1000ms)
     objectRequiredFrames: 2,
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
@@ -53,7 +53,16 @@ const SUSPICIOUS_OBJECTS = {
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 6 },
     "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 6 },
     "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 5 },
+    "bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 5 },
+    "cup": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 4 },
+    "pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 5 },
+    "pencil": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 5 },
+    "scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 5 },
     "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 6 },
+    "remote": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 5 },
+    "mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 4 },
+    "keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 5 },
+    "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 5 },
 };
 
 function euclidean(a, b) {

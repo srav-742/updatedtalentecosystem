@@ -15,11 +15,15 @@ const queueService = require('../services/queueService');
 
 const EVENT_TYPE_MAP = {
     mobile_phone_detected: { type: 'PHONE_DETECTED', rating: 6, detail: 'Mobile phone detected in camera frame.' },
+    PHONE_DETECTED: { type: 'PHONE_DETECTED', rating: 6, detail: 'Mobile phone detected in camera frame.' },
     secondary_laptop_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Secondary laptop or computer screen detected.' },
     book_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Book or reading material detected.' },
+    bottle_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Bottle or container detected.' },
+    pen_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Pen or writing instrument detected.' },
     tablet_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Tablet device detected.' },
     earphone_detected: { type: 'HEADPHONES_DETECTED', rating: 5, detail: 'Earphones or headphones detected.' },
     suspicious_object_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Suspicious object detected.' },
+    OBJECT_DETECTED: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Unauthorized object (pen/book/bottle) detected in frame.' },
     no_face_detected: { type: 'NO_PEOPLE', rating: 4, detail: 'No face detected in camera frame.' },
     multiple_faces_detected: { type: 'MULTIPLE_PEOPLE', rating: 7, detail: 'Multiple faces detected in camera frame.' },
     person_count_violation: { type: 'MULTIPLE_PEOPLE', rating: 7, detail: 'Extra person detected.' },

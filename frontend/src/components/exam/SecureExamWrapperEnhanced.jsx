@@ -445,6 +445,12 @@ export default function SecureExamWrapperEnhanced({
                                     PHONE
                                 </span>
                             )}
+                            {detections.some((d) => d.class !== "cell phone" && d.class !== "person") && (
+                                <span className="flex items-center gap-1 rounded-full bg-amber-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                    <AlertTriangle size={8} />
+                                    OBJECT ({detections.find((d) => d.class !== "cell phone" && d.class !== "person")?.class?.toUpperCase()})
+                                </span>
+                            )}
                             {faceCount > 1 && (
                                 <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
                                     <Users size={8} />

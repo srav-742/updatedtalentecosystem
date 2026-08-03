@@ -37,14 +37,14 @@ export const SCORE_PENALTIES = {
 
 // ── Temporal rule definitions ────────────────────────────────────────────────
 export const PHONE_RULES = {
-    ignoreUnderMs: 2000,
-    warningAfterMs: 2000,
+    ignoreUnderMs: 3000,
+    warningAfterMs: 3000,
     majorWarningAfterMs: 5000,
     autoSubmitAfterMs: 15000,
     minConfidence: 0.35,            // Adapted for browser-compatible COCO-SSD MobileNet V2
     minAverageConfidence: 0.40,     // Moving average confirmation threshold over frames
     minConsecutiveFrames: 3,        // Requires 3 frames to confirm phone
-    minPersistenceMs: 2000,
+    minPersistenceMs: 3000,         // Set strictly to 3 seconds (3000ms) as required
     staticMovementThreshold: 8,
     dynamicMovementThreshold: 18,
     confirmationFrames: 3,
@@ -52,9 +52,9 @@ export const PHONE_RULES = {
 
 export const OBJECT_RULES = {
     environmentBaselineMs: 5000,
-    minConfidence: 0.45,
-    minConsecutiveFrames: 5,
-    minPersistenceMs: 2500,
+    minConfidence: 0.40,
+    minConsecutiveFrames: 3,
+    minPersistenceMs: 2000,
 };
 
 export const FACE_RULES = {
@@ -511,7 +511,8 @@ export function analyzeFrame(state, signals) {
                 }
             }
 
-            if (['laptop', 'book'].includes(track.class)) {
+            const OBJECT_CLASSES = ['laptop', 'book', 'bottle', 'pen', 'pencil', 'cup', 'scissors', 'remote', 'mouse', 'keyboard', 'tablet', 'tv', 'paper'];
+            if (OBJECT_CLASSES.includes(track.class) || (track.class !== 'person' && track.class !== 'cell phone')) {
                 const bbox = track.currentBbox || {};
                 const objectKey = `${track.class}_${Math.round((bbox.x || 0) / 120)}_${Math.round((bbox.y || 0) / 90)}`;
 
@@ -527,11 +528,12 @@ export function analyzeFrame(state, signals) {
 
                 if (isNew && isSustained) {
                     state.environmentObjects.add(objectKey);
+                    const eventType = track.class === 'book' ? 'book_detected' : 'suspicious_object_detected';
                     actions.push({
                         action: 'warning',
-                        eventType: 'new_object_appeared',
+                        eventType: eventType,
                         severity: 'medium',
-                        reason: `New ${track.class} appeared after environment check`,
+                        reason: `Object (${track.class}) detected in camera frame`,
                         data: { class: track.class, trackId: track.trackId, confidence: track.maxConfidence },
                     });
                 }

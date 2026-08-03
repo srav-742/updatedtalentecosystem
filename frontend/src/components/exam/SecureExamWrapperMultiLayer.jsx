@@ -266,6 +266,12 @@ export default function SecureExamWrapperMultiLayer({
                                     PHONE DETECTED
                                 </span>
                             )}
+                            {trackedObjects.some(t => t.class !== 'cell phone' && t.class !== 'person') && (
+                                <span className="flex items-center gap-1 rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
+                                    <AlertTriangle size={10} />
+                                    OBJECT DETECTED ({trackedObjects.find(t => t.class !== 'cell phone' && t.class !== 'person')?.class?.toUpperCase()})
+                                </span>
+                            )}
                             {audioSignals.multipleVoices && (
                                 <span className="flex items-center gap-1 rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-bold text-white">
                                     <Mic size={10} />
