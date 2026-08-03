@@ -5,8 +5,8 @@ import { useRef, useCallback } from "react";
  * ──────────────────────────────────────────────────────────────────────────────
  * ByteTrack-inspired object tracker hook.
  * Associates detected bounding boxes across frames using Intersection over Union (IoU),
- * assigns persistent track IDs, maintains history, and calculates object velocity/displacement
- * to filter out static false positives (posters, stickers, images).
+ * assigns persistent track IDs, maintains confidence & bbox history, calculates
+ * moving average confidence, and handles temporal smoothing to filter false drops.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -89,16 +89,20 @@ export function useObjectTracker(iouThreshold = 0.3, maxLostFrames = 10) {
             // Limit history arrays
             if (track.confidenceHistory.length > 50) track.confidenceHistory.shift();
             if (track.bboxHistory.length > 50) track.bboxHistory.shift();
+
+            // Compute moving average confidence
+            const sumConf = track.confidenceHistory.reduce((a, b) => a + b, 0);
+            track.averageConfidence = sumConf / track.confidenceHistory.length;
         });
 
         // 3. Mark unmatched existing tracks as lost / prune old tracks
         tracksArray.forEach((track) => {
             if (!matchedTrackIds.has(track.trackId)) {
                 track.lostFrames += 1;
-                // Allow up to 2 consecutive missed frames before resetting the consecutiveFrames count.
-                // This prevents transient detection drops from resetting the confirmation timer.
-                if (track.lostFrames > 2) {
-                    track.consecutiveFrames = 0;
+                // Allow up to 3 consecutive missed frames before resetting consecutiveFrames count.
+                // This prevents transient detection drops (lighting/occlusion) from wiping out valid tracking.
+                if (track.lostFrames > 3) {
+                    track.consecutiveFrames = Math.max(0, track.consecutiveFrames - 1);
                 }
                 if (track.lostFrames > maxLostFrames) {
                     activeTracks.delete(track.trackId);
@@ -121,6 +125,7 @@ export function useObjectTracker(iouThreshold = 0.3, maxLostFrames = 10) {
                 totalFrames: 1,
                 lostFrames: 0,
                 maxConfidence: det.score,
+                averageConfidence: det.score,
                 currentBbox: det.bbox,
                 confidenceHistory: [det.score],
                 bboxHistory: [{ ...det.bbox, timestamp }],

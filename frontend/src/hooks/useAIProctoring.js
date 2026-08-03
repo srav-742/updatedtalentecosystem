@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-
+import { logDiag, recordError, recordInferenceTime, getOrCreateDiagnostics } from "../utils/proctoringDiagnostics";
 
 /**
  * useAIProctoring
@@ -10,40 +10,44 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
  *   1. Head rotation  (MediaPipe FaceMesh — nose-to-cheek ratio)
  *   2. Gaze sweeps    (MediaPipe FaceMesh — iris horizontal ratio)
  *   3. Presence        (FaceMesh face count: 0 or >1)
- *   4. Phone / object  (YOLOv8 ONNX → COCO-SSD fallback)
+ *   4. Phone / object  (COCO-SSD / YOLO fallback)
  *
- * Models are loaded dynamically from CDNs to avoid bundler bloat.
- *
- * @param {Object}   options
- * @param {HTMLVideoElement|null} options.videoElement   - The <video> to process
- * @param {boolean}  options.isActive                    - Whether to run detection
- * @param {boolean}  options.isAnswering                 - Candidate is actively recording
- * @param {Function} options.onViolation                 - Callback (type, detail, meta)
- * @param {Object}   options.thresholds                  - Configurable thresholds
+ * Models are loaded dynamically from local storage or CDNs with resilient failovers.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-// ─── Default thresholds ─────────────────────────────────────────────────────
 const DEFAULT_THRESHOLDS = {
     headTurnRatioHigh: 2.0,       // Nose-to-cheek ratio > this → looking far right
     headTurnRatioLow: 0.5,        // Nose-to-cheek ratio < this → looking far left
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.45,
-    objectConfidenceThreshold: 0.50,
+    phoneConfidenceThreshold: 0.35, // Adjusted to 0.35 to allow moving average confirmation
+    objectConfidenceThreshold: 0.45,
     phoneRequiredFrames: 2,
     objectRequiredFrames: 2,
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
     objectDetectionIntervalMs: 1000, // Run check every 1 second
-    onnxLoadTimeoutMs: 8000,      // Max time to wait for ONNX model before fallback
+    onnxLoadTimeoutMs: 8000,
 };
 
-// ─── CDN URLs ───────────────────────────────────────────────────────────────
-const MEDIAPIPE_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619";
-const CAMERA_UTILS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074";
+const MEDIAPIPE_CDN_URLS = [
+    "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619",
+    "https://unpkg.com/@mediapipe/face_mesh@0.4.1633559619",
+];
+
+const TFJS_CDN_URLS = [
+    "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.20.0/tf.min.js",
+    "https://unpkg.com/@tensorflow/tfjs@4.20.0/dist/tf.min.js",
+];
+
+const COCO_SSD_CDN_URLS = [
+    "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
+    "https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
+];
 
 const SUSPICIOUS_OBJECTS = {
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 6 },
@@ -52,7 +56,6 @@ const SUSPICIOUS_OBJECTS = {
     "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 6 },
 };
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 function euclidean(a, b) {
     const dx = a.x - b.x;
     const dy = a.y - b.y;
@@ -74,7 +77,20 @@ function loadScript(src) {
     });
 }
 
-// Global Session Cache for TensorFlow & COCO-SSD
+async function loadScriptWithFailover(urls) {
+    let lastErr = null;
+    for (const url of urls) {
+        try {
+            await loadScript(url);
+            return true;
+        } catch (e) {
+            lastErr = e;
+            console.warn(`[AI-Proctoring] CDN script load failed from ${url}:`, e.message);
+        }
+    }
+    throw lastErr || new Error("All script CDN sources failed");
+}
+
 let cachedCocoModel = null;
 let tfInitPromise = null;
 
@@ -87,10 +103,10 @@ const initTfAndModel = async (localOrigin) => {
 
     tfInitPromise = (async () => {
         const startTime = Date.now();
-        console.log("[AI Proctoring Diagnostics] Loading TFJS & COCO-SSD CDN scripts...");
-        
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+        logDiag("AI Proctoring", "Loading TFJS & COCO-SSD scripts with CDN failover...");
+
+        await loadScriptWithFailover(TFJS_CDN_URLS);
+        await loadScriptWithFailover(COCO_SSD_CDN_URLS);
 
         const tf = window.tf;
         const cocoSsd = window.cocoSsd;
@@ -99,70 +115,64 @@ const initTfAndModel = async (localOrigin) => {
             throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
         }
 
-        // Configure Diagnostics object
-        window.__proctoring_diagnostics = window.__proctoring_diagnostics || {
-            tfBackend: "unknown",
-            tfReady: false,
-            modelLoaded: false,
-            modelType: "coco-ssd",
-            inferenceTimesMs: [],
-            lastInferenceTimeMs: 0,
-            inferenceCount: 0,
-            errorHistory: [],
-            detectionsHistory: [],
-        };
+        const diag = getOrCreateDiagnostics();
 
-        console.log("[AI Proctoring Diagnostics] Setting up WebGL backend...");
+        logDiag("AI Proctoring", "Setting up WebGL backend...");
         try {
             await tf.setBackend("webgl");
             await tf.ready();
-            window.__proctoring_diagnostics.tfBackend = "webgl";
-            window.__proctoring_diagnostics.tfReady = true;
-            console.log("[AI Proctoring Diagnostics] WebGL backend initialized successfully.");
+            if (diag) {
+                diag.tfBackend = "webgl";
+                diag.tfReady = true;
+            }
+            logDiag("AI Proctoring", "WebGL backend initialized successfully.");
         } catch (webglErr) {
-            console.warn("[AI Proctoring Diagnostics] WebGL failed, falling back to CPU backend:", webglErr);
+            logDiag("AI Proctoring", `WebGL failed (${webglErr.message}), falling back to CPU backend...`);
             try {
                 await tf.setBackend("cpu");
                 await tf.ready();
-                window.__proctoring_diagnostics.tfBackend = "cpu";
-                window.__proctoring_diagnostics.tfReady = true;
-                console.log("[AI Proctoring Diagnostics] CPU backend initialized successfully.");
+                if (diag) {
+                    diag.tfBackend = "cpu";
+                    diag.tfReady = true;
+                }
+                logDiag("AI Proctoring", "CPU backend initialized successfully.");
             } catch (cpuErr) {
-                window.__proctoring_diagnostics.errorHistory.push({ phase: "tf-init", error: cpuErr.message, ts: Date.now() });
+                recordError("tf-init", cpuErr);
                 throw cpuErr;
             }
         }
 
-        console.log("[AI Proctoring Diagnostics] Loading COCO-SSD from local path:", localOrigin + "/models/coco-ssd/model.json");
+        const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
+        logDiag("AI Proctoring", `Loading COCO-SSD model from ${safeOrigin}/models/coco-ssd/model.json`);
+        
         try {
             let model;
             try {
-                model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+                model = await cocoSsd.load({ modelUrl: safeOrigin + "/models/coco-ssd/model.json" });
             } catch (localLoadErr) {
-                console.warn("[AI Proctoring Diagnostics] Local model load failed, falling back to CDN model:", localLoadErr);
+                logDiag("AI Proctoring", `Local model load failed (${localLoadErr.message}), falling back to default CDN model...`);
                 model = await cocoSsd.load();
             }
-            
-            // Warm-up inference to compile WebGL shaders early and verify backend stability
+
             try {
                 const tempCanvas = document.createElement("canvas");
                 tempCanvas.width = 1;
                 tempCanvas.height = 1;
                 await model.detect(tempCanvas);
-                console.log("[AI Proctoring Diagnostics] Model warm-up inference successful.");
-            } catch {
-                console.warn("[AI Proctoring Diagnostics] WebGL warm-up failed, forcing CPU fallback...");
+                logDiag("AI Proctoring", "Model warm-up inference successful.");
+            } catch (warmupErr) {
+                logDiag("AI Proctoring", "WebGL warm-up failed, forcing CPU fallback...");
                 await tf.setBackend("cpu");
                 await tf.ready();
-                window.__proctoring_diagnostics.tfBackend = "cpu";
+                if (diag) diag.tfBackend = "cpu";
             }
 
             cachedCocoModel = model;
-            window.__proctoring_diagnostics.modelLoaded = true;
-            console.log(`[AI Proctoring Diagnostics] COCO-SSD loaded successfully in ${Date.now() - startTime}ms.`);
+            if (diag) diag.modelLoaded = true;
+            logDiag("AI Proctoring", `COCO-SSD loaded successfully in ${Date.now() - startTime}ms.`);
             return model;
         } catch (modelLoadErr) {
-            window.__proctoring_diagnostics.errorHistory.push({ phase: "model-load", error: modelLoadErr.message, ts: Date.now() });
+            recordError("model-load", modelLoadErr);
             throw modelLoadErr;
         }
     })().catch((err) => {
@@ -182,7 +192,6 @@ export function useAIProctoring({
 }) {
     const T = useMemo(() => ({ ...DEFAULT_THRESHOLDS, ...userThresholds }), [userThresholds]);
 
-    // ── State ───────────────────────────────────────────────────────────────
     const [faceMeshReady, setFaceMeshReady] = useState(false);
     const [objectModelReady, setObjectModelReady] = useState(false);
     const [objectModelType, setObjectModelType] = useState(null); // 'onnx' | 'coco-ssd'
@@ -192,11 +201,10 @@ export function useAIProctoring({
     const [landmarks, setLandmarks] = useState(null);
     const [detections, setDetections] = useState([]);
 
-    // ── Refs ────────────────────────────────────────────────────────────────
     const faceMeshRef = useRef(null);
     const cocoModelRef = useRef(null);
     const onnxSessionRef = useRef(null);
-    const detectionCanvasRef = useRef(null); // Off-screen canvas for COCO-SSD frame capture
+    const detectionCanvasRef = useRef(null);
     const rafIdRef = useRef(null);
     const isActiveRef = useRef(isActive);
     const isAnsweringRef = useRef(isAnswering);
@@ -204,39 +212,28 @@ export function useAIProctoring({
     const onViolationRef = useRef(onViolation);
     const processFaceMeshResultsRef = useRef(null);
 
-    // Cooldown refs to avoid spamming violations
-    // Phone/object violations use a shorter cooldown (3s) for real-time response
     const lastViolationTimeRef = useRef({});
     const VIOLATION_COOLDOWN_MS = 5000;
-    const PHONE_VIOLATION_COOLDOWN_MS = 10000;
-    const OBJECT_VIOLATION_COOLDOWN_MS = 20000;
+    const PHONE_VIOLATION_COOLDOWN_MS = 8000;
+    const OBJECT_VIOLATION_COOLDOWN_MS = 15000;
 
-    // No-person timeout
     const noPersonTimerRef = useRef(null);
-
-    // Gaze sweep tracking
-    const gazeHistoryRef = useRef([]); // [{ratio, ts}]
-
-    // Side gaze tracking (looking away/to the side continuously)
+    const gazeHistoryRef = useRef([]);
     const sideGazeStartRef = useRef(null);
     const sideGazeViolationEmittedRef = useRef(false);
 
-    // Streaks for filtering false positive detections
     const multipleFacesStreakRef = useRef(0);
     const objectHistoryRef = useRef({});
     const headTurnStreakRef = useRef(0);
 
-    // Keep refs current
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
     useEffect(() => { isAnsweringRef.current = isAnswering; }, [isAnswering]);
     useEffect(() => { videoRef.current = videoElement; }, [videoElement]);
     useEffect(() => { onViolationRef.current = onViolation; }, [onViolation]);
 
-    // ── Violation emitter with cooldown ──────────────────────────────────────
     const emitViolation = useCallback((type, detail, meta = {}) => {
         const now = Date.now();
         const lastTime = lastViolationTimeRef.current[type] || 0;
-        // Phone/object detections use shorter cooldown for real-time alerting
         const cooldown = type === 'PHONE_DETECTED'
             ? PHONE_VIOLATION_COOLDOWN_MS
             : type === 'OBJECT_DETECTED'
@@ -252,7 +249,7 @@ export function useAIProctoring({
         });
     }, []);
 
-    // ── Initialize MediaPipe FaceMesh ───────────────────────────────────────
+    // ── MediaPipe FaceMesh Initialization ─────────────────────────────────────
     useEffect(() => {
         if (!isActive) return;
 
@@ -260,27 +257,27 @@ export function useAIProctoring({
 
         const initFaceMesh = async () => {
             try {
-                console.log("[AI-Proctoring] Loading MediaPipe FaceMesh script...");
-                await loadScript(`${MEDIAPIPE_CDN}/face_mesh.js`);
+                logDiag("AI-Proctoring", "Loading MediaPipe FaceMesh script...");
+                await loadScriptWithFailover(MEDIAPIPE_CDN_URLS.map(u => `${u}/face_mesh.js`));
 
                 if (cancelled) return;
 
                 const FaceMesh = window.FaceMesh;
                 if (!FaceMesh) {
-                    console.warn("[AI-Proctoring] FaceMesh class not found on window after script load");
+                    logDiag("AI-Proctoring", "FaceMesh class not found on window after script load");
                     return;
                 }
 
-                console.log("[AI-Proctoring] Initializing FaceMesh engine...");
+                logDiag("AI-Proctoring", "Initializing FaceMesh engine...");
                 const mesh = new FaceMesh({
-                    locateFile: (file) => `${MEDIAPIPE_CDN}/${file}`,
+                    locateFile: (file) => `${MEDIAPIPE_CDN_URLS[0]}/${file}`,
                 });
 
                 mesh.setOptions({
                     maxNumFaces: 3,
-                    refineLandmarks: true,  // Enables 10-point iris mesh
-                    minDetectionConfidence: 0.60, // Lowered from 0.75 to prevent valid face drops in bad lighting
-                    minTrackingConfidence: 0.60, // Lowered from 0.75 to prevent tracking drops
+                    refineLandmarks: true,
+                    minDetectionConfidence: 0.60,
+                    minTrackingConfidence: 0.60,
                 });
 
                 mesh.onResults((results) => {
@@ -294,9 +291,9 @@ export function useAIProctoring({
 
                 faceMeshRef.current = mesh;
                 setFaceMeshReady(true);
-                console.log("[AI-Proctoring] MediaPipe FaceMesh initialized successfully");
+                logDiag("AI-Proctoring", "MediaPipe FaceMesh initialized successfully");
             } catch (err) {
-                console.error("[AI-Proctoring] FaceMesh initialization failed:", err);
+                recordError("facemesh-init", err);
             }
         };
 
@@ -307,7 +304,7 @@ export function useAIProctoring({
         };
     }, [isActive]);
 
-    // ── Initialize Object Detection (COCO-SSD) ──────────────────────────────
+    // ── Object Detection Initialization (COCO-SSD) ──────────────────────────
     useEffect(() => {
         if (!isActive) return;
 
@@ -322,7 +319,7 @@ export function useAIProctoring({
                 setObjectModelReady(true);
                 setObjectModelType("coco-ssd");
             } catch (err) {
-                console.error("[AI-Proctoring] COCO-SSD load failed:", err);
+                recordError("coco-init", err);
             }
         };
 
@@ -337,7 +334,6 @@ export function useAIProctoring({
     const processFaceMeshResults = useCallback((results) => {
         const faces = results.multiFaceLandmarks || [];
         
-        // Filter out faces that are too small (e.g. background photos/reflections)
         const validFaces = faces.filter(face => {
             if (!face || face.length < 10) return false;
             let minX = 1, maxX = 0, minY = 1, maxY = 0;
@@ -350,13 +346,12 @@ export function useAIProctoring({
             }
             const width = maxX - minX;
             const height = maxY - minY;
-            return width > 0.08 && height > 0.08; // Lowered from 15% to 8% to prevent false NO_PEOPLE triggers when sitting back
+            return width > 0.08 && height > 0.08;
         });
 
         const count = validFaces.length;
         setFaceCount(count);
 
-        // ── Presence detection ──────────────────────────────────────────────
         if (count === 0) {
             multipleFacesStreakRef.current = 0;
             if (!noPersonTimerRef.current) {
@@ -375,7 +370,6 @@ export function useAIProctoring({
             return;
         }
 
-        // Clear no-person timer if face reappears
         if (noPersonTimerRef.current) {
             clearTimeout(noPersonTimerRef.current);
             noPersonTimerRef.current = null;
@@ -383,7 +377,7 @@ export function useAIProctoring({
 
         if (count > 1) {
             multipleFacesStreakRef.current += 1;
-            if (multipleFacesStreakRef.current >= 3) { // Require 3 consecutive frames (~1.5s) to trigger
+            if (multipleFacesStreakRef.current >= 3) {
                 emitViolation(
                     "MULTIPLE_PEOPLE",
                     `${count} faces detected in camera frame. (Ranking: 7)`,
@@ -394,13 +388,11 @@ export function useAIProctoring({
             multipleFacesStreakRef.current = 0;
         }
 
-        // Process the primary face (index 0) for gaze and head pose
         const face = validFaces[0];
         setLandmarks(face);
 
         let isLookingSide = false;
 
-        // Nose tip = 1, Left cheek = 234, Right cheek = 454
         const nose = face[1];
         const leftCheek = face[234];
         const rightCheek = face[454];
@@ -424,7 +416,7 @@ export function useAIProctoring({
         if (isHeadTurnedNow) {
             isLookingSide = true;
             headTurnStreakRef.current += 1;
-            if (headTurnStreakRef.current >= 3) { // Require 3 consecutive frames (~1.5s) to trigger
+            if (headTurnStreakRef.current >= 3) {
                 const violationType = isAnsweringRef.current
                     ? "HEAD_TURNED_WHILE_ANSWERING"
                     : "HEAD_TURNED";
@@ -438,12 +430,6 @@ export function useAIProctoring({
             headTurnStreakRef.current = 0;
         }
 
-        // ── Gaze (iris) tracking ────────────────────────────────────────────
-        // With refineLandmarks, iris landmarks are at indices:
-        //   Left eye iris center: 468
-        //   Right eye iris center: 473
-        //   Left eye corners: 33 (inner), 133 (outer)
-        //   Right eye corners: 362 (inner), 263 (outer)
         if (face.length > 473) {
             const leftIris = face[468];
             const leftInner = face[33];
@@ -453,7 +439,6 @@ export function useAIProctoring({
             const rightOuter = face[263];
 
             if (leftIris && leftInner && leftOuter && rightIris && rightInner && rightOuter) {
-                // Compute horizontal ratio for each eye (0 = far left, 1 = far right)
                 const leftEyeWidth = euclidean(leftInner, leftOuter);
                 const leftIrisOffset = euclidean(leftIris, leftOuter);
                 const leftRatio = leftEyeWidth > 0.001 ? leftIrisOffset / leftEyeWidth : 0.5;
@@ -469,30 +454,25 @@ export function useAIProctoring({
                     isLookingSide = true;
                 }
 
-                // Track gaze direction changes over time for sweep detection
                 const now = Date.now();
                 const history = gazeHistoryRef.current;
                 history.push({ ratio: avgGaze, ts: now });
 
-                // Remove entries outside the sliding window
                 while (history.length > 0 && now - history[0].ts > T.gazeSwipeWindowMs) {
                     history.shift();
                 }
 
-                // Count direction changes (left→right or right→left)
                 if (history.length >= 3) {
                     let directionChanges = 0;
                     for (let i = 2; i < history.length; i++) {
                         const prev = history[i - 1].ratio - history[i - 2].ratio;
                         const curr = history[i].ratio - history[i - 1].ratio;
-                        // A sign flip indicates a direction reversal
                         if ((prev > 0.02 && curr < -0.02) || (prev < -0.02 && curr > 0.02)) {
                             directionChanges++;
                         }
                     }
 
                     if (directionChanges >= T.gazeSwipeCount) {
-                        // Also check head is relatively still
                         const headIsStill =
                             headTurnRatio >= T.headTurnRatioLow &&
                             headTurnRatio <= T.headTurnRatioHigh;
@@ -506,7 +486,6 @@ export function useAIProctoring({
                                 "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 4)",
                                 { directionChanges, gazeRatio: avgGaze }
                             );
-                            // Clear history after firing to avoid repeated triggers
                             gazeHistoryRef.current = [];
                         }
                     }
@@ -514,7 +493,6 @@ export function useAIProctoring({
             }
         }
 
-        // ── Continuous Side-Looking Tracking (sees the side for 4+ seconds) ──
         if (isLookingSide) {
             if (!sideGazeStartRef.current) {
                 sideGazeStartRef.current = Date.now();
@@ -559,7 +537,7 @@ export function useAIProctoring({
                     try {
                         await faceMeshRef.current.send({ image: video });
                     } catch {
-                        // FaceMesh may fail on certain frames, continue
+                        // Frame drop tolerance
                     }
                 }
             }
@@ -578,14 +556,9 @@ export function useAIProctoring({
     }, [isActive, faceMeshReady, videoElement, T.detectionIntervalMs]);
 
     // ── Object detection loop (COCO-SSD via canvas frame capture) ───────────
-    // We draw the video frame to an off-screen canvas before running COCO-SSD.
-    // Browsers throttle frame decoding on hidden/off-screen <video> elements,
-    // but canvas drawImage() always captures the latest decoded frame regardless
-    // of visibility — completely bypassing the browser throttling issue.
     useEffect(() => {
         if (!isActive || !objectModelReady || !videoElement) return;
 
-        // Create the off-screen detection canvas once
         if (!detectionCanvasRef.current) {
             const canvas = document.createElement('canvas');
             canvas.width = 640;
@@ -603,36 +576,21 @@ export function useAIProctoring({
 
             try {
                 if (cocoModelRef.current) {
-                    // Capture the current frame to canvas — bypasses browser video throttling
                     try {
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     } catch {
-                        return; // Skip this frame if draw fails
+                        return;
                     }
 
-                    const diag = window.__proctoring_diagnostics || {};
                     const startInference = Date.now();
-
                     const predictions = await cocoModelRef.current.detect(canvas);
-                    
-                    const inferenceTime = Date.now() - startInference;
-                    diag.lastInferenceTimeMs = inferenceTime;
-                    diag.inferenceCount = (diag.inferenceCount || 0) + 1;
-                    diag.inferenceTimesMs = diag.inferenceTimesMs || [];
-                    diag.inferenceTimesMs.push(inferenceTime);
-                    if (diag.inferenceTimesMs.length > 50) diag.inferenceTimesMs.shift();
+                    const duration = Date.now() - startInference;
 
+                    recordInferenceTime(duration, predictions || []);
                     setDetections(predictions || []);
 
-                    if (predictions && predictions.length > 0) {
-                        console.log("[AI-Proctoring Diagnostics] COCO-SSD detected objects:", predictions.map(p => `${p.class}(${(p.score * 100).toFixed(0)}%)`).join(', '));
-                        diag.detectionsHistory = diag.detectionsHistory || [];
-                        diag.detectionsHistory.push({ ts: Date.now(), items: predictions.map(p => ({ class: p.class, score: p.score })) });
-                        if (diag.detectionsHistory.length > 20) diag.detectionsHistory.shift();
-                    }
-
                     const activeObjects = new Set();
-                    predictions.forEach(p => {
+                    (predictions || []).forEach(p => {
                         const objConfig = SUSPICIOUS_OBJECTS[p.class];
                         if (objConfig) {
                             const threshold = p.class === "cell phone"
@@ -644,14 +602,13 @@ export function useAIProctoring({
                         }
                     });
 
-                    // Update sliding window buffer for each suspicious object class
-                    const WINDOW_SIZE = 5; // 5 seconds sliding window
+                    const WINDOW_SIZE = 5;
                     Object.keys(SUSPICIOUS_OBJECTS).forEach(objType => {
                         const history = objectHistoryRef.current[objType] || [];
                         const isDetectedThisFrame = activeObjects.has(objType);
                         
-                        // Find matching prediction score
-                        const match = predictions.find(p => p.class === objType && p.score >= (objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold));
+                        const threshold = objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold;
+                        const match = (predictions || []).find(p => p.class === objType && p.score >= threshold);
                         const score = match ? match.score : 0;
 
                         history.push({ detected: isDetectedThisFrame, score });
@@ -660,14 +617,13 @@ export function useAIProctoring({
                         }
                         objectHistoryRef.current[objType] = history;
 
-                        // Evaluate temporal confirmation
                         const detectedFramesCount = history.filter(h => h.detected).length;
                         const averageConfidence = detectedFramesCount > 0 
                             ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
                             : 0;
 
                         const requiredFrames = objType === "cell phone" ? T.phoneRequiredFrames : T.objectRequiredFrames;
-                        const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= (objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold);
+                        const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
 
                         if (isConfirmed) {
                             const objConfig = SUSPICIOUS_OBJECTS[objType];
@@ -680,24 +636,17 @@ export function useAIProctoring({
                     });
                 }
             } catch (err) {
-                // Object detection frame error — continue silently
-                console.warn("[AI-Proctoring Diagnostics] COCO-SSD frame error:", err.message);
-                const diag = window.__proctoring_diagnostics || {};
-                diag.errorHistory = diag.errorHistory || [];
-                diag.errorHistory.push({ phase: "frame-inference", error: err.message, ts: Date.now() });
-
-                // Self-healing fallback: If WebGL fails during inference, fallback to CPU
+                recordError("coco-frame-detect", err);
                 const tf = window.tf;
                 if (tf && tf.getBackend() === "webgl") {
-                    console.warn("[AI-Proctoring Diagnostics] WebGL inference failed, switching to CPU backend...");
+                    logDiag("AI-Proctoring", "WebGL inference failed, switching to CPU backend...");
                     try {
                         await tf.setBackend("cpu");
                         await tf.ready();
-                        if (window.__proctoring_diagnostics) {
-                            window.__proctoring_diagnostics.tfBackend = "cpu";
-                        }
+                        const diag = getOrCreateDiagnostics();
+                        if (diag) diag.tfBackend = "cpu";
                     } catch {
-                        // Silent fallback failure
+                        // Fallback ignore
                     }
                 }
             }
@@ -706,7 +655,6 @@ export function useAIProctoring({
         return () => clearInterval(intervalId);
     }, [isActive, objectModelReady, videoElement, T, emitViolation]);
 
-    // ── Cleanup on unmount ──────────────────────────────────────────────────
     useEffect(() => {
         return () => {
             if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);

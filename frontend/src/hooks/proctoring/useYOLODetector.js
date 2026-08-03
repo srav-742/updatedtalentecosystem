@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { logDiag, recordError, recordInferenceTime } from "../../utils/proctoringDiagnostics";
 
 function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -15,19 +16,43 @@ function loadScript(src) {
 /**
  * useYOLODetector
  * ──────────────────────────────────────────────────────────────────────────────
- * Production-ready Object Detection hook with Web Worker offloading.
+ * Production-ready Object Detection hook with Web Worker offloading & multi-CDN failover.
  * Primary: COCO-SSD running in a Web Worker to avoid main-thread blocking (CPU < 1%).
- * Fallback: Main-thread WebGL-based COCO-SSD if Web Workers/Blob URLs are blocked.
+ * Fallback: Main-thread WebGL/CPU-based COCO-SSD if Web Workers/Blob URLs are blocked.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-const CONFIDENCE_THRESHOLD = 0.45;
+const CONFIDENCE_THRESHOLD = 0.35; // Lowered to pass raw detections to tracker & temporal engine
+
+// Multi-CDN sources for worker script imports
+const TFJS_CDN_URLS = [
+    "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.20.0/tf.min.js",
+    "https://unpkg.com/@tensorflow/tfjs@4.20.0/dist/tf.min.js",
+];
+
+const COCO_SSD_CDN_URLS = [
+    "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
+    "https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
+];
 
 // Dynamic inline Web Worker source string
 const createProctoringWorker = () => {
     const code = `
         let model = null;
         let isInitializing = false;
+
+        async function tryImportScripts(urls) {
+            for (const url of urls) {
+                try {
+                    importScripts(url);
+                    return true;
+                } catch (e) {
+                    console.warn("[Worker] Script import failed for " + url + ":", e.message);
+                }
+            }
+            return false;
+        }
 
         self.onmessage = async function(e) {
             const { type, data } = e.data;
@@ -41,26 +66,49 @@ const createProctoringWorker = () => {
                 isInitializing = true;
 
                 try {
-                    // Load TFJS & COCO-SSD from highly-available CDN
-                    importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
-                    importScripts("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+                    const tfLoaded = await tryImportScripts([
+                        "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js",
+                        "https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.20.0/tf.min.js",
+                        "https://unpkg.com/@tensorflow/tfjs@4.20.0/dist/tf.min.js"
+                    ]);
+                    const cocoLoaded = await tryImportScripts([
+                        "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
+                        "https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"
+                    ]);
 
-                    if (self.tf) {
-                        await self.tf.ready();
-                        // Workers lack WebGL/GPU access in most browsers, force CPU or WASM backend
-                        await self.tf.setBackend('cpu');
+                    if (!tfLoaded || !cocoLoaded || !self.tf || !self.cocoSsd) {
+                        throw new Error("Worker failed to import TFJS or COCO-SSD from CDNs");
                     }
-                    
-                    const origin = data ? data.origin : self.location.origin;
+
+                    await self.tf.ready();
                     try {
-                        model = await cocoSsd.load({ modelUrl: origin + "/models/coco-ssd/model.json" });
-                    } catch (localLoadErr) {
-                        console.warn("[Proctoring Worker] Local model load failed, falling back to CDN:", localLoadErr);
-                        model = await cocoSsd.load();
+                        await self.tf.setBackend('cpu');
+                    } catch (bErr) {
+                        console.warn("[Worker] Unable to set CPU backend explicitly:", bErr);
                     }
+
+                    const origin = (data && data.origin && data.origin !== "null") ? data.origin : self.location.origin;
+                    let loaded = false;
+
+                    if (origin && origin !== "null") {
+                        try {
+                            const localModelUrl = origin + "/models/coco-ssd/model.json";
+                            console.log("[Worker] Loading model from local origin:", localModelUrl);
+                            model = await self.cocoSsd.load({ modelUrl: localModelUrl });
+                            loaded = true;
+                        } catch (localErr) {
+                            console.warn("[Worker] Local model fetch failed, falling back to CDN:", localErr.message);
+                        }
+                    }
+
+                    if (!loaded) {
+                        console.log("[Worker] Loading default CDN COCO-SSD model...");
+                        model = await self.cocoSsd.load();
+                    }
+
                     self.postMessage({ type: 'init-ready', success: true });
                 } catch (err) {
-                    console.error("[Proctoring Worker] Init failed:", err);
+                    console.error("[Worker] Init failed:", err);
                     self.postMessage({ type: 'init-ready', success: false, error: err.message });
                 } finally {
                     isInitializing = false;
@@ -75,7 +123,6 @@ const createProctoringWorker = () => {
 
                 try {
                     const { imageBitmap, id } = data;
-                    // Detect using off-thread ImageBitmap
                     const predictions = await model.detect(imageBitmap);
                     imageBitmap.close(); // Clean up image memory instantly
 
@@ -88,12 +135,16 @@ const createProctoringWorker = () => {
     `;
 
     const blob = new Blob([code], { type: "application/javascript" });
-    return new Worker(URL.createObjectURL(blob));
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+    // Revoke object URL after worker instantiation to avoid memory leaks
+    setTimeout(() => URL.revokeObjectURL(workerUrl), 5000);
+    return worker;
 };
 
 // Global Session Cache for Worker & Main-Thread Fallback Model
 let _globalWorker = null;
-let _globalWorkerStatus = 'uninitialized'; // 'uninitialized' | 'initializing' | 'ready' | 'failed'
+let _globalWorkerStatus = 'uninitialized';
 let globalWorkerInitPromise = null;
 let activeWorkerListener = null;
 
@@ -107,7 +158,7 @@ const initWorkerSession = (localOrigin) => {
 
     globalWorkerInitPromise = new Promise((resolve, reject) => {
         try {
-            console.log("[YOLO Detector Diagnostics] Spawning global Web Worker...");
+            logDiag("YOLO Worker", "Spawning global Web Worker...");
             const worker = createProctoringWorker();
             _globalWorker = worker;
             _globalWorkerStatus = 'initializing';
@@ -116,28 +167,50 @@ const initWorkerSession = (localOrigin) => {
                 const { type, success, error } = e.data;
                 if (type === 'init-ready') {
                     if (success) {
-                        console.log("[YOLO Detector Diagnostics] Global Web Worker initialized successfully.");
+                        logDiag("YOLO Worker", "Web Worker initialized successfully.");
                         _globalWorkerStatus = 'ready';
+                        if (window.__proctoring_diagnostics) {
+                            window.__proctoring_diagnostics.workerStatus = 'ready';
+                        }
                         resolve(worker);
                     } else {
                         _globalWorkerStatus = 'failed';
+                        if (window.__proctoring_diagnostics) {
+                            window.__proctoring_diagnostics.workerStatus = 'failed';
+                            window.__proctoring_diagnostics.workerError = error;
+                        }
                         reject(new Error(error || "Worker initialization failed"));
                     }
                 }
-                // Forward any other messages to the active listener
                 if (activeWorkerListener) {
                     activeWorkerListener(e);
                 }
             };
 
-            worker.postMessage({ type: 'init', data: { origin: localOrigin } });
+            const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
+            worker.postMessage({ type: 'init', data: { origin: safeOrigin } });
         } catch (err) {
             _globalWorkerStatus = 'failed';
+            recordError("worker-spawn", err);
             reject(err);
         }
     });
 
     return globalWorkerInitPromise;
+};
+
+const loadWithFailover = async (cdnUrls) => {
+    let lastErr = null;
+    for (const url of cdnUrls) {
+        try {
+            await loadScript(url);
+            return true;
+        } catch (e) {
+            lastErr = e;
+            console.warn(`[YOLO Detector] Failed script load from ${url}:`, e.message);
+        }
+    }
+    throw lastErr || new Error("All CDN script sources failed");
 };
 
 const initMainThreadModel = async (localOrigin) => {
@@ -149,10 +222,10 @@ const initMainThreadModel = async (localOrigin) => {
 
     globalMainModelInitPromise = (async () => {
         const startTime = Date.now();
-        console.log("[YOLO Detector Diagnostics] Loading TFJS & COCO-SSD CDN scripts for main-thread fallback...");
-        
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+        logDiag("YOLO Fallback", "Loading TFJS & COCO-SSD scripts on main thread...");
+
+        await loadWithFailover(TFJS_CDN_URLS);
+        await loadWithFailover(COCO_SSD_CDN_URLS);
 
         const tf = window.tf;
         const cocoSsd = window.cocoSsd;
@@ -161,30 +234,44 @@ const initMainThreadModel = async (localOrigin) => {
             throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
         }
 
-        console.log("[YOLO Detector Diagnostics] Setting up WebGL backend...");
+        logDiag("YOLO Fallback", "Setting up WebGL backend...");
         try {
             await tf.setBackend("webgl");
             await tf.ready();
-            console.log("[YOLO Detector Diagnostics] WebGL backend initialized successfully.");
+            if (window.__proctoring_diagnostics) {
+                window.__proctoring_diagnostics.tfBackend = "webgl";
+                window.__proctoring_diagnostics.tfReady = true;
+            }
+            logDiag("YOLO Fallback", "WebGL backend ready.");
         } catch (webglErr) {
-            console.warn("[YOLO Detector Diagnostics] WebGL failed, falling back to CPU:", webglErr);
+            logDiag("YOLO Fallback", `WebGL failed, falling back to CPU: ${webglErr.message}`);
             await tf.setBackend("cpu");
             await tf.ready();
+            if (window.__proctoring_diagnostics) {
+                window.__proctoring_diagnostics.tfBackend = "cpu";
+                window.__proctoring_diagnostics.tfReady = true;
+            }
         }
 
-        console.log("[YOLO Detector Diagnostics] Loading COCO-SSD model locally on main-thread...");
         let model;
+        const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
         try {
-            model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+            logDiag("YOLO Fallback", `Loading local model from ${safeOrigin}/models/coco-ssd/model.json`);
+            model = await cocoSsd.load({ modelUrl: safeOrigin + "/models/coco-ssd/model.json" });
         } catch (localLoadErr) {
-            console.warn("[YOLO Detector Diagnostics] Local model load failed, falling back to CDN model:", localLoadErr);
+            logDiag("YOLO Fallback", `Local load failed (${localLoadErr.message}), trying default CDN model...`);
             model = await cocoSsd.load();
         }
+
         globalMainModel = model;
-        console.log(`[YOLO Detector Diagnostics] COCO-SSD fallback loaded in ${Date.now() - startTime}ms.`);
+        if (window.__proctoring_diagnostics) {
+            window.__proctoring_diagnostics.modelLoaded = true;
+        }
+        logDiag("YOLO Fallback", `COCO-SSD loaded in ${Date.now() - startTime}ms.`);
         return model;
     })().catch((err) => {
         globalMainModelInitPromise = null;
+        recordError("main-thread-init", err);
         throw err;
     });
 
@@ -202,14 +289,12 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
     const canvasRef = useRef(null);
     const pendingDetectionsRef = useRef({});
 
-    // Initializer
     useEffect(() => {
         if (!isActive) return;
 
         let cancelled = false;
 
         const initDetector = async () => {
-            // Register active worker listener to forward messages to this hook instance
             activeWorkerListener = (e) => {
                 if (cancelled) return;
                 const { type, id, predictions } = e.data;
@@ -218,7 +303,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                     const resolver = pendingDetectionsRef.current[id];
                     if (resolver) {
                         delete pendingDetectionsRef.current[id];
-                        
+
                         const filtered = (predictions || [])
                             .filter(p => p.score >= CONFIDENCE_THRESHOLD)
                             .map(p => ({
@@ -227,12 +312,13 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                                 bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
                             }));
                         setDetections(filtered);
+                        recordInferenceTime(0, filtered);
                         resolver(filtered);
                     }
                 }
             };
 
-            // Attempt 1: Load Web Worker
+            // Attempt 1: Web Worker
             try {
                 const worker = await initWorkerSession(window.location.origin);
                 if (cancelled) return;
@@ -242,7 +328,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                 setEngineType('coco-ssd-worker');
                 setModelReady(true);
             } catch (err) {
-                console.warn("[YOLO Detector] Web Worker initialization failed, trying main-thread fallback:", err.message);
+                logDiag("YOLO Detector", `Worker init failed (${err.message}), using main-thread fallback`);
                 if (cancelled) return;
                 initMainThreadFallback();
             }
@@ -257,7 +343,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                 setEngineType('coco-ssd-fallback');
                 setModelReady(true);
             } catch (cocoErr) {
-                console.error("[YOLO Detector] Main-thread COCO-SSD load failed:", cocoErr);
+                recordError("detector-fallback-init", cocoErr);
             }
         };
 
@@ -265,9 +351,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
         return () => {
             cancelled = true;
-            // De-register our listener so we don't handle messages for unmounted hook
             activeWorkerListener = null;
-            // Resolve any remaining pending promises to avoid memory leaks
             Object.values(pendingDetectionsRef.current).forEach(resolve => resolve([]));
             pendingDetectionsRef.current = {};
         };
@@ -275,8 +359,10 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
     const runLocalDetect = useCallback(async (canvas) => {
         if (!cocoModelRef.current) return [];
+        const start = Date.now();
         try {
             const preds = await cocoModelRef.current.detect(canvas);
+            const duration = Date.now() - start;
             const filtered = preds
                 .filter(p => p.score >= CONFIDENCE_THRESHOLD)
                 .map(p => ({
@@ -285,14 +371,14 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                     bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
                 }));
             setDetections(filtered);
+            recordInferenceTime(duration, filtered);
             return filtered;
         } catch (err) {
-            console.warn("[YOLO Detector] Local detection error:", err);
+            recordError("local-detect", err);
             return [];
         }
     }, []);
 
-    // Frame processing function
     const detectFrame = useCallback(async () => {
         if (!modelReady || !videoElement || videoElement.readyState < 2) return [];
 
@@ -309,9 +395,12 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         }
 
         const ctx = canvas.getContext("2d");
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        try {
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        } catch (e) {
+            return [];
+        }
 
-        // If Web Worker is ready, use it
         if (workerRef.current && workerReadyRef.current) {
             return new Promise((resolve) => {
                 const frameId = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -320,10 +409,9 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                 createImageBitmap(canvas).then((imageBitmap) => {
                     workerRef.current.postMessage(
                         { type: 'detect', data: { imageBitmap, id: frameId } },
-                        [imageBitmap] // Transfer list (zero copy)
+                        [imageBitmap]
                     );
                 }).catch((err) => {
-                    console.warn("[YOLO Detector] createImageBitmap failed, falling back to local detect:", err);
                     delete pendingDetectionsRef.current[frameId];
                     runLocalDetect(canvas).then(resolve);
                 });
