@@ -245,7 +245,7 @@ export function useStrictProctoring({
       fullscreenTimer = setTimeout(() => {
         if (!document.fullscreenElement && !resetTriggeredRef.current) {
           requestFullscreen();
-          triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
+          triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 1)");
         }
       }, 2000);
     };
@@ -271,7 +271,7 @@ export function useStrictProctoring({
       if (document.hidden) {
         // Trigger only if window remains hidden for more than 3 seconds
         visibilityTimer = setTimeout(() => {
-          triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 2)");
+          triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 1)");
         }, 3000);
       } else {
         if (visibilityTimer) {
@@ -304,7 +304,7 @@ export function useStrictProctoring({
       // Ignore accidental blur events. Trigger only if window remains hidden/unfocused for more than 3 seconds.
       blurTimer = setTimeout(() => {
         if (!document.hidden && !document.hasFocus()) {
-          triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
+          triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 1)");
         }
       }, 3000);
     };

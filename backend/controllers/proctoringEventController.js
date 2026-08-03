@@ -14,33 +14,46 @@ const queueService = require('../services/queueService');
  */
 
 const EVENT_TYPE_MAP = {
-    mobile_phone_detected: { type: 'PHONE_DETECTED', rating: 6, detail: 'Mobile phone detected in camera frame.' },
-    PHONE_DETECTED: { type: 'PHONE_DETECTED', rating: 6, detail: 'Mobile phone detected in camera frame.' },
-    secondary_laptop_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Secondary laptop or computer screen detected.' },
-    book_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Book or reading material detected.' },
-    bottle_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Bottle or container detected.' },
-    pen_detected: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Pen or writing instrument detected.' },
-    tablet_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Tablet device detected.' },
-    earphone_detected: { type: 'HEADPHONES_DETECTED', rating: 5, detail: 'Earphones or headphones detected.' },
-    suspicious_object_detected: { type: 'OBJECT_DETECTED', rating: 6, detail: 'Suspicious object detected.' },
-    OBJECT_DETECTED: { type: 'OBJECT_DETECTED', rating: 5, detail: 'Unauthorized object (pen/book/bottle) detected in frame.' },
-    no_face_detected: { type: 'NO_PEOPLE', rating: 4, detail: 'No face detected in camera frame.' },
-    multiple_faces_detected: { type: 'MULTIPLE_PEOPLE', rating: 7, detail: 'Multiple faces detected in camera frame.' },
-    person_count_violation: { type: 'MULTIPLE_PEOPLE', rating: 7, detail: 'Extra person detected.' },
-    looking_away: { type: 'EYE_LOOKING_AWAY', rating: 4, detail: 'Gaze turned away from screen.' },
-    head_turned: { type: 'HEAD_TURNED', rating: 3, detail: 'Head turned excessively.' },
-    eyes_closed: { type: 'EYE_LOOKING_AWAY', rating: 4, detail: 'Eyes closed for extended duration.' },
-    rapid_gaze_movement: { type: 'EYE_LOOKING_AWAY', rating: 4, detail: 'Rapid eye reading pattern.' },
-    phone_near_face: { type: 'PHONE_DETECTED', rating: 6, detail: 'Mobile phone held near face.' },
-    phone_near_ear: { type: 'PHONE_DETECTED', rating: 8, detail: 'Mobile phone held to ear.' },
-    hand_near_lap: { type: 'OBJECT_DETECTED', rating: 3, detail: 'Hand positioned near lap with suspicious device.' },
-    hand_leaving_frame: { type: 'OBJECT_DETECTED', rating: 2, detail: 'Hand left camera frame continuously.' },
-    multiple_voices: { type: 'MULTIPLE_PEOPLE', rating: 7, detail: 'Multiple speech voices detected in audio stream.' },
-    background_noise: { type: 'OBJECT_DETECTED', rating: 2, detail: 'Loud background audio detected.' },
-    continuous_talking: { type: 'EYE_LOOKING_AWAY', rating: 3, detail: 'Candidate talking continuously.' },
-    new_object_appeared: { type: 'OBJECT_DETECTED', rating: 5, detail: 'New unauthorized object appeared after initial check.' },
-    environment_change: { type: 'OBJECT_DETECTED', rating: 4, detail: 'Environment change detected.' },
+    // Phone Detections (Red Mark: 2)
+    mobile_phone_detected: { type: 'PHONE_DETECTED', rating: 2, severity: 'critical', detail: 'Mobile phone detected in camera frame.' },
+    PHONE_DETECTED: { type: 'PHONE_DETECTED', rating: 2, severity: 'critical', detail: 'Mobile phone detected in camera frame.' },
+    phone_near_face: { type: 'PHONE_DETECTED', rating: 2, severity: 'critical', detail: 'Mobile phone held near face.' },
+    phone_near_ear: { type: 'PHONE_DETECTED', rating: 2, severity: 'critical', detail: 'Mobile phone held to ear.' },
+
+    // Multiple Faces Detections (Red Mark: 2)
+    multiple_faces_detected: { type: 'MULTIPLE_PEOPLE', rating: 2, severity: 'critical', detail: 'Multiple faces detected in camera frame.' },
+    person_count_violation: { type: 'MULTIPLE_PEOPLE', rating: 2, severity: 'critical', detail: 'Extra person detected.' },
+    MULTIPLE_PEOPLE: { type: 'MULTIPLE_PEOPLE', rating: 2, severity: 'critical', detail: 'Multiple faces detected in camera frame.' },
+
+    // Object Detections (Red Mark: 2)
+    secondary_laptop_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Secondary laptop or computer screen detected.' },
+    book_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Book or reading material detected.' },
+    bottle_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Bottle or container detected.' },
+    pen_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Pen or writing instrument detected.' },
+    tablet_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Tablet device detected.' },
+    earphone_detected: { type: 'HEADPHONES_DETECTED', rating: 2, severity: 'critical', detail: 'Earphones or headphones detected.' },
+    HEADPHONES_DETECTED: { type: 'HEADPHONES_DETECTED', rating: 2, severity: 'critical', detail: 'Earphones or headphones detected.' },
+    suspicious_object_detected: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Suspicious object detected.' },
+    OBJECT_DETECTED: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'Unauthorized object detected in frame.' },
+    new_object_appeared: { type: 'OBJECT_DETECTED', rating: 2, severity: 'critical', detail: 'New unauthorized object appeared after initial check.' },
+
+    // Other Flags (Penalty: 1)
+    no_face_detected: { type: 'NO_PEOPLE', rating: 1, severity: 'medium', detail: 'No face detected in camera frame.' },
+    NO_PEOPLE: { type: 'NO_PEOPLE', rating: 1, severity: 'medium', detail: 'No face detected in camera frame.' },
+    looking_away: { type: 'EYE_LOOKING_AWAY', rating: 1, severity: 'medium', detail: 'Gaze turned away from screen.' },
+    EYE_LOOKING_AWAY: { type: 'EYE_LOOKING_AWAY', rating: 1, severity: 'medium', detail: 'Gaze turned away from screen.' },
+    head_turned: { type: 'HEAD_TURNED', rating: 1, severity: 'medium', detail: 'Head turned excessively.' },
+    HEAD_TURNED: { type: 'HEAD_TURNED', rating: 1, severity: 'medium', detail: 'Head turned excessively.' },
+    eyes_closed: { type: 'EYE_LOOKING_AWAY', rating: 1, severity: 'medium', detail: 'Eyes closed for extended duration.' },
+    rapid_gaze_movement: { type: 'EYE_LOOKING_AWAY', rating: 1, severity: 'medium', detail: 'Rapid eye reading pattern.' },
+    hand_near_lap: { type: 'OBJECT_DETECTED', rating: 1, severity: 'medium', detail: 'Hand positioned near lap.' },
+    hand_leaving_frame: { type: 'OBJECT_DETECTED', rating: 1, severity: 'low', detail: 'Hand left camera frame continuously.' },
+    multiple_voices: { type: 'MULTIPLE_PEOPLE', rating: 1, severity: 'medium', detail: 'Multiple speech voices detected in audio stream.' },
+    background_noise: { type: 'OBJECT_DETECTED', rating: 1, severity: 'low', detail: 'Loud background audio detected.' },
+    continuous_talking: { type: 'EYE_LOOKING_AWAY', rating: 1, severity: 'medium', detail: 'Candidate talking continuously.' },
+    environment_change: { type: 'OBJECT_DETECTED', rating: 1, severity: 'medium', detail: 'Environment change detected.' },
 };
+
 
 const getStatusAndVerdict = (penaltyRating) => {
     if (penaltyRating <= 0) {

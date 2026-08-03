@@ -50,19 +50,19 @@ const COCO_SSD_CDN_URLS = [
 ];
 
 const SUSPICIOUS_OBJECTS = {
-    "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 6 },
-    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 6 },
-    "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 5 },
-    "bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 5 },
-    "cup": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 4 },
-    "pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 5 },
-    "pencil": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 5 },
-    "scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 5 },
-    "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 6 },
-    "remote": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 5 },
-    "mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 4 },
-    "keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 5 },
-    "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 5 },
+    "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
+    "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 2 },
+    "bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
+    "cup": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
+    "pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
+    "pencil": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
+    "scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 2 },
+    "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 2 },
+    "remote": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
+    "mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 2 },
+    "keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 2 },
+    "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
 };
 
 function euclidean(a, b) {
@@ -368,7 +368,7 @@ export function useAIProctoring({
                     if (isActiveRef.current) {
                         emitViolation(
                             "NO_PEOPLE",
-                            "No face detected in camera frame for over 5 seconds. (Ranking: 4)",
+                            "No face detected in camera frame for over 5 seconds. (Ranking: 1)",
                             { faceCount: 0 }
                         );
                     }
@@ -389,7 +389,7 @@ export function useAIProctoring({
             if (multipleFacesStreakRef.current >= 3) {
                 emitViolation(
                     "MULTIPLE_PEOPLE",
-                    `${count} faces detected in camera frame. (Ranking: 7)`,
+                    `${count} faces detected in camera frame. (Ranking: 2)`,
                     { faceCount: count }
                 );
             }
@@ -431,7 +431,7 @@ export function useAIProctoring({
                     : "HEAD_TURNED";
                 emitViolation(
                     violationType,
-                    `Head turned excessively to the ${headTurnDirection}. (Ranking: 3)`,
+                    `Head turned excessively to the ${headTurnDirection}. (Ranking: 1)`,
                     { headTurnRatio: currentHeadTurnRatio, direction: headTurnDirection }
                 );
             }
@@ -492,7 +492,7 @@ export function useAIProctoring({
                                 : "EYE_LOOKING_AWAY";
                             emitViolation(
                                 violationType,
-                                "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 4)",
+                                "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 1)",
                                 { directionChanges, gazeRatio: avgGaze }
                             );
                             gazeHistoryRef.current = [];
@@ -514,7 +514,7 @@ export function useAIProctoring({
                         : "EYE_LOOKING_AWAY";
                     emitViolation(
                         violationType,
-                        `Candidate looked away/to the side for more than 4 seconds. (Ranking: 8)`,
+                        `Candidate looked away/to the side for more than 4 seconds. (Ranking: 1)`,
                         { duration: elapsed / 1000, seesSide: true }
                     );
                 }

@@ -1,51 +1,46 @@
 /**
  * Proctoring Scoring Utility
  * Calculates the rating penalty for various proctoring violations.
+ * Phone, Multiple Faces, and Objects = 2 (Red Mark)
+ * All other violations = 1
  */
 
+const REDMARK_VIOLATIONS = new Set([
+    // Phone Detections
+    'PHONE_DETECTED',
+    'mobile_phone_detected',
+    'phone_near_face',
+    'phone_near_ear',
+
+    // Multiple Faces / People Detections
+    'MULTIPLE_PEOPLE',
+    'multiple_faces_detected',
+    'person_count_violation',
+
+    // Object Detections
+    'OBJECT_DETECTED',
+    'HEADPHONES_DETECTED',
+    'earphone_detected',
+    'book_detected',
+    'bottle_detected',
+    'pen_detected',
+    'pencil_detected',
+    'tablet_detected',
+    'secondary_laptop_detected',
+    'suspicious_object_detected',
+    'new_object_appeared'
+]);
+
 const getViolationRating = (type, metadata) => {
-    // If the candidate looked to the side for 4 seconds or more, assign rating 8
-    if (
-        (type === 'EYE_LOOKING_AWAY' || 
-         type === 'EYE_LOOKING_AWAY_WHILE_ANSWERING' || 
-         type === 'HEAD_TURNED' || 
-         type === 'HEAD_TURNED_WHILE_ANSWERING') &&
-        metadata && 
-        (metadata.duration >= 4 || metadata.seesSide === true)
-    ) {
-        return 8;
+    if (!type) return 1;
+    if (REDMARK_VIOLATIONS.has(type)) {
+        return 2;
     }
-
-    // Default ratings for each violation type
-    const ratingMap = {
-        // AI Gaze & Head Turn
-        HEAD_TURNED: 3,
-        HEAD_TURNED_WHILE_ANSWERING: 3,
-        EYE_LOOKING_AWAY: 4,
-        EYE_LOOKING_AWAY_WHILE_ANSWERING: 4,
-
-        // AI Object Detection
-        PHONE_DETECTED: 6,
-        HEADPHONES_DETECTED: 5,
-        OBJECT_DETECTED: 6,
-
-        // AI Presence
-        NO_PEOPLE: 4,
-        MULTIPLE_PEOPLE: 7,
-
-        // Browser telemetry & focus
-        TAB_SWITCH: 2,
-        WINDOW_BLUR: 2,
-        KEYBOARD_SHORTCUT: 1,
-        RIGHT_CLICK: 1,
-        SCREEN_SHARE_STOPPED: 10,
-        FULLSCREEN_EXIT: 3,
-        MULTIPLE_DEVICES: 5,
-    };
-
-    return ratingMap[type] !== undefined ? ratingMap[type] : 2;
+    return 1;
 };
 
 module.exports = {
     getViolationRating,
+    REDMARK_VIOLATIONS,
 };
+

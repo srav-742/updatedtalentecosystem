@@ -70,8 +70,8 @@ export default function SecureExamWrapperEnhanced({
     // ── Screen share ────────────────────────────────────────────────────────
     const handleScreenShareStopped = useCallback(() => {
         setScreenShareInterrupted(true);
-        triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)");
-        logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)", {
+        triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)");
+        logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)", {
             isAnswering: isAnswering,
             metadata: { stopped: true }
         });

@@ -10,30 +10,39 @@
  */
 
 // ── Score penalty table ──────────────────────────────────────────────────────
+// ── Score penalty table (Red Mark = 2 for Phone, Multiple Faces, Objects; 1 for all others) ──
 export const SCORE_PENALTIES = {
-    mobile_phone_detected: 30,
-    multiple_faces_detected: 40,
-    looking_away: 10,
-    continuous_talking: 15,
-    no_face_detected: 20,
-    phone_near_face: 25,
-    phone_near_ear: 35,
-    eyes_closed: 15,
-    head_turned: 10,
-    hand_near_lap: 5,
-    multiple_voices: 20,
-    new_object_appeared: 10,
-    secondary_laptop_detected: 20,
-    book_detected: 10,
-    tablet_detected: 25,
-    earphone_detected: 15,
-    suspicious_object_detected: 10,
-    person_count_violation: 35,
-    rapid_gaze_movement: 5,
-    hand_leaving_frame: 5,
-    background_noise: 5,
-    environment_change: 10,
+    // Phone Detections (Red Mark: 2)
+    mobile_phone_detected: 2,
+    phone_near_face: 2,
+    phone_near_ear: 2,
+
+    // Multiple Faces Detections (Red Mark: 2)
+    multiple_faces_detected: 2,
+    person_count_violation: 2,
+
+    // Object Detections (Red Mark: 2)
+    new_object_appeared: 2,
+    secondary_laptop_detected: 2,
+    book_detected: 2,
+    tablet_detected: 2,
+    earphone_detected: 2,
+    suspicious_object_detected: 2,
+
+    // All other flags (Penalty score: 1)
+    looking_away: 1,
+    continuous_talking: 1,
+    no_face_detected: 1,
+    eyes_closed: 1,
+    head_turned: 1,
+    hand_near_lap: 1,
+    multiple_voices: 1,
+    rapid_gaze_movement: 1,
+    hand_leaving_frame: 1,
+    background_noise: 1,
+    environment_change: 1,
 };
+
 
 // ── Temporal rule definitions ────────────────────────────────────────────────
 export const PHONE_RULES = {

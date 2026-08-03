@@ -15,25 +15,56 @@ const mongoose = require('mongoose');
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-// Severity mapping for AI violation types
+// Severity mapping for proctoring violation types (Red Mark for Phone, Multiple Faces, and Objects)
 const SEVERITY_MAP = {
+    // Phone Detections (Red Mark)
+    PHONE_DETECTED: 'critical',
+    mobile_phone_detected: 'critical',
+    phone_near_face: 'critical',
+    phone_near_ear: 'critical',
+
+    // Multiple Faces Detections (Red Mark)
+    MULTIPLE_PEOPLE: 'critical',
+    multiple_faces_detected: 'critical',
+    person_count_violation: 'critical',
+
+    // Object Detections (Red Mark)
+    OBJECT_DETECTED: 'critical',
+    HEADPHONES_DETECTED: 'critical',
+    earphone_detected: 'critical',
+    book_detected: 'critical',
+    bottle_detected: 'critical',
+    pen_detected: 'critical',
+    pencil_detected: 'critical',
+    tablet_detected: 'critical',
+    secondary_laptop_detected: 'critical',
+    suspicious_object_detected: 'critical',
+    new_object_appeared: 'critical',
+
+    // Other Telemetry & AI Flags
     TAB_SWITCH: 'medium',
     WINDOW_BLUR: 'medium',
-    KEYBOARD_SHORTCUT: 'medium',
+    KEYBOARD_SHORTCUT: 'low',
     RIGHT_CLICK: 'low',
-    SCREEN_SHARE_STOPPED: 'high',
+    SCREEN_SHARE_STOPPED: 'medium',
     FULLSCREEN_EXIT: 'medium',
-    MULTIPLE_DEVICES: 'high',
+    MULTIPLE_DEVICES: 'medium',
     EYE_LOOKING_AWAY: 'medium',
-    EYE_LOOKING_AWAY_WHILE_ANSWERING: 'high',
+    EYE_LOOKING_AWAY_WHILE_ANSWERING: 'medium',
     HEAD_TURNED: 'medium',
-    HEAD_TURNED_WHILE_ANSWERING: 'high',
-    NO_PEOPLE: 'high',
-    MULTIPLE_PEOPLE: 'critical',
-    PHONE_DETECTED: 'critical',
-    HEADPHONES_DETECTED: 'high',
-    OBJECT_DETECTED: 'high',
+    HEAD_TURNED_WHILE_ANSWERING: 'medium',
+    NO_PEOPLE: 'medium',
+    looking_away: 'medium',
+    head_turned: 'medium',
+    eyes_closed: 'medium',
+    continuous_talking: 'medium',
+    multiple_voices: 'medium',
+    hand_near_lap: 'low',
+    hand_leaving_frame: 'low',
+    background_noise: 'low',
+    environment_change: 'medium',
 };
+
 
 const updateProctoringReport = async (examId, userId) => {
     try {
