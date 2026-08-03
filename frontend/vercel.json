@@ -1,11 +1,41 @@
 {
     "rewrites": [
         {
+            "source": "/models/coco-ssd/:path*",
+            "destination": "/models/coco-ssd/:path*"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
     ],
     "headers": [
+        {
+            "source": "/models/coco-ssd/group1-shard(.*)",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/octet-stream"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        },
+        {
+            "source": "/models/coco-ssd/model.json",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        },
         {
             "source": "/assets/(.*)",
             "headers": [

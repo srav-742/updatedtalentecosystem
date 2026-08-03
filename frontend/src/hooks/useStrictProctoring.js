@@ -17,7 +17,9 @@ const AI_TYPES = new Set([
   "MULTIPLE_PEOPLE",
   "PHONE_DETECTED",
   "HEADPHONES_DETECTED",
-  "OBJECT_DETECTED"
+  "OBJECT_DETECTED",
+  "multiple_faces_detected",
+  "no_face_detected"
 ]);
 
 const BLOCKED_COMBOS = [
