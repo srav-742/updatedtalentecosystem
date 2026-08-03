@@ -52,7 +52,12 @@ const createProctoringWorker = () => {
                     }
                     
                     const origin = data ? data.origin : self.location.origin;
-                    model = await cocoSsd.load({ modelUrl: origin + "/models/coco-ssd/model.json" });
+                    try {
+                        model = await cocoSsd.load({ modelUrl: origin + "/models/coco-ssd/model.json" });
+                    } catch (localLoadErr) {
+                        console.warn("[Proctoring Worker] Local model load failed, falling back to CDN:", localLoadErr);
+                        model = await cocoSsd.load();
+                    }
                     self.postMessage({ type: 'init-ready', success: true });
                 } catch (err) {
                     console.error("[Proctoring Worker] Init failed:", err);
@@ -168,7 +173,13 @@ const initMainThreadModel = async (localOrigin) => {
         }
 
         console.log("[YOLO Detector Diagnostics] Loading COCO-SSD model locally on main-thread...");
-        const model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+        let model;
+        try {
+            model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+        } catch (localLoadErr) {
+            console.warn("[YOLO Detector Diagnostics] Local model load failed, falling back to CDN model:", localLoadErr);
+            model = await cocoSsd.load();
+        }
         globalMainModel = model;
         console.log(`[YOLO Detector Diagnostics] COCO-SSD fallback loaded in ${Date.now() - startTime}ms.`);
         return model;

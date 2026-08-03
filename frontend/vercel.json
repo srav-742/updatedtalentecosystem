@@ -1,7 +1,7 @@
 {
     "rewrites": [
         {
-            "source": "/:path((?!models|assets|favicon.ico|robots.txt|logo.png|og-image.png|pace.min.js|pace-theme-default.min.css|ai-avatar.png|googled8bb29d438601c6d.html|sitemap).*)",
+            "source": "/((?!models/|assets/|.*\\..*).*)",
             "destination": "/index.html"
         }
     ],

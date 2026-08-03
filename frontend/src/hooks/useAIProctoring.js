@@ -135,7 +135,13 @@ const initTfAndModel = async (localOrigin) => {
 
         console.log("[AI Proctoring Diagnostics] Loading COCO-SSD from local path:", localOrigin + "/models/coco-ssd/model.json");
         try {
-            const model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+            let model;
+            try {
+                model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+            } catch (localLoadErr) {
+                console.warn("[AI Proctoring Diagnostics] Local model load failed, falling back to CDN model:", localLoadErr);
+                model = await cocoSsd.load();
+            }
             
             // Warm-up inference to compile WebGL shaders early and verify backend stability
             try {
