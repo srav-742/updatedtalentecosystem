@@ -181,12 +181,14 @@ export default function SecureExamWrapperEnhanced({
                 metadata: meta,
             });
 
-            // Trigger non-blocking toast overlay for candidate
+            // Toasts suppressed for candidates per user request
+            /*
             const toastId = Date.now() + Math.random();
             setToasts((prev) => [...prev, { id: toastId, type, detail }]);
             setTimeout(() => {
                 setToasts((prev) => prev.filter((t) => t.id !== toastId));
             }, 4000);
+            */
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -415,7 +417,11 @@ export default function SecureExamWrapperEnhanced({
                     onMouseDown={handleDragStart}
                     onTouchStart={handleDragStart}
                 >
-                    <div className="overflow-hidden rounded-2xl border-2 border-black/10 bg-black shadow-2xl">
+                    <div className={`overflow-hidden rounded-2xl border-2 transition-all duration-300 shadow-2xl ${
+                        (detections.some((d) => d.class === "cell phone") || faceCount > 1 || detections.some((d) => d.class !== "cell phone" && d.class !== "person"))
+                            ? "border-red-500 ring-4 ring-red-500/30 animate-pulse"
+                            : "border-black/10"
+                    } bg-black`}>
                         <video
                             ref={videoRefCallback}
                             autoPlay

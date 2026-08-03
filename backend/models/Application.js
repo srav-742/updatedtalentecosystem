@@ -43,6 +43,8 @@ const applicationSchema = new mongoose.Schema({
     lastProctoringResetReason: String,
     lastProctoringResetStage: String,
     lastProctoringViolation: mongoose.Schema.Types.Mixed,
+    integrityPenalty: { type: Number, default: 0 },
+    proctoringScore: { type: Number, default: 100 },
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },

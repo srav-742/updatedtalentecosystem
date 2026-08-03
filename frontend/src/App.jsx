@@ -28,6 +28,7 @@ const RecruiterDashboard = lazy(() => import('./pages/recruiter/RecruiterDashboa
 const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
 const MyJobs = lazy(() => import('./pages/recruiter/MyJobs'));
 const Applicants = lazy(() => import('./pages/recruiter/Applicants'));
+const ProctoringReports = lazy(() => import('./pages/recruiter/ProctoringReports'));
 const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile'));
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
@@ -110,6 +111,7 @@ function App() {
           <Route path="post-job" element={<PostJob />} />
           <Route path="my-jobs" element={<MyJobs />} />
           <Route path="applicants" element={<Applicants />} />
+          <Route path="proctoring-reports" element={<ProctoringReports />} />
           <Route path="profile" element={<RecruiterProfile />} />
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="onboarding-kit" element={<OnboardingKit />} />

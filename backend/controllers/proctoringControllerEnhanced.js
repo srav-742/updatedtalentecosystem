@@ -78,12 +78,24 @@ const updateProctoringReport = async (examId, userId) => {
                 detail: v.detail,
                 timestamp: v.timestamp || v.createdAt || new Date(),
                 rating: v.rating || getViolationRating(v.type, v.metadata),
+                startTime: v.timestamp || v.createdAt,
+                endTime: v.timestamp || v.createdAt,
+                duration: 0,
+                maxConfidence: null,
+                evidenceFrames: [],
+                model: 'Browser'
             })),
             ...enhancedViolations.map(v => ({
                 type: v.type,
                 detail: v.detail,
                 timestamp: v.timestamp || v.createdAt || new Date(),
                 rating: v.rating || getViolationRating(v.type, v.metadata),
+                startTime: v.startTime,
+                endTime: v.endTime,
+                duration: v.duration || 0,
+                maxConfidence: v.maxConfidence || v.confidence || null,
+                evidenceFrames: v.evidenceFrames || [],
+                model: v.model || 'Unknown'
             }))
         ];
         
@@ -132,7 +144,7 @@ const updateProctoringReport = async (examId, userId) => {
             if (sessionId && sessionId !== 'pending') {
                 app = await Application.findOne({ recordingSessionId: sessionId }).select('_id').lean();
             }
-            // 2. Fallback to userId + jobId (which is highly precise since application is unique per user + job)
+            // 2. Fallback to userId + jobId
             if (!app && jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
@@ -172,6 +184,23 @@ const updateProctoringReport = async (examId, userId) => {
             },
             { upsert: true, new: true }
         );
+        
+        // Update application integrity state
+        if (applicationId) {
+            await Application.findByIdAndUpdate(applicationId, {
+                integrityPenalty: totalPenaltyRating,
+                proctoringScore: Math.max(0, 100 - Math.round(totalPenaltyRating * 2.5)),
+            });
+        }
+
+        // Cache the compiled report in Redis
+        try {
+            const redisService = require('../services/redisService');
+            const cacheKey = `proctoring:report:${examId}`;
+            await redisService.set(cacheKey, report, 600); // 10 minutes cache
+        } catch (cacheErr) {
+            console.warn('[PROCTORING REPORT CACHE ERROR]', cacheErr.message);
+        }
         
         console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, status: ${status}, rating: ${totalPenaltyRating}`);
         return report;
@@ -384,6 +413,55 @@ const getReportByExam = async (req, res) => {
     }
 };
 
+const getAllReports = async (req, res) => {
+    try {
+        // 🔒 Verify recruiter/admin session
+        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
+        if (!recruiterId) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+        const { findRecruiterUser } = require('../utils/userResolver');
+        const recruiter = await findRecruiterUser(recruiterId);
+        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+
+        const reports = await ProctoringReport.find()
+            .populate({
+                path: 'applicationId',
+                populate: {
+                    path: 'jobId',
+                    select: 'title'
+                }
+            })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        // Fallback for any reports that don't have applicationId or missing candidate names
+        for (let i = 0; i < reports.length; i++) {
+            const report = reports[i];
+            if (!report.applicationId) {
+                const app = await Application.findOne({ userId: report.userId })
+                    .populate('jobId', 'title')
+                    .lean();
+                if (app) {
+                    report.resolvedApplication = {
+                        _id: app._id,
+                        applicantName: app.applicantName,
+                        applicantEmail: app.applicantEmail,
+                        jobId: app.jobId
+                    };
+                }
+            }
+        }
+
+        return res.status(200).json(reports);
+    } catch (error) {
+        console.error('[GET ALL REPORTS ERROR]', error);
+        return res.status(500).json({ message: 'Failed to fetch proctoring reports', error: error.message });
+    }
+};
+
 module.exports = {
     logViolation,
     getViolationsByExam,
@@ -391,4 +469,5 @@ module.exports = {
     getViolationsSummary,
     getReportByExam,
     updateProctoringReport,
+    getAllReports,
 };

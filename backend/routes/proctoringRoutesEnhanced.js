@@ -25,4 +25,7 @@ router.get('/summary', proctoringControllerEnhanced.getViolationsSummary);
 // Get overall report by exam ID
 router.get('/report/:examId', proctoringControllerEnhanced.getReportByExam);
 
+// Get all proctoring reports across candidates
+router.get('/reports', proctoringControllerEnhanced.getAllReports);
+
 module.exports = router;
