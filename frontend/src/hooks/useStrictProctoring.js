@@ -19,7 +19,29 @@ const AI_TYPES = new Set([
   "HEADPHONES_DETECTED",
   "OBJECT_DETECTED",
   "multiple_faces_detected",
-  "no_face_detected"
+  "no_face_detected",
+  
+  // Multi-layer proctoring event types
+  "mobile_phone_detected",
+  "looking_away",
+  "continuous_talking",
+  "phone_near_face",
+  "phone_near_ear",
+  "eyes_closed",
+  "head_turned",
+  "hand_near_lap",
+  "multiple_voices",
+  "new_object_appeared",
+  "secondary_laptop_detected",
+  "book_detected",
+  "tablet_detected",
+  "earphone_detected",
+  "suspicious_object_detected",
+  "person_count_violation",
+  "rapid_gaze_movement",
+  "hand_leaving_frame",
+  "background_noise",
+  "environment_change"
 ]);
 
 const BLOCKED_COMBOS = [
