@@ -195,7 +195,7 @@ const logEvent = async (req, res) => {
 
         const mapped = EVENT_TYPE_MAP[eventType] || {
             type: eventType.toUpperCase(),
-            rating: 4,
+            rating: 1,
             detail: detail || 'Proctoring alert logged.',
         };
 
@@ -328,7 +328,7 @@ const logBatchEvents = async (req, res) => {
         for (const evt of events) {
             const mapped = EVENT_TYPE_MAP[evt.eventType] || {
                 type: (evt.eventType || 'OBJECT_DETECTED').toUpperCase(),
-                rating: 4,
+                rating: 1,
                 detail: evt.detail || 'Proctoring alert logged.',
             };
 
@@ -486,8 +486,8 @@ const logWarning = async (req, res) => {
             type: level === 'auto_submit' ? 'SCREEN_SHARE_STOPPED' : 'OBJECT_DETECTED',
             detail: message || `Escalated warning: ${level}`,
             count: 1,
-            severity: level === 'auto_submit' ? 'critical' : 'high',
-            rating: level === 'auto_submit' ? 10 : 3,
+            severity: level === 'auto_submit' ? 'critical' : 'medium',
+            rating: level === 'auto_submit' ? 2 : 1,
             startTime: new Date(),
             endTime: new Date(),
             model: 'Browser',
