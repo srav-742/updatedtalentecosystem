@@ -74,6 +74,84 @@ function loadScript(src) {
     });
 }
 
+// Global Session Cache for TensorFlow & COCO-SSD
+let cachedCocoModel = null;
+let tfInitPromise = null;
+
+const initTfAndModel = async (localOrigin) => {
+    if (cachedCocoModel) return cachedCocoModel;
+
+    if (tfInitPromise) {
+        return tfInitPromise;
+    }
+
+    tfInitPromise = (async () => {
+        const startTime = Date.now();
+        console.log("[AI Proctoring Diagnostics] Loading TFJS & COCO-SSD CDN scripts...");
+        
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+
+        const tf = window.tf;
+        const cocoSsd = window.cocoSsd;
+
+        if (!tf || !cocoSsd) {
+            throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
+        }
+
+        // Configure Diagnostics object
+        window.__proctoring_diagnostics = window.__proctoring_diagnostics || {
+            tfBackend: "unknown",
+            tfReady: false,
+            modelLoaded: false,
+            modelType: "coco-ssd",
+            inferenceTimesMs: [],
+            lastInferenceTimeMs: 0,
+            inferenceCount: 0,
+            errorHistory: [],
+            detectionsHistory: [],
+        };
+
+        console.log("[AI Proctoring Diagnostics] Setting up WebGL backend...");
+        try {
+            await tf.setBackend("webgl");
+            await tf.ready();
+            window.__proctoring_diagnostics.tfBackend = "webgl";
+            window.__proctoring_diagnostics.tfReady = true;
+            console.log("[AI Proctoring Diagnostics] WebGL backend initialized successfully.");
+        } catch (webglErr) {
+            console.warn("[AI Proctoring Diagnostics] WebGL failed, falling back to CPU backend:", webglErr);
+            try {
+                await tf.setBackend("cpu");
+                await tf.ready();
+                window.__proctoring_diagnostics.tfBackend = "cpu";
+                window.__proctoring_diagnostics.tfReady = true;
+                console.log("[AI Proctoring Diagnostics] CPU backend initialized successfully.");
+            } catch (cpuErr) {
+                window.__proctoring_diagnostics.errorHistory.push({ phase: "tf-init", error: cpuErr.message, ts: Date.now() });
+                throw cpuErr;
+            }
+        }
+
+        console.log("[AI Proctoring Diagnostics] Loading COCO-SSD from local path:", localOrigin + "/models/coco-ssd/model.json");
+        try {
+            const model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+            cachedCocoModel = model;
+            window.__proctoring_diagnostics.modelLoaded = true;
+            console.log(`[AI Proctoring Diagnostics] COCO-SSD loaded successfully in ${Date.now() - startTime}ms.`);
+            return model;
+        } catch (modelLoadErr) {
+            window.__proctoring_diagnostics.errorHistory.push({ phase: "model-load", error: modelLoadErr.message, ts: Date.now() });
+            throw modelLoadErr;
+        }
+    })().catch((err) => {
+        tfInitPromise = null;
+        throw err;
+    });
+
+    return tfInitPromise;
+};
+
 export function useAIProctoring({
     videoElement = null,
     isActive = false,
@@ -127,6 +205,7 @@ export function useAIProctoring({
     // Streaks for filtering false positive detections
     const multipleFacesStreakRef = useRef(0);
     const objectStreakRef = useRef({});
+    const objectHistoryRef = useRef({});
     const headTurnStreakRef = useRef(0);
 
     // Keep refs current
@@ -218,33 +297,14 @@ export function useAIProctoring({
 
         const initObjectDetection = async () => {
             try {
-                console.log("[AI-Proctoring] Loading TensorFlow.js and COCO-SSD scripts from CDN...");
-                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
-                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
-
-                const tf = window.tf;
-                const cocoSsd = window.cocoSsd;
-
-                if (!tf || !cocoSsd) {
-                    throw new Error("TensorFlow or COCO-SSD not found on window object");
-                }
-
-                console.log("[AI-Proctoring] Initializing TensorFlow backend...");
-                await tf.ready();
-                
-                if (cancelled) return;
-
-                console.log("[AI-Proctoring] Loading COCO-SSD neural network (mobilenet_v2) from local path...");
-                const model = await cocoSsd.load({ modelUrl: window.location.origin + "/models/coco-ssd/model.json" });
-
+                const model = await initTfAndModel(window.location.origin);
                 if (cancelled) return;
 
                 cocoModelRef.current = model;
                 setObjectModelReady(true);
                 setObjectModelType("coco-ssd");
-                console.log("[AI-Proctoring] COCO-SSD model loaded successfully");
             } catch (err) {
-                console.warn("[AI-Proctoring] COCO-SSD load failed:", err);
+                console.error("[AI-Proctoring] COCO-SSD load failed:", err);
             }
         };
 
@@ -532,50 +592,81 @@ export function useAIProctoring({
                         return; // Skip this frame if draw fails
                     }
 
+                    const diag = window.__proctoring_diagnostics || {};
+                    const startInference = Date.now();
+
                     const predictions = await cocoModelRef.current.detect(canvas);
+                    
+                    const inferenceTime = Date.now() - startInference;
+                    diag.lastInferenceTimeMs = inferenceTime;
+                    diag.inferenceCount = (diag.inferenceCount || 0) + 1;
+                    diag.inferenceTimesMs = diag.inferenceTimesMs || [];
+                    diag.inferenceTimesMs.push(inferenceTime);
+                    if (diag.inferenceTimesMs.length > 50) diag.inferenceTimesMs.shift();
+
                     setDetections(predictions || []);
 
                     if (predictions && predictions.length > 0) {
-                        console.log("[AI-Proctoring] COCO-SSD detected objects:", predictions.map(p => `${p.class}(${(p.score * 100).toFixed(0)}%)`).join(', '));
+                        console.log("[AI-Proctoring Diagnostics] COCO-SSD detected objects:", predictions.map(p => `${p.class}(${(p.score * 100).toFixed(0)}%)`).join(', '));
+                        diag.detectionsHistory = diag.detectionsHistory || [];
+                        diag.detectionsHistory.push({ ts: Date.now(), items: predictions.map(p => ({ class: p.class, score: p.score })) });
+                        if (diag.detectionsHistory.length > 20) diag.detectionsHistory.shift();
                     }
 
                     const activeObjects = new Set();
-                    for (const pred of predictions) {
-                        const objConfig = SUSPICIOUS_OBJECTS[pred.class];
+                    predictions.forEach(p => {
+                        const objConfig = SUSPICIOUS_OBJECTS[p.class];
                         if (objConfig) {
-                            const requiredConfidence = pred.class === "cell phone"
+                            const threshold = p.class === "cell phone"
                                 ? T.phoneConfidenceThreshold
                                 : T.objectConfidenceThreshold;
-
-                            if (pred.score >= requiredConfidence) {
-                                activeObjects.add(pred.class);
-                                objectStreakRef.current[pred.class] = (objectStreakRef.current[pred.class] || 0) + 1;
-
-                                const requiredFrames = pred.class === "cell phone"
-                                    ? T.phoneRequiredFrames
-                                    : T.objectRequiredFrames;
-
-                                if (objectStreakRef.current[pred.class] >= requiredFrames) {
-                                    emitViolation(
-                                        objConfig.type,
-                                        `${objConfig.label} detected in camera frame. (Ranking: ${objConfig.ranking})`,
-                                        { confidence: pred.score, bbox: pred.bbox, label: objConfig.label }
-                                    );
-                                }
+                            if (p.score >= threshold) {
+                                activeObjects.add(p.class);
                             }
                         }
-                    }
+                    });
 
-                    // Reset streak for objects not detected in this frame
-                    for (const key of Object.keys(objectStreakRef.current)) {
-                        if (!activeObjects.has(key)) {
-                            objectStreakRef.current[key] = 0;
+                    // Update sliding window buffer for each suspicious object class
+                    const WINDOW_SIZE = 5; // 5 seconds sliding window
+                    Object.keys(SUSPICIOUS_OBJECTS).forEach(objType => {
+                        const history = objectHistoryRef.current[objType] || [];
+                        const isDetectedThisFrame = activeObjects.has(objType);
+                        
+                        // Find matching prediction score
+                        const match = predictions.find(p => p.class === objType && p.score >= (objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold));
+                        const score = match ? match.score : 0;
+
+                        history.push({ detected: isDetectedThisFrame, score });
+                        if (history.length > WINDOW_SIZE) {
+                            history.shift();
                         }
-                    }
+                        objectHistoryRef.current[objType] = history;
+
+                        // Evaluate temporal confirmation
+                        const detectedFramesCount = history.filter(h => h.detected).length;
+                        const averageConfidence = detectedFramesCount > 0 
+                            ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
+                            : 0;
+
+                        const requiredFrames = objType === "cell phone" ? T.phoneRequiredFrames : T.objectRequiredFrames;
+                        const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= (objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold);
+
+                        if (isConfirmed) {
+                            const objConfig = SUSPICIOUS_OBJECTS[objType];
+                            emitViolation(
+                                objConfig.type,
+                                `${objConfig.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${objConfig.ranking})`,
+                                { confidence: averageConfidence, label: objConfig.label }
+                            );
+                        }
+                    });
                 }
             } catch (err) {
                 // Object detection frame error — continue silently
-                console.warn("[AI-Proctoring] COCO-SSD frame error:", err.message);
+                console.warn("[AI-Proctoring Diagnostics] COCO-SSD frame error:", err.message);
+                const diag = window.__proctoring_diagnostics || {};
+                diag.errorHistory = diag.errorHistory || [];
+                diag.errorHistory.push({ phase: "frame-inference", error: err.message, ts: Date.now() });
             }
         }, T.objectDetectionIntervalMs);
 

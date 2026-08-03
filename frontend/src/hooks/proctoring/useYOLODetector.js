@@ -86,6 +86,100 @@ const createProctoringWorker = () => {
     return new Worker(URL.createObjectURL(blob));
 };
 
+// Global Session Cache for Worker & Main-Thread Fallback Model
+let globalWorker = null;
+let globalWorkerStatus = 'uninitialized'; // 'uninitialized' | 'initializing' | 'ready' | 'failed'
+let globalWorkerInitPromise = null;
+let activeWorkerListener = null;
+
+let globalMainModel = null;
+let globalMainModelInitPromise = null;
+
+const initWorkerSession = (localOrigin) => {
+    if (globalWorkerInitPromise) {
+        return globalWorkerInitPromise;
+    }
+
+    globalWorkerInitPromise = new Promise((resolve, reject) => {
+        try {
+            console.log("[YOLO Detector Diagnostics] Spawning global Web Worker...");
+            const worker = createProctoringWorker();
+            globalWorker = worker;
+            globalWorkerStatus = 'initializing';
+
+            worker.onmessage = (e) => {
+                const { type, success, error } = e.data;
+                if (type === 'init-ready') {
+                    if (success) {
+                        console.log("[YOLO Detector Diagnostics] Global Web Worker initialized successfully.");
+                        globalWorkerStatus = 'ready';
+                        resolve(worker);
+                    } else {
+                        globalWorkerStatus = 'failed';
+                        reject(new Error(error || "Worker initialization failed"));
+                    }
+                }
+                // Forward any other messages to the active listener
+                if (activeWorkerListener) {
+                    activeWorkerListener(e);
+                }
+            };
+
+            worker.postMessage({ type: 'init', data: { origin: localOrigin } });
+        } catch (err) {
+            globalWorkerStatus = 'failed';
+            reject(err);
+        }
+    });
+
+    return globalWorkerInitPromise;
+};
+
+const initMainThreadModel = async (localOrigin) => {
+    if (globalMainModel) return globalMainModel;
+
+    if (globalMainModelInitPromise) {
+        return globalMainModelInitPromise;
+    }
+
+    globalMainModelInitPromise = (async () => {
+        const startTime = Date.now();
+        console.log("[YOLO Detector Diagnostics] Loading TFJS & COCO-SSD CDN scripts for main-thread fallback...");
+        
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+
+        const tf = window.tf;
+        const cocoSsd = window.cocoSsd;
+
+        if (!tf || !cocoSsd) {
+            throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
+        }
+
+        console.log("[YOLO Detector Diagnostics] Setting up WebGL backend...");
+        try {
+            await tf.setBackend("webgl");
+            await tf.ready();
+            console.log("[YOLO Detector Diagnostics] WebGL backend initialized successfully.");
+        } catch (webglErr) {
+            console.warn("[YOLO Detector Diagnostics] WebGL failed, falling back to CPU:", webglErr);
+            await tf.setBackend("cpu");
+            await tf.ready();
+        }
+
+        console.log("[YOLO Detector Diagnostics] Loading COCO-SSD model locally on main-thread...");
+        const model = await cocoSsd.load({ modelUrl: localOrigin + "/models/coco-ssd/model.json" });
+        globalMainModel = model;
+        console.log(`[YOLO Detector Diagnostics] COCO-SSD fallback loaded in ${Date.now() - startTime}ms.`);
+        return model;
+    })().catch((err) => {
+        globalMainModelInitPromise = null;
+        throw err;
+    });
+
+    return globalMainModelInitPromise;
+};
+
 export function useYOLODetector({ isActive = false, videoElement = null }) {
     const [modelReady, setModelReady] = useState(false);
     const [engineType, setEngineType] = useState(null); // 'coco-ssd-worker' | 'coco-ssd-fallback'
@@ -102,86 +196,55 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         if (!isActive) return;
 
         let cancelled = false;
-        let workerInstance = null;
 
         const initDetector = async () => {
-            // Attempt 1: Initialize Web Worker offloading
+            // Register active worker listener to forward messages to this hook instance
+            activeWorkerListener = (e) => {
+                if (cancelled) return;
+                const { type, id, predictions } = e.data;
+
+                if (type === 'detect-res') {
+                    const resolver = pendingDetectionsRef.current[id];
+                    if (resolver) {
+                        delete pendingDetectionsRef.current[id];
+                        
+                        const filtered = (predictions || [])
+                            .filter(p => p.score >= CONFIDENCE_THRESHOLD)
+                            .map(p => ({
+                                class: p.class,
+                                score: p.score,
+                                bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
+                            }));
+                        setDetections(filtered);
+                        resolver(filtered);
+                    }
+                }
+            };
+
+            // Attempt 1: Load Web Worker
             try {
-                workerInstance = createProctoringWorker();
-                workerRef.current = workerInstance;
+                const worker = await initWorkerSession(window.location.origin);
+                if (cancelled) return;
 
-                workerInstance.onmessage = (e) => {
-                    if (cancelled) return;
-                    const { type, success, id, predictions, error } = e.data;
-
-                    if (type === 'init-ready') {
-                        if (success) {
-                            console.log("[YOLO Detector] Web Worker loaded successfully");
-                            workerReadyRef.current = true;
-                            setEngineType('coco-ssd-worker');
-                            setModelReady(true);
-                        } else {
-                            console.warn("[YOLO Detector] Worker init failed, trying main-thread:", error);
-                            initMainThreadFallback();
-                        }
-                    }
-
-                    if (type === 'detect-res') {
-                        const resolver = pendingDetectionsRef.current[id];
-                        if (resolver) {
-                            delete pendingDetectionsRef.current[id];
-                            
-                            const filtered = (predictions || [])
-                                .filter(p => p.score >= CONFIDENCE_THRESHOLD)
-                                .map(p => ({
-                                    class: p.class,
-                                    score: p.score,
-                                    bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
-                                }));
-                            setDetections(filtered);
-                            resolver(filtered);
-                        }
-                    }
-                };
-
-                workerInstance.postMessage({ type: 'init', data: { origin: window.location.origin } });
+                workerRef.current = worker;
+                workerReadyRef.current = true;
+                setEngineType('coco-ssd-worker');
+                setModelReady(true);
             } catch (err) {
-                console.warn("[YOLO Detector] Failed to spawn worker:", err);
+                console.warn("[YOLO Detector] Web Worker initialization failed, trying main-thread fallback:", err.message);
+                if (cancelled) return;
                 initMainThreadFallback();
             }
         };
 
         const initMainThreadFallback = async () => {
             try {
-                console.log("[YOLO Detector] Loading TensorFlow.js and COCO-SSD from CDN for main-thread fallback...");
-                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
-                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+                const model = await initMainThreadModel(window.location.origin);
+                if (cancelled) return;
 
-                const tf = window.tf;
-                const cocoSsd = window.cocoSsd;
-
-                if (!tf || !cocoSsd) {
-                    throw new Error("TensorFlow or COCO-SSD not found on window object");
-                }
-
-                // Initialize TF on main thread safely
-                try {
-                    await tf.setBackend('webgl');
-                    await tf.ready();
-                    console.log("[YOLO Detector] WebGL backend initialized successfully");
-                } catch (e) {
-                    console.warn("[YOLO Detector] WebGL unavailable, falling back to CPU:", e.message);
-                    await tf.setBackend('cpu');
-                    await tf.ready();
-                }
-
-                const model = await cocoSsd.load({ modelUrl: window.location.origin + "/models/coco-ssd/model.json" });
-                if (!cancelled) {
-                    cocoModelRef.current = model;
-                    setEngineType('coco-ssd-fallback');
-                    setModelReady(true);
-                    console.log("[YOLO Detector] COCO-SSD loaded locally on main-thread");
-                }
+                cocoModelRef.current = model;
+                setEngineType('coco-ssd-fallback');
+                setModelReady(true);
             } catch (cocoErr) {
                 console.error("[YOLO Detector] Main-thread COCO-SSD load failed:", cocoErr);
             }
@@ -191,11 +254,8 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
         return () => {
             cancelled = true;
-            if (workerInstance) {
-                workerInstance.terminate();
-                workerRef.current = null;
-                workerReadyRef.current = false;
-            }
+            // De-register our listener so we don't handle messages for unmounted hook
+            activeWorkerListener = null;
             // Resolve any remaining pending promises to avoid memory leaks
             Object.values(pendingDetectionsRef.current).forEach(resolve => resolve([]));
             pendingDetectionsRef.current = {};

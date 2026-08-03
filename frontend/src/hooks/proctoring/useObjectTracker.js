@@ -95,7 +95,11 @@ export function useObjectTracker(iouThreshold = 0.3, maxLostFrames = 10) {
         tracksArray.forEach((track) => {
             if (!matchedTrackIds.has(track.trackId)) {
                 track.lostFrames += 1;
-                track.consecutiveFrames = 0;
+                // Allow up to 2 consecutive missed frames before resetting the consecutiveFrames count.
+                // This prevents transient detection drops from resetting the confirmation timer.
+                if (track.lostFrames > 2) {
+                    track.consecutiveFrames = 0;
+                }
                 if (track.lostFrames > maxLostFrames) {
                     activeTracks.delete(track.trackId);
                 }

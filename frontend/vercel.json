@@ -1,17 +1,13 @@
 {
     "rewrites": [
         {
-            "source": "/models/coco-ssd/:path*",
-            "destination": "/models/coco-ssd/:path*"
-        },
-        {
-            "source": "/(.*)",
+            "source": "/((?!assets|models|favicon.ico|robots.txt|logo.png|og-image.png|pace.min.js|pace-theme-default.min.css|ai-avatar.png|googled8bb29d438601c6d.html|sitemap|.*\\.[a-zA-Z0-9]+).*)",
             "destination": "/index.html"
         }
     ],
     "headers": [
         {
-            "source": "/models/coco-ssd/group1-shard(.*)",
+            "source": "/models/coco-ssd/group1-shard*",
             "headers": [
                 {
                     "key": "Content-Type",
@@ -37,7 +33,7 @@
             ]
         },
         {
-            "source": "/assets/(.*)",
+            "source": "/assets/:path*",
             "headers": [
                 {
                     "key": "Cache-Control",
@@ -46,7 +42,7 @@
             ]
         },
         {
-            "source": "/(.*).(woff2|woff|ttf|otf|eot)",
+            "source": "/:path*.(woff2|woff|ttf|otf|eot)",
             "headers": [
                 {
                     "key": "Cache-Control",
@@ -55,7 +51,7 @@
             ]
         },
         {
-            "source": "/(.*).(png|jpg|jpeg|gif|webp|svg|ico)",
+            "source": "/:path*.(png|jpg|jpeg|gif|webp|svg|ico)",
             "headers": [
                 {
                     "key": "Cache-Control",
