@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import * as tf from "@tensorflow/tfjs";
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
 
 /**
  * useYOLODetector
@@ -41,7 +51,8 @@ const createProctoringWorker = () => {
                         await self.tf.setBackend('cpu');
                     }
                     
-                    model = await cocoSsd.load({ base: "mobilenet_v2" });
+                    const origin = data ? data.origin : self.location.origin;
+                    model = await cocoSsd.load({ modelUrl: origin + "/models/coco-ssd/model.json" });
                     self.postMessage({ type: 'init-ready', success: true });
                 } catch (err) {
                     console.error("[Proctoring Worker] Init failed:", err);
@@ -133,7 +144,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                     }
                 };
 
-                workerInstance.postMessage({ type: 'init' });
+                workerInstance.postMessage({ type: 'init', data: { origin: window.location.origin } });
             } catch (err) {
                 console.warn("[YOLO Detector] Failed to spawn worker:", err);
                 initMainThreadFallback();
@@ -142,6 +153,17 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
         const initMainThreadFallback = async () => {
             try {
+                console.log("[YOLO Detector] Loading TensorFlow.js and COCO-SSD from CDN for main-thread fallback...");
+                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+                await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+
+                const tf = window.tf;
+                const cocoSsd = window.cocoSsd;
+
+                if (!tf || !cocoSsd) {
+                    throw new Error("TensorFlow or COCO-SSD not found on window object");
+                }
+
                 // Initialize TF on main thread safely
                 try {
                     await tf.setBackend('webgl');
@@ -153,7 +175,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                     await tf.ready();
                 }
 
-                const model = await cocoSsd.load({ base: "mobilenet_v2" });
+                const model = await cocoSsd.load({ modelUrl: window.location.origin + "/models/coco-ssd/model.json" });
                 if (!cancelled) {
                     cocoModelRef.current = model;
                     setEngineType('coco-ssd-fallback');

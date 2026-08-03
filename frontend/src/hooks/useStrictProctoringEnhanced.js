@@ -64,19 +64,23 @@ export function useStrictProctoringEnhanced({
     );
 
     // ── Initial device enumeration ──────────────────────────────────────────
+    // ── Initial device enumeration ──────────────────────────────────────────
     useEffect(() => {
         if (!isActive || deviceCheckDoneRef.current) {
             return;
         }
 
-        deviceCheckDoneRef.current = true;
+        let retryTimeout = null;
 
         const checkDevices = async () => {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const cameras = devices.filter((d) => d.kind === "videoinput");
+                
+                // If permission is not granted, labels will be empty. We should wait and retry once permission is granted.
+                const hasLabels = cameras.some(c => c.label);
 
-                if (cameras.length > 1) {
+                if (cameras.length > 1 && hasLabels) {
                     const detail = `Multiple cameras detected at startup: ${cameras.length} video inputs found.`;
                     triggerViolation("MULTIPLE_DEVICES", detail);
                     logEnhancedViolation("MULTIPLE_DEVICES", detail, {
@@ -85,13 +89,25 @@ export function useStrictProctoringEnhanced({
                             labels: cameras.map((c) => c.label || "unknown"),
                         },
                     });
+                    deviceCheckDoneRef.current = true;
+                } else if (hasLabels) {
+                    // Labels exist, and only 1 camera. The check is complete.
+                    deviceCheckDoneRef.current = true;
+                } else {
+                    // Retry checking in 2 seconds (waiting for permission)
+                    retryTimeout = setTimeout(checkDevices, 2000);
                 }
             } catch (_) {
-                // enumerateDevices may not be available
+                // enumerateDevices may not be available or fails
+                deviceCheckDoneRef.current = true;
             }
         };
 
         checkDevices();
+
+        return () => {
+            if (retryTimeout) clearTimeout(retryTimeout);
+        };
     }, [isActive, triggerViolation, logEnhancedViolation]);
 
     // ── Live devicechange listener ──────────────────────────────────────────
@@ -132,14 +148,18 @@ export function useStrictProctoringEnhanced({
             return;
         }
 
-        // screen.isExtended is a boolean that's true when there are multiple screens
-        if (typeof window.screen?.isExtended !== "undefined" && window.screen.isExtended) {
-            const detail = "Secondary monitor detected via Window Management API.";
-            triggerViolation("MULTIPLE_DEVICES", detail);
-            logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                metadata: { screensExtended: true },
-            });
-        }
+        const checkScreenExtended = () => {
+            if (typeof window.screen?.isExtended !== "undefined" && window.screen.isExtended) {
+                const detail = "Secondary monitor detected via Window Management API.";
+                triggerViolation("MULTIPLE_DEVICES", detail);
+                logEnhancedViolation("MULTIPLE_DEVICES", detail, {
+                    metadata: { screensExtended: true },
+                });
+            }
+        };
+
+        // Run initial check
+        checkScreenExtended();
 
         // Also listen for changes (some browsers fire 'change' on screen)
         const handleScreenChange = () => {
@@ -158,12 +178,18 @@ export function useStrictProctoringEnhanced({
             // Not all browsers support this
         }
 
+        // Listen for focus & resize to capture monitor changes or dragging the window to another display
+        window.addEventListener("focus", checkScreenExtended);
+        window.addEventListener("resize", checkScreenExtended);
+
         return () => {
             try {
                 window.screen?.removeEventListener?.("change", handleScreenChange);
             } catch (_) {
                 // silent
             }
+            window.removeEventListener("focus", checkScreenExtended);
+            window.removeEventListener("resize", checkScreenExtended);
         };
     }, [isActive, triggerViolation, logEnhancedViolation]);
 
