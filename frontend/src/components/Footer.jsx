@@ -7,8 +7,14 @@ const Footer = ({ theme = 'dark' }) => {
             <div className="container mx-auto px-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-8">
                     <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">H</div>
-                        <span className={`font-bold bg-clip-text text-transparent text-sm tracking-widest uppercase ${isLight ? 'bg-gradient-to-r from-gray-800 to-gray-500' : 'bg-gradient-to-r from-white/50 to-white/30'}`}>hire1percent</span>
+                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#0c0f16] flex items-center justify-center shadow-lg border border-white/10 shrink-0">
+                            <img 
+                                src="/logo.png" 
+                                alt="hire1percent icon" 
+                                className="w-full h-full object-cover object-top scale-110" 
+                            />
+                        </div>
+                        <span className={`font-bold bg-clip-text text-transparent text-sm tracking-widest uppercase ${isLight ? 'bg-gradient-to-r from-gray-900 to-gray-500' : 'bg-gradient-to-r from-white/50 to-white/30'}`}>hire1percent</span>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm text-gray-500 font-medium">
