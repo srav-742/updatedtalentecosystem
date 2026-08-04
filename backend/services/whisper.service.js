@@ -17,7 +17,7 @@ const transcribeAudio = async (filePath) => {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(filePath));
             formData.append('model', 'whisper-large-v3');
-            // Whisper auto-detects language natively
+            formData.append('language', 'en');
 
             const response = await axios.post(
                 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -50,7 +50,7 @@ const transcribeAudio = async (filePath) => {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(filePath));
             formData.append('model_id', 'scribe_v2');
-            formData.append('language_code', 'auto');
+            formData.append('language_code', 'en');
 
             const response = await axios.post(
                 'https://api.elevenlabs.io/v1/speech-to-text',

@@ -20,7 +20,7 @@ async function transcribeAudio(audioPath) {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(audioPath));
             formData.append('model_id', 'scribe_v2');
-            // Leaving language_code omitted enables ElevenLabs auto-detection
+            formData.append('language_code', 'en');
 
             const response = await axios.post(
                 'https://api.elevenlabs.io/v1/speech-to-text',
@@ -55,7 +55,7 @@ async function transcribeAudio(audioPath) {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(audioPath));
             formData.append('model', 'whisper-large-v3');
-            // Whisper auto-detects language natively
+            formData.append('language', 'en');
 
             const response = await axios.post(
                 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -103,7 +103,7 @@ async function transcribeAudio(audioPath) {
             const genAI = new GoogleGenerativeAI(geminiKey);
             const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
             const result = await model.generateContent([
-                "Transcribe the candidate's exact spoken answer from this audio/video recording verbatim. Return ONLY the transcribed text without quotes, markdown, or commentary.",
+                "Transcribe the candidate's exact spoken answer from this audio/video recording verbatim in English. Do NOT return Telugu, Hindi, or any non-English script. Return ONLY the transcribed text in English without quotes, markdown, or commentary.",
                 { fileData: { fileUri: uploadResult.file.uri, mimeType: uploadResult.file.mimeType } }
             ]);
             fileManager.deleteFile(uploadResult.file.name).catch(() => null);

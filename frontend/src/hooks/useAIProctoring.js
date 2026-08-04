@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { logDiag, recordError, recordInferenceTime, getOrCreateDiagnostics } from "../utils/proctoringDiagnostics";
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 /**
  * useAIProctoring
@@ -103,7 +105,7 @@ async function loadScriptWithFailover(urls) {
 let cachedCocoModel = null;
 let tfInitPromise = null;
 
-const initTfAndModel = async (localOrigin) => {
+const initTfAndModel = async (modelUrl) => {
     if (cachedCocoModel) return cachedCocoModel;
 
     if (tfInitPromise) {
@@ -112,17 +114,7 @@ const initTfAndModel = async (localOrigin) => {
 
     tfInitPromise = (async () => {
         const startTime = Date.now();
-        logDiag("AI Proctoring", "Loading TFJS & COCO-SSD scripts with CDN failover...");
-
-        await loadScriptWithFailover(TFJS_CDN_URLS);
-        await loadScriptWithFailover(COCO_SSD_CDN_URLS);
-
-        const tf = window.tf;
-        const cocoSsd = window.cocoSsd;
-
-        if (!tf || !cocoSsd) {
-            throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
-        }
+        logDiag("AI Proctoring", "Initializing TFJS & COCO-SSD on main thread...");
 
         const diag = getOrCreateDiagnostics();
 
@@ -151,15 +143,17 @@ const initTfAndModel = async (localOrigin) => {
             }
         }
 
-        const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
-        logDiag("AI Proctoring", `Loading COCO-SSD model from ${safeOrigin}/models/coco-ssd/model.json`);
-        
         try {
             let model;
-            try {
-                model = await cocoSsd.load({ modelUrl: safeOrigin + "/models/coco-ssd/model.json" });
-            } catch (localLoadErr) {
-                logDiag("AI Proctoring", `Local model load failed (${localLoadErr.message}), falling back to default CDN model...`);
+            if (modelUrl) {
+                try {
+                    logDiag("AI Proctoring", `Loading COCO-SSD model from ${modelUrl}`);
+                    model = await cocoSsd.load({ modelUrl });
+                } catch (localLoadErr) {
+                    logDiag("AI Proctoring", `Local model load failed (${localLoadErr.message}), falling back to default CDN model...`);
+                    model = await cocoSsd.load();
+                }
+            } else {
                 model = await cocoSsd.load();
             }
 
@@ -321,7 +315,10 @@ export function useAIProctoring({
 
         const initObjectDetection = async () => {
             try {
-                const model = await initTfAndModel(window.location.origin);
+                const base = import.meta.env.BASE_URL || "/";
+                const modelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + "models/coco-ssd/model.json";
+
+                const model = await initTfAndModel(modelUrl);
                 if (cancelled) return;
 
                 cocoModelRef.current = model;

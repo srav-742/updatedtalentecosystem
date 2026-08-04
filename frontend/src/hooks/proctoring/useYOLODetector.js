@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { logDiag, recordError, recordInferenceTime } from "../../utils/proctoringDiagnostics";
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -87,14 +89,13 @@ const createProctoringWorker = () => {
                         console.warn("[Worker] Unable to set CPU backend explicitly:", bErr);
                     }
 
-                    const origin = (data && data.origin && data.origin !== "null") ? data.origin : self.location.origin;
+                    const modelUrl = data && data.modelUrl;
                     let loaded = false;
 
-                    if (origin && origin !== "null") {
+                    if (modelUrl) {
                         try {
-                            const localModelUrl = origin + "/models/coco-ssd/model.json";
-                            console.log("[Worker] Loading model from local origin:", localModelUrl);
-                            model = await self.cocoSsd.load({ modelUrl: localModelUrl });
+                            console.log("[Worker] Loading model from URL:", modelUrl);
+                            model = await self.cocoSsd.load({ modelUrl: modelUrl });
                             loaded = true;
                         } catch (localErr) {
                             console.warn("[Worker] Local model fetch failed, falling back to CDN:", localErr.message);
@@ -151,7 +152,7 @@ let activeWorkerListener = null;
 let globalMainModel = null;
 let globalMainModelInitPromise = null;
 
-const initWorkerSession = (localOrigin) => {
+const initWorkerSession = (modelUrl) => {
     if (globalWorkerInitPromise) {
         return globalWorkerInitPromise;
     }
@@ -187,8 +188,7 @@ const initWorkerSession = (localOrigin) => {
                 }
             };
 
-            const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
-            worker.postMessage({ type: 'init', data: { origin: safeOrigin } });
+            worker.postMessage({ type: 'init', data: { modelUrl } });
         } catch (err) {
             _globalWorkerStatus = 'failed';
             recordError("worker-spawn", err);
@@ -213,7 +213,7 @@ const loadWithFailover = async (cdnUrls) => {
     throw lastErr || new Error("All CDN script sources failed");
 };
 
-const initMainThreadModel = async (localOrigin) => {
+const initMainThreadModel = async (modelUrl) => {
     if (globalMainModel) return globalMainModel;
 
     if (globalMainModelInitPromise) {
@@ -222,17 +222,7 @@ const initMainThreadModel = async (localOrigin) => {
 
     globalMainModelInitPromise = (async () => {
         const startTime = Date.now();
-        logDiag("YOLO Fallback", "Loading TFJS & COCO-SSD scripts on main thread...");
-
-        await loadWithFailover(TFJS_CDN_URLS);
-        await loadWithFailover(COCO_SSD_CDN_URLS);
-
-        const tf = window.tf;
-        const cocoSsd = window.cocoSsd;
-
-        if (!tf || !cocoSsd) {
-            throw new Error("TensorFlow or COCO-SSD script could not be resolved from window object");
-        }
+        logDiag("YOLO Fallback", "Initializing TFJS & COCO-SSD on main thread...");
 
         logDiag("YOLO Fallback", "Setting up WebGL backend...");
         try {
@@ -254,12 +244,15 @@ const initMainThreadModel = async (localOrigin) => {
         }
 
         let model;
-        const safeOrigin = (localOrigin && localOrigin !== "null") ? localOrigin : window.location.origin;
-        try {
-            logDiag("YOLO Fallback", `Loading local model from ${safeOrigin}/models/coco-ssd/model.json`);
-            model = await cocoSsd.load({ modelUrl: safeOrigin + "/models/coco-ssd/model.json" });
-        } catch (localLoadErr) {
-            logDiag("YOLO Fallback", `Local load failed (${localLoadErr.message}), trying default CDN model...`);
+        if (modelUrl) {
+            try {
+                logDiag("YOLO Fallback", `Loading local model from ${modelUrl}`);
+                model = await cocoSsd.load({ modelUrl });
+            } catch (localLoadErr) {
+                logDiag("YOLO Fallback", `Local load failed (${localLoadErr.message}), trying default CDN model...`);
+                model = await cocoSsd.load();
+            }
+        } else {
             model = await cocoSsd.load();
         }
 
@@ -295,6 +288,9 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         let cancelled = false;
 
         const initDetector = async () => {
+            const base = import.meta.env.BASE_URL || "/";
+            const modelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + "models/coco-ssd/model.json";
+
             activeWorkerListener = (e) => {
                 if (cancelled) return;
                 const { type, id, predictions } = e.data;
@@ -320,7 +316,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
             // Attempt 1: Web Worker
             try {
-                const worker = await initWorkerSession(window.location.origin);
+                const worker = await initWorkerSession(modelUrl);
                 if (cancelled) return;
 
                 workerRef.current = worker;
@@ -330,13 +326,13 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
             } catch (err) {
                 logDiag("YOLO Detector", `Worker init failed (${err.message}), using main-thread fallback`);
                 if (cancelled) return;
-                initMainThreadFallback();
+                initMainThreadFallback(modelUrl);
             }
         };
 
-        const initMainThreadFallback = async () => {
+        const initMainThreadFallback = async (modelUrl) => {
             try {
-                const model = await initMainThreadModel(window.location.origin);
+                const model = await initMainThreadModel(modelUrl);
                 if (cancelled) return;
 
                 cocoModelRef.current = model;
