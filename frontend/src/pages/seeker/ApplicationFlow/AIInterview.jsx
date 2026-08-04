@@ -514,11 +514,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             
                             // Check for standard Whisper hallucinations/fallbacks
                             const invalidWhisperPhrases = [
-                                "thank you", "e ai", "legend by", "watching", "by subtitle", 
-                                "subtitles by", "english subtitles", "you", "e aí",
+                                "thank you", "thank you for watching", "thanks for watching", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí", "amaraorg", "subtitles", "subscribe",
                                 "i am describing my technical experience and relevant skills for this specific role"
                             ];
-                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
+                            const nonEnglishRegex = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/;
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper) || nonEnglishRegex.test(whisperText);
 
                             if (!isWhisperInvalid) {
                                 // Prefer whichever transcript has more text content to avoid truncating candidate answers
@@ -533,6 +534,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         }
                     } catch (e) {
                         console.error("Audio upload/STT failed:", e);
+                    }
+
+                    if (answerText) {
+                        answerText = answerText
+                            .replace(/[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/g, '')
+                            .replace(/\b(uh|um|okey|hmm+|hmmm+|er+)\b/gi, '')
+                            .replace(/^(yeah|yea|ah|oh)\b[,\s]*/gi, '')
+                            .replace(/\b(yeah|yea)\b/gi, 'yes')
+                            .replace(/^(okey|okay)\b[,\s]*/gi, '')
+                            .replace(/\s{2,}/g, ' ')
+                            .trim();
                     }
 
                     if (!answerText || answerText.trim().length < 2) {

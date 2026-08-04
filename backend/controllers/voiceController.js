@@ -2,33 +2,33 @@ const transcriptionService = require('../transcription_service');
 const ttsService = require('../services/tts.service');
 const path = require('path');
 const fs = require('fs-extra');
+const { sanitizeTranscript, isInvalidTranscript } = require('../utils/transcriptSanitizer');
 
 const uploadAudio = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No audio file uploaded" });
         const audioPath = path.resolve(req.file.path);
-        const localTranscript = req.body?.localTranscript || "";
-        console.log(`[STT] Processing: ${audioPath}. Local transcript: "${localTranscript}"`);
+        const rawLocalTranscript = req.body?.localTranscript || "";
+        const localTranscript = sanitizeTranscript(rawLocalTranscript);
+        console.log(`[STT] Processing: ${audioPath}. Sanitized Local transcript: "${localTranscript}"`);
 
-        let transcript = await transcriptionService.transcribeAudio(audioPath);
-        console.log(`[STT] Whisper Result: "${transcript}"`);
+        let rawTranscript = await transcriptionService.transcribeAudio(audioPath);
+        let transcript = sanitizeTranscript(rawTranscript);
+        console.log(`[STT] STT Sanitized Result: "${transcript}"`);
 
-        // Check if Whisper result is a hallucination or empty, and we have a local transcript
-        const normalizedWhisper = String(transcript || "").toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
-        const invalidWhisperPhrases = [
-            "thank you", "e ai", "legend by", "watching", "by subtitle", 
-            "subtitles by", "english subtitles", "you", "e aí",
-            "i am describing my technical experience and relevant skills for this specific role"
-        ];
-        const isWhisperInvalid = !transcript || invalidWhisperPhrases.includes(normalizedWhisper);
+        // Check if STT result is a hallucination or empty, and we have a valid local transcript
+        const isWhisperInvalid = isInvalidTranscript(transcript);
 
         if (isWhisperInvalid && localTranscript && localTranscript.trim().length > 0) {
-            console.log(`[STT] Whisper returned invalid/empty. Falling back to local transcript: "${localTranscript}"`);
+            console.log(`[STT] Whisper returned invalid/empty. Falling back to sanitized local transcript: "${localTranscript}"`);
             transcript = localTranscript.trim();
         } else if (localTranscript && localTranscript.trim().length > (transcript || "").trim().length + 10 && localTranscript.trim().length > (transcript || "").trim().length * 1.3) {
             console.log(`[STT] Local transcript has significantly more spoken content than Whisper. Using local transcript.`);
             transcript = localTranscript.trim();
         }
+
+        // Final sanitation check on transcript before returning
+        transcript = sanitizeTranscript(transcript);
 
         // Cleanup only if NOT in private_storage (regular uploads)
         if (!audioPath.includes('private_storage')) {

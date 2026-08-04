@@ -10,6 +10,7 @@ const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanc
 const { getViolationRating } = require('../utils/proctoringScoring');
 const ProctoringReport = require('../models/ProctoringReport');
 const { updateProctoringReport } = require('./proctoringControllerEnhanced');
+const { sanitizeTranscript } = require('../utils/transcriptSanitizer');
 
 const sanitizeViolationDetail = (type, detail, rating) => {
     if (!detail) return '';
@@ -110,11 +111,17 @@ const getTranscript = async (req, res) => {
         const sessionIdStr = application.recordingSessionId;
 
         const queryConditions = [];
-        if (jobIdStr && sessionIdStr) {
-            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        if (userId && jobIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(jobIdStr) } 
+            });
         }
-        if (userId) {
-            queryConditions.push({ userId });
+        if (userId && sessionIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(sessionIdStr) } 
+            });
         }
 
         let baseViolations = [];
@@ -270,7 +277,7 @@ const getTranscript = async (req, res) => {
                 questions: (application.interviewAnswers || []).map((q, idx) => ({
                     questionNumber: q.questionNumber || idx + 1,
                     question: q.question || '',
-                    answer: q.answer || '',
+                    answer: sanitizeTranscript(q.answer || ''),
                     score: q.score || 0,
                     marks: q.marks || 0,
                     feedback: q.feedback || '',
@@ -329,9 +336,9 @@ const getJobCandidates = async (req, res) => {
         ]);
 
         const userPenaltyMap = {};
-        const addRating = (userId, examId, type, metadata) => {
+        const addRating = (userId, examId, type, metadata, ratingFromDb) => {
             if (!userId) return;
-            const rating = getViolationRating(type, metadata);
+            const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
             
             let jobId = null;
             if (examId && typeof examId === 'string') {
@@ -345,16 +352,16 @@ const getJobCandidates = async (req, res) => {
         };
 
         baseViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         enhancedViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         const candidates = applications.map(app => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
+            const rawPenalty = userPenaltyMap[key] || 0;
             const proctoringScore = rawPenalty;
 
             // Compute live accurate scores using unified score calculator

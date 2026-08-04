@@ -450,11 +450,17 @@ const getProctoringDetails = async (req, res) => {
         const sessionIdStr = application.recordingSessionId;
 
         const queryConditions = [];
-        if (jobIdStr && sessionIdStr) {
-            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        if (application.userId && jobIdStr) {
+            queryConditions.push({ 
+                userId: application.userId, 
+                examId: { $regex: new RegExp(jobIdStr) } 
+            });
         }
-        if (application.userId) {
-            queryConditions.push({ userId: application.userId });
+        if (application.userId && sessionIdStr) {
+            queryConditions.push({ 
+                userId: application.userId, 
+                examId: { $regex: new RegExp(sessionIdStr) } 
+            });
         }
 
         let baseViolations = [];

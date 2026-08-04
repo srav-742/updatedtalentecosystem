@@ -117,9 +117,9 @@ const getRecruiterApplications = async (req, res) => {
 
         const applicationPenaltyMap = {};
         const applicationFlagsMap = {};
-        const addRating = (userId, examId, type, metadata) => {
+        const addRating = (userId, examId, type, metadata, ratingFromDb) => {
             if (!userId) return;
-            const rating = getViolationRating(type, metadata);
+            const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
             
             // Extract jobId from examId (format: type:jobId:sessionId)
             let jobId = null;
@@ -142,11 +142,11 @@ const getRecruiterApplications = async (req, res) => {
         };
 
         baseViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         enhancedViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         const isAdmin = reqUser && reqUser.role === 'admin';
@@ -165,13 +165,11 @@ const getRecruiterApplications = async (req, res) => {
         const appsWithScore = apps.map((app, index) => {
             const jobIdStr = app.jobId?._id?.toString() || app.jobId?.toString();
             const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = applicationPenaltyMap[appKey] !== undefined 
-                ? applicationPenaltyMap[appKey] 
-                : (applicationPenaltyMap[app.userId] || 0);
+            const rawPenalty = applicationPenaltyMap[appKey] || 0;
             app.integrityPenalty = rawPenalty;
             app.proctoringScore = rawPenalty;
             
-            const flags = applicationFlagsMap[appKey] || applicationFlagsMap[app.userId];
+            const flags = applicationFlagsMap[appKey];
             app.proctoringFlags = flags ? Array.from(flags) : [];
             
             let isResumeLocked = true;

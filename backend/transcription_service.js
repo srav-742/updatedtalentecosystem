@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const axios = require('axios');
 const FormData = require('form-data');
+const { sanitizeTranscript } = require('./utils/transcriptSanitizer');
 
 /**
  * Robust multilingual transcription using ElevenLabs Speech-to-Text (Scribe v2).
@@ -8,7 +9,7 @@ const FormData = require('form-data');
  * Improvements:
  *   - Automatic language detection for foreign language support
  *   - Groq Whisper fallback if ElevenLabs fails
- *   - Better error handling and logging
+ *   - Sanitizes filler words, foreign script hallucinations (Telugu/Hindi/Urdu), and silence artifacts
  *   - Support for multiple audio formats
  */
 async function transcribeAudio(audioPath) {
@@ -34,14 +35,15 @@ async function transcribeAudio(audioPath) {
                 }
             );
 
-            const transcript = response.data.text?.trim() || "";
+            const rawTranscript = response.data.text?.trim() || "";
+            const transcript = sanitizeTranscript(rawTranscript);
             const detectedLang = response.data.language_code || "unknown";
             
             if (transcript && transcript.length > 1) {
                 console.log(`[STT] ✓ ElevenLabs Scribe success | Language: ${detectedLang} | Length: ${transcript.length}`);
                 return transcript;
             }
-            console.warn("[STT] ElevenLabs returned empty transcript, trying fallback...");
+            console.warn("[STT] ElevenLabs returned empty/sanitized transcript, trying fallback...");
         }
     } catch (error) {
         console.error("[STT-ELEVENLABS ERROR]:", error.response?.data ? JSON.stringify(error.response.data) : error.message);
@@ -56,6 +58,7 @@ async function transcribeAudio(audioPath) {
             formData.append('file', fs.createReadStream(audioPath));
             formData.append('model', 'whisper-large-v3');
             formData.append('language', 'en');
+            formData.append('prompt', 'This is a professional candidate technical job interview response in clear English. Do not include filler words like uh, um, yeah, okay.');
 
             const response = await axios.post(
                 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -69,12 +72,13 @@ async function transcribeAudio(audioPath) {
                 }
             );
 
-            const transcript = response.data.text?.trim() || "";
+            const rawTranscript = response.data.text?.trim() || "";
+            const transcript = sanitizeTranscript(rawTranscript);
             if (transcript && transcript.length > 1) {
                 console.log(`[STT] ✓ Groq Whisper fallback success | Length: ${transcript.length}`);
                 return transcript;
             }
-            console.warn("[STT] Groq Whisper returned empty transcript.");
+            console.warn("[STT] Groq Whisper returned empty/sanitized transcript.");
         }
     } catch (error) {
         console.error("[STT-GROQ-WHISPER ERROR]:", error.response?.data || error.message);
@@ -103,11 +107,12 @@ async function transcribeAudio(audioPath) {
             const genAI = new GoogleGenerativeAI(geminiKey);
             const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
             const result = await model.generateContent([
-                "Transcribe the candidate's exact spoken answer from this audio/video recording verbatim in English. Do NOT return Telugu, Hindi, or any non-English script. Return ONLY the transcribed text in English without quotes, markdown, or commentary.",
+                "Transcribe the candidate's exact spoken answer from this audio/video recording verbatim in clear English. Do NOT include filler words like uh, um, yeah, okay. Do NOT return Telugu, Hindi, or any non-English script. Return ONLY the transcribed text in English without quotes, markdown, or commentary.",
                 { fileData: { fileUri: uploadResult.file.uri, mimeType: uploadResult.file.mimeType } }
             ]);
             fileManager.deleteFile(uploadResult.file.name).catch(() => null);
-            const transcript = result.response.text()?.trim() || "";
+            const rawTranscript = result.response.text()?.trim() || "";
+            const transcript = sanitizeTranscript(rawTranscript);
             if (transcript && transcript.length > 1) {
                 console.log(`[STT] ✓ Gemini 2.5 Flash STT success | Length: ${transcript.length}`);
                 return transcript;
@@ -123,3 +128,4 @@ async function transcribeAudio(audioPath) {
 }
 
 module.exports = { transcribeAudio };
+

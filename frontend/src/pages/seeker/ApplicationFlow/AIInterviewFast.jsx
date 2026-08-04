@@ -592,11 +592,12 @@ const AIInterviewFast = ({
                             const normalizedWhisper = whisperText.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
                             
                             const invalidWhisperPhrases = [
-                                "thank you", "e ai", "legend by", "watching", "by subtitle", 
-                                "subtitles by", "english subtitles", "you", "e aí",
+                                "thank you", "thank you for watching", "thanks for watching", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí", "amaraorg", "subtitles", "subscribe",
                                 "i am describing my technical experience and relevant skills for this specific role"
                             ];
-                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
+                            const nonEnglishRegex = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/;
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper) || nonEnglishRegex.test(whisperText);
 
                             if (!isWhisperInvalid) {
                                 // Keep local transcript only if it has significantly more text content
@@ -614,7 +615,16 @@ const AIInterviewFast = ({
                         console.warn("[FAST] Audio STT upload failed, falling back to local transcript:", sttErr.message);
                     }
 
+                    // Clean filler words, foreign script remnants, and leading hesitation
                     if (finalAnswerText) {
+                        finalAnswerText = finalAnswerText
+                            .replace(/[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/g, '')
+                            .replace(/\b(uh|um|okey|hmm+|hmmm+|er+)\b/gi, '')
+                            .replace(/^(yeah|yea|ah|oh)\b[,\s]*/gi, '')
+                            .replace(/\b(yeah|yea)\b/gi, 'yes')
+                            .replace(/^(okey|okay)\b[,\s]*/gi, '')
+                            .replace(/\s{2,}/g, ' ')
+                            .trim();
                         setTranscript(finalAnswerText);
                         latestTranscriptRef.current = finalAnswerText;
                     }

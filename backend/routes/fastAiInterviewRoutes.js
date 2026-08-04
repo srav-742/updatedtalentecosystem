@@ -35,6 +35,7 @@ const {
     roundToTenth,
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
+const { sanitizeTranscript, isInvalidTranscript } = require('../utils/transcriptSanitizer');
 
 const MAX_INTERVIEW_QUESTIONS = 5;
 
@@ -677,7 +678,8 @@ router.post('/next-fast', async (req, res) => {
         const session = await loadSession(sessionId);
         if (!session) return res.status(404).json({ message: "Session not found" });
 
-        const normalizedAnswer = String(answerText || '').trim();
+        const rawAnswer = String(answerText || '').trim();
+        const normalizedAnswer = sanitizeTranscript(rawAnswer);
 
         const interviewers = session.history.filter(h => h.role === 'interviewer');
         const currentQuestionNumber = interviewers.length;
@@ -785,17 +787,12 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
 
             try {
                 const transcriptionService = require('../transcription_service');
-                const transcript = await transcriptionService.transcribeAudio(audioPath);
-                console.log(`[FAST-AUDIO-ASYNC] Background transcription: "${transcript}"`);
+                const rawTranscript = await transcriptionService.transcribeAudio(audioPath);
+                const transcript = sanitizeTranscript(rawTranscript);
+                console.log(`[FAST-AUDIO-ASYNC] Background transcription sanitized: "${transcript}"`);
 
                 if (transcript && transcript.trim().length > 0 && targetSessionId) {
-                    const normalizedBg = transcript.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
-                    const invalidWhisperPhrases = [
-                        "thank you", "e ai", "legend by", "watching", "by subtitle", 
-                        "subtitles by", "english subtitles", "you", "e aí",
-                        "i am describing my technical experience and relevant skills for this specific role"
-                    ];
-                    const isBgInvalid = invalidWhisperPhrases.includes(normalizedBg);
+                    const isBgInvalid = isInvalidTranscript(transcript);
 
                     if (!isBgInvalid) {
                         const session = await loadSession(targetSessionId);

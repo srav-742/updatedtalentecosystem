@@ -148,10 +148,6 @@ const updateProctoringReport = async (examId, userId) => {
             if (!app && jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
-            // 3. Fallback to just userId
-            if (!app) {
-                app = await Application.findOne({ userId }).select('_id').lean();
-            }
             if (app) {
                 applicationId = app._id;
             }
@@ -159,9 +155,6 @@ const updateProctoringReport = async (examId, userId) => {
             let app = null;
             if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
-            }
-            if (!app) {
-                app = await Application.findOne({ userId }).select('_id').lean();
             }
             if (app) {
                 applicationId = app._id;
@@ -441,9 +434,27 @@ const getAllReports = async (req, res) => {
         for (let i = 0; i < reports.length; i++) {
             const report = reports[i];
             if (!report.applicationId) {
-                const app = await Application.findOne({ userId: report.userId })
-                    .populate('jobId', 'title')
-                    .lean();
+                let app = null;
+                let jobId = null;
+                if (report.examId && typeof report.examId === 'string') {
+                    const parts = report.examId.split(':');
+                    if (parts.length >= 2) {
+                        jobId = parts[1];
+                    }
+                }
+
+                if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+                    app = await Application.findOne({ userId: report.userId, jobId: new mongoose.Types.ObjectId(jobId) })
+                        .populate('jobId', 'title')
+                        .lean();
+                }
+
+                if (!app) {
+                    app = await Application.findOne({ userId: report.userId })
+                        .populate('jobId', 'title')
+                        .lean();
+                }
+
                 if (app) {
                     report.resolvedApplication = {
                         _id: app._id,
