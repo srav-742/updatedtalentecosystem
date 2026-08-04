@@ -22,14 +22,14 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.35, // Adjusted to 0.35 to allow moving average confirmation
-    objectConfidenceThreshold: 0.40,
-    phoneRequiredFrames: 3,        // 3 seconds required for phone detection confirmation (3 x 1000ms)
-    objectRequiredFrames: 2,
+    phoneConfidenceThreshold: 0.30, // Optimized to 0.30 for fast mobile phone detection
+    objectConfidenceThreshold: 0.35, // Optimized to 0.35 for object detection
+    phoneRequiredFrames: 2,        // 2 frames required (~0.8s detection confirmation)
+    objectRequiredFrames: 2,       // 2 frames required (~0.8s detection confirmation)
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
-    objectDetectionIntervalMs: 1000, // Run check every 1 second
+    objectDetectionIntervalMs: 400, // Run object check every 400ms (~2.5 FPS)
     onnxLoadTimeoutMs: 8000,
 };
 
@@ -223,8 +223,8 @@ export function useAIProctoring({
 
     const lastViolationTimeRef = useRef({});
     const VIOLATION_COOLDOWN_MS = 5000;
-    const PHONE_VIOLATION_COOLDOWN_MS = 8000;
-    const OBJECT_VIOLATION_COOLDOWN_MS = 15000;
+    const PHONE_VIOLATION_COOLDOWN_MS = 5000;
+    const OBJECT_VIOLATION_COOLDOWN_MS = 5000;
 
     const noPersonTimerRef = useRef(null);
     const gazeHistoryRef = useRef([]);

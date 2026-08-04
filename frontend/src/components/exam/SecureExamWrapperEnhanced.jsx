@@ -158,7 +158,11 @@ export default function SecureExamWrapperEnhanced({
         if (videoRef.current && activeStream) {
             const videoTrack = activeStream.getVideoTracks?.()[0];
             if (videoTrack) {
-                videoRef.current.srcObject = new MediaStream([videoTrack]);
+                const stream = new MediaStream([videoTrack]);
+                if (videoRef.current.srcObject !== stream) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.play().catch(() => {});
+                }
             }
         }
     }, [activeStream, videoEl]);

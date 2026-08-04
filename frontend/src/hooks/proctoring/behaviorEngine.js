@@ -46,24 +46,24 @@ export const SCORE_PENALTIES = {
 
 // ── Temporal rule definitions ────────────────────────────────────────────────
 export const PHONE_RULES = {
-    ignoreUnderMs: 3000,
-    warningAfterMs: 3000,
+    ignoreUnderMs: 1000,
+    warningAfterMs: 1000,
     majorWarningAfterMs: 5000,
     autoSubmitAfterMs: 15000,
-    minConfidence: 0.35,            // Adapted for browser-compatible COCO-SSD MobileNet V2
-    minAverageConfidence: 0.40,     // Moving average confirmation threshold over frames
-    minConsecutiveFrames: 3,        // Requires 3 frames to confirm phone
-    minPersistenceMs: 3000,         // Set strictly to 3 seconds (3000ms) as required
+    minConfidence: 0.30,            // Adapted for browser-compatible COCO-SSD MobileNet V2
+    minAverageConfidence: 0.35,     // Moving average confirmation threshold over frames
+    minConsecutiveFrames: 2,        // Requires 2 frames to confirm phone (~0.8s)
+    minPersistenceMs: 1000,         // 1 second persistence required (< 3s total)
     staticMovementThreshold: 8,
     dynamicMovementThreshold: 18,
-    confirmationFrames: 3,
+    confirmationFrames: 2,
 };
 
 export const OBJECT_RULES = {
     environmentBaselineMs: 5000,
-    minConfidence: 0.40,
-    minConsecutiveFrames: 3,
-    minPersistenceMs: 2000,
+    minConfidence: 0.35,
+    minConsecutiveFrames: 2,
+    minPersistenceMs: 1000,
 };
 
 export const FACE_RULES = {
