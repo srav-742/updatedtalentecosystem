@@ -192,13 +192,7 @@ export default function SecureExamWrapperEnhanced({
                 confidence: meta.confidence || null,
                 metadata: meta,
             });
-
-            // Re-enabled toasts to show AI feedback to candidate
-            const toastId = Date.now() + Math.random();
-            setToasts((prev) => [...prev, { id: toastId, type, detail }]);
-            setTimeout(() => {
-                setToasts((prev) => prev.filter((t) => t.id !== toastId));
-            }, 4000);
+            // Hiding toasts/flags from the candidate UI (stored in DB only)
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -225,17 +219,6 @@ export default function SecureExamWrapperEnhanced({
     const prevViolationsLengthRef = useRef(0);
     useEffect(() => {
         if (violations && violations.length > prevViolationsLengthRef.current) {
-            const newViolations = violations.slice(prevViolationsLengthRef.current);
-            newViolations.forEach((v) => {
-                if (v.type === "TAB_SWITCH" || v.type === "WINDOW_BLUR" || v.type === "FULLSCREEN_EXIT") {
-                    // Re-enabled toast for tab switch to show candidate proctoring works
-                    const toastId = Date.now() + Math.random();
-                    setToasts((prev) => [...prev, { id: toastId, type: v.type, detail: v.detail }]);
-                    setTimeout(() => {
-                        setToasts((prev) => prev.filter((t) => t.id !== toastId));
-                    }, 4000);
-                }
-            });
             prevViolationsLengthRef.current = violations.length;
         } else if (violations && violations.length === 0) {
             prevViolationsLengthRef.current = 0;
@@ -317,15 +300,11 @@ export default function SecureExamWrapperEnhanced({
     // ── AI status indicator ─────────────────────────────────────────────────
     const getAIStatusColor = () => {
         if (!faceMeshReady && !objectModelReady) return "bg-gray-400";
-        if (faceCount === 0) return "bg-red-500 animate-pulse";
-        if (faceCount > 1) return "bg-orange-500 animate-pulse";
         return "bg-emerald-500";
     };
 
     const getAIStatusText = () => {
         if (!faceMeshReady && !objectModelReady) return "AI Loading…";
-        if (faceCount === 0) return "No face detected";
-        if (faceCount > 1) return `${faceCount} faces`;
         return "AI Active";
     };
 
@@ -425,11 +404,7 @@ export default function SecureExamWrapperEnhanced({
                     onMouseDown={handleDragStart}
                     onTouchStart={handleDragStart}
                 >
-                    <div className={`overflow-hidden rounded-2xl border-2 transition-all duration-300 shadow-2xl ${
-                        (detections.some((d) => d.class === "cell phone" || d.class === "Mobile phone" || d.class === "Telephone") || faceCount > 1 || detections.some((d) => isSuspiciousUI(d.class)))
-                            ? "border-red-500 ring-4 ring-red-500/30 animate-pulse"
-                            : "border-black/10"
-                    } bg-black`}>
+                    <div className="overflow-hidden rounded-2xl border-2 border-black/10 transition-all duration-300 shadow-2xl bg-black">
                         <video
                             ref={videoRefCallback}
                             autoPlay
@@ -444,31 +419,13 @@ export default function SecureExamWrapperEnhanced({
                             {faceMeshReady && (
                                 <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
                                     <Eye size={8} />
-                                    {faceCount === 1 ? "1 face" : `${faceCount} faces`}
+                                    Face Active
                                 </span>
                             )}
                             {objectModelReady && (
                                 <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
                                     <Camera size={8} />
                                     {objectModelType?.toUpperCase()}
-                                </span>
-                            )}
-                            {detections.some((d) => d.class === "cell phone" || d.class === "Mobile phone" || d.class === "Telephone") && (
-                                <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Smartphone size={8} />
-                                    PHONE
-                                </span>
-                            )}
-                            {detections.some((d) => isSuspiciousUI(d.class)) && (
-                                <span className="flex items-center gap-1 rounded-full bg-amber-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <AlertTriangle size={8} />
-                                    OBJECT ({detections.find((d) => isSuspiciousUI(d.class))?.class?.toUpperCase()})
-                                </span>
-                            )}
-                            {faceCount > 1 && (
-                                <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Users size={8} />
-                                    {faceCount}
                                 </span>
                             )}
                         </div>
