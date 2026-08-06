@@ -237,25 +237,7 @@ export default function SecureExamWrapperMultiLayer({
                 />
             )}
 
-            {/* Top Bar Real-Time Score & Security Status */}
-            {isActive && showDebugPanel && (
-                <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-semibold text-gray-700 shadow-xl backdrop-blur">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                        <ShieldCheck size={16} />
-                    </span>
-                    <span>Protected session</span>
 
-                    {requireCamera && (
-                        <>
-                            <span className="h-4 w-px bg-black/10" />
-                            <span className={`h-2.5 w-2.5 rounded-full ${isReady ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                            <span className="text-[10px] uppercase tracking-wider text-gray-500">
-                                {isReady ? 'AI Active' : 'Initializing AI...'}
-                            </span>
-                        </>
-                    )}
-                </div>
-            )}
 
             {/* Draggable Webcam Preview */}
             {requireCamera && isActive && activeStream && showWebcamPreview && (
@@ -274,17 +256,7 @@ export default function SecureExamWrapperMultiLayer({
                             style={{ transform: "scaleX(-1)", aspectRatio: "4/3" }}
                         />
 
-                        {/* Telemetry Overlay Badges */}
-                        {showDebugPanel && (
-                            <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                                {isReady && (
-                                    <span className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">
-                                        <Eye size={10} />
-                                        Face Active
-                                    </span>
-                                )}
-                            </div>
-                        )}
+
                     </div>
                 </div>
             )}
