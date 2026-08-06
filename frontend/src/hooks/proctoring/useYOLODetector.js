@@ -4,27 +4,40 @@ import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import * as ort from 'onnxruntime-web';
 
+// ─── ONNX Runtime WASM backend configuration ──────────────────────────────
+// Use CDN-hosted WASM files to avoid Vercel deployment size limits
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
 
-function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) return resolve();
-        const script = document.createElement("script");
-        script.src = src;
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
+// ─── Model Configuration ──────────────────────────────────────────────────
+const CONFIDENCE_THRESHOLD = 0.35;
 
-const CONFIDENCE_THRESHOLD = 0.35; // Optimal for OIV7
-const YOLO_MODEL_PATH = '/models/yolov8n-oiv7.onnx'; // Open Images V7 model (Nano - 14MB)
+// Local path (for dev / self-hosted)
+const YOLO_MODEL_PATH = '/models/yolov8n-oiv7.onnx';
 
-// 601 Classes for Open Images V7
+// CDN fallback (GitHub release / jsDelivr / any public URL)
+// CDN fallback URLs for the ONNX model (if local file is not served)
+// To add a CDN source: upload yolov8n-oiv7.onnx to any CORS-enabled CDN and add the URL here
+const YOLO_CDN_URLS = [];
+
+// If using the CDN model (standard COCO 80-class YOLOv8n), we need COCO classes
+const COCO_80_CLASSES = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+    "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
+    "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+];
+
+// 601 Classes for Open Images V7 (used when local OIV7 model loads)
 const OIV7_CLASSES = ["Accordion","Adhesive tape","Aircraft","Airplane","Alarm clock","Alpaca","Ambulance","Animal","Ant","Antelope","Apple","Armadillo","Artichoke","Auto part","Axe","Backpack","Bagel","Baked goods","Balance beam","Ball","Balloon","Banana","Band-aid","Banjo","Barge","Barrel","Baseball bat","Baseball glove","Bat (Animal)","Bathroom accessory","Bathroom cabinet","Bathtub","Beaker","Bear","Bed","Bee","Beehive","Beer","Beetle","Bell pepper","Belt","Bench","Bicycle","Bicycle helmet","Bicycle wheel","Bidet","Billboard","Billiard table","Binoculars","Bird","Blender","Blue jay","Boat","Bomb","Book","Bookcase","Boot","Bottle","Bottle opener","Bow and arrow","Bowl","Bowling equipment","Box","Boy","Brassiere","Bread","Briefcase","Broccoli","Bronze sculpture","Brown bear","Building","Bull","Burrito","Bus","Bust","Butterfly","Cabbage","Cabinetry","Cake","Cake stand","Calculator","Camel","Camera","Can opener","Canary","Candle","Candy","Cannon","Canoe","Cantaloupe","Car","Carnivore","Carrot","Cart","Cassette deck","Castle","Cat","Cat furniture","Caterpillar","Cattle","Ceiling fan","Cello","Centipede","Chainsaw","Chair","Cheese","Cheetah","Chest of drawers","Chicken","Chime","Chisel","Chopsticks","Christmas tree","Clock","Closet","Clothing","Coat","Cocktail","Cocktail shaker","Coconut","Coffee","Coffee cup","Coffee table","Coffeemaker","Coin","Common fig","Common sunflower","Computer keyboard","Computer monitor","Computer mouse","Container","Convenience store","Cookie","Cooking spray","Corded phone","Cosmetics","Couch","Countertop","Cowboy hat","Crab","Cream","Cricket ball","Crocodile","Croissant","Crown","Crutch","Cucumber","Cupboard","Curtain","Cutting board","Dagger","Dairy Product","Deer","Desk","Dessert","Diaper","Dice","Digital clock","Dinosaur","Dishwasher","Dog","Dog bed","Doll","Dolphin","Door","Door handle","Donut","Dragonfly","Drawer","Dress","Drill (Tool)","Drink","Drinking straw","Drum","Duck","Dumbbell","Eagle","Earrings","Egg (Food)","Elephant","Envelope","Eraser","Face powder","Facial tissue holder","Falcon","Fashion accessory","Fast food","Fax","Fedora","Filing cabinet","Fire hydrant","Fireplace","Fish","Flag","Flashlight","Flower","Flowerpot","Flute","Flying disc","Food","Food processor","Football","Football helmet","Footwear","Fork","Fountain","Fox","French fries","French horn","Frog","Fruit","Frying pan","Furniture","Garden Asparagus","Gas stove","Giraffe","Girl","Glasses","Glove","Goat","Goggles","Goldfish","Golf ball","Golf cart","Gondola","Goose","Grape","Grapefruit","Grinder","Guacamole","Guitar","Hair dryer","Hair spray","Hamburger","Hammer","Hamster","Hand dryer","Handbag","Handgun","Harbor seal","Harmonica","Harp","Harpsichord","Hat","Headphones","Heater","Hedgehog","Helicopter","Helmet","High heels","Hiking equipment","Hippopotamus","Home appliance","Honeycomb","Horizontal bar","Horse","Hot dog","House","Houseplant","Human arm","Human beard","Human body","Human ear","Human eye","Human face","Human foot","Human hair","Human hand","Human head","Human leg","Human mouth","Human nose","Humidifier","Ice cream","Indoor rower","Infant bed","Insect","Invertebrate","Ipod","Isopod","Jacket","Jacuzzi","Jaguar (Animal)","Jeans","Jellyfish","Jet ski","Jug","Juice","Kangaroo","Kettle","Kitchen & dining room table","Kitchen appliance","Kitchen knife","Kitchen utensil","Kitchenware","Kite","Knife","Koala","Ladder","Ladle","Ladybug","Lamp","Land vehicle","Lantern","Laptop","Lavender (Plant)","Lemon","Leopard","Light bulb","Light switch","Lighthouse","Lily","Limousine","Lion","Lipstick","Lizard","Lobster","Loveseat","Luggage and bags","Lynx","Magpie","Mammal","Man","Mango","Maple","Maracas","Marine invertebrates","Marine mammal","Measuring cup","Mechanical fan","Medical equipment","Microphone","Microwave oven","Milk","Miniskirt","Mirror","Missile","Mixer","Mixing bowl","Mobile phone","Monkey","Moths and butterflies","Motorcycle","Mouse","Muffin","Mug","Mule","Mushroom","Musical instrument","Musical keyboard","Nail (Construction)","Necklace","Nightstand","Oboe","Office building","Office supplies","Orange","Organ (Musical Instrument)","Ostrich","Otter","Oven","Owl","Oyster","Paddle","Palm tree","Pancake","Panda","Paper cutter","Paper towel","Parachute","Parking meter","Parrot","Pasta","Pastry","Peach","Pear","Pen","Pencil case","Pencil sharpener","Penguin","Perfume","Person","Personal care","Personal flotation device","Piano","Picnic basket","Picture frame","Pig","Pillow","Pineapple","Pitcher (Container)","Pizza","Pizza cutter","Plant","Plastic bag","Plate","Platter","Plumbing fixture","Polar bear","Pomegranate","Popcorn","Porch","Porcupine","Poster","Potato","Power plugs and sockets","Pressure cooker","Pretzel","Printer","Pumpkin","Punching bag","Rabbit","Raccoon","Racket","Radish","Ratchet (Device)","Raven","Rays and skates","Red panda","Refrigerator","Remote control","Reptile","Rhinoceros","Rifle","Ring binder","Rocket","Roller skates","Rose","Rugby ball","Ruler","Salad","Salt and pepper shakers","Sandal","Sandwich","Saucer","Saxophone","Scale","Scarf","Scissors","Scoreboard","Scorpion","Screwdriver","Sculpture","Sea lion","Sea turtle","Seafood","Seahorse","Seat belt","Segway","Serving tray","Sewing machine","Shark","Sheep","Shelf","Shellfish","Shirt","Shorts","Shotgun","Shower","Shrimp","Sink","Skateboard","Ski","Skirt","Skull","Skunk","Skyscraper","Slow cooker","Snack","Snail","Snake","Snowboard","Snowman","Snowmobile","Snowplow","Soap dispenser","Sock","Sofa bed","Sombrero","Sparrow","Spatula","Spice rack","Spider","Spoon","Sports equipment","Sports uniform","Squash (Plant)","Squid","Squirrel","Stairs","Stapler","Starfish","Stationary bicycle","Stethoscope","Stool","Stop sign","Strawberry","Street light","Stretcher","Studio couch","Submarine","Submarine sandwich","Suit","Suitcase","Sun hat","Sunglasses","Surfboard","Sushi","Swan","Swim cap","Swimming pool","Swimwear","Sword","Syringe","Table","Table tennis racket","Tablet computer","Tableware","Taco","Tank","Tap","Tart","Taxi","Tea","Teapot","Teddy bear","Telephone","Television","Tennis ball","Tennis racket","Tent","Tiara","Tick","Tie","Tiger","Tin can","Tire","Toaster","Toilet","Toilet paper","Tomato","Tool","Toothbrush","Torch","Tortoise","Towel","Tower","Toy","Traffic light","Traffic sign","Train","Training bench","Treadmill","Tree","Tree house","Tripod","Trombone","Trousers","Truck","Trumpet","Turkey","Turtle","Umbrella","Unicycle","Van","Vase","Vegetable","Vehicle","Vehicle registration plate","Violin","Volleyball (Ball)","Waffle","Waffle iron","Wall clock","Wardrobe","Washing machine","Waste container","Watch","Watercraft","Watermelon","Weapon","Whale","Wheel","Wheelchair","Whisk","Whiteboard","Willow","Window","Window blind","Wine","Wine glass","Wine rack","Winter melon","Wok","Woman","Wood-burning stove","Woodpecker","Worm","Wrench","Zebra","Zucchini"];
 
-const createProctoringWorker = () => {
+// ─── COCO-SSD Worker for fallback ──────────────────────────────────────────
+function createProctoringWorker() {
     const code = `
         let model = null;
         let isInitializing = false;
@@ -122,8 +135,9 @@ const createProctoringWorker = () => {
     const worker = new Worker(workerUrl);
     setTimeout(() => URL.revokeObjectURL(workerUrl), 5000);
     return worker;
-};
+}
 
+// ─── Singleton worker management ────────────────────────────────────────────
 let _globalWorker = null;
 let globalWorkerInitPromise = null;
 let activeWorkerListener = null;
@@ -159,31 +173,40 @@ const initWorkerSession = (modelUrl) => {
     return globalWorkerInitPromise;
 };
 
+// ─── Main-thread COCO-SSD fallback ─────────────────────────────────────────
 let globalMainModel = null;
 let globalMainModelInitPromise = null;
 
-const initMainThreadModel = async (modelUrl) => {
+const initMainThreadModel = async () => {
     if (globalMainModel) return globalMainModel;
     if (globalMainModelInitPromise) return globalMainModelInitPromise;
 
     globalMainModelInitPromise = (async () => {
+        logDiag("YOLO Detector", "Initializing COCO-SSD on main thread (final fallback)...");
+
         try {
             await tf.setBackend("webgl");
             await tf.ready();
+            logDiag("YOLO Detector", "TF.js WebGL backend ready for COCO-SSD fallback");
         } catch (webglErr) {
+            logDiag("YOLO Detector", `WebGL failed (${webglErr.message}), trying CPU...`);
             await tf.setBackend("cpu");
             await tf.ready();
+            logDiag("YOLO Detector", "TF.js CPU backend ready for COCO-SSD fallback");
         }
 
-        let model;
-        if (modelUrl) {
-            try {
-                model = await cocoSsd.load({ modelUrl });
-            } catch (localLoadErr) {
-                model = await cocoSsd.load();
-            }
-        } else {
-            model = await cocoSsd.load();
+        // Always load from the default CDN (Google's tfhub) — most reliable
+        const model = await cocoSsd.load();
+        logDiag("YOLO Detector", "COCO-SSD loaded from default CDN (main thread fallback)");
+
+        // Warm up with a tiny canvas to pre-compile WebGL shaders
+        try {
+            const warmup = document.createElement("canvas");
+            warmup.width = 1;
+            warmup.height = 1;
+            await model.detect(warmup);
+        } catch (_) {
+            // Warmup failure is non-critical
         }
 
         globalMainModel = model;
@@ -196,6 +219,7 @@ const initMainThreadModel = async (modelUrl) => {
     return globalMainModelInitPromise;
 };
 
+// ─── NMS utilities ──────────────────────────────────────────────────────────
 function computeIoU(box1, box2) {
     const x1 = Math.max(box1.x, box2.x);
     const y1 = Math.max(box1.y, box2.y);
@@ -227,6 +251,35 @@ function nonMaxSuppression(boxes, iouThreshold) {
     return selected;
 }
 
+// ─── Validate ONNX model response ──────────────────────────────────────────
+// Vercel SPA catch-all can return HTML instead of the actual binary file.
+// We detect this by checking the Content-Type header.
+async function fetchAndValidateModel(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+
+    const contentType = response.headers.get('Content-Type') || '';
+
+    // If we got HTML back, Vercel's SPA rewrite intercepted the request
+    if (contentType.includes('text/html') || contentType.includes('text/plain')) {
+        throw new Error(`Got HTML/text instead of binary from ${url} (Content-Type: ${contentType}). Likely SPA catch-all rewrite.`);
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    // ONNX models start with magic bytes. Minimum viable size check.
+    if (buffer.byteLength < 100000) {
+        throw new Error(`Response too small to be an ONNX model (${buffer.byteLength} bytes)`);
+    }
+
+    return buffer;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ███  Main Hook  ███
+// ═══════════════════════════════════════════════════════════════════════════
 export function useYOLODetector({ isActive = false, videoElement = null }) {
     const [modelReady, setModelReady] = useState(false);
     const [engineType, setEngineType] = useState(null); 
@@ -235,6 +288,8 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
     const workerRef = useRef(null);
     const cocoModelRef = useRef(null);
     const onnxSessionRef = useRef(null);
+    const onnxClassListRef = useRef(null); // Which class list to use
+    const onnxNumClassesRef = useRef(0);
     const canvasRef = useRef(null);
     const pendingDetectionsRef = useRef({});
 
@@ -243,37 +298,79 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
 
         let cancelled = false;
 
+        // ── STEP 1: Try loading ONNX model ─────────────────────────────────
         const initONNX = async () => {
             try {
+                // Try local model first (works in dev + self-hosted)
                 const base = import.meta.env.BASE_URL || "/";
-                const modelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + YOLO_MODEL_PATH.replace(/^\//, '');
-                
-                const response = await fetch(modelUrl, { method: 'HEAD' });
-                if (!response.ok) {
-                    throw new Error("ONNX model file not found");
+                const localUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + YOLO_MODEL_PATH.replace(/^\//, '');
+
+                logDiag("YOLO Detector", `Attempting local ONNX model: ${localUrl}`);
+
+                let modelBuffer = null;
+                let usingOIV7 = true; // local model is OIV7
+
+                try {
+                    modelBuffer = await fetchAndValidateModel(localUrl);
+                    logDiag("YOLO Detector", `Local ONNX model fetched (${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
+                } catch (localErr) {
+                    logDiag("YOLO Detector", `Local ONNX failed: ${localErr.message}`);
+
+                    // Try CDN fallback URLs
+                    for (const cdnUrl of YOLO_CDN_URLS) {
+                        try {
+                            logDiag("YOLO Detector", `Trying CDN: ${cdnUrl}`);
+                            modelBuffer = await fetchAndValidateModel(cdnUrl);
+                            usingOIV7 = false; // CDN model is standard COCO 80-class
+                            logDiag("YOLO Detector", `CDN ONNX model fetched (${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
+                            break;
+                        } catch (cdnErr) {
+                            logDiag("YOLO Detector", `CDN failed: ${cdnErr.message}`);
+                        }
+                    }
                 }
 
-                const session = await ort.InferenceSession.create(modelUrl, {
-                    executionProviders: ['webgl', 'wasm'],
-                });
-                
+                if (!modelBuffer) {
+                    throw new Error("All ONNX model sources failed");
+                }
+
                 if (cancelled) return;
-                
+
+                // Create ONNX session from the fetched ArrayBuffer
+                const session = await ort.InferenceSession.create(modelBuffer, {
+                    executionProviders: ['wasm'],
+                });
+
+                if (cancelled) return;
+
                 onnxSessionRef.current = session;
+
+                // Set class list based on which model loaded
+                if (usingOIV7) {
+                    onnxClassListRef.current = OIV7_CLASSES;
+                    onnxNumClassesRef.current = 601;
+                } else {
+                    onnxClassListRef.current = COCO_80_CLASSES;
+                    onnxNumClassesRef.current = 80;
+                }
+
                 setEngineType('yolo-onnx');
                 setModelReady(true);
-                console.log("[YOLO Detector] YOLO OIV7 ONNX model loaded successfully");
+                logDiag("YOLO Detector", `✅ YOLO ONNX model loaded successfully (${usingOIV7 ? 'OIV7-601' : 'COCO-80'} classes, ${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
+
             } catch (err) {
-                console.warn("[YOLO Detector] ONNX init failed, falling back to COCO-SSD:", err);
+                console.warn("[YOLO Detector] ONNX init failed completely, falling back to COCO-SSD:", err.message);
+                logDiag("YOLO Detector", `ONNX init failed: ${err.message}. Falling back to COCO-SSD...`);
                 if (cancelled) return;
                 initCOCOFallback();
             }
         };
 
+        // ── STEP 2: COCO-SSD Fallback Chain ────────────────────────────────
         const initCOCOFallback = async () => {
-            const base = import.meta.env.BASE_URL || "/";
-            const modelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + "models/coco-ssd/model.json";
+            logDiag("YOLO Detector", "Starting COCO-SSD fallback initialization...");
 
+            // Set up worker message listener for detection results
             activeWorkerListener = (e) => {
                 if (cancelled) return;
                 const { type, id, predictions } = e.data;
@@ -295,26 +392,36 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                 }
             };
 
+            // Try 1: Worker-based COCO-SSD (offloads to background thread)
             try {
-                const worker = await initWorkerSession(modelUrl);
+                logDiag("YOLO Detector", "Trying COCO-SSD worker...");
+                const worker = await initWorkerSession(null);
                 if (cancelled) return;
 
                 workerRef.current = worker;
                 setEngineType('coco-ssd-worker');
                 setModelReady(true);
-                console.log("[YOLO Detector] COCO-SSD fallback model loaded successfully (Worker)");
-            } catch (err) {
-                try {
-                    const model = await initMainThreadModel(modelUrl);
-                    if (cancelled) return;
+                logDiag("YOLO Detector", "✅ COCO-SSD fallback loaded (Worker thread)");
+                return;
+            } catch (workerErr) {
+                logDiag("YOLO Detector", `Worker COCO-SSD failed: ${workerErr.message}`);
+            }
 
-                    cocoModelRef.current = model;
-                    setEngineType('coco-ssd-fallback');
-                    setModelReady(true);
-                    console.log("[YOLO Detector] COCO-SSD fallback model loaded successfully (Main Thread)");
-                } catch (cocoErr) {
-                    recordError("detector-fallback-init", cocoErr);
-                }
+            // Try 2: Main thread COCO-SSD using bundled npm package
+            try {
+                logDiag("YOLO Detector", "Trying COCO-SSD main thread (npm bundled)...");
+                const model = await initMainThreadModel();
+                if (cancelled) return;
+
+                cocoModelRef.current = model;
+                setEngineType('coco-ssd-main');
+                setModelReady(true);
+                logDiag("YOLO Detector", "✅ COCO-SSD fallback loaded (Main thread)");
+                return;
+            } catch (mainErr) {
+                logDiag("YOLO Detector", `Main thread COCO-SSD failed: ${mainErr.message}`);
+                recordError("detector-all-fallbacks-failed", mainErr);
+                console.error("[YOLO Detector] ❌ ALL detection engines failed. Object detection will not work.", mainErr);
             }
         };
 
@@ -328,6 +435,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         };
     }, [isActive]);
 
+    // ── ONNX Inference (YOLO post-processing) ──────────────────────────────
     const runONNXInference = useCallback(async (canvas, originalWidth, originalHeight) => {
         if (!onnxSessionRef.current) return [];
         
@@ -352,16 +460,19 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         
         try {
             const results = await onnxSessionRef.current.run({ images: inputTensor });
-            const outputTensor = results[Object.keys(results)[0]]; // get first output
+            const outputTensor = results[Object.keys(results)[0]];
             
             const data = outputTensor.data;
+            const numClasses = onnxNumClassesRef.current;
+            const classList = onnxClassListRef.current;
             const boxes = [];
             
-            // Output shape is [1, 605, 8400] for OIV7 model (4 box dims + 601 classes)
+            // Output shape is [1, (4 + numClasses), 8400]
+            // 4 = bbox (cx, cy, w, h) + numClasses class scores
             for (let i = 0; i < 8400; i++) {
                 let maxScore = 0;
                 let classId = -1;
-                for (let c = 0; c < 601; c++) {
+                for (let c = 0; c < numClasses; c++) {
                     const score = data[(4 + c) * 8400 + i];
                     if (score > maxScore) {
                         maxScore = score;
@@ -384,7 +495,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
                     const height = h * scaleY;
                     
                     boxes.push({
-                        class: OIV7_CLASSES[classId],
+                        class: classList[classId] || `class_${classId}`,
                         score: maxScore,
                         bbox: { x, y, width, height }
                     });
@@ -396,11 +507,12 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
             recordInferenceTime(Date.now() - start, nmsBoxes);
             return nmsBoxes;
         } catch (err) {
-            console.error("ONNX inference failed", err);
+            console.error("[YOLO Detector] ONNX inference error:", err);
             return [];
         }
     }, []);
 
+    // ── Main-thread COCO-SSD detection ──────────────────────────────────────
     const runLocalDetect = useCallback(async (canvas) => {
         if (!cocoModelRef.current) return [];
         const start = Date.now();
@@ -423,6 +535,7 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         }
     }, []);
 
+    // ── detectFrame: Route to the active engine ─────────────────────────────
     const detectFrame = useCallback(async () => {
         if (!modelReady || !videoElement || videoElement.readyState < 2) return [];
 

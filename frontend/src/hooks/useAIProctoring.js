@@ -52,26 +52,46 @@ const COCO_SSD_CDN_URLS = [
 ];
 
 const SUSPICIOUS_OBJECTS = {
-    // COCO Classes (Fallback)
+    // ── COCO-80 Classes (CDN YOLO model + COCO-SSD fallback) ──
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "book": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
+    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop", ranking: 2 },
+    "remote": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
+    "keyboard": { type: "OBJECT_DETECTED", label: "External keyboard", ranking: 2 },
+    "mouse": { type: "OBJECT_DETECTED", label: "External mouse", ranking: 2 },
+    "tv": { type: "OBJECT_DETECTED", label: "Secondary monitor", ranking: 2 },
+    "backpack": { type: "OBJECT_DETECTED", label: "Bag detected", ranking: 2 },
+    "handbag": { type: "OBJECT_DETECTED", label: "Bag detected", ranking: 2 },
+    "suitcase": { type: "OBJECT_DETECTED", label: "Bag/suitcase", ranking: 2 },
     "bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
     "cup": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
-    "pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
-    "pencil": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
-    "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
+    "scissors": { type: "OBJECT_DETECTED", label: "Scissors", ranking: 2 },
 
-    // Open Images V7 Classes (YOLO11 Upgrade)
+    // ── Open Images V7 Classes (local YOLO OIV7 model) ──
     "Mobile phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "Telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "Ipod": { type: "PHONE_DETECTED", label: "Mobile device", ranking: 2 },
     "Book": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
+    "Laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop", ranking: 2 },
+    "Tablet computer": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
+    "Computer monitor": { type: "OBJECT_DETECTED", label: "Secondary monitor", ranking: 2 },
+    "Computer keyboard": { type: "OBJECT_DETECTED", label: "External keyboard", ranking: 2 },
+    "Computer mouse": { type: "OBJECT_DETECTED", label: "External mouse", ranking: 2 },
+    "Remote control": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
+    "Television": { type: "OBJECT_DETECTED", label: "Secondary monitor", ranking: 2 },
     "Bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
     "Mug": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
     "Pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
     "Pencil case": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
     "Headphones": { type: "OBJECT_DETECTED", label: "Earphones/Headphones/Buds", ranking: 2 },
     "Envelope": { type: "OBJECT_DETECTED", label: "Paper/Envelope", ranking: 2 },
-    "Tablet computer": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
+    "Backpack": { type: "OBJECT_DETECTED", label: "Bag detected", ranking: 2 },
+    "Handbag": { type: "OBJECT_DETECTED", label: "Bag detected", ranking: 2 },
+    "Suitcase": { type: "OBJECT_DETECTED", label: "Bag/suitcase", ranking: 2 },
+    "Briefcase": { type: "OBJECT_DETECTED", label: "Briefcase", ranking: 2 },
+    "Luggage and bags": { type: "OBJECT_DETECTED", label: "Bag detected", ranking: 2 },
+    "Ring binder": { type: "OBJECT_DETECTED", label: "Binder/notebook", ranking: 2 },
+    "Corded phone": { type: "PHONE_DETECTED", label: "Phone detected", ranking: 2 },
 };
 
 function euclidean(a, b) {
@@ -566,7 +586,7 @@ export function useAIProctoring({
                 predictions.forEach(p => {
                     const objConfig = SUSPICIOUS_OBJECTS[p.class];
                     if (objConfig) {
-                        const isPhone = p.class === "cell phone" || p.class === "Mobile phone" || p.class === "Telephone";
+                        const isPhone = objConfig.type === "PHONE_DETECTED";
                         const threshold = isPhone
                             ? T.phoneConfidenceThreshold
                             : T.objectConfidenceThreshold;
@@ -581,7 +601,8 @@ export function useAIProctoring({
                     const history = objectHistoryRef.current[objType] || [];
                     const isDetectedThisFrame = activeObjects.has(objType);
                     
-                    const isPhone = objType === "cell phone" || objType === "Mobile phone" || objType === "Telephone";
+                    const objConfig = SUSPICIOUS_OBJECTS[objType];
+                    const isPhone = objConfig && objConfig.type === "PHONE_DETECTED";
                     const threshold = isPhone ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold;
                     const match = predictions.find(p => p.class === objType && p.score >= threshold);
                     const score = match ? match.score : 0;
@@ -601,7 +622,6 @@ export function useAIProctoring({
                     const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
 
                     if (isConfirmed) {
-                        const objConfig = SUSPICIOUS_OBJECTS[objType];
                         emitViolation(
                             objConfig.type,
                             `${objConfig.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${objConfig.ranking})`,

@@ -1,22 +1,18 @@
 {
     "rewrites": [
         {
-            "source": "/models/:path*",
-            "destination": "/models/:path*"
-        },
-        {
-            "source": "/assets/:path*",
-            "destination": "/assets/:path*"
-        },
-        {
-            "source": "/((?!api/).*)",
+            "source": "/((?!api/|models/).*)",
             "destination": "/index.html"
         }
     ],
     "headers": [
         {
-            "source": "/models/:path*",
+            "source": "/models/(.*)\\.onnx",
             "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/octet-stream"
+                },
                 {
                     "key": "Access-Control-Allow-Origin",
                     "value": "*"
@@ -24,40 +20,6 @@
                 {
                     "key": "Access-Control-Allow-Methods",
                     "value": "GET, HEAD, OPTIONS"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=31536000, immutable"
-                }
-            ]
-        },
-        {
-            "source": "/models/:path*.onnx",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "application/octet-stream"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=31536000, immutable"
-                }
-            ]
-        },
-        {
-            "source": "/models/coco-ssd/group1-shard*",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "application/octet-stream"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
                 },
                 {
                     "key": "Cache-Control",
@@ -83,7 +45,41 @@
             ]
         },
         {
-            "source": "/assets/:path*",
+            "source": "/models/coco-ssd/(.*)",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/octet-stream"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        },
+        {
+            "source": "/models/(.*)",
+            "headers": [
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                },
+                {
+                    "key": "Access-Control-Allow-Methods",
+                    "value": "GET, HEAD, OPTIONS"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        },
+        {
+            "source": "/assets/(.*)",
             "headers": [
                 {
                     "key": "Cache-Control",
@@ -92,7 +88,7 @@
             ]
         },
         {
-            "source": "/:path*.(woff2|woff|ttf|otf|eot)",
+            "source": "/(.*)\\.(?:woff2|woff|ttf|otf|eot)",
             "headers": [
                 {
                     "key": "Cache-Control",
@@ -101,7 +97,7 @@
             ]
         },
         {
-            "source": "/:path*.(png|jpg|jpeg|gif|webp|svg|ico)",
+            "source": "/(.*)\\.(?:png|jpg|jpeg|gif|webp|svg|ico)",
             "headers": [
                 {
                     "key": "Cache-Control",
