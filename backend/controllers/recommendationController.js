@@ -104,7 +104,7 @@ ${resumeAnalysisText}
 === SKILL ASSESSMENT TRANSCRIPT ===
 ${assessmentDetails}
 
-=== AI INTERVIEW TRANSCRIPT ===
+=== INTERVIEW TRANSCRIPT ===
 ${interviewDetails}
 Communication Delta Score: ${commDelta}
 Thinking Latency Score: ${thinkingLatency}
