@@ -497,7 +497,8 @@ export default function SecureExamWrapperEnhanced({
             )}
 
             {/* ── Real-time Non-blocking Toasts (bottom left) ───────────────── */}
-            <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
+            {import.meta.env.MODE !== "production" && (
+                <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
                 {toasts.map((toast) => {
                     const getToastIcon = () => {
                         switch (toast.type) {
@@ -538,6 +539,7 @@ export default function SecureExamWrapperEnhanced({
                     );
                 })}
             </div>
+            )}
 
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div
