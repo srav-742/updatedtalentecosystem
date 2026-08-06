@@ -17,7 +17,10 @@ const YOLO_MODEL_PATH = '/models/yolov8n-oiv7.onnx';
 // CDN fallback (GitHub release / jsDelivr / any public URL)
 // CDN fallback URLs for the ONNX model (if local file is not served)
 // To add a CDN source: upload yolov8n-oiv7.onnx to any CORS-enabled CDN and add the URL here
-const YOLO_CDN_URLS = [];
+const YOLO_CDN_URLS = [
+    // Reliable raw GitHub content URL for the exact model committed to this repo
+    'https://raw.githubusercontent.com/srav-742/updatedtalentecosystem/main/frontend/public/models/yolov8n-oiv7.onnx'
+];
 
 // If using the CDN model (standard COCO 80-class YOLOv8n), we need COCO classes
 const COCO_80_CLASSES = [
@@ -458,8 +461,15 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
         
         const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, 640, 640]);
         
+        // Yield to main thread to prevent video stuttering during heavy WASM inference
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
         try {
             const results = await onnxSessionRef.current.run({ images: inputTensor });
+            
+            // Yield to main thread after inference before heavy post-processing
+            await new Promise(resolve => setTimeout(resolve, 0));
+            
             const outputTensor = results[Object.keys(results)[0]];
             
             const data = outputTensor.data;
@@ -516,6 +526,10 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
     const runLocalDetect = useCallback(async (canvas) => {
         if (!cocoModelRef.current) return [];
         const start = Date.now();
+        
+        // Yield to main thread to prevent video stuttering during COCO-SSD inference
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
         try {
             const preds = await cocoModelRef.current.detect(canvas);
             const duration = Date.now() - start;

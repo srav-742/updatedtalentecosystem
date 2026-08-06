@@ -26,12 +26,12 @@ const DEFAULT_THRESHOLDS = {
     noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
     phoneConfidenceThreshold: 0.40, // Optimal for COCO
     objectConfidenceThreshold: 0.45, // Optimal for COCO
-    phoneRequiredFrames: 2,        // 2 frames required (~0.8s detection confirmation)
-    objectRequiredFrames: 3,       // 3 frames required (~1.2s detection confirmation)
+    phoneRequiredFrames: 2,        // 2 frames (at 1000ms interval) = ~2s detection
+    objectRequiredFrames: 2,       // 2 frames (at 1000ms interval) = ~2s detection
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
-    objectDetectionIntervalMs: 400, // Run object check every 400ms (~2.5 FPS)
+    objectDetectionIntervalMs: 1000, // Run object check every 1000ms (1 FPS) to prevent video stuttering
     onnxLoadTimeoutMs: 8000,
 };
 
@@ -252,8 +252,8 @@ export function useAIProctoring({
 
     const lastViolationTimeRef = useRef({});
     const VIOLATION_COOLDOWN_MS = 5000;
-    const PHONE_VIOLATION_COOLDOWN_MS = 5000;
-    const OBJECT_VIOLATION_COOLDOWN_MS = 5000;
+    const PHONE_VIOLATION_COOLDOWN_MS = 3000;
+    const OBJECT_VIOLATION_COOLDOWN_MS = 3000;
 
     const noPersonTimerRef = useRef(null);
     const gazeHistoryRef = useRef([]);
