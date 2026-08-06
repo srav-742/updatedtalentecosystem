@@ -238,7 +238,7 @@ export default function SecureExamWrapperMultiLayer({
             )}
 
             {/* Top Bar Real-Time Score & Security Status */}
-            {isActive && import.meta.env.MODE !== "production" && (
+            {isActive && showDebugPanel && (
                 <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-semibold text-gray-700 shadow-xl backdrop-blur">
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                         <ShieldCheck size={16} />
@@ -275,7 +275,7 @@ export default function SecureExamWrapperMultiLayer({
                         />
 
                         {/* Telemetry Overlay Badges */}
-                        {import.meta.env.MODE !== "production" && (
+                        {showDebugPanel && (
                             <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
                                 {isReady && (
                                     <span className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">
