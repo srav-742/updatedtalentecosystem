@@ -32,6 +32,14 @@ const requestFullscreen = () => {
     Promise.resolve(request.call(element)).catch(() => null);
 };
 
+const isSuspiciousUI = (className) => {
+    if (!className) return false;
+    const c = className.toLowerCase();
+    if (c === "cell phone" || c === "mobile phone" || c === "telephone" || c === "person") return false;
+    const safeWords = ["human", "man", "woman", "boy", "girl", "clothing", "glasses", "shirt", "face", "head", "eye", "mouth", "nose", "hair", "hand", "arm", "body", "foot", "ear", "beard", "trousers", "footwear", "jacket", "dress", "hat", "helmet"];
+    return !safeWords.some(w => c.includes(w));
+};
+
 export default function SecureExamWrapperEnhanced({
     examId,
     userId,
@@ -423,7 +431,7 @@ export default function SecureExamWrapperEnhanced({
                     onTouchStart={handleDragStart}
                 >
                     <div className={`overflow-hidden rounded-2xl border-2 transition-all duration-300 shadow-2xl ${
-                        (detections.some((d) => d.class === "cell phone") || faceCount > 1 || detections.some((d) => d.class !== "cell phone" && d.class !== "person"))
+                        (detections.some((d) => d.class === "cell phone" || d.class === "Mobile phone" || d.class === "Telephone") || faceCount > 1 || detections.some((d) => isSuspiciousUI(d.class)))
                             ? "border-red-500 ring-4 ring-red-500/30 animate-pulse"
                             : "border-black/10"
                     } bg-black`}>
@@ -450,16 +458,16 @@ export default function SecureExamWrapperEnhanced({
                                     {objectModelType?.toUpperCase()}
                                 </span>
                             )}
-                            {detections.some((d) => d.class === "cell phone") && (
+                            {detections.some((d) => d.class === "cell phone" || d.class === "Mobile phone" || d.class === "Telephone") && (
                                 <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
                                     <Smartphone size={8} />
                                     PHONE
                                 </span>
                             )}
-                            {detections.some((d) => d.class !== "cell phone" && d.class !== "person") && (
+                            {detections.some((d) => isSuspiciousUI(d.class)) && (
                                 <span className="flex items-center gap-1 rounded-full bg-amber-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
                                     <AlertTriangle size={8} />
-                                    OBJECT ({detections.find((d) => d.class !== "cell phone" && d.class !== "person")?.class?.toUpperCase()})
+                                    OBJECT ({detections.find((d) => isSuspiciousUI(d.class))?.class?.toUpperCase()})
                                 </span>
                             )}
                             {faceCount > 1 && (

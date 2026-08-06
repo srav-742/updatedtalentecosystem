@@ -261,16 +261,16 @@ export default function SecureExamWrapperMultiLayer({
                                 <Eye size={10} />
                                 {faceState.faceCount} face(s)
                             </span>
-                            {trackedObjects.some(t => t.class === 'cell phone') && (
+                            {trackedObjects.some(t => t.class === 'cell phone' || t.class === 'Mobile phone' || t.class === 'Telephone') && (
                                 <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
                                     <Smartphone size={10} />
                                     PHONE DETECTED
                                 </span>
                             )}
-                            {trackedObjects.some(t => t.class !== 'cell phone' && t.class !== 'person') && (
+                            {trackedObjects.some(t => t.class !== 'cell phone' && t.class !== 'Mobile phone' && t.class !== 'Telephone' && t.class !== 'person') && (
                                 <span className="flex items-center gap-1 rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
                                     <AlertTriangle size={10} />
-                                    OBJECT DETECTED ({trackedObjects.find(t => t.class !== 'cell phone' && t.class !== 'person')?.class?.toUpperCase()})
+                                    OBJECT DETECTED ({trackedObjects.find(t => t.class !== 'cell phone' && t.class !== 'Mobile phone' && t.class !== 'Telephone' && t.class !== 'person')?.class?.toUpperCase()})
                                 </span>
                             )}
                             {audioSignals.multipleVoices && (

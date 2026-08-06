@@ -50,8 +50,8 @@ export const PHONE_RULES = {
     warningAfterMs: 1000,
     majorWarningAfterMs: 5000,
     autoSubmitAfterMs: 15000,
-    minConfidence: 0.30,            // Adapted for browser-compatible COCO-SSD MobileNet V2
-    minAverageConfidence: 0.35,     // Moving average confirmation threshold over frames
+    minConfidence: 0.40,            // COCO threshold
+    minAverageConfidence: 0.45,     // COCO moving average
     minConsecutiveFrames: 2,        // Requires 2 frames to confirm phone (~0.8s)
     minPersistenceMs: 1000,         // 1 second persistence required (< 3s total)
     staticMovementThreshold: 8,
@@ -61,7 +61,7 @@ export const PHONE_RULES = {
 
 export const OBJECT_RULES = {
     environmentBaselineMs: 5000,
-    minConfidence: 0.35,
+    minConfidence: 0.40,
     minConsecutiveFrames: 2,
     minPersistenceMs: 1000,
 };
@@ -97,7 +97,7 @@ export function evaluateConfidenceRamp(confidenceHistory) {
     const latest = confidenceHistory[confidenceHistory.length - 1];
 
     if (latest < 0.35) return 'ignore';
-    if (latest < 0.45) return 'wait';
+    if (latest < 0.40) return 'wait';
     return 'confirmed';
 }
 
@@ -535,14 +535,28 @@ export function analyzeFrame(state, signals) {
                     track.consecutiveFrames >= OBJECT_RULES.minConsecutiveFrames &&
                     track.maxConfidence >= OBJECT_RULES.minConfidence;
 
-                if (isNew && isSustained) {
+                // Calculate distance from face to object to prevent flagging background objects
+                let isObjectNearUser = true; 
+                if (signals.faceBbox && bbox.x !== undefined) {
+                    const objCenterX = bbox.x + (bbox.width || 0) / 2;
+                    const objCenterY = bbox.y + (bbox.height || 0) / 2;
+                    const faceCenterX = signals.faceBbox.x + signals.faceBbox.width / 2;
+                    const faceCenterY = signals.faceBbox.y + signals.faceBbox.height / 2;
+                    const dist = Math.sqrt(Math.pow(objCenterX - faceCenterX, 2) + Math.pow(objCenterY - faceCenterY, 2));
+                    
+                    if (dist > 600) {
+                        isObjectNearUser = false; // Object is far in the background, ignore it
+                    }
+                }
+
+                if (isNew && isSustained && isObjectNearUser) {
                     state.environmentObjects.add(objectKey);
                     const eventType = track.class === 'book' ? 'book_detected' : 'suspicious_object_detected';
                     actions.push({
                         action: 'warning',
                         eventType: eventType,
                         severity: 'medium',
-                        reason: `Object (${track.class}) detected in camera frame`,
+                        reason: `Object (${track.class}) detected near candidate`,
                         data: { class: track.class, trackId: track.trackId, confidence: track.maxConfidence },
                     });
                 }

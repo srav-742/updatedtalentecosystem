@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { logDiag, recordError, recordInferenceTime, getOrCreateDiagnostics } from "../utils/proctoringDiagnostics";
 import * as tf from '@tensorflow/tfjs';
-import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import { useYOLODetector } from './proctoring/useYOLODetector';
 
 /**
  * useAIProctoring
@@ -24,10 +24,10 @@ const DEFAULT_THRESHOLDS = {
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
     noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
-    phoneConfidenceThreshold: 0.30, // Optimized to 0.30 for fast mobile phone detection
-    objectConfidenceThreshold: 0.35, // Optimized to 0.35 for object detection
+    phoneConfidenceThreshold: 0.40, // Optimal for COCO
+    objectConfidenceThreshold: 0.45, // Optimal for COCO
     phoneRequiredFrames: 2,        // 2 frames required (~0.8s detection confirmation)
-    objectRequiredFrames: 2,       // 2 frames required (~0.8s detection confirmation)
+    objectRequiredFrames: 3,       // 3 frames required (~1.2s detection confirmation)
     sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
     sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
@@ -52,6 +52,7 @@ const COCO_SSD_CDN_URLS = [
 ];
 
 const SUSPICIOUS_OBJECTS = {
+    // COCO Classes (Fallback)
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
     "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 2 },
@@ -65,6 +66,26 @@ const SUSPICIOUS_OBJECTS = {
     "mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 2 },
     "keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 2 },
     "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
+
+    // Open Images V7 Classes (YOLO11 Upgrade)
+    "Mobile phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "Telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "Laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
+    "Book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 2 },
+    "Bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
+    "Mug": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
+    "Pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
+    "Pencil case": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
+    "Scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 2 },
+    "Television": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 2 },
+    "Remote control": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
+    "Computer mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 2 },
+    "Computer keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 2 },
+    "Headphones": { type: "OBJECT_DETECTED", label: "Earphones/Headphones/Buds", ranking: 2 },
+    "Envelope": { type: "OBJECT_DETECTED", label: "Paper/Envelope", ranking: 2 },
+    "Box": { type: "OBJECT_DETECTED", label: "Box/Container", ranking: 2 },
+    "Tablet computer": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
+    "Camera": { type: "OBJECT_DETECTED", label: "Camera", ranking: 2 },
 };
 
 function euclidean(a, b) {
@@ -205,9 +226,17 @@ export function useAIProctoring({
     const [detections, setDetections] = useState([]);
 
     const faceMeshRef = useRef(null);
-    const cocoModelRef = useRef(null);
-    const onnxSessionRef = useRef(null);
     const detectionCanvasRef = useRef(null);
+
+    const { modelReady: yoloModelReady, engineType, detectFrame } = useYOLODetector({
+        isActive,
+        videoElement,
+    });
+
+    useEffect(() => {
+        setObjectModelReady(yoloModelReady);
+        setObjectModelType(engineType);
+    }, [yoloModelReady, engineType]);
     const rafIdRef = useRef(null);
     const isActiveRef = useRef(isActive);
     const isAnsweringRef = useRef(isAnswering);
@@ -307,34 +336,7 @@ export function useAIProctoring({
         };
     }, [isActive]);
 
-    // ── Object Detection Initialization (COCO-SSD) ──────────────────────────
-    useEffect(() => {
-        if (!isActive) return;
-
-        let cancelled = false;
-
-        const initObjectDetection = async () => {
-            try {
-                const base = import.meta.env.BASE_URL || "/";
-                const modelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + "models/coco-ssd/model.json";
-
-                const model = await initTfAndModel(modelUrl);
-                if (cancelled) return;
-
-                cocoModelRef.current = model;
-                setObjectModelReady(true);
-                setObjectModelType("coco-ssd");
-            } catch (err) {
-                recordError("coco-init", err);
-            }
-        };
-
-        initObjectDetection();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [isActive]);
+    // COCO-SSD initialization removed (handled by useYOLODetector)
 
     // ── Process FaceMesh results ────────────────────────────────────────────
     const processFaceMeshResults = useCallback((results) => {
@@ -561,113 +563,79 @@ export function useAIProctoring({
         };
     }, [isActive, faceMeshReady, videoElement, T.detectionIntervalMs]);
 
-    // ── Object detection loop (COCO-SSD via canvas frame capture) ───────────
+    // ── Object detection loop (YOLO via useYOLODetector) ───────────
     useEffect(() => {
         if (!isActive || !objectModelReady || !videoElement) return;
-
-        if (!detectionCanvasRef.current) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 640;
-            canvas.height = 480;
-            detectionCanvasRef.current = canvas;
-        }
-        const canvas = detectionCanvasRef.current;
-        const ctx = canvas.getContext('2d');
 
         const intervalId = setInterval(async () => {
             if (!isActiveRef.current) return;
 
-            const video = videoRef.current;
-            if (!video || video.readyState < 2) return;
-
             try {
-                if (cocoModelRef.current) {
-                    try {
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    } catch {
-                        return;
+                const predictions = await detectFrame();
+                if (!predictions) return;
+
+                setDetections(predictions);
+
+                const activeObjects = new Set();
+                predictions.forEach(p => {
+                    const objConfig = SUSPICIOUS_OBJECTS[p.class];
+                    if (objConfig) {
+                        const isPhone = p.class === "cell phone" || p.class === "Mobile phone" || p.class === "Telephone";
+                        const threshold = isPhone
+                            ? T.phoneConfidenceThreshold
+                            : T.objectConfidenceThreshold;
+                        if (p.score >= threshold) {
+                            activeObjects.add(p.class);
+                        }
                     }
+                });
 
-                    const startInference = Date.now();
-                    const predictions = await cocoModelRef.current.detect(canvas);
-                    const duration = Date.now() - startInference;
+                const WINDOW_SIZE = 5;
+                Object.keys(SUSPICIOUS_OBJECTS).forEach(objType => {
+                    const history = objectHistoryRef.current[objType] || [];
+                    const isDetectedThisFrame = activeObjects.has(objType);
+                    
+                    const isPhone = objType === "cell phone" || objType === "Mobile phone" || objType === "Telephone";
+                    const threshold = isPhone ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold;
+                    const match = predictions.find(p => p.class === objType && p.score >= threshold);
+                    const score = match ? match.score : 0;
 
-                    recordInferenceTime(duration, predictions || []);
-                    setDetections(predictions || []);
+                    history.push({ detected: isDetectedThisFrame, score });
+                    if (history.length > WINDOW_SIZE) {
+                        history.shift();
+                    }
+                    objectHistoryRef.current[objType] = history;
 
-                    const activeObjects = new Set();
-                    (predictions || []).forEach(p => {
-                        const objConfig = SUSPICIOUS_OBJECTS[p.class];
-                        if (objConfig) {
-                            const threshold = p.class === "cell phone"
-                                ? T.phoneConfidenceThreshold
-                                : T.objectConfidenceThreshold;
-                            if (p.score >= threshold) {
-                                activeObjects.add(p.class);
-                            }
-                        }
-                    });
+                    const detectedFramesCount = history.filter(h => h.detected).length;
+                    const averageConfidence = detectedFramesCount > 0 
+                        ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
+                        : 0;
 
-                    const WINDOW_SIZE = 5;
-                    Object.keys(SUSPICIOUS_OBJECTS).forEach(objType => {
-                        const history = objectHistoryRef.current[objType] || [];
-                        const isDetectedThisFrame = activeObjects.has(objType);
-                        
-                        const threshold = objType === "cell phone" ? T.phoneConfidenceThreshold : T.objectConfidenceThreshold;
-                        const match = (predictions || []).find(p => p.class === objType && p.score >= threshold);
-                        const score = match ? match.score : 0;
+                    const requiredFrames = isPhone ? T.phoneRequiredFrames : T.objectRequiredFrames;
+                    const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
 
-                        history.push({ detected: isDetectedThisFrame, score });
-                        if (history.length > WINDOW_SIZE) {
-                            history.shift();
-                        }
-                        objectHistoryRef.current[objType] = history;
-
-                        const detectedFramesCount = history.filter(h => h.detected).length;
-                        const averageConfidence = detectedFramesCount > 0 
-                            ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
-                            : 0;
-
-                        const requiredFrames = objType === "cell phone" ? T.phoneRequiredFrames : T.objectRequiredFrames;
-                        const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
-
-                        if (isConfirmed) {
-                            const objConfig = SUSPICIOUS_OBJECTS[objType];
-                            emitViolation(
-                                objConfig.type,
-                                `${objConfig.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${objConfig.ranking})`,
-                                { confidence: averageConfidence, label: objConfig.label }
-                            );
-                        }
-                    });
-                }
+                    if (isConfirmed) {
+                        const objConfig = SUSPICIOUS_OBJECTS[objType];
+                        emitViolation(
+                            objConfig.type,
+                            `${objConfig.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${objConfig.ranking})`,
+                            { confidence: averageConfidence, label: objConfig.label }
+                        );
+                    }
+                });
             } catch (err) {
-                recordError("coco-frame-detect", err);
-                const tf = window.tf;
-                if (tf && tf.getBackend() === "webgl") {
-                    logDiag("AI-Proctoring", "WebGL inference failed, switching to CPU backend...");
-                    try {
-                        await tf.setBackend("cpu");
-                        await tf.ready();
-                        const diag = getOrCreateDiagnostics();
-                        if (diag) diag.tfBackend = "cpu";
-                    } catch {
-                        // Fallback ignore
-                    }
-                }
+                recordError("yolo-frame-detect", err);
             }
         }, T.objectDetectionIntervalMs);
 
         return () => clearInterval(intervalId);
-    }, [isActive, objectModelReady, videoElement, T, emitViolation]);
+    }, [isActive, objectModelReady, videoElement, T, emitViolation, detectFrame]);
 
     useEffect(() => {
         return () => {
             if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
             if (noPersonTimerRef.current) clearTimeout(noPersonTimerRef.current);
             faceMeshRef.current = null;
-            cocoModelRef.current = null;
-            onnxSessionRef.current = null;
         };
     }, []);
 

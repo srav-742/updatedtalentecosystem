@@ -54,7 +54,8 @@ export default defineConfig(({ mode }) => ({
           if (
             id.includes('@tensorflow') ||
             id.includes('coco-ssd') ||
-            id.includes('face-api')
+            id.includes('face-api') ||
+            id.includes('onnxruntime-web')
           ) {
             return 'chunk-tensorflow';
           }
@@ -95,7 +96,8 @@ export default defineConfig(({ mode }) => ({
       'firebase/auth',
       '@tensorflow/tfjs',
       '@tensorflow-models/coco-ssd',
-      'face-api.js'
+      'face-api.js',
+      'onnxruntime-web'
     ]
   }
 }))
