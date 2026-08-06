@@ -246,10 +246,17 @@ export default function SecureExamWrapperEnhanced({
     // ── Screen share handler ────────────────────────────────────────────────
     const handleShare = useCallback(async () => {
         clearError();
+        requestFullscreen(); // Trigger immediately inside user interaction gesture
         const started = await startScreenShare();
-        if (!started) return;
+        if (!started) {
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            } catch (_) {}
+            return;
+        }
         setScreenShareInterrupted(false);
-        setTimeout(() => requestFullscreen(), 200);
     }, [clearError, startScreenShare]);
 
     // ── Webcam drag handling ────────────────────────────────────────────────
@@ -372,7 +379,7 @@ export default function SecureExamWrapperEnhanced({
             )*/}
 
             {/* ── Security status badge (top right) ────────────────────────── */}
-            {isActive && (
+            {isActive && import.meta.env.MODE !== "production" && (
                 <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                         <ShieldCheck size={14} />
@@ -415,20 +422,22 @@ export default function SecureExamWrapperEnhanced({
                         />
 
                         {/* AI telemetry warning badges */}
-                        <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                            {faceMeshReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Eye size={8} />
-                                    Face Active
-                                </span>
-                            )}
-                            {objectModelReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Camera size={8} />
-                                    {objectModelType?.toUpperCase()}
-                                </span>
-                            )}
-                        </div>
+                        {import.meta.env.MODE !== "production" && (
+                            <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                                {faceMeshReady && (
+                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                        <Eye size={8} />
+                                        Face Active
+                                    </span>
+                                )}
+                                {objectModelReady && (
+                                    <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+                                        <Camera size={8} />
+                                        {objectModelType?.toUpperCase()}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -112,16 +112,17 @@ export default function SecureExamWrapper({
 
   const handleShare = useCallback(async () => {
     clearError();
-
+    requestFullscreen(); // Trigger immediately inside user interaction gesture
     const started = await startScreenShare();
     if (!started) {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (_) {}
       return;
     }
-
     setScreenShareInterrupted(false);
-    setTimeout(() => {
-      requestFullscreen();
-    }, 200);
   }, [clearError, startScreenShare]);
 
   const needsScreenShare = requireScreenShare && isActive && !isSharing;

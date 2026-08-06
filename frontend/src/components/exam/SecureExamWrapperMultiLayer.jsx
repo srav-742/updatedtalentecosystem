@@ -17,6 +17,20 @@ import { API_URL } from "../../firebase";
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
+const requestFullscreen = () => {
+    if (document.fullscreenElement) return;
+
+    const element = document.documentElement;
+    const request =
+        element.requestFullscreen ||
+        element.webkitRequestFullscreen ||
+        element.mozRequestFullScreen ||
+        element.msRequestFullscreen;
+
+    if (!request) return;
+    Promise.resolve(request.call(element)).catch(() => null);
+};
+
 export default function SecureExamWrapperMultiLayer({
     examId,
     userId,
@@ -56,6 +70,21 @@ export default function SecureExamWrapperMultiLayer({
     const { isSharing, error: screenShareError, startScreenShare, clearError } = useScreenShare({
         onStopped: handleScreenShareStopped,
     });
+
+    const handleShare = useCallback(async () => {
+        clearError();
+        requestFullscreen(); // Trigger immediately inside user interaction gesture
+        const started = await startScreenShare();
+        if (!started) {
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            } catch (_) {}
+            return;
+        }
+        setScreenShareInterrupted(false);
+    }, [clearError, startScreenShare]);
 
     const proctoringIsActive = isActive && (!requireScreenShare || isSharing);
 
@@ -201,7 +230,7 @@ export default function SecureExamWrapperMultiLayer({
             {needsScreenShare && (
                 <StrictScreenSharePrompt
                     error={screenShareError}
-                    onShare={startScreenShare}
+                    onShare={handleShare}
                     warningLimit={warningLimit}
                     resetLimit={resetLimit}
                     isResumePrompt={screenShareInterrupted}
@@ -209,7 +238,7 @@ export default function SecureExamWrapperMultiLayer({
             )}
 
             {/* Top Bar Real-Time Score & Security Status */}
-            {isActive && (
+            {isActive && import.meta.env.MODE !== "production" && (
                 <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-semibold text-gray-700 shadow-xl backdrop-blur">
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                         <ShieldCheck size={16} />
@@ -246,14 +275,16 @@ export default function SecureExamWrapperMultiLayer({
                         />
 
                         {/* Telemetry Overlay Badges */}
-                        <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                            {isReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">
-                                    <Eye size={10} />
-                                    Face Active
-                                </span>
-                            )}
-                        </div>
+                        {import.meta.env.MODE !== "production" && (
+                            <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                                {isReady && (
+                                    <span className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">
+                                        <Eye size={10} />
+                                        Face Active
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
