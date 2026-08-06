@@ -285,8 +285,9 @@ export default function SecureExamWrapperMultiLayer({
             )}
 
             {/* Non-Blocking Candidate Alerts */}
-            <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
-                {toasts.map((toast) => (
+            {import.meta.env.MODE !== "production" && (
+                <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
+                    {toasts.map((toast) => (
                     <div
                         key={toast.id}
                         className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-amber-200/50 bg-white/90 p-4 shadow-xl backdrop-blur-md animate-in slide-in-from-left-5"
@@ -297,8 +298,9 @@ export default function SecureExamWrapperMultiLayer({
                             <p className="text-xs font-semibold text-gray-800 mt-0.5">{toast.detail}</p>
                         </div>
                     </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {/* Main Content */}
             <div style={{ pointerEvents: needsScreenShare ? "none" : "auto", filter: needsScreenShare ? "blur(8px)" : "none" }}>

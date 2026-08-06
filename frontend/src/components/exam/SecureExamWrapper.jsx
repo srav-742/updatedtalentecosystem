@@ -192,7 +192,7 @@ export default function SecureExamWrapper({
         </div>
       )*/}
 
-      {isActive && (
+      {isActive && import.meta.env.MODE !== "production" && (
         <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <ShieldCheck size={14} />
