@@ -35,9 +35,8 @@ const requestFullscreen = () => {
 const isSuspiciousUI = (className) => {
     if (!className) return false;
     const c = className.toLowerCase();
-    if (c === "cell phone" || c === "mobile phone" || c === "telephone" || c === "person") return false;
-    const safeWords = ["human", "man", "woman", "boy", "girl", "clothing", "glasses", "shirt", "face", "head", "eye", "mouth", "nose", "hair", "hand", "arm", "body", "foot", "ear", "beard", "trousers", "footwear", "jacket", "dress", "hat", "helmet"];
-    return !safeWords.some(w => c.includes(w));
+    const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case'];
+    return TARGET_OBJECTS.some(w => c.includes(w));
 };
 
 export default function SecureExamWrapperEnhanced({
@@ -194,14 +193,12 @@ export default function SecureExamWrapperEnhanced({
                 metadata: meta,
             });
 
-            // Toasts suppressed for candidates per user request
-            /*
+            // Re-enabled toasts to show AI feedback to candidate
             const toastId = Date.now() + Math.random();
             setToasts((prev) => [...prev, { id: toastId, type, detail }]);
             setTimeout(() => {
                 setToasts((prev) => prev.filter((t) => t.id !== toastId));
             }, 4000);
-            */
         },
         [triggerViolation, logEnhancedViolation]
     );
@@ -231,14 +228,12 @@ export default function SecureExamWrapperEnhanced({
             const newViolations = violations.slice(prevViolationsLengthRef.current);
             newViolations.forEach((v) => {
                 if (v.type === "TAB_SWITCH" || v.type === "WINDOW_BLUR" || v.type === "FULLSCREEN_EXIT") {
-                    // Toasts suppressed for candidate
-                    /*
+                    // Re-enabled toast for tab switch to show candidate proctoring works
                     const toastId = Date.now() + Math.random();
                     setToasts((prev) => [...prev, { id: toastId, type: v.type, detail: v.detail }]);
                     setTimeout(() => {
                         setToasts((prev) => prev.filter((t) => t.id !== toastId));
                     }, 4000);
-                    */
                 }
             });
             prevViolationsLengthRef.current = violations.length;

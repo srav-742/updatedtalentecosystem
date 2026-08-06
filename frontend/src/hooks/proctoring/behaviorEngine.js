@@ -520,8 +520,8 @@ export function analyzeFrame(state, signals) {
                 }
             }
 
-            const OBJECT_CLASSES = ['laptop', 'book', 'bottle', 'pen', 'pencil', 'cup', 'scissors', 'remote', 'mouse', 'keyboard', 'tablet', 'tv', 'paper'];
-            if (OBJECT_CLASSES.includes(track.class) || (track.class !== 'person' && track.class !== 'cell phone')) {
+            const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case'];
+            if (TARGET_OBJECTS.includes(track.class) || TARGET_OBJECTS.includes(track.class.toLowerCase())) {
                 const bbox = track.currentBbox || {};
                 const objectKey = `${track.class}_${Math.round((bbox.x || 0) / 120)}_${Math.round((bbox.y || 0) / 90)}`;
 

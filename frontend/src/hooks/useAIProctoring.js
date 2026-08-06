@@ -54,38 +54,24 @@ const COCO_SSD_CDN_URLS = [
 const SUSPICIOUS_OBJECTS = {
     // COCO Classes (Fallback)
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
-    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
-    "book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 2 },
+    "book": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
     "bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
     "cup": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
     "pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
     "pencil": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
-    "scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 2 },
-    "tv": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 2 },
-    "remote": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
-    "mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 2 },
-    "keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 2 },
     "paper": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
 
     // Open Images V7 Classes (YOLO11 Upgrade)
     "Mobile phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "Telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
-    "Laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
-    "Book": { type: "OBJECT_DETECTED", label: "Book/reading material", ranking: 2 },
+    "Book": { type: "OBJECT_DETECTED", label: "Paper/document", ranking: 2 },
     "Bottle": { type: "OBJECT_DETECTED", label: "Bottle", ranking: 2 },
     "Mug": { type: "OBJECT_DETECTED", label: "Cup/container", ranking: 2 },
     "Pen": { type: "OBJECT_DETECTED", label: "Pen/writing instrument", ranking: 2 },
     "Pencil case": { type: "OBJECT_DETECTED", label: "Pencil", ranking: 2 },
-    "Scissors": { type: "OBJECT_DETECTED", label: "Scissors/tool", ranking: 2 },
-    "Television": { type: "OBJECT_DETECTED", label: "Television/monitor", ranking: 2 },
-    "Remote control": { type: "OBJECT_DETECTED", label: "Remote control", ranking: 2 },
-    "Computer mouse": { type: "OBJECT_DETECTED", label: "Mouse/peripheral", ranking: 2 },
-    "Computer keyboard": { type: "OBJECT_DETECTED", label: "Keyboard", ranking: 2 },
     "Headphones": { type: "OBJECT_DETECTED", label: "Earphones/Headphones/Buds", ranking: 2 },
     "Envelope": { type: "OBJECT_DETECTED", label: "Paper/Envelope", ranking: 2 },
-    "Box": { type: "OBJECT_DETECTED", label: "Box/Container", ranking: 2 },
     "Tablet computer": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
-    "Camera": { type: "OBJECT_DETECTED", label: "Camera", ranking: 2 },
 };
 
 function euclidean(a, b) {
