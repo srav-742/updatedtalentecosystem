@@ -42,6 +42,7 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/api\/jobs\/[^/]+$/i },
     { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'PUT', pattern: /^\/api\/profile\/[^/]+$/i },
+    { method: 'POST', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
     { method: '*', pattern: /^\/api\/gateway\/.*/i },
     { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i },

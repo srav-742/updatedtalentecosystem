@@ -170,7 +170,13 @@ const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, 
                                             ))}
                                         </div>
 
-                                        {!application.interviewScore && application.jobId?.mockInterview?.enabled && (
+                                        {!(
+                                            (!application.jobId?.resumeAnalysis?.enabled || !!application.resumeMatchPercent) &&
+                                            (!application.jobId?.mockInterview?.enabled || !!application.videoIntroUrl) &&
+                                            (!application.jobId?.assessment?.enabled || !!application.assessmentScore) &&
+                                            (!application.jobId?.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined)) &&
+                                            (!application.jobId?.mockInterview?.enabled || !!application.interviewScore)
+                                        ) && (
                                             <div className="flex justify-end pt-2">
                                                 <Link
                                                     to={`/candidate/apply/${application.jobId?._id || application.jobId}`}
