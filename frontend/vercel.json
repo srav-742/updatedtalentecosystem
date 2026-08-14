@@ -7,7 +7,7 @@
     ],
     "headers": [
         {
-            "source": "/models/(.*)\\.onnx",
+            "source": "/models/(.*).onnx",
             "headers": [
                 {
                     "key": "Content-Type",
@@ -88,7 +88,7 @@
             ]
         },
         {
-            "source": "/(.*)\\.(?:woff2|woff|ttf|otf|eot)",
+            "source": "/(.*).{woff2,woff,ttf,otf,eot}",
             "headers": [
                 {
                     "key": "Cache-Control",
@@ -97,7 +97,7 @@
             ]
         },
         {
-            "source": "/(.*)\\.(?:png|jpg|jpeg|gif|webp|svg|ico)",
+            "source": "/(.*).{png,jpg,jpeg,gif,webp,svg,ico}",
             "headers": [
                 {
                     "key": "Cache-Control",
