@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hire1percent-platform
+description: Enterprise Kubernetes chart for Hire1Percent microservices
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

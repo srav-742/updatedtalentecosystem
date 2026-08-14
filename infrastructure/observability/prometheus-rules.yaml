@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hire1percent-platform-alerts
+  namespace: hire1percent
+spec:
+  groups:
+    - name: hire1percent.slo
+      rules:
+        - alert: HighErrorRate
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Hire1Percent API 5xx error rate is above 2%
+        - alert: HighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Hire1Percent p95 latency is above 1 second
+        - alert: DeadLetterQueueGrowing
+          expr: increase(hire1percent_dlq_messages_total[15m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Dead letter queue is receiving messages

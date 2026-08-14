@@ -1,0 +1,409 @@
+const Application = require('../models/Application');
+const ResumeProfile = require('../models/ResumeProfile');
+const ResumeAnalysis = require('../models/ResumeAnalysis');
+const AssessmentSubmission = require('../models/AssessmentSubmission');
+const User = require('../models/User');
+const Job = require('../models/Job');
+const mongoose = require('mongoose');
+const ProctoringViolation = require('../models/ProctoringViolation');
+const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+const { getViolationRating } = require('../utils/proctoringScoring');
+const ProctoringReport = require('../models/ProctoringReport');
+const { updateProctoringReport } = require('./proctoringControllerEnhanced');
+const { sanitizeTranscript } = require('../utils/transcriptSanitizer');
+
+const sanitizeViolationDetail = (type, detail, rating) => {
+    if (!detail) return '';
+    let cleanDetail = detail
+        .replace(/\s*\(ratio:\s*[^)]+\)/gi, '')
+        .replace(/\s*\(confidence:\s*[^)]+\)/gi, '');
+    
+    if (!cleanDetail.endsWith('.')) {
+        cleanDetail += '.';
+    }
+    
+    if (!cleanDetail.includes('(Ranking:')) {
+        cleanDetail += ` (Ranking: ${rating})`;
+    }
+    return cleanDetail;
+};
+
+const calculateCandidateScores = (app, assessmentSubmission) => {
+    let dynInterview = app.interviewScore || 0;
+    const answers = app.interviewAnswers || [];
+
+    if (answers.length > 0) {
+        const validMarks = answers.filter(q => typeof q.marks === 'number' && !isNaN(q.marks));
+        if (validMarks.length > 0) {
+            const totalMarks = validMarks.reduce((s, q) => s + q.marks, 0);
+            const maxPossible = answers.length * 10;
+            if (maxPossible > 0) {
+                dynInterview = Math.round((totalMarks / maxPossible) * 70);
+            }
+        } else {
+            const validScores = answers.filter(q => typeof q.score === 'number' && !isNaN(q.score));
+            if (validScores.length > 0) {
+                const avgScore = validScores.reduce((s, q) => s + q.score, 0) / validScores.length;
+                dynInterview = Math.round((avgScore > 1 ? avgScore / 100 : avgScore) * 70);
+            }
+        }
+    }
+
+    const dynResume = app.resumeMatchPercent || 0;
+    
+    let dynAssessment = app.assessmentScore || 0;
+    if (assessmentSubmission && assessmentSubmission.totalQuestions > 0) {
+        dynAssessment = Math.round((assessmentSubmission.correctAnswers / assessmentSubmission.totalQuestions) * 20);
+    }
+
+    const dynCoding = app.codingScore || 0;
+
+    const computedFinalScore = dynResume + dynAssessment + dynInterview + dynCoding;
+
+    return {
+        resumeScore: dynResume,
+        assessmentScore: dynAssessment,
+        interviewScore: dynInterview,
+        codingScore: dynCoding,
+        finalScore: computedFinalScore
+    };
+};
+
+/**
+ * GET /api/transcripts/:applicationId
+ * Returns a fully aggregated candidate evaluation transcript for admin view.
+ */
+const getTranscript = async (req, res) => {
+    try {
+        const { applicationId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ message: 'Invalid application ID' });
+        }
+
+        // 1. Fetch the application (populated with job)
+        const application = await Application.findById(applicationId).lean();
+        if (!application) {
+            return res.status(404).json({ message: 'Application not found' });
+        }
+
+        const userId = application.userId;
+        const jobId = application.jobId;
+
+        // 2. Fetch the job
+        const job = await Job.findById(jobId).lean();
+
+        // 3. Fetch the candidate user profile
+        const user = await User.findOne({ uid: userId }).lean();
+
+        // 4. Fetch resume profile
+        const resumeProfile = await ResumeProfile.findOne({ userId }).lean();
+
+        // 5. Fetch resume analysis (job-specific)
+        const resumeAnalysis = await ResumeAnalysis.findOne({ userId, jobId }).lean();
+
+        // 6. Fetch skill assessment submission
+        const assessment = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+            : null)
+            || await AssessmentSubmission.findOne({ applicationId }).lean()
+            || await AssessmentSubmission.findOne({ userId, jobId }).sort({ submittedAt: -1 }).lean();
+
+        // 6.5 Query Proctoring Violations
+        const jobIdStr = jobId?.toString();
+        const sessionIdStr = application.recordingSessionId;
+
+        const queryConditions = [];
+        if (userId && jobIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(jobIdStr) } 
+            });
+        }
+        if (userId && sessionIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(sessionIdStr) } 
+            });
+        }
+
+        let baseViolations = [];
+        let enhancedViolations = [];
+
+        if (queryConditions.length > 0) {
+            const query = { $or: queryConditions };
+            
+            const allBase = await ProctoringViolation.find(query).sort({ timestamp: 1 }).lean();
+            const allEnhanced = await ProctoringViolationEnhanced.find(query).sort({ timestamp: 1 }).lean();
+
+            baseViolations = allBase.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+
+            enhancedViolations = allEnhanced.filter(v => {
+                if (sessionIdStr && v.examId.includes(sessionIdStr)) return true;
+                if (jobIdStr && v.examId.includes(jobIdStr)) return true;
+                return false;
+            });
+        }
+
+        const mappedViolations = [
+            ...baseViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: 'medium',
+                    rating,
+                    isAnswering: false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            }),
+            ...enhancedViolations.map(v => {
+                const rating = v.rating || getViolationRating(v.type, v.metadata);
+                return {
+                    id: v._id,
+                    type: v.type,
+                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                    count: v.count,
+                    severity: v.severity || 'medium',
+                    rating,
+                    isAnswering: v.isAnswering || false,
+                    timestamp: v.timestamp || v.createdAt
+                };
+            })
+        ];
+
+        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // ── Query Proctoring Report ──
+        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
+        let proctoringReport = null;
+        if (examIdStr) {
+            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
+            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
+                // Compile on-the-fly if violations exist but report doesn't
+                try {
+                    proctoringReport = await updateProctoringReport(examIdStr, userId);
+                } catch (reportErr) {
+                    console.warn('[TRANSCRIPT-REPORT-ON-THE-FLY] Generation failed:', reportErr);
+                }
+            }
+        }
+
+        // Unified score calculation
+        const scoreData = calculateCandidateScores(application, assessment);
+
+        // Auto-heal DB if stored scores were out-of-sync
+        if (application.finalScore !== scoreData.finalScore || application.interviewScore !== scoreData.interviewScore) {
+            Application.updateOne(
+                { _id: application._id },
+                { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
+            ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL] Error updating DB:', err));
+        }
+
+        // 7. Build the unified transcript
+        const transcript = {
+            generatedAt: new Date().toISOString(),
+            candidate: {
+                name: application.applicantName || user?.name || 'Unknown',
+                email: application.applicantEmail || user?.email || '',
+                phone: resumeProfile?.basics?.phone || '',
+                location: resumeProfile?.basics?.location || '',
+                profilePic: application.applicantPic || user?.profilePic || null,
+                linkedinUrl: user?.linkedinUrl || null,
+                githubUrl: user?.githubUrl || null,
+                resumeUrl: user?.resumeUrl || null,
+            },
+            job: {
+                title: job?.title || 'Unknown Role',
+                company: job?.company || '',
+                location: job?.location || '',
+                type: job?.type || '',
+                description: job?.description || '',
+                skills: job?.skills || [],
+                experienceLevel: job?.experienceLevel || '',
+            },
+            application: {
+                id: application._id,
+                status: application.status,
+                appliedAt: application.appliedAt,
+                resultsVisibleAt: application.resultsVisibleAt,
+                videoIntroUrl: application.videoIntroUrl || null,
+                recordingUrl: application.recordingPlaybackUrl || application.recordingUrl || null,
+                assessmentRecordingUrl: application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl || null,
+            },
+            resume: {
+                profile: resumeProfile ? {
+                    summary: resumeProfile.summary || '',
+                    education: resumeProfile.education || [],
+                    workExperience: resumeProfile.workExperience || [],
+                    projects: resumeProfile.projects || [],
+                    skills: resumeProfile.skills || {},
+                    languages: resumeProfile.languages || [],
+                    publications: resumeProfile.publications || [],
+                    professionalProfiles: resumeProfile.professionalProfiles || [],
+                    experienceYears: resumeProfile.experienceYears || 0,
+                } : null,
+                analysis: resumeAnalysis ? {
+                    matchPercentage: resumeAnalysis.matchPercentage || 0,
+                    skillsScore: resumeAnalysis.skillsScore || 0,
+                    experienceScore: resumeAnalysis.experienceScore || 0,
+                    skillsFeedback: resumeAnalysis.skillsFeedback || '',
+                    experienceFeedback: resumeAnalysis.experienceFeedback || '',
+                    explanation: resumeAnalysis.explanation || '',
+                } : null,
+            },
+            assessment: assessment ? {
+                score: scoreData.assessmentScore,
+                totalQuestions: assessment.totalQuestions || 0,
+                correctAnswers: assessment.correctAnswers || 0,
+                submittedAt: assessment.submittedAt,
+                answers: (assessment.answers || []).map(a => ({
+                    question: a.question,
+                    skill: a.skill || '',
+                    questionType: a.questionType,
+                    userAnswer: a.userAnswer,
+                    correctAnswer: a.correctAnswer,
+                    isCorrect: a.isCorrect,
+                    score: a.score || 0,
+                })),
+            } : null,
+            interview: {
+                score: scoreData.interviewScore,
+                totalQuestions: application.interviewAnswers?.length || 0,
+                completedAt: application.updatedAt || null,
+                questions: (application.interviewAnswers || []).map((q, idx) => ({
+                    questionNumber: q.questionNumber || idx + 1,
+                    question: q.question || '',
+                    answer: sanitizeTranscript(q.answer || ''),
+                    score: q.score || 0,
+                    marks: q.marks || 0,
+                    feedback: q.feedback || '',
+                    isAttempted: !!(q.answer && q.answer.trim()),
+                })),
+                proctoringViolations: mappedViolations,
+                proctoringReport: proctoringReport || null,
+            },
+            scores: {
+                resumeMatch: scoreData.resumeScore,
+                assessmentScore: scoreData.assessmentScore,
+                codingScore: scoreData.codingScore,
+                interviewScore: scoreData.interviewScore,
+                finalScore: scoreData.finalScore,
+                ownershipScore: application.metrics?.ownershipMindset || null,
+                teamFitScore: application.teamFit?.score || null,
+            },
+        };
+
+        return res.json(transcript);
+
+    } catch (error) {
+        console.error('[TRANSCRIPT] Error generating transcript:', error);
+        return res.status(500).json({ message: 'Failed to generate transcript', error: error.message });
+    }
+};
+
+/**
+ * GET /api/transcripts/job/:jobId
+ * Returns a list of all candidates for a specific job (for admin transcript panel).
+ */
+const getJobCandidates = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ message: 'Invalid job ID' });
+        }
+
+        const applications = await Application.find({ jobId })
+            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus')
+            .lean();
+
+        const userIdList = applications.map(app => app.userId).filter(Boolean);
+        const jobIdStr = jobId.toString();
+
+        const query = {
+            $or: [
+                { examId: { $regex: new RegExp(`^(interview|assessment):${jobIdStr}:`) } },
+                { userId: { $in: userIdList } }
+            ]
+        };
+
+        const [baseViolations, enhancedViolations] = await Promise.all([
+            ProctoringViolation.find(query).lean(),
+            ProctoringViolationEnhanced.find(query).lean()
+        ]);
+
+        const userPenaltyMap = {};
+        const addRating = (userId, examId, type, metadata, ratingFromDb) => {
+            if (!userId) return;
+            const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
+            
+            let jobId = null;
+            if (examId && typeof examId === 'string') {
+                const parts = examId.split(':');
+                if (parts.length >= 2) {
+                    jobId = parts[1];
+                }
+            }
+            const key = jobId ? `${userId}_${jobId}` : userId;
+            userPenaltyMap[key] = (userPenaltyMap[key] || 0) + rating;
+        };
+
+        baseViolations.forEach(v => {
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+        });
+
+        enhancedViolations.forEach(v => {
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+        });
+
+        const candidates = applications.map(app => {
+            const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
+            const rawPenalty = userPenaltyMap[key] || 0;
+            const proctoringScore = rawPenalty;
+
+            // Compute live accurate scores using unified score calculator
+            const scoreData = calculateCandidateScores(app, null);
+
+            // Auto-heal DB document if out-of-sync
+            if (app.finalScore !== scoreData.finalScore || app.interviewScore !== scoreData.interviewScore) {
+                Application.updateOne(
+                    { _id: app._id },
+                    { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
+                ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL-LIST] Error updating DB:', err));
+            }
+            return {
+                applicationId: app._id,
+                name: app.applicantName || 'Unknown',
+                email: app.applicantEmail || '',
+                profilePic: app.applicantPic || null,
+                resumeScore: scoreData.resumeScore,
+                assessmentScore: scoreData.assessmentScore,
+                interviewScore: scoreData.interviewScore,
+                finalScore: scoreData.finalScore,
+                proctoringScore,
+                integrityPenalty: rawPenalty,
+                status: app.status,
+                appliedAt: app.appliedAt,
+                hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,
+                hasInterview: (app.interviewAnswers?.length || 0) > 0,
+                ownershipScore: app.metrics?.ownershipMindset || null,
+                teamFitScore: app.teamFit?.score || null,
+            };
+        });
+
+        return res.json({ jobId, total: candidates.length, candidates });
+
+    } catch (error) {
+        console.error('[TRANSCRIPT] Error fetching job candidates:', error);
+        return res.status(500).json({ message: 'Failed to fetch candidates', error: error.message });
+    }
+};
+
+module.exports = { getTranscript, getJobCandidates };

@@ -1,0 +1,621 @@
+/**
+ * Behavior Analysis Engine
+ * ──────────────────────────────────────────────────────────────────────────────
+ * Pure-function module that aggregates signals from all detectors and applies
+ * temporal rules to determine confirmed violations. No React dependencies.
+ *
+ * This is the "brain" of the multi-layer proctoring pipeline — it prevents
+ * false positives by requiring multi-signal confirmation before triggering.
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
+
+// ── Score penalty table ──────────────────────────────────────────────────────
+// ── Score penalty table (Red Mark = 2 for Phone, Multiple Faces, Objects; 1 for all others) ──
+export const SCORE_PENALTIES = {
+    // Phone Detections (Red Mark: 2)
+    mobile_phone_detected: 2,
+    phone_near_face: 2,
+    phone_near_ear: 2,
+
+    // Multiple Faces Detections (Red Mark: 2)
+    multiple_faces_detected: 2,
+    person_count_violation: 2,
+
+    // Object Detections (Red Mark: 2)
+    new_object_appeared: 2,
+    secondary_laptop_detected: 2,
+    book_detected: 2,
+    tablet_detected: 2,
+    earphone_detected: 2,
+    suspicious_object_detected: 2,
+
+    // All other flags (Penalty score: 1)
+    looking_away: 1,
+    continuous_talking: 1,
+    no_face_detected: 1,
+    eyes_closed: 1,
+    head_turned: 1,
+    hand_near_lap: 1,
+    multiple_voices: 1,
+    rapid_gaze_movement: 1,
+    hand_leaving_frame: 1,
+    background_noise: 1,
+    environment_change: 1,
+};
+
+
+// ── Temporal rule definitions ────────────────────────────────────────────────
+export const PHONE_RULES = {
+    ignoreUnderMs: 1000,
+    warningAfterMs: 1000,
+    majorWarningAfterMs: 5000,
+    autoSubmitAfterMs: 15000,
+    minConfidence: 0.40,            // COCO threshold
+    minAverageConfidence: 0.45,     // COCO moving average
+    minConsecutiveFrames: 2,        // Requires 2 frames to confirm phone (~0.8s)
+    minPersistenceMs: 1000,         // 1 second persistence required (< 3s total)
+    staticMovementThreshold: 8,
+    dynamicMovementThreshold: 18,
+    confirmationFrames: 2,
+};
+
+export const OBJECT_RULES = {
+    environmentBaselineMs: 5000,
+    minConfidence: 0.40,
+    minConsecutiveFrames: 2,
+    minPersistenceMs: 1000,
+};
+
+export const FACE_RULES = {
+    noFaceWarningMs: 5000,       // 5 seconds no face → warning
+    noFaceViolationMs: 15000,    // 15 seconds no face → violation
+    multipleFacesDelayMs: 3500,  // Wait 3–5 seconds before confirmation
+    multipleFacesMinMs: 2000,    // Do not trigger if second face appears for < 2 seconds
+    minVisibilityPercent: 90,    // Face must be visible 90% of session
+};
+
+export const GAZE_RULES = {
+    lookAwayAngle: 35,           // Yaw > 35° considered "looking away"
+    lookAwayDurationMs: 8000,    // 8 seconds before warning (ignoring quick moves)
+    eyeClosedDurationMs: 5000,   // Eyes closed > 5s → violation
+    talkingDurationMs: 10000,    // Talking > 10s → possible cheating
+};
+
+export const PROXIMITY_RULES = {
+    phoneNearFaceDistancePx: 180,  // Phone within 180px of face → warning
+    phoneNearEarProbability: 0.95, // Phone near ear = 95% cheating
+};
+
+// ── Confidence ramp-up validator ─────────────────────────────────────────────
+/**
+ * Validates that a detection has passed through the confidence ramp-up stages.
+ * Returns the current stage: 'ignore', 'wait', 'confirmed'
+ */
+export function evaluateConfidenceRamp(confidenceHistory) {
+    if (!confidenceHistory || confidenceHistory.length === 0) return 'ignore';
+
+    const latest = confidenceHistory[confidenceHistory.length - 1];
+
+    if (latest < 0.35) return 'ignore';
+    if (latest < 0.40) return 'wait';
+    return 'confirmed';
+}
+
+// ── Static vs Dynamic object classifier ──────────────────────────────────────
+/**
+ * Determines if a tracked object is static (poster/wallpaper) or dynamic (real).
+ * @param {Array} bboxHistory - Array of {x, y, width, height, timestamp}
+ * @returns {'static' | 'dynamic' | 'unknown'}
+ */
+export function classifyObjectMovement(bboxHistory) {
+    if (!bboxHistory || bboxHistory.length < 2) return 'unknown';
+
+    const first = bboxHistory[0];
+    const last = bboxHistory[bboxHistory.length - 1];
+    const timeDiffMs = last.timestamp - first.timestamp;
+
+    if (timeDiffMs < PHONE_RULES.minPersistenceMs) return 'unknown';
+
+    // Calculate total displacement
+    const dx = Math.abs(last.x - first.x);
+    const dy = Math.abs(last.y - first.y);
+    const displacement = Math.sqrt(dx * dx + dy * dy);
+
+    // Only flag as static if completely motionless (<3px movement over 3+ seconds)
+    if (displacement < 3 && timeDiffMs >= 3000) return 'static';
+
+    return 'dynamic';
+}
+
+// ── Phone detection state machine ────────────────────────────────────────────
+/**
+ * Evaluates a tracked phone object and returns the appropriate action.
+ * @param {Object} track - Tracked object state
+ * @returns {Object} { action, severity, reason }
+ */
+export function evaluatePhoneTrack(track) {
+    if (!track) return { action: 'ignore', severity: null, reason: 'No track' };
+
+    const {
+        consecutiveFrames = 0,
+        totalFrames = 1,
+        lostFrames = 0,
+        durationMs = 0,
+        maxConfidence = 0,
+        averageConfidence: trackAvgConf = 0,
+        confidenceHistory = [],
+        bboxHistory = [],
+    } = track;
+
+    // Rule: Phone detected, max confidence >= 0.35
+    if (maxConfidence < PHONE_RULES.minConfidence) {
+        return { action: 'ignore', severity: null, reason: `Low confidence: ${maxConfidence.toFixed(2)}` };
+    }
+
+    const averageConfidence = trackAvgConf || (confidenceHistory.length > 0
+        ? confidenceHistory.reduce((sum, value) => sum + value, 0) / confidenceHistory.length
+        : maxConfidence);
+
+    if (averageConfidence < PHONE_RULES.minAverageConfidence) {
+        return { action: 'wait', severity: null, reason: `Average confidence pending: ${averageConfidence.toFixed(2)}` };
+    }
+
+    // Rule: Appears in at least 50% of analyzed frames (tolerant for low light/webcams)
+    const totalAnalyzedFrames = totalFrames + lostFrames;
+    const detectionRate = totalFrames / (totalAnalyzedFrames || 1);
+    if (totalAnalyzedFrames >= 5 && detectionRate < 0.50) {
+        return { action: 'ignore', severity: null, reason: `Ignored due to low frame detection rate: ${(detectionRate * 100).toFixed(0)}%` };
+    }
+
+    // Rule: Visible for at least 3 consecutive frames or 2 seconds persistence
+    if (consecutiveFrames < PHONE_RULES.minConsecutiveFrames && durationMs < PHONE_RULES.minPersistenceMs) {
+        return { action: 'wait', severity: null, reason: 'Waiting for sustained phone evidence (3 frames)' };
+    }
+
+    // Rule: Check confidence ramp-up
+    const rampStatus = evaluateConfidenceRamp(confidenceHistory);
+    if (rampStatus === 'ignore') {
+        return { action: 'ignore', severity: null, reason: 'Confidence ramp: ignore' };
+    }
+
+    // Rule: Check for static object (poster/wallpaper)
+    const movementClass = classifyObjectMovement(bboxHistory);
+    if (movementClass === 'static') {
+        return { action: 'ignore', severity: null, reason: 'Static object detected (poster/wallpaper)' };
+    }
+
+    // Escalation rules based on duration
+    if (durationMs >= PHONE_RULES.autoSubmitAfterMs) {
+        return { action: 'auto_submit', severity: 'critical', reason: `Phone detected for ${(durationMs / 1000).toFixed(1)}s — auto-submit threshold exceeded` };
+    }
+
+    if (durationMs >= PHONE_RULES.majorWarningAfterMs) {
+        return { action: 'major_warning', severity: 'high', reason: `Phone detected for ${(durationMs / 1000).toFixed(1)}s` };
+    }
+
+    return { action: 'warning', severity: 'medium', reason: `Mobile phone detected in frame (conf: ${(averageConfidence * 100).toFixed(0)}%)` };
+}
+
+export function isConfirmedPhoneTrack(track) {
+    const result = evaluatePhoneTrack(track);
+    return result.action !== 'ignore' && result.action !== 'wait';
+}
+
+// ── Face presence evaluator ──────────────────────────────────────────────────
+export function evaluateFacePresence(faceState) {
+    const { faceCount = 1, noFaceDurationMs = 0, multipleFacesDurationMs = 0 } = faceState;
+
+    if (faceCount === 0) {
+        if (noFaceDurationMs >= FACE_RULES.noFaceViolationMs) {
+            return {
+                action: 'violation',
+                severity: 'high',
+                eventType: 'no_face_detected',
+                reason: `No face for ${(noFaceDurationMs / 1000).toFixed(1)}s — violation threshold`,
+            };
+        }
+        if (noFaceDurationMs >= FACE_RULES.noFaceWarningMs) {
+            return {
+                action: 'warning',
+                severity: 'medium',
+                eventType: 'no_face_detected',
+                reason: `No face for ${(noFaceDurationMs / 1000).toFixed(1)}s`,
+            };
+        }
+        return { action: 'wait', severity: null, eventType: null, reason: 'No face — monitoring' };
+    }
+
+    if (faceCount > 1) {
+        if (multipleFacesDurationMs < FACE_RULES.multipleFacesMinMs) {
+            return { action: 'wait', severity: null, eventType: null, reason: 'Multiple faces detected briefly' };
+        }
+        if (multipleFacesDurationMs >= FACE_RULES.multipleFacesDelayMs) {
+            return {
+                action: 'warning',
+                severity: 'high',
+                eventType: 'multiple_faces_detected',
+                reason: `${faceCount} faces detected for ${(multipleFacesDurationMs / 1000).toFixed(1)}s`,
+            };
+        }
+        return { action: 'wait', severity: null, eventType: null, reason: 'Waiting to confirm multiple faces' };
+    }
+
+    return { action: 'ok', severity: null, eventType: null, reason: 'Single face detected' };
+}
+
+// ── Gaze evaluator ───────────────────────────────────────────────────────────
+export function evaluateGaze(gazeState) {
+    const {
+        yawAngle = 0,
+        lookAwayDurationMs = 0,
+        eyesClosed = false,
+        eyesClosedDurationMs = 0,
+        isTalking = false,
+        talkingDurationMs = 0,
+    } = gazeState;
+
+    if (eyesClosed && eyesClosedDurationMs >= GAZE_RULES.eyeClosedDurationMs) {
+        return {
+            action: 'violation',
+            severity: 'high',
+            eventType: 'eyes_closed',
+            reason: `Eyes closed for ${(eyesClosedDurationMs / 1000).toFixed(1)}s`,
+        };
+    }
+
+    if (Math.abs(yawAngle) > GAZE_RULES.lookAwayAngle && lookAwayDurationMs >= GAZE_RULES.lookAwayDurationMs) {
+        return {
+            action: 'warning',
+            severity: 'medium',
+            eventType: 'looking_away',
+            reason: `Looking away (${yawAngle.toFixed(0)}°) for ${(lookAwayDurationMs / 1000).toFixed(1)}s`,
+        };
+    }
+
+    if (isTalking && talkingDurationMs >= GAZE_RULES.talkingDurationMs) {
+        return {
+            action: 'warning',
+            severity: 'medium',
+            eventType: 'continuous_talking',
+            reason: `Talking continuously for ${(talkingDurationMs / 1000).toFixed(1)}s`,
+        };
+    }
+
+    return { action: 'ok', severity: null, eventType: null, reason: 'Gaze normal' };
+}
+
+// ── Phone-face proximity evaluator ───────────────────────────────────────────
+export function evaluatePhoneProximity(phoneBbox, faceBbox) {
+    if (!phoneBbox || !faceBbox) {
+        return { isNearFace: false, isNearEar: false, distance: Infinity };
+    }
+
+    const phoneCenterX = phoneBbox.x + phoneBbox.width / 2;
+    const phoneCenterY = phoneBbox.y + phoneBbox.height / 2;
+    const faceCenterX = faceBbox.x + faceBbox.width / 2;
+    const faceCenterY = faceBbox.y + faceBbox.height / 2;
+
+    const dx = phoneCenterX - faceCenterX;
+    const dy = phoneCenterY - faceCenterY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    const isNearFace = distance < PROXIMITY_RULES.phoneNearFaceDistancePx;
+
+    const isNearEar = isNearFace &&
+        Math.abs(dx) > faceBbox.width * 0.25 &&
+        Math.abs(dy) < faceBbox.height * 0.5;
+
+    return { isNearFace, isNearEar, distance };
+}
+
+// ── Proctoring score calculator ──────────────────────────────────────────────
+export function computeProctoringScore(events, startScore = 100) {
+    let score = startScore;
+    for (const event of events) {
+        const penalty = SCORE_PENALTIES[event.eventType] || SCORE_PENALTIES[event] || 5;
+        score = Math.max(0, score - penalty);
+    }
+    return score;
+}
+
+export function getStatusFromScore(score) {
+    const suspicion = 100 - score;
+    if (suspicion < 30) return 'clean';
+    if (suspicion < 50) return 'low_risk';
+    if (suspicion < 70) return 'suspicious';
+    return 'critical';
+}
+
+export function createBehaviorState() {
+    return {
+        score: 100,
+        confirmedEvents: [],
+        activeTracks: {},
+        noFaceStartTime: null,
+        multipleFacesStartTime: null,
+        lastMultipleFacesTime: null,
+        lookAwayStartTime: null,
+        eyesClosedStartTime: null,
+        talkingStartTime: null,
+        lastFaceCount: 1,
+        totalFramesProcessed: 0,
+        framesWithFace: 0,
+        environmentObjects: new Set(),
+        sessionStartedAt: Date.now(),
+        warningLevel: 'none',
+        faceBboxHistory: [],
+    };
+}
+
+function isFaceStatic(bboxHistory) {
+    if (!bboxHistory || bboxHistory.length < 5) return false;
+    const xs = bboxHistory.map(b => b.x);
+    const ys = bboxHistory.map(b => b.y);
+    const meanX = xs.reduce((s, x) => s + x, 0) / xs.length;
+    const meanY = ys.reduce((s, y) => s + y, 0) / ys.length;
+    const varianceX = xs.reduce((s, x) => s + Math.pow(x - meanX, 2), 0) / xs.length;
+    const varianceY = ys.reduce((s, y) => s + Math.pow(y - meanY, 2), 0) / ys.length;
+    return varianceX < 2 && varianceY < 2;
+}
+
+// ── Main behavior analysis function ──────────────────────────────────────────
+export function analyzeFrame(state, signals) {
+    const actions = [];
+    const now = Date.now();
+
+    state.totalFramesProcessed += 1;
+
+    const faceCount = signals.faceCount ?? 1;
+
+    if (faceCount >= 1) {
+        state.framesWithFace += 1;
+    }
+
+    if (signals.faceBbox) {
+        state.faceBboxHistory.push({ ...signals.faceBbox, timestamp: now });
+        if (state.faceBboxHistory.length > 20) {
+            state.faceBboxHistory.shift();
+        }
+    }
+
+    const faceIsStatic = isFaceStatic(state.faceBboxHistory);
+
+    if (faceCount === 0 || faceIsStatic) {
+        if (!state.noFaceStartTime) {
+            state.noFaceStartTime = now;
+        }
+        const noFaceDuration = now - state.noFaceStartTime;
+        const faceResult = evaluateFacePresence({
+            faceCount: 0,
+            noFaceDurationMs: noFaceDuration,
+        });
+        if (faceResult.action !== 'wait' && faceResult.action !== 'ok') {
+            actions.push({
+                action: faceResult.action,
+                eventType: faceResult.eventType,
+                severity: faceResult.severity,
+                reason: faceIsStatic ? 'Static face detected (possible poster/photo)' : faceResult.reason,
+                data: { durationMs: noFaceDuration, faceIsStatic },
+            });
+        }
+    } else {
+        state.noFaceStartTime = null;
+    }
+
+    if (faceCount > 1 && !faceIsStatic) {
+        if (!state.multipleFacesStartTime) {
+            state.multipleFacesStartTime = now;
+        }
+        state.lastMultipleFacesTime = now;
+        const multipleFacesDuration = now - state.multipleFacesStartTime;
+        const faceResult = evaluateFacePresence({
+            faceCount,
+            multipleFacesDurationMs: multipleFacesDuration,
+        });
+        if (faceResult.action !== 'wait' && faceResult.action !== 'ok') {
+            actions.push({
+                action: faceResult.action,
+                eventType: faceResult.eventType,
+                severity: faceResult.severity,
+                reason: faceResult.reason,
+                data: { faceCount, durationMs: multipleFacesDuration },
+            });
+        }
+    } else {
+        if (!state.lastMultipleFacesTime || (now - state.lastMultipleFacesTime > 1500)) {
+            state.multipleFacesStartTime = null;
+        }
+    }
+
+    state.lastFaceCount = faceCount;
+
+    if (signals.yawAngle !== undefined && !faceIsStatic) {
+        const isLookingAway = Math.abs(signals.yawAngle) > GAZE_RULES.lookAwayAngle;
+
+        if (isLookingAway) {
+            if (!state.lookAwayStartTime) state.lookAwayStartTime = now;
+            const lookAwayDuration = now - state.lookAwayStartTime;
+            const gazeResult = evaluateGaze({
+                yawAngle: signals.yawAngle,
+                lookAwayDurationMs: lookAwayDuration,
+            });
+            if (gazeResult.action !== 'ok') {
+                actions.push({
+                    action: gazeResult.action,
+                    eventType: gazeResult.eventType,
+                    severity: gazeResult.severity,
+                    reason: gazeResult.reason,
+                    data: { yawAngle: signals.yawAngle, durationMs: lookAwayDuration },
+                });
+            }
+        } else {
+            state.lookAwayStartTime = null;
+        }
+    }
+
+    if (signals.eyesClosed && !faceIsStatic) {
+        if (!state.eyesClosedStartTime) state.eyesClosedStartTime = now;
+        const closedDuration = now - state.eyesClosedStartTime;
+        const gazeResult = evaluateGaze({
+            eyesClosed: true,
+            eyesClosedDurationMs: closedDuration,
+        });
+        if (gazeResult.action !== 'ok') {
+            actions.push({
+                action: gazeResult.action,
+                eventType: gazeResult.eventType,
+                severity: gazeResult.severity,
+                reason: gazeResult.reason,
+                data: { durationMs: closedDuration },
+            });
+        }
+    } else {
+        state.eyesClosedStartTime = null;
+    }
+
+    const confirmedPhoneTracks = [];
+    if (signals.trackedObjects) {
+        const sessionAgeMs = now - (state.sessionStartedAt || now);
+
+        for (const track of signals.trackedObjects) {
+            if (track.class === 'cell phone' || track.class === 'remote') {
+                const phoneResult = evaluatePhoneTrack(track);
+                const hasConfirmedPhoneObject = phoneResult.action !== 'ignore' && phoneResult.action !== 'wait';
+
+                if (hasConfirmedPhoneObject) {
+                    confirmedPhoneTracks.push(track);
+                    actions.push({
+                        action: phoneResult.action,
+                        eventType: 'mobile_phone_detected',
+                        severity: phoneResult.severity,
+                        reason: phoneResult.reason,
+                        data: {
+                            trackId: track.trackId,
+                            confidence: track.averageConfidence || track.maxConfidence,
+                            durationMs: track.durationMs,
+                            bbox: track.currentBbox,
+                        },
+                    });
+                }
+
+                if (hasConfirmedPhoneObject && signals.faceBbox && track.currentBbox) {
+                    const proximity = evaluatePhoneProximity(track.currentBbox, signals.faceBbox);
+                    if (proximity.isNearEar) {
+                        actions.push({
+                            action: 'violation',
+                            eventType: 'phone_near_ear',
+                            severity: 'critical',
+                            reason: `Phone near ear detected (distance: ${proximity.distance.toFixed(0)}px)`,
+                            data: { distance: proximity.distance, trackId: track.trackId },
+                        });
+                    } else if (proximity.isNearFace) {
+                        actions.push({
+                            action: 'warning',
+                            eventType: 'phone_near_face',
+                            severity: 'high',
+                            reason: `Phone near face (distance: ${proximity.distance.toFixed(0)}px)`,
+                            data: { distance: proximity.distance, trackId: track.trackId },
+                        });
+                    }
+                }
+            }
+
+            const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case'];
+            if (TARGET_OBJECTS.includes(track.class) || TARGET_OBJECTS.includes(track.class.toLowerCase())) {
+                const bbox = track.currentBbox || {};
+                const objectKey = `${track.class}_${Math.round((bbox.x || 0) / 120)}_${Math.round((bbox.y || 0) / 90)}`;
+
+                if (sessionAgeMs <= OBJECT_RULES.environmentBaselineMs) {
+                    state.environmentObjects.add(objectKey);
+                    continue;
+                }
+
+                const isNew = !state.environmentObjects.has(objectKey);
+                const isSustained = track.durationMs >= OBJECT_RULES.minPersistenceMs &&
+                    track.consecutiveFrames >= OBJECT_RULES.minConsecutiveFrames &&
+                    track.maxConfidence >= OBJECT_RULES.minConfidence;
+
+                // Calculate distance from face to object to prevent flagging background objects
+                let isObjectNearUser = true; 
+                if (signals.faceBbox && bbox.x !== undefined) {
+                    const objCenterX = bbox.x + (bbox.width || 0) / 2;
+                    const objCenterY = bbox.y + (bbox.height || 0) / 2;
+                    const faceCenterX = signals.faceBbox.x + signals.faceBbox.width / 2;
+                    const faceCenterY = signals.faceBbox.y + signals.faceBbox.height / 2;
+                    const dist = Math.sqrt(Math.pow(objCenterX - faceCenterX, 2) + Math.pow(objCenterY - faceCenterY, 2));
+                    
+                    if (dist > 600) {
+                        isObjectNearUser = false; // Object is far in the background, ignore it
+                    }
+                }
+
+                if (isNew && isSustained && isObjectNearUser) {
+                    state.environmentObjects.add(objectKey);
+                    const eventType = track.class === 'book' ? 'book_detected' : 'suspicious_object_detected';
+                    actions.push({
+                        action: 'warning',
+                        eventType: eventType,
+                        severity: 'medium',
+                        reason: `Object (${track.class}) detected near candidate`,
+                        data: { class: track.class, trackId: track.trackId, confidence: track.maxConfidence },
+                    });
+                }
+            }
+        }
+    }
+
+    if (signals.handPositions) {
+        for (const hand of signals.handPositions) {
+            if (hand.position === 'near_ear' && (signals.hasPhone || confirmedPhoneTracks.length > 0)) {
+                actions.push({
+                    action: 'violation',
+                    eventType: 'phone_near_ear',
+                    severity: 'critical',
+                    reason: 'Hand near ear with phone detected — high cheating probability',
+                    data: { handPosition: hand },
+                });
+            }
+            if (hand.position === 'near_lap' && (signals.hasPhone || confirmedPhoneTracks.length > 0)) {
+                actions.push({
+                    action: 'warning',
+                    eventType: 'hand_near_lap',
+                    severity: 'medium',
+                    reason: 'Hand near lap with phone detected',
+                    data: { handPosition: hand },
+                });
+            }
+            if (hand.position === 'leaving_frame') {
+                actions.push({
+                    action: 'warning',
+                    eventType: 'hand_leaving_frame',
+                    severity: 'low',
+                    reason: 'Hand leaving camera frame — possible off-screen activity',
+                    data: { handPosition: hand },
+                });
+            }
+        }
+    }
+
+    for (const act of actions) {
+        if (act.action !== 'wait' && act.action !== 'ok') {
+            const penalty = SCORE_PENALTIES[act.eventType] || 5;
+            state.score = Math.max(0, state.score - penalty);
+            act.proctoringScore = state.score;
+        }
+    }
+
+    const suspicion = 100 - state.score;
+    if (suspicion >= 100) {
+        state.warningLevel = 'critical';
+    } else if (suspicion >= 70) {
+        state.warningLevel = 'high';
+    } else if (suspicion >= 50) {
+        state.warningLevel = 'medium';
+    } else if (suspicion >= 30) {
+        state.warningLevel = 'low';
+    } else {
+        state.warningLevel = 'none';
+    }
+
+    return actions;
+}

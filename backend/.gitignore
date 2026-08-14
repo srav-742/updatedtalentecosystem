@@ -1,0 +1,17 @@
+# Node
+node_modules
+.env
+
+# Builds
+dist
+build
+
+# Logs
+*.log
+
+# OS / Editor
+.DS_Store
+.vscode
+.idea
+private_storage/
+uploads/

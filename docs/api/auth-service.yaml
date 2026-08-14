@@ -1,0 +1,541 @@
+openapi: 3.0.3
+info:
+  title: Hire1Percent Auth Service API
+  description: |
+    OpenAPI specification for the Hire1Percent Authentication Service.
+    This contract is the **single source of truth** for request/response schemas.
+
+    **Token Model**: Opaque Access UUIDs (not JWTs). The Auth Service
+    maintains an internal mapping from Access UUID → session/user via Redis + MongoDB.
+
+    **Security Model**: The Gateway sends the opaque token via POST body
+    to `/verify`. The Auth Service validates it against its session store
+    and returns the user profile with permissions.
+
+    ## Endpoints
+
+    | Endpoint                     | Method | Auth Required | Purpose                        |
+    |------------------------------|--------|---------------|--------------------------------|
+    | `/api/v1/auth/login`         | POST   | No            | Authenticate user credentials  |
+    | `/api/v1/auth/verify`        | POST   | No            | Verify opaque access UUID      |
+    | `/api/v1/auth/refresh`       | POST   | No            | Rotate tokens (RTR)            |
+    | `/api/v1/auth/logout`        | POST   | Yes           | Revoke session and tokens      |
+    | `/api/v1/auth/resource-access-check` | POST | No     | Platform-level access check    |
+    | `/api/v1/auth/health`        | GET    | No            | Health check                   |
+    | `/api/v1/auth/jwks`          | GET    | No            | RSA public key set (RFC 7517)  |
+  version: 1.0.0
+  contact:
+    name: Hire1Percent Platform Team
+
+servers:
+  - url: http://localhost:5001
+    description: Local Development
+  - url: https://auth.hire1percent.com
+    description: Production
+
+# ─── Paths ──────────────────────────────────────────────────────
+paths:
+  /api/v1/auth/login:
+    post:
+      operationId: loginUser
+      summary: Authenticate a user
+      description: |
+        Authenticates credentials (email + password) and returns an opaque
+        Access UUID and a Refresh UUID. The Access UUID is used for
+        subsequent API calls via the `Authorization: Bearer <uuid>` header.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@hire1percent.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SecureP@ssw0rd!"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSuccessResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_credentials:
+                  summary: Wrong email or password
+                  value:
+                    success: false
+                    error:
+                      code: "AUTH_004"
+                      message: "Invalid email or password"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/verify:
+    post:
+      operationId: verifyToken
+      summary: Verify an opaque Access UUID
+      description: |
+        Validates the provided opaque access token against the session store.
+        Returns the authenticated user profile with role, permissions, and
+        session metadata if the token is valid.
+
+        **Called by**: API Gateway `auth.middleware.js`
+        **Frequency**: Every authenticated request (with short-lived caching)
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  format: uuid
+                  description: The opaque Access UUID to verify
+                  example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Token is valid — returns user profile and session metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifySuccessResponse"
+        "401":
+          description: Token is invalid, expired, or revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                expired:
+                  summary: Token expired
+                  value:
+                    success: false
+                    error:
+                      code: "AUTH_002"
+                      message: "Token has expired"
+                revoked:
+                  summary: Token revoked
+                  value:
+                    success: false
+                    error:
+                      code: "AUTH_003"
+                      message: "Token is invalid or has been revoked"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh an access token (Refresh Token Rotation)
+      description: |
+        Exchanges a valid Refresh Token UUID for a new Access UUID and a new
+        Refresh UUID. The old tokens are revoked. Implements Refresh Token
+        Rotation (RTR) with reuse detection — reusing a previously rotated
+        token revokes all sessions for the user as a security measure.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  format: uuid
+                  description: The opaque Refresh UUID
+      responses:
+        "200":
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSuccessResponse"
+        "401":
+          description: Refresh token is invalid, expired, or reuse detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logoutUser
+      summary: Logout and revoke tokens
+      description: |
+        Revokes the Access UUID session and optionally the Refresh Token.
+        Accepts the access token from either the `Authorization` header,
+        `X-H1P-Session` header, or the request body.
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Optional access token if not in Authorization header
+                refreshToken:
+                  type: string
+                  description: Optional refresh token to revoke explicitly
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Logout successful"
+
+  /api/v1/auth/resource-access-check:
+    post:
+      operationId: checkResourceAccess
+      summary: Check resource access permissions
+      description: |
+        Evaluates whether a user has access to a specific resource
+        based on platform-level shared authorization rules.
+
+        **Important**: This is NOT called on every request. It is used
+        only for centralized platform policies that cannot be evaluated
+        at the route level by the Gateway.
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - resource
+                - action
+              properties:
+                userId:
+                  type: string
+                  description: The user ID to check
+                role:
+                  type: string
+                  description: Optional user role for policy evaluation
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional permissions list for policy evaluation
+                resource:
+                  type: string
+                  description: The resource identifier (format "type:id")
+                  example: "job:12345"
+                action:
+                  type: string
+                  description: The action to check
+                  enum: [read, write, delete, admin]
+      responses:
+        "200":
+          description: Access check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      allowed:
+                        type: boolean
+                      reason:
+                        type: string
+
+  /api/v1/auth/health:
+    get:
+      operationId: authHealthCheck
+      summary: Auth Service health check
+      description: |
+        Returns the health status of the Auth Service, including
+        infrastructure dependency states (MongoDB, Redis).
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Auth Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/auth/jwks:
+    get:
+      operationId: getJwks
+      summary: JSON Web Key Set (JWKS) endpoint
+      description: |
+        Returns the RSA public key set in RFC 7517 JWKS format.
+        Used by external services that need to verify JWTs issued
+        by this Auth Service.
+      tags:
+        - Security
+      responses:
+        "200":
+          description: JWKS response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kty:
+                          type: string
+                          example: "RSA"
+                        kid:
+                          type: string
+                          example: "h1p-auth-key-v1"
+                        use:
+                          type: string
+                          example: "sig"
+                        alg:
+                          type: string
+                          example: "RS256"
+                        n:
+                          type: string
+                          description: RSA modulus (Base64url encoded)
+                        e:
+                          type: string
+                          description: RSA exponent (Base64url encoded)
+                          example: "AQAB"
+
+# ─── Components ─────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Opaque Access UUID token
+
+  schemas:
+    VerifySuccessResponse:
+      type: object
+      description: |
+        Returns user and session at both root level (for Gateway middleware)
+        and nested inside `data` (for OpenAPI compliance).
+      properties:
+        success:
+          type: boolean
+          example: true
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        session:
+          $ref: "#/components/schemas/SessionMetadata"
+        data:
+          type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/UserProfile"
+            session:
+              $ref: "#/components/schemas/SessionMetadata"
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectId
+          example: "665a1b2c3d4e5f6789012345"
+        email:
+          type: string
+          format: email
+          example: "recruiter@hire1percent.com"
+        role:
+          type: string
+          description: Normalized role (seeker → candidate)
+          enum: [candidate, recruiter, admin, super_admin]
+          example: "recruiter"
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["JOB_CREATE", "JOBS_READ", "JOB_UPDATE", "JOB_DELETE"]
+        profile:
+          type: object
+          properties:
+            firstName:
+              type: string
+              example: "Priya"
+            lastName:
+              type: string
+              example: "Sharma"
+        isActive:
+          type: boolean
+          example: true
+        tokenVersion:
+          type: integer
+          description: Increments on password change to invalidate older tokens
+          example: 1
+
+    SessionMetadata:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: "665a1b2c3d4e5f6789012345"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-06-25T12:00:00Z"
+        tokenVersion:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+        lastAccessedAt:
+          type: string
+          format: date-time
+
+    LoginSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              format: uuid
+              description: Opaque Access UUID
+              example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            refreshToken:
+              type: string
+              format: uuid
+              description: Opaque Refresh UUID
+              example: "f0e1d2c3-b4a5-9687-fedc-ba0987654321"
+            expiresIn:
+              type: integer
+              description: Access token TTL in seconds
+              example: 900
+            user:
+              $ref: "#/components/schemas/UserProfile"
+
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Service is healthy"
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [HEALTHY, DEGRADED]
+              example: "HEALTHY"
+            service:
+              type: string
+              example: "auth-service"
+            version:
+              type: string
+              example: "1.0.0"
+            uptime:
+              type: number
+              example: 3600.5
+            environment:
+              type: string
+              example: "development"
+            dependencies:
+              type: object
+              properties:
+                database:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                    latencyMs:
+                      type: number
+                redis:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                    latencyMs:
+                      type: number
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "AUTH_001"
+            message:
+              type: string
+              example: "Token expired or invalid"
+        requestId:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
