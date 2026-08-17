@@ -60,8 +60,14 @@ const TECH_KEYWORDS = [
     'technical lead', 'cto', 'vp engineering', 'it engineer', 'it developer'
 ];
 
-function getRandomQuestionCount() {
-    return MAX_INTERVIEW_QUESTIONS;
+function getRandomQuestionCount(job) {
+    if (job && job.title) {
+        const titleLower = job.title.toLowerCase();
+        if (titleLower.includes('business development executive')) {
+            return 10;
+        }
+    }
+    return 5;
 }
 
 function classifyRole(job) {
@@ -1138,7 +1144,7 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        const totalQuestions = getRandomQuestionCount();
+        const totalQuestions = getRandomQuestionCount(job);
         console.log(`[FIX-INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(

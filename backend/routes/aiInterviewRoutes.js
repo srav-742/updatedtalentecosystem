@@ -188,9 +188,14 @@ OUTPUT RULE:
 - MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
 `;
 
-// ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
-function getRandomQuestionCount() {
-    return MAX_INTERVIEW_QUESTIONS;
+function getRandomQuestionCount(job) {
+    if (job && job.title) {
+        const titleLower = job.title.toLowerCase();
+        if (titleLower.includes('business development executive')) {
+            return 10;
+        }
+    }
+    return 5;
 }
 
 /**
@@ -949,7 +954,7 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        const totalQuestions = getRandomQuestionCount();
+        const totalQuestions = getRandomQuestionCount(job);
         console.log(`[INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(
