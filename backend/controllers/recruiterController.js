@@ -194,23 +194,11 @@ const getRecruiterApplications = async (req, res) => {
 
             // Conditionally mask Resume & Profile data
             if (isResumeLocked) {
-                app.applicantName = `Candidate ${index + 1}`;
-                if (app.applicantEmail) {
-                    const parts = app.applicantEmail.split('@');
-                    if (parts.length === 2) {
-                        const local = parts[0];
-                        app.applicantEmail = `${local.charAt(0)}***@${parts[1]}`;
-                    } else {
-                        app.applicantEmail = 'Locked';
-                    }
-                } else {
-                    app.applicantEmail = 'Locked';
-                }
-                
+                // Candidate name and email are kept unmasked per recruiter request
                 if (app.user) {
                     app.user = {
-                        name: `Candidate ${index + 1}`,
-                        email: app.applicantEmail,
+                        name: app.applicantName || app.user.name || `Candidate ${index + 1}`,
+                        email: app.applicantEmail || app.user.email || 'Locked',
                         profilePic: null,
                         githubUrl: null,
                         linkedinUrl: null,
