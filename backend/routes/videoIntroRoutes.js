@@ -35,11 +35,17 @@ router.post('/upload-video-intro', upload.single('video'), async (req, res) => {
             return res.status(400).json({ message: "Missing required fields (video, userId, jobId)" });
         }
 
-        const uploadResult = await cloudinary.uploader.upload(file.path, {
-            resource_type: "video",
-            folder: "candidate-intros",
-            public_id: `intro_${userId}_${jobId}_${Date.now()}`,
-            overwrite: true
+        const uploadResult = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_large(file.path, {
+                resource_type: "video",
+                folder: "candidate-intros",
+                public_id: `intro_${userId}_${jobId}_${Date.now()}`,
+                overwrite: true,
+                chunk_size: 6000000
+            }, (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            });
         });
 
         // Cleanup local file
