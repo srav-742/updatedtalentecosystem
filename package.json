@@ -1,4 +1,6 @@
 {
+  "name": "talent-ecosystem",
+  "description": "Talent Ecosystem Platform",
   "dependencies": {
     "@google/genai": "^1.38.0",
     "@mediapipe/tasks-audio": "^0.10.35",
