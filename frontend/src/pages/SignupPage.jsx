@@ -3,9 +3,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
+import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
+
+// Retry wrapper for critical operations
+const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxAttempts) {
+                const delay = Math.min(300 * Math.pow(2, attempt - 1), 5000);
+                console.warn(`[SIGNUP-RETRY] ${label} failed (attempt ${attempt}/${maxAttempts}): ${error.message}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    throw lastError;
+};
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -48,26 +66,71 @@ const SignupPage = () => {
         }
 
         try {
+            const normalizedEmail = formData.email.toLowerCase().trim();
+
             // 1. Firebase Auth Signup
-            const userCredential = await signupWithEmail(formData.email.toLowerCase().trim(), formData.password);
+            const userCredential = await signupWithEmail(normalizedEmail, formData.password);
             const user = userCredential.user;
 
-            // 2. Prepare Profile (Optimistic)
+            // 2. Prepare Profile
             const profileData = {
                 uid: user.uid,
                 name: formData.name,
-                email: formData.email.toLowerCase().trim(),
+                email: normalizedEmail,
                 role: role,
                 createdAt: new Date().toISOString()
             };
 
-            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            const savedProfile = await saveUserProfile(user.uid, profileData);
+            // 3. Save to MongoDB via BOTH endpoints for maximum reliability:
+            //    a) POST /api/signup — saves hashed password + UID (the critical missing piece)
+            //    b) PUT /api/profile/:uid — saves full profile with upsert
+            const [, savedProfile] = await Promise.all([
+                // 3a. Backend signup — persists password hash + UID to MongoDB
+                withRetry(async () => {
+                    await axios.post(`${API_URL}/signup`, {
+                        name: formData.name,
+                        email: normalizedEmail,
+                        password: formData.password,
+                        role: role,
+                        uid: user.uid
+                    }, {
+                        headers: {
+                            'X-Client-ID': CLIENT_ID,
+                            'X-Client-Secret': CLIENT_SECRET
+                        }
+                    });
+                }, 3, 'backendSignup'),
+                // 3b. Profile save — upserts full profile
+                withRetry(
+                    () => saveUserProfile(user.uid, profileData),
+                    3, 'saveProfile'
+                )
+            ]).catch(err => {
+                // If backend signup fails (e.g., user already exists), that's OK
+                // as long as profile save succeeded
+                console.warn('[SIGNUP] Parallel save partial failure:', err.message);
+                return [null, null];
+            });
 
-            // 3. Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(profileData.email, profileData.uid);
+            // 3c. Also call /users/sync for UID consistency
+            await withRetry(async () => {
+                await apiClient.post('/users/sync', {
+                    uid: user.uid,
+                    email: normalizedEmail,
+                    name: formData.name,
+                    role: role
+                });
+            }, 3, 'userSync').catch(err => {
+                console.warn('[SIGNUP] Sync call failed (non-fatal):', err.message);
+            });
 
-            // 4. Store and Navigate / Show Modal
+            // 4. Initialize Gateway session tokens
+            await withRetry(
+                () => apiClient.initializeGatewaySession(normalizedEmail, user.uid),
+                3, 'gatewaySession'
+            );
+
+            // 5. Store and Navigate / Show Modal
             localStorage.setItem('user', JSON.stringify(profileData));
 
             if (role === 'recruiter' && savedProfile && savedProfile.client) {
@@ -80,7 +143,7 @@ const SignupPage = () => {
             }
 
         } catch (error) {
-            console.error("Firebase Signup Error:", error);
+            console.error("Signup Error:", error);
             let userFriendlyMessage = error.message || 'Signup failed. Please try again.';
 
             if (error.code === 'auth/email-already-in-use') {
@@ -93,7 +156,7 @@ const SignupPage = () => {
                 type: 'error',
                 text: userFriendlyMessage
             });
-            setLoading(false); // Only unset loading on error, otherwise we are navigating
+            setLoading(false);
         }
     };
 
@@ -110,6 +173,7 @@ const SignupPage = () => {
         try {
             // 1. Authenticate (Immediate)
             const googleUser = await signInWithGoogle();
+            const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
             // 1.5 Check for role mismatch
             const existingProfile = await getUserProfile(googleUser.uid);
@@ -125,24 +189,43 @@ const SignupPage = () => {
                 }
             }
 
-            // 2. Prepare Profile (Optimistic)
+            // 2. Prepare Profile
             const newProfile = {
                 uid: googleUser.uid,
                 name: googleUser.displayName,
-                email: googleUser.email,
+                email: normalizedEmail,
                 profilePic: googleUser.photoURL,
                 role: role,
                 createdAt: new Date().toISOString(),
                 isOptimistic: true
             };
 
-            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            const savedProfile = await saveUserProfile(googleUser.uid, newProfile);
+            // 3. Save to MongoDB — call BOTH endpoints for reliability
+            const savedProfile = await withRetry(
+                () => saveUserProfile(googleUser.uid, newProfile),
+                3, 'googleSaveProfile'
+            );
 
-            // 3. Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(newProfile.email, newProfile.uid);
+            // 3b. Always call /users/sync to ensure canonical User record exists
+            await withRetry(async () => {
+                await apiClient.post('/users/sync', {
+                    uid: googleUser.uid,
+                    email: normalizedEmail,
+                    name: googleUser.displayName,
+                    profilePic: googleUser.photoURL,
+                    role: role
+                });
+            }, 3, 'googleUserSync').catch(err => {
+                console.warn('[GOOGLE-SIGNUP] Sync call failed (non-fatal):', err.message);
+            });
 
-            // 4. Store & Navigate IMMEDIATELY
+            // 4. Initialize Gateway session tokens
+            await withRetry(
+                () => apiClient.initializeGatewaySession(normalizedEmail, googleUser.uid),
+                3, 'googleGatewaySession'
+            );
+
+            // 5. Store & Navigate
             localStorage.setItem('user', JSON.stringify(newProfile));
 
             if (role === 'recruiter' && savedProfile && savedProfile.client) {
@@ -155,7 +238,7 @@ const SignupPage = () => {
 
         } catch (error) {
             console.error(error);
-            setMessage({ type: 'error', text: "Google signup failed." });
+            setMessage({ type: 'error', text: error.message || "Google signup failed." });
         } finally {
             setLoading(false);
         }

@@ -7,6 +7,24 @@ import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedir
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
+// Retry wrapper for critical operations
+const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxAttempts) {
+                const delay = Math.min(300 * Math.pow(2, attempt - 1), 5000);
+                console.warn(`[LOGIN-RETRY] ${label} failed (attempt ${attempt}/${maxAttempts}): ${error.message}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    throw lastError;
+};
+
 const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -195,17 +213,18 @@ const LoginPage = () => {
                 profile = response.data.user;
                 if (!profile) throw new Error("Invalid response from server.");
             } else {
+                const normalizedEmail = formData.email.toLowerCase().trim();
                 let user;
                 try {
                     // 1. Firebase Auth Login for others
-                    const userCredential = await loginWithEmail(formData.email.toLowerCase().trim(), formData.password);
+                    const userCredential = await loginWithEmail(normalizedEmail, formData.password);
                     user = userCredential.user;
                 } catch (error) {
                     if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
                         // MIGRATION FLOW: Try backend login to check old hashed passwords
                         try {
                             const backendRes = await axios.post(`${API_URL}/login`, {
-                                email: formData.email.toLowerCase().trim(),
+                                email: normalizedEmail,
                                 password: formData.password,
                                 role: role
                             }, {
@@ -219,19 +238,18 @@ const LoginPage = () => {
                                 // Password matched in backend! 
                                 // Try to silently create the Firebase account to migrate them
                                 try {
-                                    const newFbUser = await signupWithEmail(formData.email.toLowerCase().trim(), formData.password);
+                                    const newFbUser = await signupWithEmail(normalizedEmail, formData.password);
                                     user = newFbUser.user;
                                     
                                     // Sync new UID to MongoDB to link the old profile
-                                    await apiClient.post('/users/sync', {
-                                        uid: user.uid,
-                                        email: formData.email.toLowerCase().trim(),
-                                        role: role
-                                    });
+                                    await withRetry(async () => {
+                                        await apiClient.post('/users/sync', {
+                                            uid: user.uid,
+                                            email: normalizedEmail,
+                                            role: role
+                                        });
+                                    }, 3, 'migrationSync');
                                 } catch (signupErr) {
-                                    // If email is already in use by Google Auth in Firebase, we can't create it here.
-                                    // But since the backend verified the password, we can ALLOW them to login 
-                                    // using the local storage fallback!
                                     if (signupErr.code === 'auth/email-already-in-use') {
                                         console.log("Firebase user exists, bypassing Firebase login and using backend session.");
                                         user = backendRes.data.user; 
@@ -243,43 +261,74 @@ const LoginPage = () => {
                                 throw error;
                             }
                         } catch (backendError) {
-                            // If backend login fails, throw original Firebase error
                             throw error;
                         }
                     } else {
-                        throw error; // Other Firebase errors
+                        throw error;
                     }
                 }
 
-                // 2. Fetch Profile Data from Backend using UID
-                // For backend-only fallback sessions, user object might already be the mongo document with a 'uid' field
-                profile = await getUserProfile(user.uid);
+                // 2. ALWAYS sync user to MongoDB after successful Firebase auth
+                // This is the self-healing fix: even if signup failed to save to MongoDB,
+                // every login will ensure the user record exists
+                await withRetry(async () => {
+                    await apiClient.post('/users/sync', {
+                        uid: user.uid,
+                        email: user.email || normalizedEmail,
+                        name: user.displayName || normalizedEmail.split('@')[0],
+                        role: role
+                    });
+                }, 3, 'loginSync').catch(err => {
+                    console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
+                });
+
+                // 3. Fetch Profile Data from Backend using UID
+                profile = await withRetry(
+                    () => getUserProfile(user.uid),
+                    3, 'getProfile'
+                ).catch(() => null);
 
                 if (!profile) {
-                    // Auto-sync candidate/recruiter profile if they exist in Firebase but not in MongoDB
+                    // Auto-create profile from Firebase data
                     try {
                         const newProfile = {
                             uid: user.uid,
-                            name: user.displayName || user.email.split('@')[0],
-                            email: user.email,
+                            name: user.displayName || normalizedEmail.split('@')[0],
+                            email: user.email || normalizedEmail,
                             role: role || 'candidate',
                             createdAt: new Date().toISOString()
                         };
-                        profile = await saveUserProfile(user.uid, newProfile);
-                        await apiClient.post('/users/sync', {
-                            uid: user.uid,
-                            email: user.email,
-                            name: newProfile.name,
-                            role: newProfile.role
-                        });
+                        profile = await withRetry(
+                            () => saveUserProfile(user.uid, newProfile),
+                            3, 'autoCreateProfile'
+                        );
                     } catch (syncErr) {
                         console.error("[AUTO-SYNC-LOGIN-ERR]", syncErr);
                         throw new Error("User profile not found. Please signup first.");
                     }
                 }
 
+                // 4. Also backfill password to MongoDB if missing (self-healing for Bug #2)
+                if (formData.password && profile && !profile.password) {
+                    await withRetry(async () => {
+                        await axios.post(`${API_URL}/signup`, {
+                            name: profile.name,
+                            email: normalizedEmail,
+                            password: formData.password,
+                            role: role,
+                            uid: user.uid
+                        }, {
+                            headers: {
+                                'X-Client-ID': CLIENT_ID,
+                                'X-Client-Secret': CLIENT_SECRET
+                            }
+                        });
+                    }, 2, 'backfillPassword').catch(err => {
+                        console.warn('[LOGIN] Password backfill failed (non-fatal):', err.message);
+                    });
+                }
+
                 // Rule: recruiter and admin share the same email — allow crossing between them.
-                // Only block if the account is seeker trying to use a recruiter/admin login or vice versa.
                 const profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
                 const selectedIsStaff = role === 'recruiter' || role === 'admin';
                 if (profileIsStaff !== selectedIsStaff) {
@@ -288,7 +337,10 @@ const LoginPage = () => {
             }
 
             // Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(profile.email, profile.uid || profile.id || profile._id);
+            await withRetry(
+                () => apiClient.initializeGatewaySession(profile.email, profile.uid || profile.id || profile._id),
+                3, 'gatewaySession'
+            );
 
             setMessage({ type: 'success', text: "Login successful!" });
 
@@ -330,15 +382,17 @@ const LoginPage = () => {
     const processGoogleUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
+            const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
+
             // Step 1: Check if this Google account already has a profile in the backend.
-            // Rule: recruiter and admin share the same email space (same person can be both).
-            // Only block if the existing role is 'seeker' and they're trying to log in as
-            // recruiter/admin, OR if they're a recruiter/admin trying to log in as 'seeker'.
-            const existingProfile = await getUserProfile(googleUser.uid);
+            const existingProfile = await withRetry(
+                () => getUserProfile(googleUser.uid),
+                3, 'googleGetProfile'
+            ).catch(() => null);
+
             if (existingProfile && existingProfile.role) {
                 const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
                 const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
-                // Mismatch = one is seeker and the other is staff
                 if (existingIsStaff !== targetIsStaff) {
                     const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
                     throw new Error(
@@ -348,25 +402,50 @@ const LoginPage = () => {
                 }
             }
 
-            // Step 2: Build the profile — use DB data if available, otherwise build from Google.
-            // IMPORTANT: role: targetRole is placed LAST (after the spread) so it always overrides
-            // any role from the DB. This prevents esbuild duplicate-key issues and ensures the
-            // session role matches what the user selected on the login screen.
+            // Step 2: Build the profile
             const baseProfile = existingProfile || {};
             const basicProfile = {
                 uid: googleUser.uid,
                 name: googleUser.displayName,
-                email: googleUser.email,
+                email: normalizedEmail,
                 profilePic: googleUser.photoURL,
                 isBasic: !existingProfile,
                 ...baseProfile,
-                role: targetRole  // single occurrence, placed last to override DB role
+                role: targetRole
             };
 
-            // Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(basicProfile.email, basicProfile.uid || basicProfile.id || basicProfile._id);
+            // Step 3: ALWAYS sync to MongoDB (not just for new users)
+            // This is the self-healing fix: ensures MongoDB stays consistent
+            await withRetry(async () => {
+                await apiClient.post('/users/sync', {
+                    uid: googleUser.uid,
+                    email: normalizedEmail,
+                    name: googleUser.displayName,
+                    profilePic: googleUser.photoURL,
+                    role: targetRole
+                });
+            }, 3, 'googleLoginSync').catch(err => {
+                console.warn('[GOOGLE-LOGIN] Sync call failed (non-fatal):', err.message);
+            });
 
-            // Step 3: Store and navigate immediately
+            // Step 3b: Save/update profile
+            await withRetry(
+                () => saveUserProfile(googleUser.uid, {
+                    ...basicProfile,
+                    createdAt: basicProfile.createdAt || new Date().toISOString()
+                }),
+                3, 'googleSaveProfile'
+            ).catch(err => {
+                console.warn('[GOOGLE-LOGIN] Profile save failed (non-fatal):', err.message);
+            });
+
+            // Step 4: Initialize Gateway session tokens
+            await withRetry(
+                () => apiClient.initializeGatewaySession(normalizedEmail, basicProfile.uid || basicProfile.id || basicProfile._id),
+                3, 'googleGatewaySession'
+            );
+
+            // Step 5: Store and navigate
             localStorage.setItem('user', JSON.stringify(basicProfile));
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
@@ -379,23 +458,6 @@ const LoginPage = () => {
                 navigate('/recruiter/my-jobs', { replace: true });
             } else {
                 navigate('/candidate', { replace: true });
-            }
-
-            // Step 4: If it's a brand-new user, save their profile to the backend
-            if (!existingProfile) {
-                try {
-                    await saveUserProfile(googleUser.uid, {
-                        ...basicProfile,
-                        createdAt: new Date().toISOString()
-                    });
-                    await apiClient.post('/users/sync', {
-                        uid: googleUser.uid,
-                        email: googleUser.email,
-                        name: googleUser.displayName,
-                        profilePic: googleUser.photoURL,
-                        role: targetRole
-                    });
-                } catch (e) { console.error("Backend sync error", e); }
             }
 
         } catch (err) {
