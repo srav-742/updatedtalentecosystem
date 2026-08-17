@@ -22,7 +22,8 @@ const AGENT_VOICE_MAP = {
   marketing_manager: "professional_interviewer",
   hr_manager: "professional_interviewer",
   finance_analyst: "professional_interviewer",
-  cybersecurity_analyst: "professional_interviewer"
+  cybersecurity_analyst: "professional_interviewer",
+  business_development_executive: "professional_interviewer"
 };
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
