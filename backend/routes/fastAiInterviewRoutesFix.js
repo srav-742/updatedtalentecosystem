@@ -983,7 +983,7 @@ async function finalizeInterview(session, sessionId) {
 
         // Fetch existing application to avoid overwriting fuller rescued answers
         const existingApp = await Application.findOne({ userId: session.userId, jobId: session.jobId }).lean();
-        const finalAnswers = session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
+        const finalAnswers = session.answerEvaluations.slice(0, session.totalQuestions || MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
             const existing = existingApp?.interviewAnswers?.[idx];
             const useExisting = existing?.answer && existing.answer.trim().length > (entry.answer || "").trim().length + 5;
             
@@ -1237,8 +1237,9 @@ router.post('/next-fast', async (req, res) => {
         ).catch(err => console.error("[FIX-BG-EVAL-UNCAUGHT]:", err.message));
 
         // 3. Check if we've reached the maximum number of questions
-        if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
-            console.log(`[FIX-INTERVIEW-END] Finalizing session for user: ${session.userId}`);
+        const targetMax = session.totalQuestions || MAX_INTERVIEW_QUESTIONS;
+        if (interviewers.length >= targetMax) {
+            console.log(`[FIX-INTERVIEW-END] Finalizing session for user: ${session.userId} after ${targetMax} questions`);
 
             const result = await finalizeInterview(session, sessionId);
 

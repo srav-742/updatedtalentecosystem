@@ -1058,9 +1058,10 @@ router.post('/next', async (req, res) => {
         }
         // ───────────────────────────────────────────
 
-        // End after exactly 15 questions
-        if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
-            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${MAX_INTERVIEW_QUESTIONS} questions`);
+        // End after correct number of questions
+        const targetMax = session.totalQuestions || MAX_INTERVIEW_QUESTIONS;
+        if (interviewers.length >= targetMax) {
+            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${targetMax} questions`);
             const calculatedOverallScore = session.answerEvaluations.length > 0
                 ? averageInterviewScore(session.answerEvaluations)
                 : 0;
@@ -1108,7 +1109,7 @@ router.post('/next', async (req, res) => {
                         ownershipMindset: ownershipScore
                     },
                     // ─────────────────────────────────────────────────────────────────
-                    interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry) => ({
+                    interviewAnswers: session.answerEvaluations.slice(0, session.totalQuestions || MAX_INTERVIEW_QUESTIONS).map((entry) => ({
                         question: entry.question,
                         answer: entry.answer,
                         score: entry.score,
