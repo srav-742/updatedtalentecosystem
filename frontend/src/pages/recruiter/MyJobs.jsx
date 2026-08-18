@@ -175,7 +175,7 @@ const MyJobs = () => {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative"
+                        className={`p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 group hover:border-blue-500/30 transition-all shadow-2xl relative ${activeShareJobId === job._id ? 'z-50' : 'z-0'}`}
                     >
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full" />
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 relative z-10">
