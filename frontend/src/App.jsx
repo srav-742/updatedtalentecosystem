@@ -63,6 +63,7 @@ const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
 const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
 const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
+const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
 
 function SeekerJobRedirect() {
   const { id } = useParams();
@@ -113,6 +114,7 @@ function App() {
           <Route path="post-job" element={<PostJob />} />
           <Route path="my-jobs" element={<MyJobs />} />
           <Route path="applicants" element={<Applicants />} />
+          <Route path="transcript/:applicationId" element={<RecruiterTranscriptPage />} />
           <Route path="proctoring-reports" element={<ProctoringReports />} />
           <Route path="profile" element={<RecruiterProfile />} />
           <Route path="performance" element={<PerformanceDashboard />} />

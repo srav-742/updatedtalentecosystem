@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2 } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -850,6 +850,12 @@ const Applicants = () => {
                                                                             <Share2 size={14} /> Share Interview
                                                                         </button>
                                                                     )}
+                                                                    <button
+                                                                        onClick={() => window.open(`/recruiter/transcript/${app.id}`, '_blank')}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-indigo-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5"
+                                                                    >
+                                                                        <FileText size={14} /> Download Transcript Report
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         )}
