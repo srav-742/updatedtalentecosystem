@@ -12,6 +12,10 @@ router.patch("/:jobId/reject", authMiddleware, roleCheck('admin'), jobController
 // RECRUITER SPECIFIC (Must be above /:jobId to avoid collision)
 router.get('/recruiter/:recruiterId', recruiterController.getRecruiterJobs);
 
+// GENERATE JOB DESCRIPTION AI
+router.post("/generate-description", authMiddleware, roleCheck('recruiter', 'admin'), jobController.generateJobDescription);
+
+
 // CREATE JOB
 router.post("/create", jobController.createJob);
 

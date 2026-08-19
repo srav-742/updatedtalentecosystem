@@ -854,7 +854,7 @@ const Applicants = () => {
                                                                         onClick={() => window.open(`/recruiter/transcript/${app.id}`, '_blank')}
                                                                         className="w-full text-left px-4 py-3 text-xs font-bold text-indigo-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5"
                                                                     >
-                                                                        <FileText size={14} /> Download Transcript Report
+                                                                        <FileText size={14} /> Report
                                                                     </button>
                                                                 </div>
                                                             </div>

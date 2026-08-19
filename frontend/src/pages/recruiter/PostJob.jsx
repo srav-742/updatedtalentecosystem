@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
@@ -12,6 +12,7 @@ const PostJob = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
 
     useEffect(() => {
         if (!user.uid && !user._id && !user.id) {
@@ -172,8 +173,36 @@ const PostJob = () => {
         );
     };
 
+    const generateAIDescription = async () => {
+        if (!jobData.title) {
+            alert("Please enter a Job Title first to generate a description.");
+            return;
+        }
 
+        try {
+            setIsGeneratingDesc(true);
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/jobs/generate-description`, {
+                title: jobData.title,
+                skills: jobData.skills,
+                experienceLevel: jobData.experienceLevel,
+                type: jobData.type,
+                location: jobData.location,
+                specialInstructions: jobData.specialInstructions
+            }, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
 
+            if (res.data && res.data.description) {
+                setJobData(prev => ({ ...prev, description: res.data.description }));
+            }
+        } catch (error) {
+            console.error('Error generating description:', error);
+            alert('Failed to generate description. Please try again.');
+        } finally {
+            setIsGeneratingDesc(false);
+        }
+    };
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -304,7 +333,18 @@ const PostJob = () => {
                             />
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Job Description</label>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-500">Job Description</label>
+                                <button
+                                    type="button"
+                                    onClick={generateAIDescription}
+                                    disabled={isGeneratingDesc || !jobData.title}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isGeneratingDesc ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                    Generate with AI
+                                </button>
+                            </div>
                             <textarea
                                 name="description"
                                 value={jobData.description}

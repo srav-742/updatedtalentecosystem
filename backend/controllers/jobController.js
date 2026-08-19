@@ -1,6 +1,7 @@
 const Job = require('../models/Job');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
+const { callSkillAI } = require('../utils/aiClients');
 
 // In-memory L1 cache (per process) — ultra-fast for repeat hits within same instance
 // node-cache middleware (in app.js) acts as L2 cache across requests
@@ -171,4 +172,41 @@ const rejectJob = async (req, res) => {
     }
 };
 
-module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache };
+// AI Generate Job Description
+const generateJobDescription = async (req, res) => {
+    try {
+        const { title, skills = [], experienceLevel, type, location, specialInstructions } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ message: "Job title is required to generate a description." });
+        }
+
+        const prompt = `
+You are an expert technical recruiter and HR professional. Please write a professional, engaging, and detailed job description for a job posting.
+
+Details provided:
+- Job Title: ${title}
+- Job Type: ${type || 'Not specified'}
+- Experience Level: ${experienceLevel || 'Not specified'}
+- Location: ${location || 'Not specified'}
+- Key Skills: ${skills.length > 0 ? skills.join(', ') : 'Not specified'}
+- Special Instructions/Focus: ${specialInstructions || 'None'}
+
+Please format it clearly using markdown (e.g., ## About the Role, ## Responsibilities, ## Requirements). 
+Do NOT include any conversational filler (like "Here is the job description"). Output ONLY the job description text.
+        `.trim();
+
+        const generatedText = await callSkillAI(prompt, 1000, 0.7);
+
+        if (!generatedText) {
+            return res.status(500).json({ message: "Failed to generate job description. Please try again." });
+        }
+
+        res.json({ description: generatedText });
+    } catch (error) {
+        console.error("[GENERATE-JOB-DESC] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache, generateJobDescription };
