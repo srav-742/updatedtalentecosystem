@@ -17,8 +17,9 @@
   <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
   <link rel="dns-prefetch" href="https://updatedtalentecosystem.onrender.com" />
 
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
@@ -65,22 +66,24 @@
   <!-- Pace.js for automatic progress bar -->
   <script defer src="/pace.min.js"></script>
   <link rel="stylesheet" href="/pace-theme-default.min.css">
-  
+
   <style>
     /* Custom Pace.js theme color to match typical modern apps */
     .pace .pace-progress {
       background: #ffffff;
       height: 3px;
     }
-    
+
     /* Initial Loader that shows instantly before React boots */
-    #root:empty, #root:has(.initial-loader) {
+    #root:empty,
+    #root:has(.initial-loader) {
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       background-color: #000000;
     }
+
     .initial-loader {
       width: 48px;
       height: 48px;
@@ -91,9 +94,15 @@
       box-sizing: border-box;
       animation: rotation 1s linear infinite;
     }
+
     @keyframes rotation {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 
