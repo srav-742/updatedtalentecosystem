@@ -261,6 +261,9 @@ const LoginPage = () => {
                                 throw error;
                             }
                         } catch (backendError) {
+                            if (backendError.response?.data?.message) {
+                                throw new Error(backendError.response.data.message);
+                            }
                             throw error;
                         }
                     } else {
@@ -391,15 +394,8 @@ const LoginPage = () => {
             ).catch(() => null);
 
             if (existingProfile && existingProfile.role) {
-                const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
-                const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
-                if (existingIsStaff !== targetIsStaff) {
-                    const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
-                    throw new Error(
-                        `This Google account is registered as a "${existingProfile.role}". ` +
-                        `Please go back and select "${friendlyExisting}" login.`
-                    );
-                }
+                // Auto-correct role if user selected the wrong one to prevent login blocks
+                targetRole = existingProfile.role;
             }
 
             // Step 2: Build the profile
