@@ -208,7 +208,7 @@ const MyApplications = () => {
     const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [submittedOpen, setSubmittedOpen] = useState(true);
-    const [archivedOpen, setArchivedOpen] = useState(false);
+    const [archivedOpen, setArchivedOpen] = useState(true);
 
     const userId = user.uid || user._id || user.id;
 
@@ -238,7 +238,11 @@ const MyApplications = () => {
         mutationFn: async (appId) => {
             await axios.delete(`${API_URL}/applications/${appId}`);
         },
-        onSuccess: () => {
+        onSuccess: (_, appId) => {
+            queryClient.setQueryData(['applications', userId], (oldApps) => {
+                if (!oldApps) return [];
+                return oldApps.filter(app => app._id !== appId && app.id !== appId);
+            });
             queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
     });

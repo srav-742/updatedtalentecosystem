@@ -63,7 +63,18 @@ const BrowseJobs = () => {
                 });
             }
         },
-        onSuccess: () => {
+        onSuccess: (_, variables) => {
+            queryClient.setQueryData(['applications', userId], (oldApps) => {
+                if (!oldApps) return [];
+                if (variables.existingApp && variables.existingApp.status === 'SAVED') {
+                    // Unsaved: remove from list
+                    return oldApps.filter(app => app._id !== variables.existingApp._id && app.id !== variables.existingApp.id);
+                } else if (!variables.existingApp) {
+                    // Saved: optimistic add (it will sync with real data eventually)
+                    return [...oldApps, { _id: Date.now().toString(), jobId: variables.jobId, userId, status: 'SAVED' }];
+                }
+                return oldApps;
+            });
             queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
     });

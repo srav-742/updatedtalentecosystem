@@ -188,8 +188,8 @@ app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
 app.use('/api', voiceRoutes);
 
-// Applications: cache 30s per user (user-specific so varyByUser = true)
-app.use('/api', cacheMiddleware(30, { httpMaxAge: 30, staleWhileRevalidate: 120, varyByUser: true }), applicationRoutes);
+// Applications: cache 30s per user (user-specific so varyByUser = true, but do NOT let browser cache it locally)
+app.use('/api', cacheMiddleware(30, { httpMaxAge: 0, staleWhileRevalidate: 0, varyByUser: true }), applicationRoutes);
 app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX Overlay first (overrides /start and /next-fast)
 app.use('/api/interview', aiInterviewRoutes);
 app.use('/api/interview', require('./routes/fastAiInterviewRoutes'));

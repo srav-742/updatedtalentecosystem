@@ -387,13 +387,7 @@ const CodingAssessment = ({
             resetLimit={4}
             onSecurityReset={handleCodingSecurityReset}
         >
-            {/* Floating Sticky Timer */}
-            <div className="fixed top-20 right-8 z-50 pointer-events-none">
-                <div className="pointer-events-auto rounded-full border border-red-500/35 bg-[#0c0f16]/95 px-5 py-2.5 shadow-[0_12px_40px_rgba(239,68,68,0.25)] backdrop-blur-md text-xs font-black tracking-wider text-red-400 flex items-center gap-2 animate-pulse">
-                    <Clock3 size={14} className="text-red-500" />
-                    <span>{formatTime(timeLeft)}</span>
-                </div>
-            </div>
+
 
             <div className="flex flex-col gap-6 max-w-6xl mx-auto">
                 {/* Header info */}
@@ -498,9 +492,7 @@ const CodingAssessment = ({
                                         <Terminal size={16} className="text-teal-400" />
                                         <span>Code Editor</span>
                                     </div>
-                                    <span className="text-[10px] font-mono bg-red-500/10 border border-red-500/25 px-2 py-0.5 rounded text-red-400 flex items-center gap-1 animate-pulse">
-                                        <Clock3 size={10} /> {formatTime(timeLeft)}
-                                    </span>
+
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <label className="text-xs text-gray-500">Language:</label>

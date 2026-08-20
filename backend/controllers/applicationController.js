@@ -3,6 +3,7 @@ const AssessmentSubmission = require('../models/AssessmentSubmission');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { updateRecruiterPattern } = require('./teamFitController');
+const { invalidateCache } = require('../middleware/cacheMiddleware');
 
 
 const submitApplication = async (req, res) => {
@@ -43,6 +44,10 @@ const submitApplication = async (req, res) => {
             update.assessmentSubmissionId = assessmentSubmissionId;
         }
         const application = await Application.findOneAndUpdate(query, update, { new: true, upsert: true }).populate('jobId');
+
+        if (req.body.status) {
+            application.status = req.body.status;
+        }
 
         // Transition from SAVED to APPLIED if user is now submitting application details
         if (application.status === 'SAVED' && req.body.status !== 'SAVED') {
@@ -93,6 +98,7 @@ const submitApplication = async (req, res) => {
             application.status = 'SHORTLISTED';
         }
         await application.save();
+        invalidateCache('/api/applications');
         res.status(201).json(application);
     } catch (error) {
         console.error("[LEDGER-FINAL] Error:", error);
@@ -125,6 +131,7 @@ const updateApplicationStatus = async (req, res) => {
             updateRecruiterPattern(app.jobId.recruiterId);
         }
         
+        invalidateCache('/api/applications');
         res.json(app);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
@@ -188,6 +195,7 @@ const resetApplicationAfterProctoring = async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
+        invalidateCache('/api/applications');
         res.json({
             success: true,
             application
@@ -200,10 +208,12 @@ const resetApplicationAfterProctoring = async (req, res) => {
 
 const deleteApplication = async (req, res) => {
     try {
+        console.log(`[DELETE-APP] Attempting to delete application with ID: ${req.params.id}`);
         const app = await Application.findByIdAndDelete(req.params.id);
         if (!app) {
             return res.status(404).json({ message: "Application not found" });
         }
+        invalidateCache('/api/applications');
         res.json({ message: "Application removed successfully" });
     } catch (error) {
         console.error("[DELETE-APP] Error:", error);
