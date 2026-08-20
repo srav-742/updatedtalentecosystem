@@ -587,7 +587,7 @@ const Applicants = () => {
                     const showInterview = firstApp?.hasInterview ?? true;
 
                     return (
-                    <div key={jobTitle} className="space-y-4 mb-10">
+                    <div key={jobTitle} className={`space-y-4 mb-10 relative ${jobApplicants.some(app => app.id === activeMenuId) ? 'z-50' : 'z-0'}`}>
                         <h2 className="text-xl font-bold uppercase tracking-tight text-white flex items-center gap-3">
                             <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
                             {jobTitle}
@@ -633,7 +633,7 @@ const Applicants = () => {
                                     {jobApplicants.map((app, index) => {
                                         const interviewMeta = getInterviewMeta(app);
                                         return (
-                                            <tr key={app.id} className="group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0" style={{ verticalAlign: 'middle' }}>
+                                            <tr key={app.id} className={`group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0 ${activeMenuId === app.id ? 'relative z-50' : ''}`} style={{ verticalAlign: 'middle' }}>
                                                 <td className="py-5 text-center text-xs font-semibold text-gray-500">
                                                     {index + 1}
                                                 </td>
