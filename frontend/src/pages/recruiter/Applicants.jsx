@@ -101,7 +101,10 @@ const Applicants = () => {
             videoIntroUrl: app.videoIntroUrl,
             resultsVisibleAt: app.resultsVisibleAt,
             interviewAnswerCount: app.interviewAnswers?.length || 0,
-            recordingStatus: app.recordingStatus || 'pending'
+            recordingStatus: app.recordingStatus || 'pending',
+            hasAssessment: app.jobId?.assessment?.enabled === true,
+            hasCoding: app.jobId?.codingAssessment?.enabled === true,
+            hasInterview: app.jobId?.mockInterview?.enabled !== false
         }));
 
         if (targetJobId) {
@@ -577,7 +580,13 @@ const Applicants = () => {
             {loading ? (
                 <ApplicantsSkeleton />
             ) : filteredApplicants.length > 0 ? (
-                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => (
+                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => {
+                    const firstApp = jobApplicants[0];
+                    const showAssessment = firstApp?.hasAssessment ?? true;
+                    const showCoding = firstApp?.hasCoding ?? true;
+                    const showInterview = firstApp?.hasInterview ?? true;
+
+                    return (
                     <div key={jobTitle} className="space-y-4 mb-10">
                         <h2 className="text-xl font-bold uppercase tracking-tight text-white flex items-center gap-3">
                             <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
@@ -597,9 +606,9 @@ const Applicants = () => {
                                     <col style={{ width: '18%' }} />
                                     <col style={{ width: '7%' }} />
                                     <col style={{ width: '9%' }} />
-                                    <col style={{ width: '10%' }} />
-                                    <col style={{ width: '10%' }} />
-                                    <col style={{ width: '10%' }} />
+                                    {showAssessment && <col style={{ width: '10%' }} />}
+                                    {showCoding && <col style={{ width: '10%' }} />}
+                                    {showInterview && <col style={{ width: '10%' }} />}
                                     <col style={{ width: '10%' }} />
                                     <col style={{ width: '10%' }} />
                                     <col style={{ width: '7%' }} />
@@ -611,9 +620,9 @@ const Applicants = () => {
                                         <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
                                         <th className="pb-4 pt-4 text-center">Video Intro</th>
                                         <th className="pb-4 pt-4 text-center">Resume Match</th>
-                                        <th className="pb-4 pt-4 text-center">Assessment</th>
-                                        <th className="pb-4 pt-4 text-center">Coding</th>
-                                        <th className="pb-4 pt-4 text-center">Interview</th>
+                                        {showAssessment && <th className="pb-4 pt-4 text-center">Assessment</th>}
+                                        {showCoding && <th className="pb-4 pt-4 text-center">Coding</th>}
+                                        {showInterview && <th className="pb-4 pt-4 text-center">Interview</th>}
                                         <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
                                         <th className="pb-4 pt-4 text-center">Final Score</th>
                                         <th className="pb-4 pt-4 text-center">Status</th>
@@ -681,8 +690,8 @@ const Applicants = () => {
                                                             <span className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">N/A</span>
                                                         )}
                                                     </div>
-                                                </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 </td>
+                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
                                                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-base shadow-sm">
                                                              <span>{app.resumeScore}/10</span>
@@ -713,7 +722,8 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 {showAssessment && (
+                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
                                                           <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-base shadow-sm">
                                                               <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
@@ -732,6 +742,8 @@ const Applicants = () => {
                                                           </div>
                                                       </div>
                                                   </td>
+                                                 )}
+                                                 {showCoding && (
                                                  <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
                                                           <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-500/5 border border-teal-500/10 text-teal-400 font-extrabold text-base shadow-sm">
@@ -751,6 +763,8 @@ const Applicants = () => {
                                                           </div>
                                                       </div>
                                                   </td>
+                                                 )}
+                                                 {showInterview && (
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
                                                          <div className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${interviewMeta.pillClass} shadow-sm`}>
@@ -770,6 +784,7 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
+                                                 )}
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
                                                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Raw Penalty Points: ${app.integrityPenalty || 0}`}>
@@ -868,7 +883,7 @@ const Applicants = () => {
                             </table>
                         </div>
                     </div>
-                ))
+                )})
             ) : (
                 <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
                     <div className="min-h-[400px] flex flex-col items-center justify-center">
