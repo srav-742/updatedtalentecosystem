@@ -70,7 +70,9 @@ const Applicants = () => {
             const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId,
+        staleTime: 5 * 60 * 1000,
+        placeholderData: (previousData) => previousData
     });
 
     const applicants = useMemo(() => {

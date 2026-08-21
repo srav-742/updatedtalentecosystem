@@ -34,6 +34,9 @@ import BrowseJobs from './pages/seeker/BrowseJobs';
 import MyApplications from './pages/seeker/MyApplications';
 import SeekerProfile from './pages/seeker/SeekerProfile';
 
+import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
+import JobDetails from './pages/seeker/JobDetails';
+
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ProctoringReports = lazy(() => import('./pages/recruiter/ProctoringReports'));
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
@@ -45,7 +48,6 @@ const CodingAssessmentConfig = lazy(() => import('./pages/recruiter/CodingAssess
 const CustomCodingAssessmentConfig = lazy(() => import('./pages/recruiter/CustomCodingAssessmentConfig'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
-const JobDetails = lazy(() => import('./pages/seeker/JobDetails'));
 const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Terms = lazy(() => import('./pages/Terms'));
@@ -53,7 +55,6 @@ const Cookies = lazy(() => import('./pages/Cookies'));
 const Contact = lazy(() => import('./pages/Contact'));
 const ApplicationFlow = lazy(() => import('./pages/seeker/ApplicationFlow'));
 const InterviewFeedbackForm = lazy(() => import('./pages/seeker/ApplicationFlow/InterviewFeedbackForm'));
-const AgentInterview = lazy(() => import('./pages/seeker/ApplicationFlow/AgentInterview'));
 const AIInterviewPlatform = lazy(() => import('./pages/seo/AIInterviewPlatform.jsx'));
 const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftware.jsx'));
 const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));

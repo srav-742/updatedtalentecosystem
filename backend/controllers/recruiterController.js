@@ -111,8 +111,8 @@ const getRecruiterApplications = async (req, res) => {
         };
 
         const [baseViolations, enhancedViolations] = await Promise.all([
-            ProctoringViolation.find(violationQuery).lean(),
-            ProctoringViolationEnhanced.find(violationQuery).lean()
+            ProctoringViolation.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
+            ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean()
         ]);
 
         const applicationPenaltyMap = {};

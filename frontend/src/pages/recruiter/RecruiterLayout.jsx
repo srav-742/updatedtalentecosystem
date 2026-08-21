@@ -4,6 +4,7 @@ import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, B
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
 import TopUpModal from '../../components/TopUpModal';
 import { prefetchRecruiterRoutes } from '../../utils/prefetchRoutes';
@@ -21,6 +22,7 @@ const navItems = [
 
 const RecruiterLayout = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [user] = React.useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = React.useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -43,11 +45,29 @@ const RecruiterLayout = () => {
         }
     };
 
-    // Prefetch all recruiter page chunks during browser idle time
+    // Prefetch all recruiter page chunks and data in background
     // so navigation between recruiter pages is instant
     React.useEffect(() => {
         prefetchRecruiterRoutes();
-    }, []);
+        const uid = user.uid || user._id || user.id;
+        if (uid) {
+            queryClient.prefetchQuery({
+                queryKey: ['applicants', uid],
+                queryFn: () => axios.get(`${API_URL}/applications/recruiter/${uid}`).then(res => res.data),
+                staleTime: 5 * 60 * 1000
+            });
+            queryClient.prefetchQuery({
+                queryKey: ['jobs', 'recruiter', uid],
+                queryFn: () => axios.get(`${API_URL}/jobs/recruiter/${uid}`).then(res => res.data),
+                staleTime: 5 * 60 * 1000
+            });
+            queryClient.prefetchQuery({
+                queryKey: ['dashboard', 'stats', uid],
+                queryFn: () => axios.get(`${API_URL}/dashboard/${uid}`).then(res => res.data),
+                staleTime: 5 * 60 * 1000
+            });
+        }
+    }, [user.uid, user._id, user.id, queryClient]);
 
     React.useEffect(() => {
         fetchWalletBalance();

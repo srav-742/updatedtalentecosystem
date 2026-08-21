@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getUserProfile, auth } from '../../firebase';
+import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
 import { prefetchSeekerRoutes } from '../../utils/prefetchRoutes';
 
@@ -15,16 +17,30 @@ const navItems = [
 
 const SeekerLayout = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
 
-    // Prefetch all seeker page chunks during browser idle time
+    // Prefetch all seeker page chunks and candidate data
     // so navigation between seeker pages is instant
     useEffect(() => {
         prefetchSeekerRoutes();
-    }, []);
+        const uid = user.uid || user._id || user.id;
+        queryClient.prefetchQuery({
+            queryKey: ['jobs'],
+            queryFn: () => axios.get(`${API_URL}/jobs`).then(res => res.data),
+            staleTime: 5 * 60 * 1000
+        });
+        if (uid) {
+            queryClient.prefetchQuery({
+                queryKey: ['applications', uid],
+                queryFn: () => axios.get(`${API_URL}/applications/candidate/${uid}`).then(res => res.data),
+                staleTime: 5 * 60 * 1000
+            });
+        }
+    }, [user.uid, user._id, user.id, queryClient]);
 
     useEffect(() => {
         // Only redirect if user has a role and it's not seeker/candidate OR admin
