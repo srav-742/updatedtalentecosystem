@@ -122,12 +122,28 @@
 
   <script type="module" src="/src/main.jsx"></script>
 
-  <!-- Service Worker Registration — caches static assets for instant repeat visits -->
+  <!-- Service Worker Registration — only active in production -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
-      });
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        // Automatically unregister service worker and clear stale SW caches on localhost
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var registration of registrations) {
+            registration.unregister();
+          }
+        });
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (var name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+      } else {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
+        });
+      }
     }
   </script>
 

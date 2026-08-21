@@ -51,11 +51,14 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') return;
-
-  // Skip API calls, WebSocket, and external origins
+  // Skip non-GET requests, dev server internal paths, and localhost development
   if (
+    request.method !== 'GET' ||
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.includes('node_modules') ||
     url.pathname.startsWith('/api') ||
     url.protocol === 'ws:' ||
     url.protocol === 'wss:' ||
