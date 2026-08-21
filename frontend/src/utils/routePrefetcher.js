@@ -123,8 +123,8 @@ export function initRoutePrefetcher() {
       subtree: true,
     });
 
-    // Cleanup on page unload
-    window.addEventListener('unload', () => {
+    // Cleanup on page hide
+    window.addEventListener('pagehide', () => {
       observer.disconnect();
       mutationObserver.disconnect();
     });

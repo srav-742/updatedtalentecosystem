@@ -130,6 +130,10 @@ app.get('/health', (req, res) => {
     sendInterviewHealth(res);
 });
 
+app.get('/api/health', (req, res) => {
+    sendInterviewHealth(res);
+});
+
 app.get('/live', (req, res) => {
     sendInterviewHealth(res, "Interview Service is live.", {
         alive: true,

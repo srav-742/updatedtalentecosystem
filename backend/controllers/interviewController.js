@@ -140,7 +140,10 @@ const getInterviewDetails = async (req, res) => {
             });
 
             application.interviewScore = Math.round(averageInterviewScore(application.interviewAnswers) * 0.70);
-            await application.save();
+            await Application.findByIdAndUpdate(applicationId, {
+                interviewAnswers: application.interviewAnswers,
+                interviewScore: application.interviewScore
+            });
         }
 
         const questions = Array.isArray(application.interviewAnswers)

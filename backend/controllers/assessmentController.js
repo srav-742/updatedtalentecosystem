@@ -420,11 +420,11 @@ const getAssessmentDetails = async (req, res) => {
                 totalQuestions: submission.totalQuestions,
                 correctAnswers: submission.correctAnswers,
                 submittedAt: submission.submittedAt,
-                questions: submission.questions.map((q, idx) => ({
-                    ...q.toObject(),
-                    userAnswer: submission.answers[idx]?.userAnswer,
-                    isCorrect: submission.answers[idx]?.isCorrect,
-                    answerScore: submission.answers[idx]?.score
+                questions: (submission.questions || []).map((q, idx) => ({
+                    ...(typeof q?.toObject === 'function' ? q.toObject() : q),
+                    userAnswer: submission.answers?.[idx]?.userAnswer,
+                    isCorrect: submission.answers?.[idx]?.isCorrect,
+                    answerScore: submission.answers?.[idx]?.score
                 }))
             }
         });
