@@ -16,31 +16,53 @@ import {
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 
+// Module-level in-memory cache for instant zero-delay reopening
+const codingCache = new Map();
+
+export const prefetchCodingDetails = async (applicationId) => {
+    if (!applicationId || codingCache.has(applicationId)) return;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await axios.get(`${API_URL}/coding-assessments/details/${applicationId}`, { headers });
+        if (res.data) codingCache.set(applicationId, res.data);
+    } catch (e) {}
+};
+
 const CodingAssessmentDetail = ({ applicationId, onClose }) => {
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState(null);
+    const cachedData = applicationId ? codingCache.get(applicationId) : null;
+    const [loading, setLoading] = useState(!cachedData);
+    const [data, setData] = useState(cachedData);
     const [error, setError] = useState(null);
     const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchCodingDetails = async () => {
-            setLoading(true);
+            if (!cachedData) setLoading(true);
             setError(null);
             try {
                 const headers = await getAuthHeaders();
                 const res = await axios.get(`${API_URL}/coding-assessments/details/${applicationId}`, { headers });
-                setData(res.data);
+                if (isMounted) {
+                    setData(res.data);
+                    codingCache.set(applicationId, res.data);
+                }
             } catch (err) {
                 console.error("Failed to fetch coding details:", err);
-                setError(err.response?.data?.message || 'Failed to load coding details');
+                if (isMounted && !cachedData) {
+                    setError(err.response?.data?.message || 'Failed to load coding details');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         if (applicationId) {
             fetchCodingDetails();
         }
+        return () => { isMounted = false; };
     }, [applicationId]);
 
     if (loading) {

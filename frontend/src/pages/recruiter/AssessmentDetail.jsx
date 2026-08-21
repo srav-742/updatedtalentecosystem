@@ -15,30 +15,52 @@ import {
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 
+// Module-level in-memory cache for instant zero-delay reopening
+const assessmentCache = new Map();
+
+export const prefetchAssessmentDetails = async (applicationId) => {
+    if (!applicationId || assessmentCache.has(applicationId)) return;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`, { headers });
+        if (res.data) assessmentCache.set(applicationId, res.data);
+    } catch (e) {}
+};
+
 const AssessmentDetail = ({ applicationId, onClose }) => {
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState(null);
+    const cachedData = applicationId ? assessmentCache.get(applicationId) : null;
+    const [loading, setLoading] = useState(!cachedData);
+    const [data, setData] = useState(cachedData);
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchAssessmentDetails = async () => {
-            setLoading(true);
+            if (!cachedData) setLoading(true);
             setError(null);
             try {
                 const headers = await getAuthHeaders();
                 const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`, { headers });
-                setData(res.data);
+                if (isMounted) {
+                    setData(res.data);
+                    assessmentCache.set(applicationId, res.data);
+                }
             } catch (err) {
                 console.error("Failed to fetch assessment details:", err);
-                setError(err.response?.data?.message || 'Failed to load assessment details');
+                if (isMounted && !cachedData) {
+                    setError(err.response?.data?.message || 'Failed to load assessment details');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         if (applicationId) {
             fetchAssessmentDetails();
         }
+        return () => { isMounted = false; };
     }, [applicationId]);
 
     if (loading) {

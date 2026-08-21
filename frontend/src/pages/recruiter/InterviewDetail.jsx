@@ -22,15 +22,28 @@ import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
 import ShareModal from '../../components/ShareModal';
 
+// Module-level in-memory cache for instant zero-delay reopening
+const interviewCache = new Map();
+
+export const prefetchInterviewDetails = async (applicationId) => {
+    if (!applicationId || interviewCache.has(applicationId)) return;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await axios.get(`${API_URL}/interview-details/${applicationId}`, { headers });
+        if (res.data) interviewCache.set(applicationId, res.data);
+    } catch (e) {}
+};
+
 const InterviewDetail = ({ applicationId, onClose }) => {
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState(null);
+    const cachedData = applicationId ? interviewCache.get(applicationId) : null;
+    const [loading, setLoading] = useState(!cachedData);
+    const [data, setData] = useState(cachedData);
     const [error, setError] = useState(null);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const handleShareInterview = () => {
         const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
-        const formattedCandidate = application?.applicantName || 'Candidate';
+        const formattedCandidate = data?.application?.applicantName || 'Candidate';
 
         if (navigator.share) {
             navigator.share({
@@ -51,24 +64,33 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     };
 
     useEffect(() => {
+        let isMounted = true;
         const fetchInterviewDetails = async () => {
-            setLoading(true);
+            if (!cachedData) setLoading(true);
             setError(null);
             try {
                 const headers = await getAuthHeaders();
                 const res = await axios.get(`${API_URL}/interview-details/${applicationId}`, { headers });
-                setData(res.data);
+                if (isMounted) {
+                    setData(res.data);
+                    interviewCache.set(applicationId, res.data);
+                }
             } catch (err) {
                 console.error("Failed to fetch interview details:", err);
-                setError(err.response?.data?.message || 'Failed to load interview details');
+                if (isMounted && !cachedData) {
+                    setError(err.response?.data?.message || 'Failed to load interview details');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         if (applicationId) {
             fetchInterviewDetails();
         }
+        return () => { isMounted = false; };
     }, [applicationId]);
 
     if (loading) {

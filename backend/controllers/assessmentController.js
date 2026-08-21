@@ -325,6 +325,10 @@ const getAssessmentDetails = async (req, res) => {
     try {
         const { applicationId } = req.params;
 
+        if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ message: "Invalid application ID" });
+        }
+
         // 🔒 Pro recruiter validation check
         const recruiterId = req.headers ? req.headers['x-user-id'] : null;
         if (!recruiterId) {
@@ -335,52 +339,33 @@ const getAssessmentDetails = async (req, res) => {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
 
-        let recruiter = recruiterDoc;
-        if (recruiterDoc.role === 'recruiter') {
-            recruiter = await User.findById(recruiterDoc._id);
-        }
+        const isAdmin = recruiterDoc.role === 'admin';
 
-        if (recruiter.role === 'recruiter') {
-            const Transaction = require('../models/Transaction');
-            const paidTransactions = await Transaction.countDocuments({
-                userId: recruiter._id,
-                status: 'paid',
-                type: 'premium_upgrade'
-            });
+        const [isUnlocked, application] = await Promise.all([
+            !isAdmin
+                ? require('../models/UnlockedApplicant').findOne({ recruiterId: recruiterDoc._id, applicationId }).lean()
+                : Promise.resolve(null),
+            Application.findById(applicationId).populate('jobId').lean()
+        ]);
 
-            const shouldBePro = paidTransactions > 0 || recruiter.isPro === true;
-            if (recruiter.isPro !== shouldBePro || (shouldBePro && recruiter.hiringPattern !== "Premium Recruiter") || (!shouldBePro && recruiter.hiringPattern === "Premium Recruiter")) {
-                recruiter.isPro = shouldBePro;
-                recruiter.hiringPattern = shouldBePro ? "Premium Recruiter" : "";
-                await recruiter.save();
-            }
-
-            const UnlockedApplicant = require('../models/UnlockedApplicant');
-            const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
+        if (!isAdmin) {
             const isUnlockedAssessment = isUnlocked && Array.isArray(isUnlocked.unlockedItems) && isUnlocked.unlockedItems.includes('assessment');
-
-            const isAdmin = recruiter.role === 'admin';
-            if (!isAdmin && !isUnlockedAssessment) {
+            if (!isUnlockedAssessment) {
                 return res.status(403).json({ message: "Forbidden: Assessment unlock required." });
             }
         }
 
-        if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
-            return res.status(400).json({ message: "Invalid application ID" });
-        }
-
-        const application = await Application.findById(applicationId).populate('jobId');
         if (!application) {
             return res.status(404).json({ message: "Application not found" });
         }
 
         const submission = (application.assessmentSubmissionId 
-            ? await AssessmentSubmission.findById(application.assessmentSubmissionId) 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
             : null)
             || await AssessmentSubmission.findOne({
-                jobId: application.jobId._id,
+                jobId: application.jobId?._id || application.jobId,
                 userId: application.userId
-            }).sort({ submittedAt: -1 });
+            }).sort({ submittedAt: -1 }).lean();
 
         if (!submission) {
             // Fallback: use assessmentAnswers stored directly in the Application document

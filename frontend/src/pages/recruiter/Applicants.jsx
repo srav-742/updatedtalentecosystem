@@ -5,9 +5,9 @@ import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import { ApplicantsSkeleton } from '../../components/Skeleton';
-import AssessmentDetail from './AssessmentDetail';
-import CodingAssessmentDetail from './CodingAssessmentDetail';
-import InterviewDetail from './InterviewDetail';
+import AssessmentDetail, { prefetchAssessmentDetails } from './AssessmentDetail';
+import CodingAssessmentDetail, { prefetchCodingDetails } from './CodingAssessmentDetail';
+import InterviewDetail, { prefetchInterviewDetails } from './InterviewDetail';
 import ProctoringDetail from './ProctoringDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
@@ -731,6 +731,7 @@ const Applicants = () => {
                                                               <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
                                                               {app.assessmentScore !== null && app.assessmentScore !== undefined && (
                                                                   <button
+                                                                      onMouseEnter={() => !app.isAssessmentLocked && prefetchAssessmentDetails(app.id)}
                                                                       onClick={(e) => {
                                                                           e.stopPropagation();
                                                                           handleViewAssessment(app.id, app.isAssessmentLocked);
@@ -752,6 +753,7 @@ const Applicants = () => {
                                                               <span>{app.codingScore !== null && app.codingScore !== undefined ? `${app.codingScore}/100` : '-'}</span>
                                                               {app.codingScore !== null && app.codingScore !== undefined && (
                                                                   <button
+                                                                      onMouseEnter={() => !app.isAssessmentLocked && prefetchCodingDetails(app.id)}
                                                                       onClick={(e) => {
                                                                           e.stopPropagation();
                                                                           handleViewCodingAssessment(app.id, app.isAssessmentLocked);
@@ -773,6 +775,7 @@ const Applicants = () => {
                                                              <span>{interviewMeta.label}</span>
                                                              {interviewMeta.canView && (
                                                                  <button
+                                                                     onMouseEnter={() => !app.isInterviewLocked && prefetchInterviewDetails(app.id)}
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
                                                                          handleViewInterview(app.id, app.isInterviewLocked);
