@@ -97,7 +97,7 @@ const getRecruiterApplications = async (req, res) => {
 
         const apps = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
             .select('-interviewAnswers -assessmentAnswers -recommendationSummary')
-            .populate('jobId')
+            .populate('jobId', 'title assessment codingAssessment mockInterview')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
             .sort({ appliedAt: -1 })
             .lean();
@@ -144,48 +144,51 @@ const getRecruiterApplications = async (req, res) => {
         const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
         const { getViolationRating } = require('../utils/proctoringScoring');
 
-        const violationQuery = {
-            userId: { $in: userIdList }
-        };
-
-        const [baseViolations, enhancedViolations] = await Promise.all([
-            ProctoringViolation.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
-            ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean()
-        ]);
-
         const applicationPenaltyMap = {};
         const applicationFlagsMap = {};
-        const addRating = (userId, examId, type, metadata, ratingFromDb) => {
-            if (!userId) return;
-            const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
-            
-            // Extract jobId from examId (format: type:jobId:sessionId)
-            let jobId = null;
-            if (examId && typeof examId === 'string') {
-                const parts = examId.split(':');
-                if (parts.length >= 2) {
-                    jobId = parts[1];
+
+        if (userIdList.length > 0) {
+            const violationQuery = {
+                userId: { $in: userIdList }
+            };
+
+            const [baseViolations, enhancedViolations] = await Promise.all([
+                ProctoringViolation.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
+                ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean()
+            ]);
+
+            const addRating = (userId, examId, type, metadata, ratingFromDb) => {
+                if (!userId) return;
+                const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
+                
+                // Extract jobId from examId (format: type:jobId:sessionId)
+                let jobId = null;
+                if (examId && typeof examId === 'string') {
+                    const parts = examId.split(':');
+                    if (parts.length >= 2) {
+                        jobId = parts[1];
+                    }
                 }
-            }
 
-            // Key on userId_jobId if jobId is valid, otherwise fallback to userId only
-            const key = jobId ? `${userId}_${jobId}` : userId;
-            
-            applicationPenaltyMap[key] = (applicationPenaltyMap[key] || 0) + rating;
-            
-            if (!applicationFlagsMap[key]) {
-                applicationFlagsMap[key] = new Set();
-            }
-            applicationFlagsMap[key].add(type);
-        };
+                // Key on userId_jobId if jobId is valid, otherwise fallback to userId only
+                const key = jobId ? `${userId}_${jobId}` : userId;
+                
+                applicationPenaltyMap[key] = (applicationPenaltyMap[key] || 0) + rating;
+                
+                if (!applicationFlagsMap[key]) {
+                    applicationFlagsMap[key] = new Set();
+                }
+                applicationFlagsMap[key].add(type);
+            };
 
-        baseViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
-        });
+            baseViolations.forEach(v => {
+                addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+            });
 
-        enhancedViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
-        });
+            enhancedViolations.forEach(v => {
+                addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+            });
+        }
 
         const isAdmin = reqUser && reqUser.role === 'admin';
         
@@ -261,6 +264,7 @@ const getRecruiterApplications = async (req, res) => {
             return app;
         });
 
+        res.setHeader('Cache-Control', 'private, no-cache, no-transform');
         res.json(appsWithScore);
     } catch (error) {
         console.error('[GET-APPS-REC] Failure:', error);

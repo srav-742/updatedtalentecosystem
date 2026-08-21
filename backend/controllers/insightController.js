@@ -39,38 +39,64 @@ const calculateMetrics = (stats) => {
     return { score: Math.round(score), risk, analysis };
 };
 
+const Job = require('../models/Job');
+const { buildRecruiterJobQuery } = require('../utils/userResolver');
+
 /**
  * Fetches all insights for a recruiter's hires
  */
 const getRecruiterInsights = async (req, res) => {
     try {
-        const { userId } = req.params; // Recruiter UID
-        
-        // Find all applications marked as HIRED for this recruiter's jobs
-        // First, we need to know which jobs belong to this recruiter (done in common routes, but we'll do it here for isolation)
-        const Application = require('../models/Application');
-        const Job = require('../models/Job');
-        
-        const recruiterJobs = await Job.find({ recruiterId: userId });
+        const { userId } = req.params; // Recruiter UID / ID / Email
+        if (!userId) {
+            return res.json([]);
+        }
+
+        const jobQuery = await buildRecruiterJobQuery(userId);
+        const recruiterJobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = recruiterJobs.map(j => j._id);
+
+        if (jobIds.length === 0) {
+            return res.json([]);
+        }
         
         const hiredApps = await Application.find({ 
             jobId: { $in: jobIds },
             status: 'HIRED'
-        }).populate('jobId');
+        })
+        .select('applicantName applicantPic jobId')
+        .populate('jobId', 'title')
+        .lean();
+
+        if (hiredApps.length === 0) {
+            return res.json([]);
+        }
 
         const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        const appIds = hiredApps.map(a => a._id);
 
-        const results = await Promise.all(hiredApps.map(async (app) => {
-            // Check if we already have an insight for this month
-            let insight = await HiredInsight.findOne({ applicationId: app._id, month: currentMonth });
-            
+        // Fetch all existing insights for this month in a single batch query
+        const existingInsights = await HiredInsight.find({
+            applicationId: { $in: appIds },
+            month: currentMonth
+        }).lean();
+
+        const insightMap = new Map(
+            existingInsights.map(i => [String(i.applicationId), i])
+        );
+
+        const newInsightsToInsert = [];
+        const results = [];
+
+        for (const app of hiredApps) {
+            const appIdStr = String(app._id);
+            let insight = insightMap.get(appIdStr);
+
             if (!insight) {
-                // Generate a new one
-                const stats = await getGitHubPulse(app.applicantName); // Simulated
+                const stats = await getGitHubPulse(app.applicantName);
                 const metrics = calculateMetrics(stats);
-                
-                insight = new HiredInsight({
+
+                const newDoc = {
                     applicationId: app._id,
                     recruiterId: userId,
                     month: currentMonth,
@@ -78,23 +104,51 @@ const getRecruiterInsights = async (req, res) => {
                     productivityScore: metrics.score,
                     retentionRisk: metrics.risk,
                     analysis: metrics.analysis
+                };
+
+                newInsightsToInsert.push(newDoc);
+                
+                results.push({
+                    id: `temp-${appIdStr}`,
+                    candidateName: app.applicantName,
+                    jobTitle: app.jobId?.title,
+                    profilePic: app.applicantPic,
+                    stats: newDoc.githubStats,
+                    score: newDoc.productivityScore,
+                    risk: newDoc.retentionRisk,
+                    analysis: newDoc.analysis,
+                    month: newDoc.month
                 });
-                await insight.save();
+            } else {
+                results.push({
+                    id: insight._id,
+                    candidateName: app.applicantName,
+                    jobTitle: app.jobId?.title,
+                    profilePic: app.applicantPic,
+                    stats: insight.githubStats,
+                    score: insight.productivityScore,
+                    risk: insight.retentionRisk,
+                    analysis: insight.analysis,
+                    month: insight.month
+                });
             }
+        }
 
-            return {
-                id: insight._id,
-                candidateName: app.applicantName,
-                jobTitle: app.jobId?.title,
-                profilePic: app.applicantPic,
-                stats: insight.githubStats,
-                score: insight.productivityScore,
-                risk: insight.retentionRisk,
-                analysis: insight.analysis,
-                month: insight.month
-            };
-        }));
+        if (newInsightsToInsert.length > 0) {
+            try {
+                const inserted = await HiredInsight.insertMany(newInsightsToInsert, { ordered: false });
+                inserted.forEach(doc => {
+                    const found = results.find(r => String(r.id) === `temp-${String(doc.applicationId)}`);
+                    if (found) {
+                        found.id = doc._id;
+                    }
+                });
+            } catch (err) {
+                // Ignore duplicate key errors if already created in parallel
+            }
+        }
 
+        res.setHeader('Cache-Control', 'private, no-cache, no-transform');
         res.json(results);
     } catch (error) {
         console.error("[Insights] Error:", error);

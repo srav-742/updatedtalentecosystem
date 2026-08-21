@@ -51,16 +51,22 @@ const Applicants = () => {
         queryFn: async () => {
             if (!userId) return null;
             const res = await axios.get(`${API_URL}/profile/${userId}`);
-            if (res.data) {
-                const isPremium = res.data.hiringPattern === "Premium Recruiter" || res.data.isPro === true;
-                setIsPro(isPremium);
-                const updatedUser = { ...user, ...res.data, isPro: isPremium, role: user.role };
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-            }
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId,
+        staleTime: 5 * 60 * 1000
     });
+
+    useEffect(() => {
+        if (profile) {
+            const isPremium = profile.hiringPattern === "Premium Recruiter" || profile.isPro === true;
+            setIsPro(isPremium);
+            const updatedUser = { ...user, ...profile, isPro: isPremium, role: user.role };
+            try {
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+            } catch (e) {}
+        }
+    }, [profile]);
 
     // Fetch applicants list using React Query
     const { data: rawApplicants = [], isLoading: loading } = useQuery({
@@ -96,6 +102,7 @@ const Applicants = () => {
             linkedinUrl: app.user?.linkedinUrl,
             resumeUrl: app.user?.resumeUrl,
             finalScore: app.finalScore,
+            integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : (app.proctoringScore || 0),
             proctoringScore: app.proctoringScore || 0,
             proctoringFlags: app.proctoringFlags || [],
             status: app.status,
@@ -243,59 +250,63 @@ const Applicants = () => {
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
     // Handle Filters and Sorting
-    const filteredApplicants = applicants
-        .filter(app => {
-            // 1. Text Search Filter
-            const term = searchTerm.toLowerCase();
-            const matchesSearch = !term ||
-                app.name.toLowerCase().includes(term) ||
-                app.job.toLowerCase().includes(term) ||
-                app.email.toLowerCase().includes(term);
+    const filteredApplicants = useMemo(() => {
+        return applicants
+            .filter(app => {
+                // 1. Text Search Filter
+                const term = searchTerm.toLowerCase();
+                const matchesSearch = !term ||
+                    app.name.toLowerCase().includes(term) ||
+                    app.job.toLowerCase().includes(term) ||
+                    app.email.toLowerCase().includes(term);
 
-            // 2. Status Filter
-            const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
+                // 2. Status Filter
+                const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
 
-            // 3. Video Intro Filter
-            const matchesVideo = filterVideo === 'All' ||
-                (filterVideo === 'Yes' && app.videoIntroUrl) ||
-                (filterVideo === 'No' && !app.videoIntroUrl);
+                // 3. Video Intro Filter
+                const matchesVideo = filterVideo === 'All' ||
+                    (filterVideo === 'Yes' && app.videoIntroUrl) ||
+                    (filterVideo === 'No' && !app.videoIntroUrl);
 
-            // 5. Resume Score Filter
-            const matchesResume = app.resumeScore >= minResumeScore;
+                // 5. Resume Score Filter
+                const matchesResume = app.resumeScore >= minResumeScore;
 
-            // 6. Assessment Score Filter
-            const matchesAssessment = minAssessmentScore === 0 ||
-                (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
+                // 6. Assessment Score Filter
+                const matchesAssessment = minAssessmentScore === 0 ||
+                    (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
 
-            return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
-        })
-        .sort((a, b) => {
-            if (sortBy === 'none') {
-                let valA = a.finalScore;
-                let valB = b.finalScore;
+                return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'none') {
+                    let valA = a.finalScore;
+                    let valB = b.finalScore;
+                    if (valA === null || valA === undefined) valA = -1;
+                    if (valB === null || valB === undefined) valB = -1;
+                    return valB - valA;
+                }
+                
+                let valA = a[sortBy];
+                let valB = b[sortBy];
+                
                 if (valA === null || valA === undefined) valA = -1;
                 if (valB === null || valB === undefined) valB = -1;
-                return valB - valA;
-            }
-            
-            let valA = a[sortBy];
-            let valB = b[sortBy];
-            
-            if (valA === null || valA === undefined) valA = -1;
-            if (valB === null || valB === undefined) valB = -1;
-            
-            return sortOrder === 'desc' ? valB - valA : valA - valB;
-        });
+                
+                return sortOrder === 'desc' ? valB - valA : valA - valB;
+            });
+    }, [applicants, searchTerm, filterStatus, filterVideo, minResumeScore, minAssessmentScore, sortBy, sortOrder]);
 
     // Group filtered applicants by job title
-    const groupedApplicants = filteredApplicants.reduce((acc, app) => {
-        const jobTitle = app.job || 'Unknown Job';
-        if (!acc[jobTitle]) {
-            acc[jobTitle] = [];
-        }
-        acc[jobTitle].push(app);
-        return acc;
-    }, {});
+    const groupedApplicants = useMemo(() => {
+        return filteredApplicants.reduce((acc, app) => {
+            const jobTitle = app.job || 'Unknown Job';
+            if (!acc[jobTitle]) {
+                acc[jobTitle] = [];
+            }
+            acc[jobTitle].push(app);
+            return acc;
+        }, {});
+    }, [filteredApplicants]);
 
     // Handle Status Update
     const handleStatusUpdate = async (id, newStatus) => {

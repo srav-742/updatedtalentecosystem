@@ -298,14 +298,15 @@ export const ApplicantsSkeleton = () => (
         <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-hidden">
             <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '20%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '4%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
                     <col style={{ width: '7%' }} />
                     <col style={{ width: '5%' }} />
                 </colgroup>
@@ -316,8 +317,9 @@ export const ApplicantsSkeleton = () => (
                         <th className="pb-4 pt-4 text-center">Video Intro</th>
                         <th className="pb-4 pt-4 text-center">Resume Match</th>
                         <th className="pb-4 pt-4 text-center">Assessment</th>
+                        <th className="pb-4 pt-4 text-center">Coding</th>
                         <th className="pb-4 pt-4 text-center">Interview</th>
-                        <th className="pb-4 pt-4 text-center">Proctoring Score</th>
+                        <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
                         <th className="pb-4 pt-4 text-center">Final Score</th>
                         <th className="pb-4 pt-4 text-center">Status</th>
                         <th className="pb-4 pt-4 text-right pr-6">Action</th>
@@ -339,19 +341,22 @@ export const ApplicantsSkeleton = () => (
                                 <Skeleton className="h-6 w-16 mx-auto rounded-full" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
-                                <Skeleton className="h-8 w-12 mx-auto rounded-xl" variant="dark" />
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
-                                <Skeleton className="h-8 w-12 mx-auto rounded-xl" variant="dark" />
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
-                                <Skeleton className="h-8 w-12 mx-auto rounded-xl" variant="dark" />
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
-                                <Skeleton className="h-6 w-16 mx-auto rounded-full" variant="dark" />
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
-                                <Skeleton className="h-8 w-12 mx-auto rounded-xl" variant="dark" />
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
+                            </td>
+                            <td className="py-5 text-center">
+                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
                             <td className="py-5 text-center">
                                 <Skeleton className="h-6 w-20 mx-auto rounded-full" variant="dark" />

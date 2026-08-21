@@ -57,6 +57,11 @@ const RecruiterLayout = () => {
                 staleTime: 5 * 60 * 1000
             });
             queryClient.prefetchQuery({
+                queryKey: ['insights', 'recruiter', uid],
+                queryFn: () => axios.get(`${API_URL}/insights/recruiter/${uid}`).then(res => Array.isArray(res.data) ? res.data : []),
+                staleTime: 5 * 60 * 1000
+            });
+            queryClient.prefetchQuery({
                 queryKey: ['jobs', 'recruiter', uid],
                 queryFn: () => axios.get(`${API_URL}/jobs/recruiter/${uid}`).then(res => res.data),
                 staleTime: 5 * 60 * 1000
@@ -64,6 +69,11 @@ const RecruiterLayout = () => {
             queryClient.prefetchQuery({
                 queryKey: ['dashboard', 'stats', uid],
                 queryFn: () => axios.get(`${API_URL}/dashboard/${uid}`).then(res => res.data),
+                staleTime: 5 * 60 * 1000
+            });
+            queryClient.prefetchQuery({
+                queryKey: ['wallet', 'balance', uid],
+                queryFn: () => axios.get(`${API_URL}/wallet/balance/${uid}`).then(res => res.data?.success ? res.data.balance : 0),
                 staleTime: 5 * 60 * 1000
             });
         }
