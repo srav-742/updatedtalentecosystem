@@ -63,6 +63,7 @@ export const prefetchSeekerRoutes = () => {
     prefetch(() => import('../pages/seeker/MyApplications'), 'MyApplications');
     prefetch(() => import('../pages/seeker/SeekerProfile'), 'SeekerProfile');
     prefetch(() => import('../pages/seeker/EliteCommunity'), 'EliteCommunity');
+    prefetch(() => import('../pages/seeker/ApplicationFlow/AgentInterview'), 'AgentInterview');
 };
 
 /**

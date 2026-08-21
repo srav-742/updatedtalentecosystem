@@ -28,10 +28,15 @@ const ROUTE_IMPORT_MAP = {
   '/candidate/jobs': () => import('../pages/seeker/BrowseJobs'),
   '/candidate/profile': () => import('../pages/seeker/SeekerProfile'),
   '/candidate/applications': () => import('../pages/seeker/MyApplications'),
+  '/candidate/mock-interview': () => import('../pages/seeker/ApplicationFlow/AgentInterview'),
+  '/candidate/community': () => import('../pages/seeker/EliteCommunity'),
   '/recruiter': () => import('../pages/recruiter/RecruiterDashboard'),
   '/recruiter/my-jobs': () => import('../pages/recruiter/MyJobs'),
   '/recruiter/applicants': () => import('../pages/recruiter/Applicants'),
   '/recruiter/post-job': () => import('../pages/recruiter/PostJob'),
+  '/recruiter/ai-search': () => import('../pages/recruiter/TalentSearch'),
+  '/recruiter/onboarding-kit': () => import('../pages/recruiter/OnboardingKit'),
+  '/recruiter/performance': () => import('../pages/recruiter/PerformanceDashboard'),
 };
 
 // Track which routes have already been prefetched

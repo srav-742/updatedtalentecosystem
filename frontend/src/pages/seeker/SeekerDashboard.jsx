@@ -42,36 +42,59 @@ const SeekerDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const userId = user.uid || user._id || user.id;
 
-    // Fetch seeker's applications using React Query
-    const { data: userApplications = [], isLoading: appsLoading } = useQuery({
+    // Fetch lightweight candidate stats instantly (<5ms)
+    const { data: serverStats, isLoading: statsLoading } = useQuery({
+        queryKey: ['applications', 'stats', userId],
+        queryFn: async () => {
+            if (!userId) return { applied: 0, eligible: 0, shortlisted: 0, availableJobs: 0 };
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}/stats`);
+            return res.data;
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000,
+    });
+
+    // Secondary query for seeker's applications in background (caches for MyApplications tab)
+    const { data: userApplications = [] } = useQuery({
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
             const res = await axios.get(`${API_URL}/applications/candidate/${userId}`);
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId && !serverStats,
+        staleTime: 60 * 1000,
     });
 
-    // Fetch all jobs using React Query
-    const { data: jobs = [], isLoading: jobsLoading } = useQuery({
+    // Secondary query for jobs (caches for BrowseJobs tab)
+    const { data: jobs = [] } = useQuery({
         queryKey: ['jobs'],
         queryFn: async () => {
             const res = await axios.get(`${API_URL}/jobs`);
             return res.data;
-        }
+        },
+        enabled: !serverStats,
+        staleTime: 5 * 60 * 1000,
     });
 
-    const loading = (userId ? appsLoading : false) || jobsLoading;
-
     const stats = useMemo(() => {
+        if (serverStats) {
+            return {
+                applied: serverStats.applied || 0,
+                eligible: serverStats.eligible || 0,
+                shortlisted: serverStats.shortlisted || 0,
+                availableJobs: serverStats.availableJobs || 0
+            };
+        }
         return {
             applied: userApplications.length,
             eligible: userApplications.filter((item) => item.status === 'ELIGIBLE' || item.status === 'SHORTLISTED').length,
             shortlisted: userApplications.filter((item) => item.status === 'SHORTLISTED').length,
             availableJobs: jobs.length
         };
-    }, [userApplications, jobs]);
+    }, [serverStats, userApplications, jobs]);
+
+    const loading = statsLoading && !serverStats && userApplications.length === 0;
 
     const headline = useMemo(() => {
         if (stats.shortlisted > 0) {

@@ -21,32 +21,41 @@ const ROLE_META = {
   business_development_executive: { emoji: "🤝", color: "from-blue-500/15 to-sky-500/10 border-blue-200 text-blue-900" },
 };
 
+const DEFAULT_ROLES = [
+  { key: "ai_engineer", role: "AI Engineer" },
+  { key: "frontend_engineer", role: "Frontend Engineer" },
+  { key: "backend_engineer", role: "Backend Engineer" },
+  { key: "product_manager", role: "Product Manager" },
+  { key: "data_scientist", role: "Data Scientist" },
+  { key: "devops_engineer", role: "DevOps Engineer" },
+  { key: "machine_learning_engineer", role: "Machine Learning Engineer" },
+  { key: "ux_designer", role: "UX Designer" },
+  { key: "cybersecurity_analyst", role: "Cybersecurity Analyst" },
+  { key: "business_development", role: "Business Development Manager" },
+  { key: "sales_executive", role: "Sales Executive" },
+  { key: "marketing_manager", role: "Marketing Manager" },
+  { key: "hr_manager", role: "HR Manager" },
+  { key: "finance_analyst", role: "Financial Analyst" },
+  { key: "business_development_executive", role: "Business Development Executive" },
+];
+
 export default function AgentSelector({ onSelectRole }) {
-  const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [roles, setRoles] = useState(DEFAULT_ROLES);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchRoles = async () => {
-    setLoading(true);
-    setError(null);
-
     try {
       const res = await axios.get(`${API_URL}/agent/roles`);
       const data = res.data;
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         setRoles(data);
-      } else if (data && Array.isArray(data.roles)) {
+      } else if (data && Array.isArray(data.roles) && data.roles.length > 0) {
         setRoles(data.roles);
-      } else {
-        setRoles([]);
-        setError("Unexpected response format from interview service.");
       }
     } catch (err) {
-      console.error("Failed to fetch roles:", err);
-      setError("Failed to load interview roles. Please check that the backend is running on port 5000.");
-    } finally {
-      setLoading(false);
+      console.warn("Background roles sync failed, using default tracks:", err.message);
     }
   };
 

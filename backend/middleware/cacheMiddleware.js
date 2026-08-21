@@ -35,9 +35,9 @@ const cacheMiddleware = (ttlSeconds = 60, options = {}) => {
     } = options;
 
     return (req, res, next) => {
-        // Bypass cache for admin/recruiter routes and non-GET requests
+        // Bypass cache for admin routes and non-GET requests
         const urlLower = req.originalUrl.toLowerCase();
-        if (req.method !== 'GET' || urlLower.includes('/admin') || urlLower.includes('/recruiter')) {
+        if (req.method !== 'GET' || urlLower.includes('/admin')) {
             return next();
         }
 

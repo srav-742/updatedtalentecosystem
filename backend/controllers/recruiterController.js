@@ -12,9 +12,11 @@ const getRecruiterDashboard = async (req, res) => {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
 
+        // Resolve identifiers once
+        const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
+
         // Enforce recruiter dashboard ownership check (admins bypass)
         if (reqUser && reqUser.role !== 'admin') {
-            const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
             const reqUserIds = [reqUser._id?.toString(), reqUser.uid, reqUser.email?.toLowerCase().trim()].filter(Boolean);
             const isSelf = reqUserIds.some(id => allIds.includes(id));
             if (!isSelf) {
@@ -22,16 +24,52 @@ const getRecruiterDashboard = async (req, res) => {
             }
         }
 
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
-        const jobs = await Job.find(jobQuery).select('_id').lean();
-        const jobIds = jobs.map((job) => job._id);
+        const jobQuery = allIds.length > 1
+            ? { recruiterId: { $in: allIds } }
+            : { recruiterId: allIds[0] || recruiterId };
 
-        const [applicationCount, shortlistedCount] = await Promise.all([
+        // Fetch lean summary of all jobs sorted by creation date
+        const allJobs = await Job.find(jobQuery)
+            .select('_id title location type minPercentage createdAt status')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const jobIds = allJobs.map((job) => job._id);
+
+        if (jobIds.length === 0) {
+            return res.json({
+                jobCount: 0,
+                applicationCount: 0,
+                shortlistedCount: 0,
+                recentJobs: []
+            });
+        }
+
+        // Top 5 recent jobs for instant dashboard table render
+        const top5Jobs = allJobs.slice(0, 5);
+        const top5JobIds = top5Jobs.map(j => j._id);
+
+        const [applicationCount, shortlistedCount, top5Counts] = await Promise.all([
             Application.countDocuments({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } }),
-            Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' })
+            Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' }),
+            Application.aggregate([
+                { $match: { jobId: { $in: top5JobIds }, status: { $ne: 'SAVED' } } },
+                { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
+            ])
         ]);
 
-        res.json({ jobCount: jobs.length, applicationCount, shortlistedCount });
+        const top5CountMap = new Map(top5Counts.map(item => [String(item._id), item.applicantCount]));
+        const recentJobs = top5Jobs.map(job => ({
+            ...job,
+            applicantCount: top5CountMap.get(String(job._id)) || 0
+        }));
+
+        res.json({
+            jobCount: allJobs.length,
+            applicationCount,
+            shortlistedCount,
+            recentJobs
+        });
     } catch (error) {
         console.error('[Dashboard] Error:', error);
         res.status(500).json({ message: error.message });
@@ -234,7 +272,10 @@ const getRecruiterJobs = async (req, res) => {
     try {
         const recruiterId = req.params.recruiterId;
         const jobQuery = await resolveRecruiterJobQuery(recruiterId);
-        const jobs = await Job.find(jobQuery).sort({ createdAt: -1 }).lean();
+        const jobs = await Job.find(jobQuery)
+            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved')
+            .sort({ createdAt: -1 })
+            .lean();
         const jobIds = jobs.map((job) => job._id);
 
         const counts = await Application.aggregate([

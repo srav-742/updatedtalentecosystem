@@ -108,11 +108,39 @@ const submitApplication = async (req, res) => {
 
 const getSeekerApplications = async (req, res) => {
     try {
-        const apps = await Application.find({ userId: req.params.userId }).populate('jobId').sort({ appliedAt: -1 }).lean();
+        const apps = await Application.find({ userId: req.params.userId })
+            .select('-interviewAnswers -assessmentAnswers -codingAnswers -recommendationSummary')
+            .populate('jobId', 'title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved')
+            .sort({ appliedAt: -1 })
+            .lean();
         const validApps = apps.filter(app => app.jobId);
         res.json(validApps);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getSeekerDashboardStats = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const Job = require('../models/Job');
+
+        const [applied, shortlisted, eligible, availableJobs] = await Promise.all([
+            Application.countDocuments({ userId, status: { $ne: 'SAVED' } }),
+            Application.countDocuments({ userId, status: 'SHORTLISTED' }),
+            Application.countDocuments({ userId, status: { $in: ['ELIGIBLE', 'SHORTLISTED', 'HIRED'] } }),
+            Job.countDocuments({ status: 'approved' })
+        ]);
+
+        res.json({
+            applied,
+            shortlisted,
+            eligible,
+            availableJobs
+        });
+    } catch (error) {
+        console.error("[GET-SEEKER-STATS] Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -224,6 +252,7 @@ const deleteApplication = async (req, res) => {
 module.exports = {
     submitApplication,
     getSeekerApplications,
+    getSeekerDashboardStats,
     updateApplicationStatus,
     resetApplicationAfterProctoring,
     deleteApplication

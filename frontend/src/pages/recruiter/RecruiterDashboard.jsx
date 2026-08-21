@@ -31,30 +31,35 @@ const RecruiterDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const userId = user.uid || user._id || user.id;
 
-    // Fetch dashboard stats using React Query
-    const { data: stats = { jobCount: 0, applicationCount: 0, shortlistedCount: 0 }, isLoading: statsLoading } = useQuery({
+    // Fetch dashboard stats & recent jobs in a single ultra-fast query
+    const { data: stats = { jobCount: 0, applicationCount: 0, shortlistedCount: 0, recentJobs: [] }, isLoading: statsLoading } = useQuery({
         queryKey: ['dashboard', 'stats', userId],
         queryFn: async () => {
-            if (!userId) return { jobCount: 0, applicationCount: 0, shortlistedCount: 0 };
+            if (!userId) return { jobCount: 0, applicationCount: 0, shortlistedCount: 0, recentJobs: [] };
             const res = await axios.get(`${API_URL}/dashboard/${userId}`);
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId,
+        staleTime: 60 * 1000,
     });
 
-    // Fetch recruiter's jobs using React Query
-    const { data: recruiterJobs = [], isLoading: jobsLoading } = useQuery({
+    // Secondary query for full recruiter jobs (used as fallback or background cache)
+    const { data: recruiterJobs = [] } = useQuery({
         queryKey: ['jobs', 'recruiter', userId],
         queryFn: async () => {
             if (!userId) return [];
             const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId && (!stats.recentJobs || stats.recentJobs.length === 0),
+        staleTime: 60 * 1000,
     });
 
-    const recentJobs = recruiterJobs.slice(0, 5);
-    const loading = statsLoading || jobsLoading;
+    const recentJobs = (stats.recentJobs && stats.recentJobs.length > 0)
+        ? stats.recentJobs
+        : recruiterJobs.slice(0, 5);
+
+    const loading = statsLoading && !stats.jobCount && recentJobs.length === 0;
 
     if (loading) return <RecruiterDashboardSkeleton />;
 

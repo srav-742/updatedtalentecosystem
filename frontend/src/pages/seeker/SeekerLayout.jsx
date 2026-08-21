@@ -35,6 +35,11 @@ const SeekerLayout = () => {
         });
         if (uid) {
             queryClient.prefetchQuery({
+                queryKey: ['applications', 'stats', uid],
+                queryFn: () => axios.get(`${API_URL}/applications/candidate/${uid}/stats`).then(res => res.data),
+                staleTime: 60 * 1000
+            });
+            queryClient.prefetchQuery({
                 queryKey: ['applications', uid],
                 queryFn: () => axios.get(`${API_URL}/applications/candidate/${uid}`).then(res => res.data),
                 staleTime: 5 * 60 * 1000
