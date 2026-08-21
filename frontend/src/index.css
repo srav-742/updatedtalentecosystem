@@ -290,3 +290,9 @@ body {
 .admin-content [class~="hover:text-white"]:hover {
   color: #111827 !important;
 }
+
+/* Shimmer animation for lazy-loading image placeholders */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

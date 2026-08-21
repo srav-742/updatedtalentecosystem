@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8" />
 
+  <!-- Preload critical entry script — browser starts downloading immediately -->
+  <link rel="modulepreload" href="/src/main.jsx" />
+
   <!-- DNS Prefetching & Preconnecting to speed up external assets and API handshakes -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,8 +21,15 @@
   <link rel="dns-prefetch" href="https://updatedtalentecosystem.onrender.com" />
 
   <link rel="icon" type="image/png" href="/logo.png" />
+  <!-- Non-blocking Google Fonts: loads asynchronously, swaps in after download -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
+  </noscript>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
@@ -114,6 +124,15 @@
   </div>
 
   <script type="module" src="/src/main.jsx"></script>
+
+  <!-- Service Worker Registration — caches static assets for instant repeat visits -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      });
+    }
+  </script>
 
 </body>
 

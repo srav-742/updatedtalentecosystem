@@ -43,6 +43,13 @@ const TalentSearch = () => {
         }
     };
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSearch(e);
+        }
+    };
+
     const suggestions = [
         "React developers with 3+ years experience",
         "Python backend experts in Fintech",
@@ -72,17 +79,18 @@ const TalentSearch = () => {
             {/* Search Bar */}
             <div className="max-w-4xl mx-auto relative group">
                 <form onSubmit={handleSearch} className="relative z-10">
-                    <input
-                        type="text"
+                    <textarea
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         placeholder="I need a React developer with Fintech experience..."
-                        className="w-full bg-white/5 border-2 border-white/10 rounded-[2.5rem] px-10 py-8 text-xl text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-700 font-medium shadow-2xl backdrop-blur-xl"
+                        className="w-full bg-white/5 border-2 border-white/10 rounded-[2rem] pl-10 pr-48 py-6 text-xl text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-700 font-medium shadow-2xl backdrop-blur-xl resize-none min-h-[100px] z-10"
+                        rows={2}
                     />
                     <button
                         type="submit"
                         disabled={loading}
-                        className="absolute right-4 top-4 bottom-4 px-8 rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 text-white font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20"
+                        className="absolute right-4 bottom-4 px-8 h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 text-white font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20 z-20"
                     >
                         {loading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
                         {loading ? 'Finding...' : 'Search'}

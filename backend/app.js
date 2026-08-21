@@ -1,4 +1,5 @@
 require('./utils/codingTranscriptPatch');
+require('./middleware/mongoosePerformance'); // Auto-lean plugin for 3-5x faster DB reads
 const express = require('express');
 const cors = require('cors');
 const dns = require('dns');
@@ -26,6 +27,9 @@ app.use(compression({
 // Enable ETag so browsers can do conditional GET (304 Not Modified)
 // This means unchanged responses return instantly with 0 bytes transferred
 app.set('etag', 'strong');
+
+// Performance headers: response timing, keep-alive, CDN cache separation
+app.use(require('./middleware/performanceMiddleware'));
 
 // Middleware
 const corsOptions = {
@@ -202,13 +206,15 @@ app.use("/api/cloudinary-test", cloudinaryTestRoutes);
 app.use('/api/proctoring', proctoringRoutes);
 app.use('/api/proctoring-enhanced', require('./routes/proctoringRoutesEnhanced'));
 app.use('/api/proctoring-pipeline', require('./routes/proctoringEventRoutes'));
-app.use("/api/content", contentRoutes);
-app.use("/api", require("./blog"));
+// Content & Blog: cache 3 min (public read-heavy endpoints)
+app.use("/api/content", cacheMiddleware(180, { httpMaxAge: 60, staleWhileRevalidate: 600 }), contentRoutes);
+app.use("/api", cacheMiddleware(180, { httpMaxAge: 60, staleWhileRevalidate: 600 }), require("./blog"));
 app.use('/api', videoIntroRoutes);
 app.use('/api', communityRoutes);
 app.use('/api/team-fit', teamFitRoutes);
-app.use('/api/insights', insightRoutes);
-app.use('/api/ai-search', aiSearchRoutes);
+// Insights & Search: cache 2 min (computed data, expensive queries)
+app.use('/api/insights', cacheMiddleware(120, { httpMaxAge: 30, staleWhileRevalidate: 300 }), insightRoutes);
+app.use('/api/ai-search', cacheMiddleware(60, { httpMaxAge: 0, staleWhileRevalidate: 120, varyByUser: true }), aiSearchRoutes);
 
 // Dynamically load coding assessment routes to prevent crashes if files are missing/reverted
 try {

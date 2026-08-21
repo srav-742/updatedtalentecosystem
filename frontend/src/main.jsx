@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.jsx'
+import { initRoutePrefetcher } from './utils/routePrefetcher'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -157,3 +158,6 @@ createRoot(document.getElementById('root')).render(
     </HelmetProvider>
   </StrictMode>,
 )
+
+// Activate viewport-based route prefetching (preloads chunks when links are visible)
+initRoutePrefetcher();
