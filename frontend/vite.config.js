@@ -46,8 +46,6 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     rollupOptions: {
       output: {
-        // Granular chunk splitting for faster page loads
-        // React core + React DOM must stay together to avoid initialization order issues
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
@@ -70,36 +68,8 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('@tiptap') || id.includes('prosemirror')) {
             return 'chunk-editor';
           }
-
-          // React core — loaded on every page (must stay together)
-          if (
-            id.includes('react-dom') ||
-            id.includes('/react/') ||
-            id.includes('react-router') ||
-            id.includes('scheduler') ||
-            id.includes('react-helmet')
-          ) {
-            return 'chunk-react';
-          }
-
-          // UI animation + icons — loaded on pages with visual elements
-          if (
-            id.includes('framer-motion') ||
-            id.includes('lucide-react')
-          ) {
-            return 'chunk-ui';
-          }
-
-          // Data fetching layer — loaded on pages that make API calls
-          if (
-            id.includes('@tanstack') ||
-            id.includes('axios')
-          ) {
-            return 'chunk-data';
-          }
-
-          // Everything else (clsx, tailwind-merge, phone input, webcam, etc.)
-          return 'chunk-vendor';
+          
+          // Let Rollup handle the rest automatically to prevent initialization order bugs
         },
       },
     },
