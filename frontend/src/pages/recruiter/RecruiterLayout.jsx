@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, BarChart3, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
@@ -14,7 +14,6 @@ const navItems = [
     { label: 'Post Job', icon: FilePlus, path: '/recruiter/post-job' },
     { label: 'My Jobs', icon: Briefcase, path: '/recruiter/my-jobs' },
     { label: 'Applicants', icon: Users, path: '/recruiter/applicants' },
-    { label: 'Performance', icon: BarChart3, path: '/recruiter/performance' },
     { label: 'Onboarding Kit', icon: Package, path: '/recruiter/onboarding-kit' },
     { label: 'AI Search', icon: Sparkles, path: '/recruiter/ai-search' },
     { label: 'Profile', icon: UserCircle, path: '/recruiter/profile' },
@@ -54,11 +53,6 @@ const RecruiterLayout = () => {
             queryClient.prefetchQuery({
                 queryKey: ['applicants', uid],
                 queryFn: () => axios.get(`${API_URL}/applications/recruiter/${uid}`).then(res => res.data),
-                staleTime: 5 * 60 * 1000
-            });
-            queryClient.prefetchQuery({
-                queryKey: ['insights', 'recruiter', uid],
-                queryFn: () => axios.get(`${API_URL}/insights/recruiter/${uid}`).then(res => Array.isArray(res.data) ? res.data : []),
                 staleTime: 5 * 60 * 1000
             });
             queryClient.prefetchQuery({

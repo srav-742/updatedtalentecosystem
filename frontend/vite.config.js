@@ -87,7 +87,6 @@ export default defineConfig(({ mode }) => ({
         './src/pages/recruiter/RecruiterLayout.jsx',
         './src/pages/recruiter/RecruiterDashboard.jsx',
         './src/pages/recruiter/Applicants.jsx',
-        './src/pages/recruiter/PerformanceDashboard.jsx',
         './src/pages/recruiter/MyJobs.jsx',
         './src/pages/recruiter/PostJob.jsx',
         './src/pages/seeker/SeekerDashboard.jsx',
