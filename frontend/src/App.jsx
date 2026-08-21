@@ -20,16 +20,22 @@ function BlogRouteWrapper({ children }) {
 
 import LandingPage from './pages/LandingPage';
 import AssessmentsHome from './pages/AssessmentsHome';
+import SignupPage from './pages/SignupPage';
+import LoginPage from './pages/LoginPage';
+import RecruiterLayout from './pages/recruiter/RecruiterLayout';
+import RecruiterDashboard from './pages/recruiter/RecruiterDashboard';
+import PostJob from './pages/recruiter/PostJob';
+import MyJobs from './pages/recruiter/MyJobs';
+import Applicants from './pages/recruiter/Applicants';
+import RecruiterProfile from './pages/recruiter/RecruiterProfile';
+import SeekerLayout from './pages/seeker/SeekerLayout';
+import SeekerDashboard from './pages/seeker/SeekerDashboard';
+import BrowseJobs from './pages/seeker/BrowseJobs';
+import MyApplications from './pages/seeker/MyApplications';
+import SeekerProfile from './pages/seeker/SeekerProfile';
+
 const AboutPage = lazy(() => import('./pages/AboutPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RecruiterLayout = lazy(() => import('./pages/recruiter/RecruiterLayout'));
-const RecruiterDashboard = lazy(() => import('./pages/recruiter/RecruiterDashboard'));
-const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
-const MyJobs = lazy(() => import('./pages/recruiter/MyJobs'));
-const Applicants = lazy(() => import('./pages/recruiter/Applicants'));
 const ProctoringReports = lazy(() => import('./pages/recruiter/ProctoringReports'));
-const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile'));
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
 const TalentSearch = lazy(() => import('./pages/recruiter/TalentSearch'));
@@ -39,12 +45,7 @@ const CodingAssessmentConfig = lazy(() => import('./pages/recruiter/CodingAssess
 const CustomCodingAssessmentConfig = lazy(() => import('./pages/recruiter/CustomCodingAssessmentConfig'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
-const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
-const SeekerDashboard = lazy(() => import('./pages/seeker/SeekerDashboard'));
-const BrowseJobs = lazy(() => import('./pages/seeker/BrowseJobs'));
 const JobDetails = lazy(() => import('./pages/seeker/JobDetails'));
-const MyApplications = lazy(() => import('./pages/seeker/MyApplications'));
-const SeekerProfile = lazy(() => import('./pages/seeker/SeekerProfile'));
 const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Terms = lazy(() => import('./pages/Terms'));

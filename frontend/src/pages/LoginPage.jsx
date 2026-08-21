@@ -271,25 +271,25 @@ const LoginPage = () => {
                     }
                 }
 
-                // 2. ALWAYS sync user to MongoDB after successful Firebase auth
-                // This is the self-healing fix: even if signup failed to save to MongoDB,
-                // every login will ensure the user record exists
-                await withRetry(async () => {
-                    await apiClient.post('/users/sync', {
-                        uid: user.uid,
-                        email: user.email || normalizedEmail,
-                        name: user.displayName || normalizedEmail.split('@')[0],
-                        role: role
-                    });
-                }, 3, 'loginSync').catch(err => {
-                    console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
-                });
+                // Fetch Profile and initialize Gateway Session in parallel
+                const [fetchedProfile] = await Promise.all([
+                    withRetry(() => getUserProfile(user.uid), 3, 'getProfile').catch(() => null),
+                    withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, user.uid), 3, 'gatewaySession').catch(err => {
+                        console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
+                    }),
+                    withRetry(async () => {
+                        await apiClient.post('/users/sync', {
+                            uid: user.uid,
+                            email: user.email || normalizedEmail,
+                            name: user.displayName || normalizedEmail.split('@')[0],
+                            role: role
+                        });
+                    }, 2, 'loginSync').catch(err => {
+                        console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
+                    })
+                ]);
 
-                // 3. Fetch Profile Data from Backend using UID
-                profile = await withRetry(
-                    () => getUserProfile(user.uid),
-                    3, 'getProfile'
-                ).catch(() => null);
+                profile = fetchedProfile;
 
                 if (!profile) {
                     // Auto-create profile from Firebase data
@@ -311,22 +311,20 @@ const LoginPage = () => {
                     }
                 }
 
-                // 4. Also backfill password to MongoDB if missing (self-healing for Bug #2)
+                // Also backfill password to MongoDB in background if missing (self-healing for Bug #2)
                 if (formData.password && profile && !profile.password) {
-                    await withRetry(async () => {
-                        await axios.post(`${API_URL}/signup`, {
-                            name: profile.name,
-                            email: normalizedEmail,
-                            password: formData.password,
-                            role: role,
-                            uid: user.uid
-                        }, {
-                            headers: {
-                                'X-Client-ID': CLIENT_ID,
-                                'X-Client-Secret': CLIENT_SECRET
-                            }
-                        });
-                    }, 2, 'backfillPassword').catch(err => {
+                    axios.post(`${API_URL}/signup`, {
+                        name: profile.name,
+                        email: normalizedEmail,
+                        password: formData.password,
+                        role: role,
+                        uid: user.uid
+                    }, {
+                        headers: {
+                            'X-Client-ID': CLIENT_ID,
+                            'X-Client-Secret': CLIENT_SECRET
+                        }
+                    }).catch(err => {
                         console.warn('[LOGIN] Password backfill failed (non-fatal):', err.message);
                     });
                 }
@@ -338,12 +336,6 @@ const LoginPage = () => {
                     throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
                 }
             }
-
-            // Initialize Gateway session tokens
-            await withRetry(
-                () => apiClient.initializeGatewaySession(profile.email, profile.uid || profile.id || profile._id),
-                3, 'gatewaySession'
-            );
 
             setMessage({ type: 'success', text: "Login successful!" });
 
@@ -410,36 +402,35 @@ const LoginPage = () => {
                 role: targetRole
             };
 
-            // Step 3: ALWAYS sync to MongoDB (not just for new users)
-            // This is the self-healing fix: ensures MongoDB stays consistent
-            await withRetry(async () => {
-                await apiClient.post('/users/sync', {
-                    uid: googleUser.uid,
-                    email: normalizedEmail,
-                    name: googleUser.displayName,
-                    profilePic: googleUser.photoURL,
-                    role: targetRole
-                });
-            }, 3, 'googleLoginSync').catch(err => {
-                console.warn('[GOOGLE-LOGIN] Sync call failed (non-fatal):', err.message);
-            });
-
-            // Step 3b: Save/update profile
-            await withRetry(
-                () => saveUserProfile(googleUser.uid, {
-                    ...basicProfile,
-                    createdAt: basicProfile.createdAt || new Date().toISOString()
+            // Sync to MongoDB, save profile, and initialize Gateway session tokens in parallel
+            await Promise.all([
+                withRetry(async () => {
+                    await apiClient.post('/users/sync', {
+                        uid: googleUser.uid,
+                        email: normalizedEmail,
+                        name: googleUser.displayName,
+                        profilePic: googleUser.photoURL,
+                        role: targetRole
+                    });
+                }, 2, 'googleLoginSync').catch(err => {
+                    console.warn('[GOOGLE-LOGIN] Sync call failed (non-fatal):', err.message);
                 }),
-                3, 'googleSaveProfile'
-            ).catch(err => {
-                console.warn('[GOOGLE-LOGIN] Profile save failed (non-fatal):', err.message);
-            });
-
-            // Step 4: Initialize Gateway session tokens
-            await withRetry(
-                () => apiClient.initializeGatewaySession(normalizedEmail, basicProfile.uid || basicProfile.id || basicProfile._id),
-                3, 'googleGatewaySession'
-            );
+                withRetry(
+                    () => saveUserProfile(googleUser.uid, {
+                        ...basicProfile,
+                        createdAt: basicProfile.createdAt || new Date().toISOString()
+                    }),
+                    2, 'googleSaveProfile'
+                ).catch(err => {
+                    console.warn('[GOOGLE-LOGIN] Profile save failed (non-fatal):', err.message);
+                }),
+                withRetry(
+                    () => apiClient.initializeGatewaySession(normalizedEmail, basicProfile.uid || basicProfile.id || basicProfile._id),
+                    2, 'googleGatewaySession'
+                ).catch(err => {
+                    console.warn('[GOOGLE-LOGIN] Gateway session init failed (non-fatal):', err.message);
+                })
+            ]);
 
             // Step 5: Store and navigate
             localStorage.setItem('user', JSON.stringify(basicProfile));

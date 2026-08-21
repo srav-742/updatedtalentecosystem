@@ -123,7 +123,7 @@ export function initRoutePrefetcher() {
       observer.disconnect();
       mutationObserver.disconnect();
     });
-  }, 3000); // Wait 3 seconds after page load before starting prefetch
+  }, 100); // Start prefetch after 100ms
 
   return () => clearTimeout(startDelay);
 }
