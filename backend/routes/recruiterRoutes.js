@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const recruiterController = require('../controllers/recruiterController');
 const { cacheMiddleware } = require('../middleware/cacheMiddleware');
 
 router.post('/jobs', recruiterController.createJob);
