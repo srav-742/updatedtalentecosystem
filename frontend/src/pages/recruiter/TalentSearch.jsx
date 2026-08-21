@@ -189,11 +189,16 @@ const TalentSearch = () => {
                                     </div>
 
                                     <div className="flex flex-wrap gap-2 mb-8">
-                                        {can.skills?.slice(0, 4).map(skill => (
-                                            <span key={skill} className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest">
-                                                {skill}
-                                            </span>
-                                        ))}
+                                        {(() => {
+                                            const matched = can.matchedSkills || [];
+                                            const allSkills = can.skills || [];
+                                            const ordered = [...matched, ...allSkills.filter(s => !matched.includes(s))];
+                                            return ordered.slice(0, 4).map(skill => (
+                                                <span key={skill} className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest">
+                                                    {skill}
+                                                </span>
+                                            ));
+                                        })()}
                                     </div>
 
                                     <p className="text-gray-400 text-sm italic line-clamp-3 mb-8 leading-relaxed">
