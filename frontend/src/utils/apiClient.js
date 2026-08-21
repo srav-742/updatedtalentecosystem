@@ -20,7 +20,7 @@ const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gat
 /**
  * Get stored tokens from localStorage
  */
-const getTokens = () => {
+export const getTokens = () => {
     try {
         const accessToken = localStorage.getItem('accessToken');
         const refreshToken = localStorage.getItem('refreshToken');
@@ -33,7 +33,7 @@ const getTokens = () => {
 /**
  * Store tokens in localStorage
  */
-const setTokens = (accessToken, refreshToken) => {
+export const setTokens = (accessToken, refreshToken) => {
     if (accessToken) localStorage.setItem('accessToken', accessToken);
     if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
 };
@@ -41,7 +41,7 @@ const setTokens = (accessToken, refreshToken) => {
 /**
  * Clear all auth data and redirect to login
  */
-const clearAuthAndRedirect = () => {
+export const clearAuthAndRedirect = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
@@ -51,7 +51,7 @@ const clearAuthAndRedirect = () => {
 /**
  * Refresh the access token using the refresh token
  */
-const refreshAccessToken = async () => {
+export const refreshAccessToken = async () => {
     const { refreshToken } = getTokens();
     if (!refreshToken) {
         throw new Error('No refresh token available');
@@ -88,7 +88,7 @@ const refreshAccessToken = async () => {
  * @param {boolean} retry - Internal flag to prevent infinite retry loops
  * @returns {Promise<Response>}
  */
-const apiRequest = async (endpoint, options = {}, retry = true) => {
+export const apiRequest = async (endpoint, options = {}, retry = true) => {
     const { accessToken, refreshToken } = getTokens();
 
     const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
@@ -250,7 +250,7 @@ const apiClient = {
 /**
  * Asynchronously warm up the backend server in the background (non-blocking)
  */
-const pingBackendWarmup = async () => {
+export const pingBackendWarmup = async () => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -270,5 +270,5 @@ const pingBackendWarmup = async () => {
 
 apiClient.pingBackendWarmup = pingBackendWarmup;
 
+export { CLIENT_ID, CLIENT_SECRET };
 export default apiClient;
-export { apiRequest, getTokens, setTokens, clearAuthAndRedirect, refreshAccessToken, pingBackendWarmup, CLIENT_ID, CLIENT_SECRET };
