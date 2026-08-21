@@ -79,6 +79,24 @@ export default defineConfig(({ mode }) => ({
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
     },
+    warmup: {
+      clientFiles: [
+        './src/main.jsx',
+        './src/App.jsx',
+        './src/pages/AssessmentsHome.jsx',
+        './src/pages/recruiter/RecruiterLayout.jsx',
+        './src/pages/recruiter/RecruiterDashboard.jsx',
+        './src/pages/recruiter/Applicants.jsx',
+        './src/pages/recruiter/PerformanceDashboard.jsx',
+        './src/pages/recruiter/MyJobs.jsx',
+        './src/pages/recruiter/PostJob.jsx',
+        './src/pages/seeker/SeekerDashboard.jsx',
+        './src/components/Skeleton.jsx'
+      ]
+    },
+    fs: {
+      cachedChecks: true
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -92,6 +110,7 @@ export default defineConfig(({ mode }) => ({
     include: [
       'react',
       'react-dom',
+      'react-dom/client',
       'react-router-dom',
       '@tanstack/react-query',
       'framer-motion',
@@ -99,6 +118,9 @@ export default defineConfig(({ mode }) => ({
       'axios',
       'firebase/app',
       'firebase/auth',
+      'react-helmet-async'
+    ],
+    exclude: [
       '@tensorflow/tfjs',
       '@tensorflow-models/coco-ssd',
       'face-api.js',
