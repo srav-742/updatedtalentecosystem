@@ -18,8 +18,8 @@ function BlogRouteWrapper({ children }) {
   );
 }
 
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const AssessmentsHome = lazy(() => import('./pages/AssessmentsHome'));
+import LandingPage from './pages/LandingPage';
+import AssessmentsHome from './pages/AssessmentsHome';
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
