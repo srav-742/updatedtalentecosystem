@@ -6,6 +6,8 @@ import './index.css'
 import App from './App.jsx'
 import { initRoutePrefetcher } from './utils/routePrefetcher'
 
+import apiClient, { CLIENT_ID, CLIENT_SECRET, pingBackendWarmup } from './utils/apiClient'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -17,11 +19,11 @@ const queryClient = new QueryClient({
       retry: 1,
       // Don't re-fetch when user re-focuses the tab (reduces unnecessary calls)
       refetchOnWindowFocus: false,
+      // Offline-first strategy: return cached query immediately without waiting for network handshake
+      networkMode: 'offlineFirst',
     },
   },
 });
-import axios from 'axios';
-import apiClient, { CLIENT_ID, CLIENT_SECRET } from './utils/apiClient'
 
 window.apiClient = apiClient;
 window.CLIENT_ID = CLIENT_ID;
@@ -161,3 +163,6 @@ createRoot(document.getElementById('root')).render(
 
 // Activate viewport-based route prefetching (preloads chunks when links are visible)
 initRoutePrefetcher();
+
+// Non-blocking asynchronous backend warmup ping to wake up sleeping Render backend
+pingBackendWarmup();

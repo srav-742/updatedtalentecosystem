@@ -108,10 +108,25 @@ const apiRequest = async (endpoint, options = {}, retry = true) => {
         headers['X-Refresh-Token'] = refreshToken;
     }
 
-    const response = await fetch(url, {
-        ...options,
-        headers
-    });
+    const timeoutMs = options.timeout || 12000;
+    let controller = null;
+    let timeoutId = null;
+
+    if (!options.signal) {
+        controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
+
+    let response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            signal: options.signal || (controller ? controller.signal : undefined),
+            headers
+        });
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
 
     // Check if the gateway returned a new access token (silent refresh happened server-side)
     const newToken = response.headers.get('X-New-Access-Token');
@@ -232,5 +247,28 @@ const apiClient = {
     refreshToken: refreshAccessToken
 };
 
+/**
+ * Asynchronously warm up the backend server in the background (non-blocking)
+ */
+const pingBackendWarmup = async () => {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        await fetch(`${API_URL}/health`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                'X-Client-ID': CLIENT_ID,
+                'X-Client-Secret': CLIENT_SECRET
+            }
+        }).catch(() => {});
+        clearTimeout(timeoutId);
+    } catch {
+        // Silently ignore warmup errors
+    }
+};
+
+apiClient.pingBackendWarmup = pingBackendWarmup;
+
 export default apiClient;
-export { apiRequest, getTokens, setTokens, clearAuthAndRedirect, refreshAccessToken, CLIENT_ID, CLIENT_SECRET };
+export { apiRequest, getTokens, setTokens, clearAuthAndRedirect, refreshAccessToken, pingBackendWarmup, CLIENT_ID, CLIENT_SECRET };

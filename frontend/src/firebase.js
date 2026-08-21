@@ -83,15 +83,18 @@ export const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2
 
 export const saveUserProfile = async (userId, data) => {
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
+            signal: controller.signal,
             headers: { 
                 'Content-Type': 'application/json',
                 'X-Client-ID': CLIENT_ID,
                 'X-Client-Secret': CLIENT_SECRET
             },
             body: JSON.stringify({ ...data, uid: userId })
-        });
+        }).finally(() => clearTimeout(timeoutId));
 
         if (!response.ok) throw new Error("Failed to save to MongoDB");
         return await response.json();
@@ -103,12 +106,15 @@ export const saveUserProfile = async (userId, data) => {
 
 export const getUserProfile = async (userId) => {
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
+            signal: controller.signal,
             headers: {
                 'X-Client-ID': CLIENT_ID,
                 'X-Client-Secret': CLIENT_SECRET
             }
-        });
+        }).finally(() => clearTimeout(timeoutId));
         if (!response.ok) {
             // If 404, return null so logic can handle 'not found'
             if (response.status === 404) return null;
@@ -125,15 +131,18 @@ export const getUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, data) => {
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT',
+            signal: controller.signal,
             headers: { 
                 'Content-Type': 'application/json',
                 'X-Client-ID': CLIENT_ID,
                 'X-Client-Secret': CLIENT_SECRET
             },
             body: JSON.stringify(data)
-        });
+        }).finally(() => clearTimeout(timeoutId));
         if (!response.ok) throw new Error("Update failed");
         return true;
     } catch (error) {
