@@ -59,6 +59,14 @@ const PUBLIC_ROUTES = [
 
 const gatewayMiddleware = async (req, res, next) => {
     try {
+        // ─── CORS Preflight Bypass ───────────────────────────────────────
+        // OPTIONS requests are preflight checks sent by the browser.
+        // They must pass through to the cors() middleware without auth checks,
+        // otherwise the browser blocks the actual request.
+        if (req.method === 'OPTIONS') {
+            return next();
+        }
+
         const fullPath = req.baseUrl + req.path;
 
         // ─── Admin Bypass Check ──────────────────────────────────────────
