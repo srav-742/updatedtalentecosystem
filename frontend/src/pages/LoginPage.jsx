@@ -345,10 +345,10 @@ const LoginPage = () => {
 
             // Navigate based on what the user selected, not what the DB says
             const from = location.state?.from?.pathname;
-            if (from && from !== '/recruiter') {
+            if (from && from !== '/recruiter' && from !== '/admin') {
                 navigate(from, { replace: true });
             } else if (role === 'admin') {
-                navigate('/admin', { replace: true });
+                navigate('/recruiter/my-jobs', { replace: true });
             } else {
                 navigate(role === 'recruiter' ? '/recruiter/my-jobs' : '/candidate', { replace: true });
             }
@@ -387,7 +387,12 @@ const LoginPage = () => {
 
             if (existingProfile && existingProfile.role) {
                 // Auto-correct role if user selected the wrong one to prevent login blocks
-                targetRole = existingProfile.role;
+                // But respect crossing rule: admin and recruiter are both staff and can cross-login
+                const isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
+                const isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                if (!(isSelectedStaff && isDbStaff)) {
+                    targetRole = existingProfile.role;
+                }
             }
 
             // Step 2: Build the profile
@@ -437,10 +442,10 @@ const LoginPage = () => {
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
             const from = location.state?.from?.pathname;
-            if (from && from !== '/recruiter') {
+            if (from && from !== '/recruiter' && from !== '/admin') {
                 navigate(from, { replace: true });
             } else if (targetRole === 'admin') {
-                navigate('/admin', { replace: true });
+                navigate('/recruiter/my-jobs', { replace: true });
             } else if (targetRole === 'recruiter') {
                 navigate('/recruiter/my-jobs', { replace: true });
             } else {

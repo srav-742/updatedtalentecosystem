@@ -138,7 +138,7 @@ const SignupPage = () => {
                 setLoading(false);
             } else {
                 setMessage({ type: 'success', text: "Account created successfully!" });
-                if (role === 'admin') navigate('/admin');
+                if (role === 'admin') navigate('/recruiter/my-jobs');
                 else navigate('/candidate');
             }
 
@@ -232,7 +232,7 @@ const SignupPage = () => {
                 setClientCredentials(savedProfile.client);
             } else {
                 setMessage({ type: 'success', text: "Account created! Logging in..." });
-                if (role === 'admin') navigate('/admin');
+                if (role === 'admin') navigate('/recruiter/my-jobs');
                 else navigate('/candidate');
             }
 
