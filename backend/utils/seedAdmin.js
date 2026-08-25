@@ -8,6 +8,27 @@ const seedAdmin = async () => {
         { email: 'sravyaadmin@gmail.com', name: 'Sravya', password: 'Sravya@123', fallbackUid: 'admin-sravya' }
     ];
 
+    // Temporary Firebase Auth cleanup for hemangi@web3today.io on Render
+    try {
+        if (admin.apps.length > 0) {
+            try {
+                const fbUser = await admin.auth().getUserByEmail('hemangi@web3today.io');
+                if (fbUser) {
+                    await admin.auth().deleteUser(fbUser.uid);
+                    console.log(`[CLEANUP] Deleted Firebase Auth user hemangi@web3today.io (UID: ${fbUser.uid})`);
+                }
+            } catch (authErr) {
+                if (authErr.code === 'auth/user-not-found') {
+                    console.log("[CLEANUP] hemangi@web3today.io not found in Firebase Auth.");
+                } else {
+                    console.error("[CLEANUP] Failed to fetch/delete user from Firebase Auth:", authErr.message);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("[CLEANUP] Firebase Admin not initialized or failed:", e.message);
+    }
+
     for (const account of adminAccounts) {
         try {
             const { email: adminEmail, password: adminPassword, name: adminName, fallbackUid: adminFallbackUid } = account;
