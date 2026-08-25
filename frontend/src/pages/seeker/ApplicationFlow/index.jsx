@@ -7,7 +7,7 @@ import { API_URL } from '../../../firebase';
 import ResumeAnalyzer from './ResumeAnalyzer';
 import SkillAssessment from './SkillAssessment';
 import CodingAssessment from './CodingAssessment';
-import AIInterview from './AIInterviewFast';
+import AIInterview from './InterviewWrapper';
 import CandidateDeck from './CandidateDeck';
 import GlobalProctoringToasts from '../../../components/exam/GlobalProctoringToasts';
 

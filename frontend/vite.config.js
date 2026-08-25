@@ -118,12 +118,6 @@ export default defineConfig(({ mode }) => ({
       'firebase/app',
       'firebase/auth',
       'react-helmet-async'
-    ],
-    exclude: [
-      '@tensorflow/tfjs',
-      '@tensorflow-models/coco-ssd',
-      'face-api.js',
-      'onnxruntime-web'
     ]
   }
 }))
