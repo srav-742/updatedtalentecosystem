@@ -5,8 +5,7 @@ const admin = require('../config/firebase');
 
 const seedAdmin = async () => {
     const adminAccounts = [
-        { email: 'sravyaadmin@gmail.com', name: 'Sravya', password: 'Sravya@123', fallbackUid: 'admin-sravya' },
-        { email: 'hemangi@web3today.io', name: 'Hemangi', password: 'hemangi@123', fallbackUid: 'admin-hemangi' }
+        { email: 'sravyaadmin@gmail.com', name: 'Sravya', password: 'Sravya@123', fallbackUid: 'admin-sravya' }
     ];
 
     for (const account of adminAccounts) {
