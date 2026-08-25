@@ -36,8 +36,11 @@ const syncUser = async (req, res) => {
             if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
-            // Check for role mismatch
-            if (role && user.role !== role) {
+            // Protect admin role from being downgraded during sync
+            if (user.role === 'admin' && role && role !== 'admin') {
+                console.log(`[AUTH-SYNC] Preserving admin role for ${normalizedEmail} (incoming role: ${role})`);
+                // Continue sync but don't change role
+            } else if (role && user.role !== role) {
                 return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
             }
             if (user.uid !== uid) {

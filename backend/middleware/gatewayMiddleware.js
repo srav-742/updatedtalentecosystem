@@ -48,6 +48,8 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i },
     { method: 'GET', pattern: /^\/api\/v1\/blogs(\/.*)?$/i },
     { method: 'POST', pattern: /^\/api\/v1\/blogs\/subscribe$/i },
+    { method: '*', pattern: /^\/api\/v1\/admin\/blogs(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/v1\/blogs\/admin(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/proctoring(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/proctoring-enhanced(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i },
