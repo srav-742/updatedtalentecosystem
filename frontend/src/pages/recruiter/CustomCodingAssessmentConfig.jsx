@@ -37,7 +37,7 @@ const CustomCodingAssessmentConfig = () => {
     useEffect(() => {
         if (!user.uid && !user._id && !user.id) {
             navigate('/login');
-        } else if (user.role !== 'recruiter') {
+        } else if (user.role !== 'recruiter' && user.role !== 'admin') {
             navigate('/seeker');
         }
     }, [user, navigate]);
