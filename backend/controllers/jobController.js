@@ -96,6 +96,12 @@ const updateJob = async (req, res) => {
 
 const deleteJob = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete jobs." });
+        }
+
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }

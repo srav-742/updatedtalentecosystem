@@ -310,6 +310,41 @@ Return ONLY a JSON response in this format:
 
         if (application) {
             console.log(`[BULK-UPLOAD] Updating existing application for user ${name}`);
+            
+            // Preserve existing assessment/coding/interview answers and scores
+            const resumeScore = score;
+            const assessmentScore = application.assessmentScore || 0;
+            const codingScore = application.codingScore || 0;
+            const interviewScore = application.interviewScore || 0;
+            
+            applicationData.assessmentScore = application.assessmentScore;
+            applicationData.assessmentSubmissionId = application.assessmentSubmissionId;
+            applicationData.codingScore = application.codingScore;
+            applicationData.interviewScore = application.interviewScore;
+            applicationData.interviewAnswers = application.interviewAnswers || [];
+            applicationData.assessmentAnswers = application.assessmentAnswers || [];
+            applicationData.codingAnswers = application.codingAnswers || [];
+            applicationData.recordingSessionId = application.recordingSessionId;
+            applicationData.recordingUrl = application.recordingUrl;
+            applicationData.recordingPlaybackUrl = application.recordingPlaybackUrl;
+            applicationData.recordingPublicId = application.recordingPublicId;
+            applicationData.recordingStatus = application.recordingStatus || 'pending';
+            
+            // Recalculate final score with existing components
+            applicationData.finalScore = resumeScore + assessmentScore + codingScore + interviewScore;
+            
+            // Re-evaluate shortlist status
+            const isResumeDone = true;
+            const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+            const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
+            const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+
+            if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && applicationData.finalScore >= 55) {
+                applicationData.status = 'SHORTLISTED';
+            } else {
+                applicationData.status = applicationData.finalScore >= 55 ? 'SHORTLISTED' : 'APPLIED';
+            }
+
             application = await Application.findOneAndUpdate(
                 { jobId: job._id, userId },
                 { $set: applicationData },

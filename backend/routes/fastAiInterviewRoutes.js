@@ -108,7 +108,8 @@ async function saveSession(sessionId, session) {
 
 async function deleteSession(sessionId) {
     fastSessionCache.delete(sessionId);
-    await InterviewSession.deleteOne({ sessionId }).catch(() => null);
+    // Preserving data: do not delete the session from MongoDB
+    // await InterviewSession.deleteOne({ sessionId }).catch(() => null);
 }
 
 // ─── JSON Parsing Helpers ───────────────────────────────────────────────────

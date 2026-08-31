@@ -99,7 +99,8 @@ async function loadInterviewSession(sessionId) {
 
 async function deleteInterviewSession(sessionId) {
     interviewSessions.delete(sessionId);
-    await InterviewSession.deleteOne({ sessionId }).catch(() => null);
+    // Preserving data: do not delete the session from MongoDB
+    // await InterviewSession.deleteOne({ sessionId }).catch(() => null);
 }
 
 function sanitizeRecordingSegment(value) {

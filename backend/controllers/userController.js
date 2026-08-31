@@ -292,6 +292,12 @@ const addUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete users." });
+        }
+
         const { userId } = req.params;
         const user = await User.findById(userId);
         if (user) {

@@ -37,64 +37,65 @@ export const GlobalPageSkeleton = () => (
 
 // Seeker - Browse Jobs Card Skeleton
 export const JobCardSkeleton = () => (
-    <div className="rounded-[2rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
-        <div className="flex items-start justify-between gap-4">
-            <Skeleton className="h-14 w-14 rounded-[1.5rem]" />
-            <div className="flex items-center gap-2">
-                <Skeleton className="h-6 w-16 rounded-full" />
-                <Skeleton className="h-7 w-7 rounded-full" />
-                <Skeleton className="h-7 w-7 rounded-full" />
+    <div className="flex flex-col justify-between rounded-2xl border border-black/10 bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.04)]">
+        <div>
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-11 w-11 rounded-xl" />
+                    <div className="space-y-1.5">
+                        <Skeleton className="h-3.5 w-24 rounded" />
+                        <Skeleton className="h-4 w-16 rounded-md" />
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <Skeleton className="h-8 w-8 rounded-xl" />
+                    <Skeleton className="h-8 w-8 rounded-xl" />
+                </div>
+            </div>
+            <div className="mt-3.5">
+                <Skeleton className="h-5 w-3/4 rounded-md" />
+            </div>
+            <div className="mt-2.5 flex gap-2">
+                <Skeleton className="h-6 w-20 rounded-lg" />
+                <Skeleton className="h-6 w-20 rounded-lg" />
+            </div>
+            <div className="mt-3 flex gap-1.5">
+                <Skeleton className="h-5 w-14 rounded-md" />
+                <Skeleton className="h-5 w-16 rounded-md" />
+                <Skeleton className="h-5 w-14 rounded-md" />
             </div>
         </div>
-        <div className="space-y-3">
-            <Skeleton className="h-7 w-3/4 rounded-lg" />
-            <Skeleton className="h-4 w-1/2 rounded-md" />
-        </div>
-        <div className="flex flex-wrap gap-3">
-            <Skeleton className="h-8 w-24 rounded-full" />
-            <Skeleton className="h-8 w-24 rounded-full" />
-        </div>
-        <div className="border-t border-black/5 pt-5 flex items-center justify-between gap-4">
-            <Skeleton className="h-10 w-28 rounded-xl" />
-            <Skeleton className="h-7 w-16 rounded-md" />
+        <div className="mt-4 pt-3 border-t border-black/5 space-y-3">
+            <Skeleton className="h-8 w-full rounded-xl" />
+            <Skeleton className="h-9 w-full rounded-xl" />
         </div>
     </div>
 );
 
 // Seeker - Application Tracker Item Skeleton
 export const ApplicationTrackerSkeleton = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
         {[1, 2].map((i) => (
-            <div key={i} className="rounded-[2.25rem] border border-black/10 bg-white p-6 shadow-sm space-y-5">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <Skeleton className="h-14 w-14 rounded-[1.25rem]" />
+            <div key={i} className="rounded-3xl border border-black/10 bg-white p-5 md:p-6 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                        <Skeleton className="h-12 w-12 rounded-2xl" />
                         <div className="space-y-2">
                             <Skeleton className="h-5 w-48 rounded" />
-                            <Skeleton className="h-4 w-32 rounded" />
+                            <Skeleton className="h-3.5 w-36 rounded" />
                         </div>
                     </div>
                     <Skeleton className="h-6 w-24 rounded-full" />
                 </div>
-                <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr] pt-4 border-t border-black/5">
-                    {/* Timeline skeleton */}
-                    <div className="space-y-4 rounded-[1.75rem] border border-black/10 bg-[#faf8f3]/30 p-5">
-                        {[1, 2, 3].map((j) => (
-                            <div key={j} className="flex items-center gap-3">
-                                <Skeleton className="h-5 w-5 rounded-full" />
-                                <div className="flex-1 space-y-1.5">
-                                    <Skeleton className="h-4 w-1/3 rounded" />
-                                    <Skeleton className="h-3 w-1/4 rounded" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    {/* Metrics grid skeleton */}
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-black/[0.06] bg-[#faf7f1] p-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         {[1, 2, 3, 4].map((j) => (
-                            <div key={j} className="rounded-[1.25rem] border border-black/10 bg-white p-4 space-y-2 flex flex-col justify-between">
-                                <Skeleton className="h-3 w-16 rounded" />
-                                <Skeleton className="h-6 w-10 rounded mt-1" />
+                            <div key={j} className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <Skeleton className="h-5 w-5 rounded-full" />
+                                    <Skeleton className="h-3.5 w-16 rounded" />
+                                </div>
+                                <Skeleton className="h-3 w-20 rounded pl-7" />
                             </div>
                         ))}
                     </div>
@@ -454,80 +455,79 @@ export const RecruiterDashboardSkeleton = () => (
 
 // Seeker - Dashboard Skeleton (Light Theme)
 export const SeekerDashboardSkeleton = () => (
-    <div className="space-y-8">
+    <div className="space-y-6">
         {/* Welcome Header Skeleton */}
-        <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-4">
-            <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-4">
-                    <Skeleton className="h-4 w-32 rounded" />
-                    <Skeleton className="h-10 w-96 rounded-md" />
-                    <Skeleton className="h-5 w-full rounded" />
-                    <div className="flex gap-3">
-                        <Skeleton className="h-12 w-32 rounded-2xl" />
-                        <Skeleton className="h-12 w-40 rounded-2xl" />
+        <div className="rounded-3xl border border-black/10 bg-white p-7 shadow-xs space-y-4">
+            <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr] xl:items-center">
+                <div className="space-y-3">
+                    <Skeleton className="h-6 w-36 rounded-full" />
+                    <Skeleton className="h-9 w-80 rounded-lg" />
+                    <Skeleton className="h-4 w-full rounded" />
+                    <div className="flex gap-2.5 pt-2">
+                        <Skeleton className="h-10 w-28 rounded-xl" />
+                        <Skeleton className="h-10 w-36 rounded-xl" />
+                        <Skeleton className="h-10 w-36 rounded-xl" />
                     </div>
                 </div>
-                <div className="rounded-[2rem] border border-black/10 bg-white/80 p-6 backdrop-blur-sm space-y-4">
+                <div className="rounded-2xl border border-black/5 bg-[#faf7f1] p-5 space-y-3">
                     <div className="flex items-center gap-3">
-                        <Skeleton className="h-12 w-12 rounded-2xl" />
-                        <div className="space-y-2">
+                        <Skeleton className="h-9 w-9 rounded-xl" />
+                        <div className="space-y-1">
                             <Skeleton className="h-3 w-28 rounded" />
-                            <Skeleton className="h-5 w-40 rounded" />
+                            <Skeleton className="h-3 w-36 rounded" />
                         </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2 pt-2">
                         <Skeleton className="h-4 w-full rounded" />
                         <Skeleton className="h-4 w-5/6 rounded" />
-                        <Skeleton className="h-4 w-4/5 rounded" />
                     </div>
                 </div>
             </div>
         </div>
 
         {/* Stats Grid Skeleton */}
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-[1.9rem] border border-black/10 bg-white p-6 space-y-4 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-                    <Skeleton className="h-12 w-12 rounded-2xl" />
-                    <Skeleton className="h-3 w-24 rounded" />
-                    <Skeleton className="h-8 w-16 rounded" />
+                <div key={i} className="rounded-2xl border border-black/10 bg-white p-5 space-y-3 shadow-xs">
+                    <div className="flex justify-between items-center">
+                        <Skeleton className="h-10 w-10 rounded-xl" />
+                        <Skeleton className="h-4 w-12 rounded" />
+                    </div>
+                    <Skeleton className="h-3 w-20 rounded" />
+                    <Skeleton className="h-7 w-14 rounded-md" />
                 </div>
             ))}
         </div>
 
-        {/* Quick Actions & Profile Info Skeleton */}
-        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
-                <div>
-                    <Skeleton className="h-3 w-24 rounded" />
-                    <Skeleton className="h-8 w-64 rounded-md mt-2" />
-                </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="rounded-[1.9rem] border border-black/10 bg-[#fcfaf6] p-6 space-y-4">
-                            <Skeleton className="h-12 w-12 rounded-2xl" />
-                            <Skeleton className="h-6 w-28 rounded" />
-                            <Skeleton className="h-4 w-full rounded" />
-                            <Skeleton className="h-4 w-12 rounded" />
+        {/* Action Center & Profile Checklist Skeleton */}
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-xs space-y-4">
+                <Skeleton className="h-6 w-40 rounded" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="rounded-2xl border border-black/5 bg-[#faf7f1] p-4 space-y-2">
+                            <Skeleton className="h-8 w-8 rounded-lg" />
+                            <Skeleton className="h-4 w-24 rounded" />
+                            <Skeleton className="h-3 w-full rounded" />
                         </div>
                     ))}
                 </div>
             </div>
-            <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
-                <Skeleton className="h-3 w-24 rounded" />
-                <Skeleton className="h-8 w-64 rounded-md" />
-                <Skeleton className="h-4 w-full rounded" />
-                <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex gap-3 rounded-2xl border border-black/10 bg-[#fbf8f3] p-4">
-                            <Skeleton className="h-6 w-6 rounded-full" />
-                            <Skeleton className="h-4 w-5/6 rounded" />
+            <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-xs space-y-4">
+                <Skeleton className="h-6 w-36 rounded" />
+                <div className="space-y-2.5">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex gap-2.5 rounded-xl border border-black/5 bg-[#faf7f1] p-3">
+                            <Skeleton className="h-4 w-4 rounded-full" />
+                            <Skeleton className="h-3 w-5/6 rounded" />
                         </div>
                     ))}
                 </div>
+                <Skeleton className="h-9 w-full rounded-xl" />
             </div>
         </div>
     </div>
 );
+
 
 

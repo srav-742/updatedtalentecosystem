@@ -236,7 +236,13 @@ const resetApplicationAfterProctoring = async (req, res) => {
 
 const deleteApplication = async (req, res) => {
     try {
-        console.log(`[DELETE-APP] Attempting to delete application with ID: ${req.params.id}`);
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete applications." });
+        }
+
+        console.log(`[DELETE-APP] Attempting to delete application with ID: ${req.params.id} by primary admin`);
         const app = await Application.findByIdAndDelete(req.params.id);
         if (!app) {
             return res.status(404).json({ message: "Application not found" });

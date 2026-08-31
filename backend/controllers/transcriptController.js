@@ -321,7 +321,7 @@ const getJobCandidates = async (req, res) => {
         }
 
         const applications = await Application.find({ jobId })
-            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus')
+            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore')
             .lean();
 
         const userIdList = applications.map(app => app.userId).filter(Boolean);
@@ -365,7 +365,7 @@ const getJobCandidates = async (req, res) => {
 
         const candidates = applications.map(app => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = userPenaltyMap[key] || 0;
+            const rawPenalty = app.integrityPenalty ? app.integrityPenalty : (userPenaltyMap[key] || 0);
             const proctoringScore = rawPenalty;
 
             // Compute live accurate scores using unified score calculator

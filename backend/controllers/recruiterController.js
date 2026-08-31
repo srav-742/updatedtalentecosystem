@@ -206,7 +206,7 @@ const getRecruiterApplications = async (req, res) => {
         const appsWithScore = apps.map((app, index) => {
             const jobIdStr = app.jobId?._id?.toString() || app.jobId?.toString();
             const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = applicationPenaltyMap[appKey] || 0;
+            const rawPenalty = app.integrityPenalty ? app.integrityPenalty : (applicationPenaltyMap[appKey] || 0);
             app.integrityPenalty = rawPenalty;
             app.proctoringScore = rawPenalty;
             

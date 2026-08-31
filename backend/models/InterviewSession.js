@@ -38,6 +38,6 @@ const interviewSessionSchema = new mongoose.Schema(
 );
 
 // Auto-clean abandoned interview sessions after 24 hours.
-interviewSessionSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
+// interviewSessionSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
 
 module.exports = mongoose.model('InterviewSession', interviewSessionSchema);

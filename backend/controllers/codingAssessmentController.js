@@ -73,6 +73,12 @@ const createOrUpdateCodingRound = async (req, res) => {
 
 const deleteCodingRound = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete coding rounds." });
+        }
+
         const { jobId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Valid Job ID is required.' });
@@ -158,6 +164,12 @@ const updateCodingQuestion = async (req, res) => {
 
 const deleteCodingQuestion = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete coding questions." });
+        }
+
         const { questionId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(questionId)) {
             return res.status(400).json({ success: false, message: 'Valid Question ID is required.' });
