@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const express = require('express');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
+const {
+    calculateDynamicMarks,
+    normalizeDifficulty,
+    getDifficultyWeight
+} = require('./codingScoreCalculator');
 
 console.log('[CodingTranscriptPatch] Initializing coding transcript & timer overlay patch...');
 
@@ -93,20 +98,39 @@ express.response.json = function (body) {
                 .lean()
                 .then(async (app) => {
                     if (app && app.codingAnswers && app.codingAnswers.length > 0) {
+                        const codingDetails = app.codingDetails || {
+                            totalQuestions: app.codingAnswers?.length || 0,
+                            totalMaximumMarks: 100,
+                            totalObtainedMarks: app.codingScore || 0,
+                            finalPercentage: app.codingScore || 0
+                        };
+
                         const codingData = {
                             score: app.codingScore || 0,
+                            codingDetails,
                             answers: app.codingAnswers.map(a => {
                                 const qDoc = a.questionId || {};
+                                const diffNorm = a.difficulty || normalizeDifficulty(qDoc.difficulty);
+                                const diffWeight = a.difficultyWeight || getDifficultyWeight(diffNorm);
+                                const maxMarks = a.maximumMarks !== undefined && a.maximumMarks !== null ? a.maximumMarks : (qDoc.marks || 10);
+                                const obtMarks = a.obtainedMarks !== undefined && a.obtainedMarks !== null ? a.obtainedMarks : (a.score || 0);
+
                                 return {
                                     questionId: a.questionId?._id || a.questionId,
                                     questionTitle: a.questionTitle || qDoc.title || '',
                                     questionDescription: a.questionDescription || qDoc.description || '',
+                                    difficulty: diffNorm,
+                                    difficultyWeight: diffWeight,
+                                    maximumMarks: maxMarks,
+                                    obtainedMarks: obtMarks,
+                                    testCasesPassed: a.testCasesPassed !== undefined ? a.testCasesPassed : null,
+                                    totalTestCases: a.totalTestCases || 10,
                                     constraints: a.constraints || qDoc.constraints || '',
                                     correctAnswer: a.correctAnswer || qDoc.expectedApproach || '',
                                     expectedApproach: a.expectedApproach || qDoc.expectedApproach || '',
                                     code: a.code || '',
                                     language: a.language || '',
-                                    score: a.score || 0,
+                                    score: obtMarks,
                                     feedback: a.feedback || ''
                                 };
                             })
@@ -117,6 +141,7 @@ express.response.json = function (body) {
                             console.log(`[CodingTranscriptPatch] Successfully injected coding data into transcript response for app: ${applicationId}`);
                         } else if (isCodingDetailsRoute) {
                             body.codingAnswers = codingData.answers;
+                            body.codingDetails = codingDetails;
                             console.log(`[CodingTranscriptPatch] Successfully injected coding data into coding-assessments/details response for app: ${applicationId}`);
                         } else {
                             body.coding = codingData;
@@ -193,14 +218,24 @@ try {
 
                 await codingRound.save({ session });
 
+                // Calculate dynamic marks distribution totaling exactly 100
+                const dynamicCalcs = calculateDynamicMarks(questions);
+
                 // Save each question
                 const savedQuestionIds = [];
-                for (const q of questions) {
+                for (let i = 0; i < questions.length; i++) {
+                    const q = questions[i];
+                    const dynamicInfo = dynamicCalcs[i] || {
+                        difficulty: normalizeDifficulty(q.difficulty),
+                        difficultyWeight: getDifficultyWeight(q.difficulty),
+                        maximumMarks: 10
+                    };
+
                     let qTimer = parseInt(q.timer);
                     // Automatically set default timers based on difficulty level if per-question timers are enabled
                     if ((timerType || codingRound.timerType) === 'individual' && !qTimer) {
-                        if (q.difficulty === 'Easy') qTimer = 15;
-                        else if (q.difficulty === 'Hard') qTimer = 45;
+                        if (dynamicInfo.difficulty === 'LOW') qTimer = 15;
+                        else if (dynamicInfo.difficulty === 'HIGH') qTimer = 45;
                         else qTimer = 30; // Medium
                     }
 
@@ -213,8 +248,9 @@ try {
                         constraints: q.constraints || '',
                         expectedApproach: q.expectedApproach || '',
                         examples: Array.isArray(q.examples) ? q.examples : [],
-                        difficulty: q.difficulty || 'Medium',
-                        marks: parseInt(q.marks) || 10,
+                        difficulty: dynamicInfo.difficulty,
+                        difficultyWeight: dynamicInfo.difficultyWeight,
+                        marks: dynamicInfo.maximumMarks,
                         allowedLanguages: Array.isArray(q.allowedLanguages) ? q.allowedLanguages : languages,
                         timer: qTimer || 0
                     });

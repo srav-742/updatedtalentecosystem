@@ -284,12 +284,12 @@ const submitAssessment = async (req, res) => {
             { new: true, upsert: true }
         ).populate('jobId');
 
-        // Recalculate Application final score
+        // Recalculate Application final score strictly from present rounds (Resume + MCQ + Interview = 100 max)
+        // Coding score is kept completely independent and separate, never mixed into finalScore
         const r = application.resumeMatchPercent || 0;
         const a = application.assessmentScore || 0;
-        const c = application.codingScore || 0;
         const i = application.interviewScore || 0;
-        application.finalScore = r + a + c + i;
+        application.finalScore = r + a + i;
 
         // Ensure all enabled modules are fully completed before shortlisting
         const job = application.jobId;
@@ -297,8 +297,9 @@ const submitAssessment = async (req, res) => {
         const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
         const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
         const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+        const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
 
-        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && application.finalScore >= 55) {
+        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && application.finalScore >= 55) {
             application.status = 'SHORTLISTED';
         } else {
             application.status = 'APPLIED';

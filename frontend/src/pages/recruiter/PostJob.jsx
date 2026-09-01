@@ -4,6 +4,7 @@ import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save,
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../firebase';
+import './recruiter-theme.css';
 
 const PostJob = () => {
     const navigate = useNavigate();
@@ -311,17 +312,17 @@ const PostJob = () => {
 
             <form onSubmit={handleSubmit} className="space-y-8">
                 {/* A. Job Information */}
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl">
+                <div className="rec-card p-7 md:p-8 space-y-6">
                     <div className="flex items-center gap-3 mb-8">
                         <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20">
                             A
                         </div>
-                        <h2 className="text-xl font-bold">Job Information</h2>
+                        <h2 className="text-lg font-bold text-slate-900">Job Information</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Job Title</label>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Job Title</label>
                             <input
                                 type="text"
                                 name="title"
@@ -329,17 +330,17 @@ const PostJob = () => {
                                 onChange={handleChange}
                                 placeholder="e.g. Senior Web3 Developer"
                                 required
-                                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all"
+                                className="rec-input w-full px-4 py-2.5 text-xs font-medium"
                             />
                         </div>
                         <div className="md:col-span-2">
                             <div className="flex items-center justify-between mb-2">
-                                <label className="block text-sm font-medium text-gray-500">Job Description</label>
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Job Description</label>
                                 <button
                                     type="button"
                                     onClick={generateAIDescription}
                                     disabled={isGeneratingDesc || !jobData.title}
-                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100/70 transition-colors text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     {isGeneratingDesc ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                                     Generate with AI
@@ -352,7 +353,7 @@ const PostJob = () => {
                                 rows="6"
                                 placeholder="Describe the role, responsibilities, and requirements..."
                                 required
-                                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none"
+                                className="rec-input w-full px-4 py-2.5 text-xs font-medium resize-none"
                             ></textarea>
                         </div>
                         <div className="md:col-span-2">
@@ -368,14 +369,14 @@ const PostJob = () => {
 • Prefer candidates with startup experience
 • Avoid candidates who frequently change jobs
 • Prioritize candidates with system design knowledge"
-                                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none text-sm"
+                                className="rec-input w-full px-4 py-2.5 text-xs font-medium resize-none text-sm"
                             ></textarea>
                             <p className="mt-2 text-[10px] text-gray-500 italic">
                                 This information will only be used by our AI to better filter candidates. It will NOT appear in the public job description.
                             </p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Location</label>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Location</label>
                             <div className="relative">
                                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                 <input
@@ -385,12 +386,12 @@ const PostJob = () => {
                                     onChange={handleChange}
                                     placeholder="e.g. New York or Remote"
                                     required
-                                    className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all"
+                                    className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Job Type</label>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Job Type</label>
                             <div className="relative">
                                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                                 <select
@@ -412,7 +413,7 @@ const PostJob = () => {
                 </div>
 
                 {/* B. Education Details */}
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl relative overflow-hidden group">
+                <div className="rec-card p-7 md:p-8 space-y-6 relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
                     <div className="relative z-10">
                         <div className="flex items-center justify-between mb-8">
@@ -420,7 +421,7 @@ const PostJob = () => {
                                 <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold border border-purple-500/20 shadow-lg shadow-purple-500/10">
                                     B
                                 </div>
-                                <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Education Details</h2>
+                                <h2 className="text-lg font-bold text-slate-900">Education Details</h2>
                             </div>
                             <button
                                 type="button"
@@ -438,7 +439,7 @@ const PostJob = () => {
                                     key={index}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="p-6 rounded-2xl bg-black/20 border border-white/5 relative group/item hover:border-purple-500/30 transition-all"
+                                    className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 relative group/item hover:border-indigo-200 transition-all"
                                 >
                                     {index > 0 && (
                                         <button
@@ -451,12 +452,12 @@ const PostJob = () => {
                                     )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Qualification</label>
+                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Qualification</label>
                                             <div className="relative">
                                                 <select
                                                     value={edu.qualification}
                                                     onChange={(e) => handleEducationChange(index, 'qualification', e.target.value)}
-                                                    className="w-full px-5 py-3 rounded-xl bg-[#1a1d24] border border-white/10 focus:border-purple-500/50 outline-none transition-all appearance-none cursor-pointer text-sm text-white"
+                                                    className="rec-select w-full px-4 py-2.5 text-xs font-medium cursor-pointer"
                                                 >
                                                     <option value="">Select Qualification</option>
                                                     <option value="B.Tech">B.Tech</option>
@@ -471,12 +472,12 @@ const PostJob = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Specialization</label>
+                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Specialization</label>
                                             <div className="relative">
                                                 <select
                                                     value={edu.specialization}
                                                     onChange={(e) => handleEducationChange(index, 'specialization', e.target.value)}
-                                                    className="w-full px-5 py-3 rounded-xl bg-[#1a1d24] border border-white/10 focus:border-purple-500/50 outline-none transition-all appearance-none cursor-pointer text-sm text-white"
+                                                    className="rec-select w-full px-4 py-2.5 text-xs font-medium cursor-pointer"
                                                 >
                                                     <option value="">Select Specialization</option>
                                                     <option value="CSE">CSE</option>
@@ -499,18 +500,18 @@ const PostJob = () => {
                 </div>
 
                 {/* C. Experience Requirements */}
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl relative overflow-hidden group">
+                <div className="rec-card p-7 md:p-8 space-y-6 relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
                     <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-8">
                             <div className="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold border border-pink-500/20 shadow-lg shadow-pink-500/10">
                                 C
                             </div>
-                            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Work Experience</h2>
+                            <h2 className="text-lg font-bold text-slate-900">Work Experience</h2>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-3 ml-1">Required Experience Level</label>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Experience Level</label>
                             <div className="relative group/select">
                                 <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-pink-500/50 group-focus-within/select:text-pink-500 transition-colors" size={20} />
                                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
@@ -518,7 +519,7 @@ const PostJob = () => {
                                     name="experienceLevel"
                                     value={jobData.experienceLevel}
                                     onChange={handleChange}
-                                    className="w-full pl-12 pr-5 py-4 rounded-2xl bg-[#11131a] border border-white/10 focus:border-pink-500/50 outline-none transition-all appearance-none cursor-pointer text-white font-medium"
+                                    className="rec-select w-full pl-10 pr-4 py-2.5 text-xs font-medium cursor-pointer"
                                 >
                                     <option value="Fresher">Fresher (0 Years)</option>
                                     <option value="0-1 Years">0-1 Years</option>
@@ -531,17 +532,17 @@ const PostJob = () => {
                 </div>
 
                 {/* C. Skill Requirements */}
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl">
+                <div className="rec-card p-7 md:p-8 space-y-6">
                     <div className="flex items-center gap-3 mb-8">
                         <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold border border-teal-500/20">
                             D
                         </div>
-                        <h2 className="text-xl font-bold">Skill Requirements</h2>
+                        <h2 className="text-lg font-bold text-slate-900">Skill Requirements</h2>
                     </div>
 
                     <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Required Skills</label>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Skills</label>
                             <div className="flex gap-2">
                                 <input
                                     type="text"
@@ -572,13 +573,13 @@ const PostJob = () => {
                 </div>
 
                 {/* D. Resume Selection Logic */}
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl">
+                <div className="rec-card p-7 md:p-8 space-y-6">
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">
                                 E
                             </div>
-                            <h2 className="text-xl font-bold">Resume Selection Logic</h2>
+                            <h2 className="text-lg font-bold text-slate-900">Resume Selection Logic</h2>
                         </div>
                         <button
                             type="button"
@@ -613,7 +614,7 @@ const PostJob = () => {
                 {/* E & F. Modular Settings */}
                 <div className="flex flex-col gap-8">
                     {/* Assessment Settings */}
-                    <div className={`p-8 rounded-[2.5rem] bg-white/5 border transition-all duration-300 shadow-xl flex flex-col justify-between ${
+                    <div className={`rec-card p-7 md:p-8 space-y-6 flex flex-col justify-between ${
                         jobData.assessment.enabled ? 'border-orange-500/35 bg-orange-500/[0.02] shadow-orange-500/5' : 'border-white/10'
                     }`}>
                         <div>
@@ -622,7 +623,7 @@ const PostJob = () => {
                                     <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold border border-orange-500/20">
                                         F
                                     </div>
-                                    <h2 className="text-lg font-bold">Assessments</h2>
+                                    <h2 className="text-base font-bold text-slate-900">Assessments</h2>
                                 </div>
                                 <button
                                     type="button"
@@ -635,12 +636,12 @@ const PostJob = () => {
     
                             <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-all ${jobData.assessment.enabled ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none'}`}>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-widest">Assessment Type</label>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Assessment Type</label>
                                     <select
                                         name="assessment.type"
                                         value={jobData.assessment.type}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 rounded-xl bg-[#11131a] border border-white/10 focus:border-orange-500/50 outline-none text-sm"
+                                        className="rec-select w-full px-4 py-2 text-xs font-medium cursor-pointer"
                                     >
                                         <option value="MCQ">MCQ Questions</option>
                                         <option value="Coding">Coding Challenges</option>
@@ -648,20 +649,20 @@ const PostJob = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-widest">Total Questions</label>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Total Questions</label>
                                     <input
                                         type="number"
                                         name="assessment.totalQuestions"
                                         value={jobData.assessment.totalQuestions}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-orange-500/50 outline-none text-sm"
+                                        className="rec-input w-full px-4 py-2 text-xs font-medium"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
                     {/* Coding Assessment Settings */}
-                    <div className={`p-8 rounded-[2.5rem] bg-white/5 border transition-all duration-300 shadow-xl flex flex-col justify-between ${
+                    <div className={`rec-card p-7 md:p-8 space-y-6 flex flex-col justify-between ${
                         jobData.codingAssessment?.enabled ? 'border-teal-500/35 bg-teal-500/[0.02] shadow-teal-500/5' : 'border-white/10'
                     }`}>
                         <div>
@@ -670,7 +671,7 @@ const PostJob = () => {
                                     <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold border border-teal-500/20">
                                         <Code2 size={16} />
                                     </div>
-                                    <h2 className="text-lg font-bold">Coding Rounds</h2>
+                                    <h2 className="text-base font-bold text-slate-900">Coding Rounds</h2>
                                 </div>
                                 <button
                                     type="button"
@@ -709,7 +710,7 @@ const PostJob = () => {
                                                 <select
                                                     value={selectedLanguage}
                                                     onChange={(e) => setSelectedLanguage(e.target.value)}
-                                                    className="w-full bg-[#11131a] border border-white/10 rounded-xl px-3 py-2.5 text-white outline-none cursor-pointer hover:border-teal-500/50 transition-all appearance-none text-xs"
+                                                    className="rec-select w-full px-3 py-2 text-xs font-medium cursor-pointer"
                                                 >
                                                     {['Python', 'Java', 'JavaScript', 'C++', 'C', 'Go', 'SQL', 'Kotlin', 'C#'].map(lang => (
                                                         <option key={lang} value={lang}>{lang}</option>
@@ -757,7 +758,7 @@ const PostJob = () => {
                                                         max="480"
                                                         value={totalTime}
                                                         onChange={(e) => setTotalTime(Number(e.target.value) || 60)}
-                                                        className="w-full bg-[#11131a] border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-teal-500/50"
+                                                        className="rec-input w-full px-3 py-2 text-xs font-medium"
                                                     />
                                                 </div>
                                             ) : (
@@ -769,7 +770,7 @@ const PostJob = () => {
                                                             min="1"
                                                             value={normalTime}
                                                             onChange={(e) => setNormalTime(Number(e.target.value) || 15)}
-                                                            className="w-full bg-[#11131a] border border-white/10 rounded-xl px-2 py-2 text-white text-xs text-center outline-none focus:border-teal-500/50"
+                                                            className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
                                                     <div>
@@ -779,7 +780,7 @@ const PostJob = () => {
                                                             min="1"
                                                             value={moderateTime}
                                                             onChange={(e) => setModerateTime(Number(e.target.value) || 30)}
-                                                            className="w-full bg-[#11131a] border border-white/10 rounded-xl px-2 py-2 text-white text-xs text-center outline-none focus:border-teal-500/50"
+                                                            className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
                                                     <div>
@@ -789,7 +790,7 @@ const PostJob = () => {
                                                             min="1"
                                                             value={highTime}
                                                             onChange={(e) => setHighTime(Number(e.target.value) || 45)}
-                                                            className="w-full bg-[#11131a] border border-white/10 rounded-xl px-2 py-2 text-white text-xs text-center outline-none focus:border-teal-500/50"
+                                                            className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
                                                 </div>
@@ -919,7 +920,7 @@ const PostJob = () => {
                     </div>
 
                     {/* Interview Settings */}
-                    <div className={`p-8 rounded-[2.5rem] bg-white/5 border transition-all duration-300 shadow-xl flex flex-col justify-between ${
+                    <div className={`rec-card p-7 md:p-8 space-y-6 flex flex-col justify-between ${
                         jobData.mockInterview.enabled ? 'border-purple-500/35 bg-purple-500/[0.02] shadow-purple-500/5' : 'border-white/10'
                     }`}>
                         <div>
@@ -928,7 +929,7 @@ const PostJob = () => {
                                     <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold border border-purple-500/20">
                                         G
                                     </div>
-                                    <h2 className="text-lg font-bold">AI Interview</h2>
+                                    <h2 className="text-base font-bold text-slate-900">AI Interview</h2>
                                 </div>
                                 <button
                                     type="button"
@@ -978,7 +979,7 @@ const PostJob = () => {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-5 rounded-3xl bg-gradient-to-r from-blue-600 to-teal-500 text-white text-xl font-bold shadow-2xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="rec-btn-primary w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 >
                     {loading ? <Loader2 className="animate-spin" /> : <FilePlus />}
                     {loading ? 'Submitting for Review...' : 'Submit for Admin Review'}

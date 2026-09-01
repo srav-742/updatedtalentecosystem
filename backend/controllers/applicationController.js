@@ -54,46 +54,26 @@ const submitApplication = async (req, res) => {
             application.status = 'APPLIED';
         }
 
-        // Calculate Final Score dynamically based on Job settings
+        // Calculate Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
+        // Coding assessment has its own dedicated score and is kept completely separate
         const r = application.resumeMatchPercent || 0;
         const a = application.assessmentScore || 0;
-        const c = application.codingScore || 0;
         const i = application.interviewScore || 0;
 
-        let totalScore = 0;
-        let numModules = 0;
-        const job = application.jobId;
-
-        if (job) {
-            if (job.resumeAnalysis && job.resumeAnalysis.enabled) {
-                totalScore += r;
-                numModules++;
-            }
-            if (job.assessment && job.assessment.enabled) {
-                totalScore += a;
-                numModules++;
-            }
-            if (job.codingAssessment && job.codingAssessment.enabled) {
-                totalScore += c;
-                numModules++;
-            }
-            if (job.mockInterview && job.mockInterview.enabled) {
-                totalScore += i;
-                numModules++;
-            }
-        }
-
-        // Final Score is the direct sum of the components (max 20 + 30 + 50 = 100)
-        const finalScore = r + a + c + i;
+        // Final Score is the direct sum of the primary components (max 100)
+        const finalScore = r + a + i;
         application.finalScore = finalScore;
+
+        const job = application.jobId;
 
         // Ensure all enabled modules are fully completed before shortlisting
         const isResumeDone = !job || job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
         const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
         const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
         const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+        const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
 
-        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && application.finalScore >= 55) {
+        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && application.finalScore >= 55) {
             console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${application.finalScore})`);
             application.status = 'SHORTLISTED';
         }

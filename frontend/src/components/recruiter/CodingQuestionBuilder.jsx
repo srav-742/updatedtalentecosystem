@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Save, Loader2, Plus, Trash2, Code2 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { normalizeDifficulty } from '../../utils/codingScoreCalculator';
 
 const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerType, onSave, onClose }) => {
     const isEditing = !!question;
@@ -16,7 +17,7 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
         constraints: '',
         expectedApproach: '',
         examples: [{ input: '', output: '', explanation: '' }],
-        difficulty: 'Medium',
+        difficulty: 'MEDIUM',
         marks: 10,
         allowedLanguages: [],
         timer: 0
@@ -33,7 +34,7 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
                 constraints: question.constraints || '',
                 expectedApproach: question.expectedApproach || '',
                 examples: question.examples?.length > 0 ? question.examples : [{ input: '', output: '', explanation: '' }],
-                difficulty: question.difficulty || 'Medium',
+                difficulty: normalizeDifficulty(question.difficulty || 'MEDIUM'),
                 marks: question.marks || 10,
                 allowedLanguages: question.allowedLanguages || [],
                 timer: question.timer || 0
@@ -44,9 +45,10 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
     // Initialize default timer for new questions
     useEffect(() => {
         if (!question && timerType === 'individual' && formData.timer === 0) {
+            const diff = normalizeDifficulty(formData.difficulty);
             setFormData(prev => ({
                 ...prev,
-                timer: prev.difficulty === 'Easy' ? 15 : prev.difficulty === 'Hard' ? 45 : 30
+                timer: diff === 'LOW' ? 15 : diff === 'HIGH' ? 45 : 30
             }));
         }
     }, [question, timerType, formData.timer]);
@@ -160,30 +162,32 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
                         <div>
                             <label className="block text-sm font-medium text-gray-500 mb-2">Difficulty</label>
                             <div className="flex gap-2">
-                                {['Easy', 'Medium', 'Hard'].map(d => (
+                                {[
+                                    { key: 'LOW', label: 'LOW (wt 1)', color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+                                    { key: 'MEDIUM', label: 'MEDIUM (wt 2)', color: 'bg-amber-500/10 border-amber-500/30 text-amber-400' },
+                                    { key: 'HIGH', label: 'HIGH (wt 3)', color: 'bg-red-500/10 border-red-500/30 text-red-400' }
+                                ].map(d => (
                                     <button
-                                        key={d}
+                                        key={d.key}
                                         type="button"
                                         onClick={() => {
-                                            const prevDiff = formData.difficulty;
-                                            const prevDefault = prevDiff === 'Easy' ? 15 : prevDiff === 'Hard' ? 45 : 30;
-                                            handleChange('difficulty', d);
+                                            const prevDiff = normalizeDifficulty(formData.difficulty);
+                                            const prevDefault = prevDiff === 'LOW' ? 15 : prevDiff === 'HIGH' ? 45 : 30;
+                                            handleChange('difficulty', d.key);
                                             // Auto-update timer if it's 0 or the previous default value
                                             if (timerType === 'individual') {
                                                 if (formData.timer === 0 || formData.timer === prevDefault) {
-                                                    handleChange('timer', d === 'Easy' ? 15 : d === 'Hard' ? 45 : 30);
+                                                    handleChange('timer', d.key === 'LOW' ? 15 : d.key === 'HIGH' ? 45 : 30);
                                                 }
                                             }
                                         }}
-                                        className={`flex-1 px-3 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            formData.difficulty === d
-                                                ? d === 'Easy' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                                    : d === 'Medium' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                                                    : 'bg-red-500/10 border-red-500/30 text-red-400'
+                                        className={`flex-1 px-2 py-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            normalizeDifficulty(formData.difficulty) === d.key
+                                                ? d.color
                                                 : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10'
                                         }`}
                                     >
-                                        {d}
+                                        {d.label}
                                     </button>
                                 ))}
                             </div>
@@ -318,15 +322,18 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
                     {/* Marks & Timer */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">Marks</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="100"
-                                value={formData.marks}
-                                onChange={(e) => handleChange('marks', Number(e.target.value))}
-                                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
-                            />
+                            <label className="block text-sm font-medium text-gray-500 mb-2">Marks Allocation</label>
+                            <div className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-sm flex items-center justify-between">
+                                <span className="text-gray-300 font-bold">
+                                    Weight: {normalizeDifficulty(formData.difficulty) === 'HIGH' ? '3 (High)' : normalizeDifficulty(formData.difficulty) === 'LOW' ? '1 (Low)' : '2 (Medium)'}
+                                </span>
+                                <span className="text-xs text-teal-400 font-extrabold uppercase tracking-wider">
+                                    Normalized / 100
+                                </span>
+                            </div>
+                            <p className="mt-1.5 text-[10px] text-gray-500">
+                                Question marks are automatically calculated dynamically based on proportional weights so all questions sum to exactly 100.
+                            </p>
                         </div>
                         {timerType === 'individual' && (
                             <div>

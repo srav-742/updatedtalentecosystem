@@ -58,7 +58,8 @@ const calculateCandidateScores = (app, assessmentSubmission) => {
 
     const dynCoding = app.codingScore || 0;
 
-    const computedFinalScore = dynResume + dynAssessment + dynInterview + dynCoding;
+    // Final Score strictly derived from present rounds (Resume + MCQ + Interview = 100 max)
+    const computedFinalScore = dynResume + dynAssessment + dynInterview;
 
     return {
         resumeScore: dynResume,

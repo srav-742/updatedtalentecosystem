@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Phone, Briefcase, Globe, Building2, Users2, Save, Loader2, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Globe, Building2, Users2, Save, Loader2, CheckCircle2, Camera } from 'lucide-react';
 import axios from 'axios';
 import { getUserProfile, saveUserProfile } from '../../firebase';
+import './recruiter-theme.css';
 
 const RecruiterProfile = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -102,30 +103,50 @@ const RecruiterProfile = () => {
         }
     };
 
-    if (loading) return <div className="flex items-center justify-center h-[60vh] text-blue-400">Loading Profile...</div>;
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-3">
+                <Loader2 className="animate-spin text-indigo-600" size={32} />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Loading Profile Details...</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 pb-12">
-            <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Recruiter Profile</h1>
-                    <p className="text-gray-400">Manage your personal and company identity.</p>
+        <div className="max-w-6xl mx-auto space-y-8 pb-16">
+            {/* Header Banner */}
+            <header className="rec-hero p-8 md:p-9">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <span className="rec-badge-dark px-3 py-0.5 text-[10px] uppercase tracking-wider">
+                                Identity & Settings
+                            </span>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Recruiter <span className="rec-text-gradient">Profile</span>
+                        </h1>
+                        <p className="text-xs md:text-sm text-slate-600">
+                            Manage your personal credentials, organizational branding, and company specifications.
+                        </p>
+                    </div>
+
+                    {saved && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="rec-badge-emerald px-4 py-2 flex items-center gap-2 text-xs font-bold shadow-xs self-start md:self-auto"
+                        >
+                            <CheckCircle2 size={16} /> Changes Saved Successfully
+                        </motion.div>
+                    )}
                 </div>
-                {saved && (
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-sm font-bold"
-                    >
-                        <CheckCircle2 size={16} /> Changes Saved
-                    </motion.div>
-                )}
-            </div>
+            </header>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Profile Pic & Quick Info */}
+                {/* Left Column: Avatar & Quick Summary */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 text-center relative overflow-hidden group shadow-xl">
+                    <div className="rec-card p-8 text-center relative overflow-hidden">
                         <input
                             type="file"
                             id="profilePicInput"
@@ -135,181 +156,205 @@ const RecruiterProfile = () => {
                         />
                         <div
                             onClick={() => document.getElementById('profilePicInput').click()}
-                            className="w-32 h-32 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-teal-400 p-1 mb-6 relative group transform transition-all duration-300 group-hover:scale-105 cursor-pointer"
+                            className="w-32 h-32 mx-auto rounded-full bg-gradient-to-br from-indigo-500 via-blue-500 to-teal-400 p-1 mb-5 relative group cursor-pointer shadow-md"
                         >
-                            <div className="w-full h-full rounded-full bg-[#11131a] flex items-center justify-center text-5xl font-black text-white overflow-hidden">
+                            <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-4xl font-extrabold text-slate-800 overflow-hidden">
                                 {profileData.profilePic ? (
                                     <img loading="lazy" src={profileData.profilePic} alt="Profile" className="w-full h-full object-cover" />
                                 ) : (
                                     profileData.name?.[0]?.toUpperCase() || 'U'
                                 )}
                             </div>
-                            <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                                <span className="text-[10px] font-black text-white uppercase tracking-widest bg-blue-600 px-2 py-1 rounded-md">Update</span>
+                            <div className="absolute inset-0 bg-slate-900/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all text-white">
+                                <Camera size={20} className="mb-1 text-white" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-white">Update Photo</span>
                             </div>
                         </div>
-                        <h3 className="text-2xl font-bold mb-1 uppercase tracking-tight">{profileData.name}</h3>
-                        <p className="text-blue-400 font-bold text-sm mb-4 uppercase tracking-widest">{profileData.designation || 'Hiring Lead'}</p>
-                        <div className="pt-6 border-t border-white/5">
-                            <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Company</p>
-                            <p className="text-white font-bold">{profileData.company?.name || 'Set Company Name'}</p>
+
+                        <h3 className="text-xl font-bold text-slate-900 mb-0.5">{profileData.name || 'Recruiter'}</h3>
+                        <p className="text-xs font-semibold text-indigo-600 mb-5">{profileData.designation || 'Hiring Lead'}</p>
+
+                        <div className="pt-5 border-t border-slate-100 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Organization</span>
+                                <span className="text-slate-900 font-bold">{profileData.company?.name || 'Not Specified'}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Account Tier</span>
+                                <span className="rec-badge-emerald px-2 py-0.5 text-[9px] uppercase">Verified Recruiter</span>
+                            </div>
                         </div>
                     </div>
 
                     <button
                         type="submit"
                         disabled={saving}
-                        className="w-full py-4 rounded-2xl bg-white text-black font-black uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-70 shadow-2xl shadow-white/5"
+                        className="rec-btn-primary w-full py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md disabled:opacity-60 cursor-pointer"
                     >
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        {saving ? 'Saving...' : 'Save Profile'}
+                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        <span>{saving ? 'Saving Changes...' : 'Save Profile Changes'}</span>
                     </button>
                 </div>
 
-                {/* Form Details */}
-                <div className="lg:col-span-2 space-y-8">
-                    {/* B. Personal Details */}
-                    <div className="p-8 rounded-[3rem] bg-white/5 border border-white/10 shadow-xl relative overflow-hidden">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20">
-                                B
+                {/* Right Column: Detailed Form Cards */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* 1. Personal Details */}
+                    <div className="rec-card p-7 md:p-8 space-y-6">
+                        <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
+                                01
                             </div>
-                            <h2 className="text-xl font-bold">Personal Details</h2>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-900">Personal Information</h2>
+                                <p className="text-xs text-slate-500">Your direct contact details and role in the hiring process</p>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Full Name</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
                                 <div className="relative">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="text"
                                         name="name"
                                         value={profileData.name}
                                         onChange={handleChange}
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
+                                        placeholder="Full Name"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Email Address</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
                                 <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-700" size={18} />
+                                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="email"
                                         value={profileData.email}
                                         readOnly
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/5 text-gray-600 outline-none cursor-not-allowed text-sm font-medium"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium bg-slate-50/80! text-slate-500! cursor-not-allowed border-slate-200!"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Phone Number</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
                                 <div className="relative">
-                                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="text"
                                         name="phone"
                                         value={profileData.phone}
                                         onChange={handleChange}
-                                        placeholder="+1 123 456 7890"
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        placeholder="+1 234 567 8900"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Designation</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Designation / Role</label>
                                 <div className="relative">
-                                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="text"
                                         name="designation"
                                         value={profileData.designation}
                                         onChange={handleChange}
-                                        placeholder="e.g. Technical Recruiter"
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        placeholder="e.g. Technical Hiring Lead"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* C & D. Company Details */}
-                    <div className="p-8 rounded-[3rem] bg-white/5 border border-white/10 shadow-xl relative overflow-hidden">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold border border-teal-500/20">
-                                C
+                    {/* 2. Company Details */}
+                    <div className="rec-card p-7 md:p-8 space-y-6">
+                        <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-xs font-bold">
+                                02
                             </div>
-                            <h2 className="text-xl font-bold">Company Details</h2>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-900">Company & Organization</h2>
+                                <p className="text-xs text-slate-500">Public company profile displayed on your job listings</p>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Company Name</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Company Name</label>
                                 <div className="relative">
-                                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="text"
                                         name="company.name"
                                         value={profileData.company?.name || ''}
                                         onChange={handleChange}
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-teal-500/50 outline-none transition-all text-sm"
+                                        placeholder="Acme Technologies"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Company Website</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Company Website</label>
                                 <div className="relative">
-                                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="url"
                                         name="company.website"
                                         placeholder="https://company.com"
                                         value={profileData.company?.website || ''}
                                         onChange={handleChange}
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-teal-500/50 outline-none transition-all text-sm"
+                                        className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Industry</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Industry Sector</label>
                                 <input
                                     type="text"
                                     name="company.industry"
-                                    placeholder="e.g. IT Services / Fintech"
+                                    placeholder="e.g. Fintech / SaaS / AI"
                                     value={profileData.company?.industry || ''}
                                     onChange={handleChange}
-                                    className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-teal-500/50 outline-none transition-all text-sm"
+                                    className="rec-input w-full px-4 py-2.5 text-xs font-medium"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Company Size</label>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Company Size</label>
                                 <div className="relative">
-                                    <Users2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                    <Users2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <select
                                         name="company.size"
                                         value={profileData.company?.size || '50-100'}
                                         onChange={handleChange}
-                                        className="w-full pl-12 pr-5 py-3 rounded-2xl bg-[#11131a] border border-white/10 focus:border-teal-500/50 outline-none appearance-none cursor-pointer text-sm font-medium"
+                                        className="rec-select w-full pl-10 pr-4 py-2.5 text-xs font-medium cursor-pointer"
                                     >
-                                        <option value="1-10">1-10 Employees</option>
-                                        <option value="11-50">11-50 Employees</option>
-                                        <option value="51-200">51-200 Employees</option>
-                                        <option value="201-500">201-500 Employees</option>
-                                        <option value="500+">500+ Employees</option>
+                                        <option value="1-10">1-10 Employees (Seed / Startup)</option>
+                                        <option value="11-50">11-50 Employees (Early Stage)</option>
+                                        <option value="51-200">51-200 Employees (Growth)</option>
+                                        <option value="201-500">201-500 Employees (Scaleup)</option>
+                                        <option value="500+">500+ Employees (Enterprise)</option>
                                     </select>
                                 </div>
                             </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">About Company</label>
+
+                            <div className="md:col-span-2 space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">About Organization & Culture</label>
                                 <textarea
                                     name="company.description"
                                     rows="4"
                                     value={profileData.company?.description || ''}
                                     onChange={handleChange}
-                                    placeholder="Write a brief overview of your company mission and culture..."
-                                    className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-teal-500/50 outline-none transition-all resize-none text-sm leading-relaxed"
-                                ></textarea>
+                                    placeholder="Describe your company culture, mission, tech stack, and benefits..."
+                                    className="rec-textarea w-full px-4 py-3 text-xs leading-relaxed resize-none"
+                                />
                             </div>
                         </div>
                     </div>

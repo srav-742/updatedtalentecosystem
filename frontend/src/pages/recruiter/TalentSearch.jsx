@@ -17,6 +17,7 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import GeneratedResumeModal from './GeneratedResumeModal';
+import './recruiter-theme.css';
 
 const TalentSearch = () => {
     const [query, setQuery] = useState('');
@@ -58,52 +59,57 @@ const TalentSearch = () => {
     ];
 
     return (
-        <div className="space-y-12 pb-20">
+        <div className="space-y-10 pb-20">
             {/* Hero Section */}
-            <header className="text-center max-w-3xl mx-auto space-y-6 pt-10">
-                <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest"
-                >
-                    <Sparkles size={14} /> AI-Powered Discovery
-                </motion.div>
-                <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
-                    Find Talent in <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">Plain English</span>
+            <header className="rec-hero p-8 md:p-12 text-center max-w-4xl mx-auto space-y-4">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 text-white text-xs font-bold uppercase tracking-wider shadow-sm">
+                    <Sparkles size={14} className="text-amber-400" />
+                    <span>Semantic Talent Discovery</span>
+                </div>
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+                    Find Top 1% Engineers in <span className="rec-text-gradient-blue">Plain English</span>
                 </h1>
-                <p className="text-gray-500 font-medium text-lg italic">
-                    Stop using complex filters. Just describe who you need, and our AI will find them.
+                <p className="text-sm md:text-base text-slate-600 font-normal max-w-2xl mx-auto leading-relaxed">
+                    Skip tedious keyword matching. Describe your ideal hire, specific stack requirements, or domain expertise, and our AI pipeline will surface the best matches.
                 </p>
             </header>
 
-            {/* Search Bar */}
-            <div className="max-w-4xl mx-auto relative group">
+            {/* Search Bar Input */}
+            <div className="max-w-4xl mx-auto relative">
                 <form onSubmit={handleSearch} className="relative z-10">
-                    <textarea
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="I need a React developer with Fintech experience..."
-                        className="w-full bg-white/5 border-2 border-white/10 rounded-[2rem] pl-10 pr-48 py-6 text-xl text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-700 font-medium shadow-2xl backdrop-blur-xl resize-none min-h-[100px] z-10"
-                        rows={2}
-                    />
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="absolute right-4 bottom-4 px-8 h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-teal-500 text-white font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-blue-500/20 z-20"
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
-                        {loading ? 'Finding...' : 'Search'}
-                    </button>
+                    <div className="relative rounded-[2rem] bg-white border border-slate-200/90 shadow-lg transition-all focus-within:border-indigo-500 focus-within:shadow-indigo-500/10 focus-within:shadow-xl">
+                        <div className="absolute left-6 top-6 text-slate-400">
+                            <BrainCircuit size={22} className="text-indigo-500" />
+                        </div>
+                        <textarea
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Describe candidate requirements (e.g. Senior Golang engineer with microservices & Kubernetes in high-scale systems)..."
+                            className="w-full bg-transparent pl-16 pr-44 py-5 text-base md:text-lg text-slate-900 focus:outline-none placeholder:text-slate-400 font-medium resize-none min-h-[90px] rounded-[2rem]"
+                            rows={2}
+                        />
+                        <div className="absolute right-4 bottom-4">
+                            <button
+                                type="submit"
+                                disabled={loading || !query.trim()}
+                                className="rec-btn-primary px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-md disabled:opacity-50 cursor-pointer"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}
+                                <span>{loading ? 'Analyzing...' : 'Search Talent'}</span>
+                            </button>
+                        </div>
+                    </div>
                 </form>
-                {/* Glow Effects */}
-                <div className="absolute inset-0 bg-blue-500/20 blur-[100px] rounded-full -z-10 group-focus-within:bg-blue-500/40 transition-all duration-500" />
             </div>
 
-            {/* Suggestions */}
+            {/* Prompt Suggestions */}
             {!candidates.length && !loading && (
                 <div className="max-w-4xl mx-auto">
-                    <div className="flex flex-wrap justify-center gap-3 font-medium">
+                    <div className="text-center mb-3">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Try Instant Queries</span>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-2.5">
                         {suggestions.map((s, idx) => (
                             <button
                                 key={idx}
@@ -111,7 +117,7 @@ const TalentSearch = () => {
                                     setQuery(s); 
                                     handleSearch(null, s);
                                 }}
-                                className="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-500 text-sm hover:border-blue-500/30 hover:text-blue-400 hover:bg-blue-500/5 transition-all"
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-600 text-xs font-semibold hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/40 transition-all cursor-pointer shadow-xs"
                             >
                                 {s}
                             </button>
@@ -120,22 +126,24 @@ const TalentSearch = () => {
                 </div>
             )}
 
-            {/* AI Analysis Debug */}
+            {/* AI Reasoning Callout */}
             {analysis && (
                 <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="max-w-4xl mx-auto p-6 rounded-[2rem] bg-blue-500/5 border border-blue-500/10"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="max-w-4xl mx-auto p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-start gap-3.5"
                 >
-                    <div className="flex items-center gap-2 mb-2">
-                        <BrainCircuit size={14} className="text-blue-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">AI Interpretation</span>
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Sparkles size={16} />
                     </div>
-                    <p className="text-xs text-gray-400 font-medium italic">"{analysis.reasoning || 'Analyzing query parameters...'}"</p>
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 mb-0.5">AI Search Analysis</p>
+                        <p className="text-xs text-slate-600 leading-relaxed italic">"{analysis.reasoning || 'Analyzing query parameters against verified talent profiles...'}"</p>
+                    </div>
                 </motion.div>
             )}
 
-            {/* Results */}
+            {/* Results Area */}
             <div className="max-w-7xl mx-auto">
                 <AnimatePresence mode="wait">
                     {loading ? (
@@ -145,78 +153,102 @@ const TalentSearch = () => {
                             exit={{ opacity: 0 }}
                             className="flex flex-col items-center py-20 space-y-4"
                         >
-                            <BrainCircuit size={48} className="text-blue-400 animate-pulse" />
-                            <p className="text-gray-500 font-black uppercase tracking-widest text-xs">AI is analyzing your requirements...</p>
+                            <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center animate-bounce shadow-sm">
+                                <BrainCircuit size={32} />
+                            </div>
+                            <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">AI is scanning candidate repositories and profiles...</p>
                         </motion.div>
                     ) : (
                         <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 15 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         >
                             {candidates.map((can, idx) => (
                                 <motion.div
                                     key={can._id || idx}
-                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    initial={{ opacity: 0, scale: 0.96 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.1 }}
-                                    className="group relative bg-white/5 border border-white/10 rounded-[2.5rem] p-8 hover:border-blue-500/30 transition-all hover:shadow-2xl hover:shadow-blue-500/10 overflow-hidden"
+                                    transition={{ delay: idx * 0.05 }}
+                                    className="rec-card rec-card-interactive p-7 flex flex-col justify-between"
                                 >
-                                    {/* Candidate Card Content */}
-                                    <div className="flex items-start justify-between mb-6">
-                                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400">
-                                            {can.profilePic ? (
-                                                <img loading="lazy" src={can.profilePic} alt="" className="w-full h-full object-cover rounded-2xl" />
-                                            ) : (
-                                                <User size={24} />
-                                            )}
+                                    <div>
+                                        {/* Candidate Header & Links */}
+                                        <div className="flex items-start justify-between mb-5">
+                                            <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 overflow-hidden shrink-0 shadow-xs">
+                                                {can.profilePic ? (
+                                                    <img loading="lazy" src={can.profilePic} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={22} />
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {can.githubUrl && (
+                                                    <a 
+                                                        href={can.githubUrl} 
+                                                        target="_blank" 
+                                                        rel="noreferrer"
+                                                        className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center transition-colors"
+                                                        title="GitHub Profile"
+                                                    >
+                                                        <Github size={15} />
+                                                    </a>
+                                                )}
+                                                {can.linkedinUrl && (
+                                                    <a 
+                                                        href={can.linkedinUrl} 
+                                                        target="_blank" 
+                                                        rel="noreferrer"
+                                                        className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center transition-colors"
+                                                        title="LinkedIn Profile"
+                                                    >
+                                                        <Linkedin size={15} />
+                                                    </a>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            {can.githubUrl && (
-                                                <a href={can.githubUrl} className="p-2 rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all"><Github size={16} /></a>
-                                            )}
-                                            {can.linkedinUrl && (
-                                                <a href={can.linkedinUrl} className="p-2 rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all"><Linkedin size={16} /></a>
-                                            )}
-                                        </div>
-                                    </div>
 
-                                    <div className="space-y-2 mb-6">
-                                        <h3 className="text-xl font-black uppercase tracking-tight text-white group-hover:text-blue-400 transition-colors">{can.name}</h3>
-                                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
-                                            { (typeof can.designation === 'string' && can.designation.trim()) ? can.designation : 'Tech Explorer' }
+                                        {/* Name & Designation */}
+                                        <div className="space-y-1 mb-4">
+                                            <h3 className="text-lg font-bold text-slate-900 hover:text-indigo-600 transition-colors">
+                                                {can.name}
+                                            </h3>
+                                            <p className="text-xs font-semibold text-slate-500">
+                                                { (typeof can.designation === 'string' && can.designation.trim()) ? can.designation : 'Software Engineer' }
+                                            </p>
+                                        </div>
+
+                                        {/* Skills Tags */}
+                                        <div className="flex flex-wrap gap-1.5 mb-5">
+                                            {(() => {
+                                                const matched = can.matchedSkills || [];
+                                                const allSkills = can.skills || [];
+                                                const ordered = [...matched, ...allSkills.filter(s => !matched.includes(s))];
+                                                return ordered.slice(0, 4).map(skill => (
+                                                    <span key={skill} className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-bold">
+                                                        {skill}
+                                                    </span>
+                                                ));
+                                            })()}
+                                        </div>
+
+                                        {/* Bio / Summary */}
+                                        <p className="text-slate-600 text-xs leading-relaxed line-clamp-3 mb-6">
+                                            {can.bio || "Proven track record delivering scalable software, collaborating across teams, and architecting robust applications."}
                                         </p>
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2 mb-8">
-                                        {(() => {
-                                            const matched = can.matchedSkills || [];
-                                            const allSkills = can.skills || [];
-                                            const ordered = [...matched, ...allSkills.filter(s => !matched.includes(s))];
-                                            return ordered.slice(0, 4).map(skill => (
-                                                <span key={skill} className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest">
-                                                    {skill}
-                                                </span>
-                                            ));
-                                        })()}
-                                    </div>
-
-                                    <p className="text-gray-400 text-sm italic line-clamp-3 mb-8 leading-relaxed">
-                                        {can.bio || "Crafting professional brilliance with every line of code..."}
-                                    </p>
-
+                                    {/* Action Button */}
                                     <button 
                                         onClick={() => {
                                             setSelectedResumeUserId(can.uid || can._id);
                                             setShowResumeModal(true);
                                         }}
-                                        className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 group-hover:border-blue-600 transition-all flex items-center justify-center gap-2"
+                                        className="rec-btn-primary w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
                                     >
-                                        View Full Profile <ArrowRight size={14} />
+                                        <span>View Verified Profile</span>
+                                        <ArrowRight size={14} />
                                     </button>
-
-                                    {/* Decorative Glow */}
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-[50px] rounded-full group-hover:bg-blue-500/10 transition-all" />
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -224,9 +256,12 @@ const TalentSearch = () => {
                 </AnimatePresence>
 
                 {!loading && candidates.length === 0 && query && (
-                    <div className="text-center py-20 space-y-4">
-                        <Zap size={32} className="text-gray-700 mx-auto" />
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No matching candidates found for this specific query.</p>
+                    <div className="text-center py-16 space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <Zap size={22} />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900">No matching candidates found</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">Try broadening your prompt keywords or removing specific constraint combinations.</p>
                     </div>
                 )}
             </div>

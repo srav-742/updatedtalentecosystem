@@ -27,7 +27,7 @@ import {
     X,
     Layers
 } from 'lucide-react';
-import { getUserProfile, saveUserProfile, API_URL } from '../../firebase';
+import { getUserProfile, saveUserProfile, API_URL, getAuthHeaders } from '../../firebase';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -262,10 +262,15 @@ const SeekerProfile = () => {
     };
 
     const handleSetDefaultResume = async (resumeId) => {
+        if (!resumeId) return;
         const currentUid = user.uid || user._id || user.id;
         try {
+            const authHeaders = await getAuthHeaders();
             await axios.put(`${API_URL}/user-resumes/${resumeId}/default`, { userId: currentUid }, {
-                headers: { 'x-user-id': currentUid }
+                headers: {
+                    ...authHeaders,
+                    'x-user-id': currentUid
+                }
             });
             queryClient.invalidateQueries({ queryKey: ['resumes', currentUid] });
         } catch (error) {
@@ -274,15 +279,28 @@ const SeekerProfile = () => {
     };
 
     const handleDeleteResume = async (resumeId) => {
+        if (!resumeId) return;
         if (!window.confirm("Are you sure you want to delete this resume?")) return;
         const currentUid = user.uid || user._id || user.id;
+
+        // Optimistically remove from UI cache immediately
+        queryClient.setQueryData(['resumes', currentUid], (old = []) =>
+            Array.isArray(old) ? old.filter(r => (r._id || r.id) !== resumeId) : []
+        );
+
         try {
+            const authHeaders = await getAuthHeaders();
             await axios.delete(`${API_URL}/user-resumes/${resumeId}`, {
-                headers: { 'x-user-id': currentUid }
+                headers: {
+                    ...authHeaders,
+                    'x-user-id': currentUid
+                }
             });
             queryClient.invalidateQueries({ queryKey: ['resumes', currentUid] });
         } catch (error) {
             console.error("Failed to delete resume:", error);
+            // Invalidate query to ensure state is synchronized
+            queryClient.invalidateQueries({ queryKey: ['resumes', currentUid] });
         }
     };
 
@@ -776,7 +794,7 @@ const SeekerProfile = () => {
                                                         )}
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleDeleteResume(resItem._id)}
+                                                            onClick={() => handleDeleteResume(resItem._id || resItem.id)}
                                                             className="text-gray-400 hover:text-red-600 transition p-1"
                                                             title="Delete Resume"
                                                         >
@@ -820,7 +838,7 @@ const SeekerProfile = () => {
                                                 {!resItem.isDefault && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleSetDefaultResume(resItem._id)}
+                                                        onClick={() => handleSetDefaultResume(resItem._id || resItem.id)}
                                                         className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-black py-1.5 text-[11px] font-semibold text-white transition hover:bg-gray-800"
                                                     >
                                                         <span>Set Default</span>

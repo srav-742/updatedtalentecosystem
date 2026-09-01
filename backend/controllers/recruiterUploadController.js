@@ -330,16 +330,17 @@ Return ONLY a JSON response in this format:
             applicationData.recordingPublicId = application.recordingPublicId;
             applicationData.recordingStatus = application.recordingStatus || 'pending';
             
-            // Recalculate final score with existing components
-            applicationData.finalScore = resumeScore + assessmentScore + codingScore + interviewScore;
+            // Recalculate final score strictly with present rounds (Resume + MCQ + Interview = 100 max)
+            applicationData.finalScore = resumeScore + assessmentScore + interviewScore;
             
             // Re-evaluate shortlist status
             const isResumeDone = true;
             const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
             const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
             const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+            const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
 
-            if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && applicationData.finalScore >= 55) {
+            if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && applicationData.finalScore >= 55) {
                 applicationData.status = 'SHORTLISTED';
             } else {
                 applicationData.status = applicationData.finalScore >= 55 ? 'SHORTLISTED' : 'APPLIED';

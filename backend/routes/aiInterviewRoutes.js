@@ -1131,12 +1131,14 @@ router.post('/next', async (req, res) => {
                 const job = app.jobId;
 
                 app.interviewScore = i;
-                app.finalScore = r + a + c + i;
+                // Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
+                app.finalScore = r + a + i;
 
                 const codingEnabled = job?.codingAssessment?.enabled === true;
                 const isCodingDone = !codingEnabled || (app.codingScore !== null && app.codingScore !== undefined);
+                const isCodingPassed = !codingEnabled || (app.codingScore >= (job?.codingAssessment?.passingScore || 70));
 
-                if (app.finalScore >= 55 && isCodingDone) {
+                if (app.finalScore >= 55 && isCodingDone && isCodingPassed) {
                     app.status = 'SHORTLISTED';
                 } else {
                     app.status = 'APPLIED';

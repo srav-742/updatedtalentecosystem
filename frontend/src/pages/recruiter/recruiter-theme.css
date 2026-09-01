@@ -1,0 +1,394 @@
+/* ==========================================================================
+   Shared Recruiter Design System Theme
+   Provides consistent executive styling across all recruiter screens
+   Overrides aggressive global legacy wipes in index.css
+   ========================================================================== */
+
+/* Design Tokens & Scope */
+.recruiter-theme,
+[class*="rec-"] {
+    --rec-bg-canvas: #f7f4ee;
+    --rec-bg-surface: #ffffff;
+    --rec-bg-subtle: #faf8f5;
+    --rec-border: rgba(15, 23, 42, 0.08);
+    --rec-border-strong: rgba(15, 23, 42, 0.14);
+    --rec-text-primary: #0f172a;
+    --rec-text-secondary: #475569;
+    --rec-text-muted: #64748b;
+    --rec-text-subtle: #94a3b8;
+    --rec-primary: #0f172a;
+    --rec-primary-hover: #1e293b;
+    --rec-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.03);
+    --rec-shadow-md: 0 10px 30px -4px rgba(15, 23, 42, 0.05);
+    --rec-shadow-lg: 0 20px 50px -10px rgba(15, 23, 42, 0.08);
+}
+
+/* 1. Surfaces & Cards */
+.rec-card {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    border-radius: 1.75rem;
+    box-shadow: 0 10px 30px -4px rgba(15, 23, 42, 0.05);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.rec-card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px -8px rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Hero Banner */
+.rec-hero {
+    background: linear-gradient(135deg, #ffffff 0%, #faf8f5 50%, #f4efe6 100%) !important;
+    border: 1px solid rgba(15, 23, 42, 0.09) !important;
+    box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.06) !important;
+    border-radius: 2.25rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.rec-hero::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, rgba(20, 184, 166, 0.03) 50%, transparent 70%) !important;
+    pointer-events: none;
+    border-radius: 50%;
+}
+
+/* 2. Text Gradients */
+.rec-text-gradient {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    display: inline-block;
+}
+
+.rec-text-gradient-blue {
+    background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    display: inline-block;
+}
+
+/* 3. Buttons (Protected text colors) */
+.rec-btn-primary {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border: 1px solid #0f172a !important;
+    box-shadow: 0 6px 18px -2px rgba(15, 23, 42, 0.22);
+    border-radius: 1rem;
+    font-weight: 700;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.rec-btn-primary:hover {
+    background-color: #1e293b !important;
+    border-color: #1e293b !important;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px -2px rgba(15, 23, 42, 0.3);
+}
+
+.rec-btn-primary:active {
+    transform: translateY(1px);
+}
+
+.rec-btn-primary,
+.rec-btn-primary * {
+    color: #ffffff !important;
+}
+
+.rec-btn-secondary {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    border-radius: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.rec-btn-secondary:hover {
+    background-color: #f8fafc !important;
+    border-color: rgba(15, 23, 42, 0.22) !important;
+    transform: translateY(-1px);
+}
+
+.rec-btn-secondary,
+.rec-btn-secondary * {
+    color: #0f172a !important;
+}
+
+.rec-btn-danger {
+    background-color: #fef2f2 !important;
+    color: #dc2626 !important;
+    border: 1px solid rgba(220, 38, 38, 0.2) !important;
+    border-radius: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.rec-btn-danger:hover {
+    background-color: #fee2e2 !important;
+    border-color: rgba(220, 38, 38, 0.35) !important;
+}
+
+.rec-btn-danger,
+.rec-btn-danger * {
+    color: #dc2626 !important;
+}
+
+.rec-btn-emerald {
+    background-color: #ecfdf5 !important;
+    color: #059669 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+    border-radius: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.rec-btn-emerald:hover {
+    background-color: #d1fae5 !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.rec-btn-emerald,
+.rec-btn-emerald * {
+    color: #059669 !important;
+}
+
+/* 4. Form Controls */
+.rec-input,
+.rec-select,
+.rec-textarea {
+    background-color: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    border-radius: 1rem;
+    color: #0f172a !important;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+.rec-input:focus,
+.rec-select:focus,
+.rec-textarea:focus {
+    border-color: #3b82f6 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14) !important;
+    background-color: #ffffff !important;
+}
+
+.rec-input::placeholder,
+.rec-textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* Select option colors */
+.rec-select option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+
+/* 5. Badges & Chips */
+.rec-badge-dark {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-dark,
+.rec-badge-dark * {
+    color: #ffffff !important;
+}
+
+.rec-badge-emerald {
+    background-color: #ecfdf5 !important;
+    color: #047857 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-emerald,
+.rec-badge-emerald * {
+    color: #047857 !important;
+}
+
+.rec-badge-blue {
+    background-color: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-blue,
+.rec-badge-blue * {
+    color: #1d4ed8 !important;
+}
+
+.rec-badge-purple {
+    background-color: #f5f3ff !important;
+    color: #6d28d9 !important;
+    border: 1px solid rgba(139, 92, 246, 0.2) !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-purple,
+.rec-badge-purple * {
+    color: #6d28d9 !important;
+}
+
+.rec-badge-amber {
+    background-color: #fffbeb !important;
+    color: #b45309 !important;
+    border: 1px solid rgba(245, 158, 11, 0.25) !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-amber,
+.rec-badge-amber * {
+    color: #b45309 !important;
+}
+
+.rec-badge-rose {
+    background-color: #fff1f2 !important;
+    color: #be123c !important;
+    border: 1px solid rgba(244, 63, 94, 0.25) !important;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-badge-rose,
+.rec-badge-rose * {
+    color: #be123c !important;
+}
+
+/* 6. Pulsing Dot */
+@keyframes rec-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(1.25);
+    }
+}
+
+.rec-pulse-dot {
+    animation: rec-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 7. Step Indicator in Forms */
+.rec-step-number {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* 8. Modal & Dialog Protection */
+.rec-modal-dark,
+[class*="bg-[#1a1d24]"],
+[class*="bg-[#11131a]"],
+[class*="bg-zinc-950"] {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.rec-modal-dark h1,
+.rec-modal-dark h2,
+.rec-modal-dark h3,
+.rec-modal-dark h4,
+.rec-modal-dark p,
+.rec-modal-dark span,
+[class*="bg-[#1a1d24]"] h1,
+[class*="bg-[#1a1d24]"] h2,
+[class*="bg-[#1a1d24]"] h3,
+[class*="bg-[#1a1d24]"] h4,
+[class*="bg-[#1a1d24]"] p,
+[class*="bg-[#1a1d24]"] span,
+[class*="bg-zinc-950"] h1,
+[class*="bg-zinc-950"] h2,
+[class*="bg-zinc-950"] h3,
+[class*="bg-zinc-950"] h4,
+[class*="bg-zinc-950"] p,
+[class*="bg-zinc-950"] span {
+    color: inherit;
+}
+
+/* Table Hover & Scrollbar */
+.rec-table-row {
+    transition: background-color 0.15s ease;
+}
+
+.rec-table-row:hover {
+    background-color: #faf8f5 !important;
+}
+
+/* 9. Dark Container & Card Text Protection */
+.recruiter-content .rec-dark-surface,
+.recruiter-content [class*="bg-slate-900"],
+.recruiter-content [class*="bg-[#0f172a]"] {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
+.recruiter-content .rec-dark-surface *,
+.recruiter-content [class*="bg-slate-900"] *,
+.recruiter-content [class*="bg-[#0f172a]"] * {
+    color: inherit;
+}
+
+.recruiter-content [class*="bg-slate-900"] h1,
+.recruiter-content [class*="bg-slate-900"] h2,
+.recruiter-content [class*="bg-slate-900"] h3,
+.recruiter-content [class*="bg-slate-900"] h4,
+.recruiter-content [class*="bg-slate-900"] p,
+.recruiter-content [class*="bg-slate-900"] span {
+    color: #ffffff !important;
+}
+
+.recruiter-content [class*="bg-slate-900"] [class*="text-slate-300"],
+.recruiter-content [class*="bg-slate-900"] [class*="text-slate-400"] {
+    color: #cbd5e1 !important;
+}
+
+

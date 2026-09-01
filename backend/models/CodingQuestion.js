@@ -15,7 +15,8 @@ const codingQuestionSchema = new mongoose.Schema({
     constraints: { type: String, default: '' },
     expectedApproach: { type: String, default: '' },
     examples: [exampleSchema],
-    difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Medium' },
+    difficulty: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH', 'Low', 'Medium', 'High', 'Easy', 'Hard'], default: 'MEDIUM' },
+    difficultyWeight: { type: Number, default: 2 },
     marks: { type: Number, default: 10 },
     allowedLanguages: [{ type: String }],
     timer: { type: Number, default: 0 } // minutes; 0 = uses overall timer

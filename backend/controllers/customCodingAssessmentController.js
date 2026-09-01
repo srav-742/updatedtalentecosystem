@@ -5,6 +5,11 @@ const Job = require('../models/Job');
 const { callSkillAI, safeParseAIJson, callGemini } = require('../utils/aiClients');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
 const mongoose = require('mongoose');
+const {
+    calculateDynamicMarks,
+    normalizeDifficulty,
+    getDifficultyWeight
+} = require('../utils/codingScoreCalculator');
 
 /**
  * POST /api/custom-coding-assessments/generate
@@ -166,9 +171,19 @@ const saveCustomCodingRound = async (req, res) => {
 
         await codingRound.save({ session });
 
+        // Calculate dynamic marks distribution totaling exactly 100
+        const dynamicCalcs = calculateDynamicMarks(questions);
+
         // Save each question
         const savedQuestionIds = [];
-        for (const q of questions) {
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            const dynamicInfo = dynamicCalcs[i] || {
+                difficulty: normalizeDifficulty(q.difficulty),
+                difficultyWeight: getDifficultyWeight(q.difficulty),
+                maximumMarks: 10
+            };
+
             const questionDoc = new CodingQuestion({
                 codingRoundId: codingRound._id,
                 title: q.title || 'Coding Challenge',
@@ -178,8 +193,9 @@ const saveCustomCodingRound = async (req, res) => {
                 constraints: q.constraints || '',
                 expectedApproach: q.expectedApproach || '',
                 examples: Array.isArray(q.examples) ? q.examples : [],
-                difficulty: q.difficulty || 'Medium',
-                marks: parseInt(q.marks) || 10,
+                difficulty: dynamicInfo.difficulty,
+                difficultyWeight: dynamicInfo.difficultyWeight,
+                marks: dynamicInfo.maximumMarks,
                 allowedLanguages: Array.isArray(q.allowedLanguages) ? q.allowedLanguages : languages,
                 timer: 0
             });

@@ -139,6 +139,7 @@ const CandidateTranscriptPage = () => {
   const dynResume = scores?.resumeMatch || 0;
   const dynAssessment = scores?.assessmentScore || 0;
   const dynInterview = scores?.interviewScore || 0;
+  const dynCoding = scores?.codingScore !== undefined && scores?.codingScore !== null ? scores.codingScore : (data.coding?.score || 0);
   const fs = scores?.finalScore || 0;
   
   const verdict = fs >= 80 ? { l: 'Strongly Recommended', c: 'text-emerald-600', b: 'bg-emerald-50 border-emerald-200' }
@@ -332,6 +333,56 @@ const CandidateTranscriptPage = () => {
                     <div className='p-2 rounded-lg bg-gray-50 border border-gray-100'><span className='font-black text-gray-600'>Your Answer: </span><span className='text-gray-800'>{String(a.userAnswer ?? '--')}</span></div>
                     <div className='p-2 rounded-lg bg-gray-50 border border-gray-100'><span className='font-black text-gray-600'>Correct: </span><span className='font-bold text-emerald-600'>{String(a.correctAnswer ?? '--')}</span></div>
                   </div>
+                </div>
+              ))}
+            </div>
+          </Sec>
+        )}
+
+        {data.coding?.answers?.length > 0 && (
+          <Sec title='Coding Assessment Transcript' icon={<Code size={16} />} grad='from-teal-500 to-emerald-500'>
+            <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-teal-50 border border-teal-200'>
+              <div className='text-center'>
+                <p className='text-4xl font-black text-teal-600'>{dynCoding !== null && dynCoding !== undefined ? `${dynCoding}/100` : 'N/A'}</p>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Coding Score</p>
+              </div>
+              <div className='text-center'>
+                <p className='text-4xl font-black text-gray-900'>{data.coding.answers.length}</p>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Challenges</p>
+              </div>
+            </div>
+            <div className='space-y-4'>
+              {data.coding.answers.map((ans, idx) => (
+                <div key={idx} className='p-5 rounded-2xl border border-teal-200 bg-white shadow-sm space-y-3'>
+                  <div className='flex items-center justify-between flex-wrap gap-2'>
+                    <span className='text-[10px] font-black uppercase tracking-widest text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200'>
+                      Challenge {idx + 1}: {ans.questionTitle || 'Coding Problem'}
+                    </span>
+                    <span className='text-xs font-black text-teal-600 bg-teal-50/80 px-3 py-1 rounded-lg border border-teal-200'>
+                      Score: {ans.score}/10
+                    </span>
+                  </div>
+                  {ans.questionDescription && (
+                    <p className='text-xs text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100'>
+                      {ans.questionDescription}
+                    </p>
+                  )}
+                  {ans.code && (
+                    <div className='rounded-xl border border-gray-200 bg-gray-900 overflow-hidden text-xs font-mono'>
+                      <div className='px-4 py-2 bg-gray-800 text-gray-400 border-b border-gray-700 flex justify-between'>
+                        <span>Language: {ans.language || 'plaintext'}</span>
+                        <span className='text-teal-400 font-bold'>Submitted Code</span>
+                      </div>
+                      <pre className='p-4 text-emerald-300 overflow-x-auto leading-relaxed'>
+                        {ans.code}
+                      </pre>
+                    </div>
+                  )}
+                  {ans.feedback && (
+                    <p className='text-xs text-gray-700 p-3 rounded-xl bg-emerald-50 border border-emerald-100 leading-relaxed'>
+                      <span className='font-bold text-emerald-700'>AI Feedback: </span>{ans.feedback}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

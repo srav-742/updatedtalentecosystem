@@ -1,0 +1,199 @@
+/* Scoped styling for Recruiter Dashboard */
+#recruiter-dashboard-root {
+    --rd-bg-surface: #ffffff;
+    --rd-border: rgba(15, 23, 42, 0.08);
+    --rd-border-subtle: rgba(15, 23, 42, 0.05);
+    --rd-text-main: #0f172a;
+    --rd-text-muted: #64748b;
+    --rd-text-subtle: #94a3b8;
+    --rd-shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.03);
+    --rd-shadow-md: 0 12px 30px -4px rgba(15, 23, 42, 0.06);
+    --rd-shadow-lg: 0 24px 60px -12px rgba(15, 23, 42, 0.08);
+}
+
+/* Card base styles with override protection */
+#recruiter-dashboard-root .rd-card {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid var(--rd-border) !important;
+    box-shadow: var(--rd-shadow-md);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+#recruiter-dashboard-root .rd-card:hover {
+    box-shadow: var(--rd-shadow-lg);
+}
+
+/* Hero card with rich subtle ambient gradient */
+#recruiter-dashboard-root .rd-hero-banner {
+    background: linear-gradient(135deg, #ffffff 0%, #faf8f5 50%, #f4efe6 100%) !important;
+    border: 1px solid rgba(15, 23, 42, 0.09) !important;
+    box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.06) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+#recruiter-dashboard-root .rd-hero-banner::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.07) 0%, rgba(20, 184, 166, 0.04) 50%, transparent 70%) !important;
+    pointer-events: none;
+    border-radius: 50%;
+}
+
+/* Shimmer Gradient Text */
+#recruiter-dashboard-root .rd-text-gradient {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    display: inline-block;
+}
+
+/* Dark Badge (protects against global .recruiter-content text-white wipes) */
+#recruiter-dashboard-root .rd-badge-dark {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
+#recruiter-dashboard-root .rd-badge-dark,
+#recruiter-dashboard-root .rd-badge-dark span {
+    color: #ffffff !important;
+}
+
+/* Primary Action Buttons */
+#recruiter-dashboard-root .rd-btn-primary {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border: 1px solid #0f172a !important;
+    box-shadow: 0 8px 20px -3px rgba(15, 23, 42, 0.25);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#recruiter-dashboard-root .rd-btn-primary:hover {
+    background: #1e293b !important;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px -3px rgba(15, 23, 42, 0.32);
+}
+
+#recruiter-dashboard-root .rd-btn-primary:active {
+    transform: translateY(1px);
+}
+
+#recruiter-dashboard-root .rd-btn-primary,
+#recruiter-dashboard-root .rd-btn-primary * {
+    color: #ffffff !important;
+}
+
+#recruiter-dashboard-root .rd-btn-secondary {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    box-shadow: var(--rd-shadow-sm);
+    transition: all 0.2s ease;
+}
+
+#recruiter-dashboard-root .rd-btn-secondary:hover {
+    background: #f8fafc !important;
+    border-color: rgba(15, 23, 42, 0.2) !important;
+    transform: translateY(-1px);
+}
+
+/* Stat card interactive style */
+#recruiter-dashboard-root .rd-stat-card {
+    background-color: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    position: relative;
+    border-radius: 1.75rem;
+    padding: 1.75rem;
+    box-shadow: 0 10px 30px -6px rgba(15, 23, 42, 0.04);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#recruiter-dashboard-root .rd-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Pipeline Progress Bar & Fill */
+#recruiter-dashboard-root .rd-pipeline-bar {
+    height: 8px;
+    border-radius: 9999px;
+    background: #f1f5f9;
+    overflow: hidden;
+    display: flex;
+}
+
+#recruiter-dashboard-root .rd-pipeline-fill {
+    background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 50%, #10b981 100%) !important;
+    height: 100%;
+    border-radius: 9999px;
+}
+
+/* Table Actions Button */
+#recruiter-dashboard-root .rd-btn-table-action {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border: 1px solid #0f172a !important;
+    transition: all 0.2s ease;
+}
+
+#recruiter-dashboard-root .rd-btn-table-action:hover {
+    background-color: #1e293b !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+}
+
+#recruiter-dashboard-root .rd-btn-table-action,
+#recruiter-dashboard-root .rd-btn-table-action * {
+    color: #ffffff !important;
+}
+
+/* Table row styling */
+#recruiter-dashboard-root .rd-table-row {
+    transition: background-color 0.15s ease;
+}
+
+#recruiter-dashboard-root .rd-table-row:hover {
+    background-color: #faf8f5 !important;
+}
+
+/* Pulsing Status Dot */
+@keyframes rd-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.45;
+        transform: scale(1.25);
+    }
+}
+
+#recruiter-dashboard-root .rd-pulse-dot {
+    animation: rd-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Scrollbar for Recent Jobs table */
+#recruiter-dashboard-root .rd-table-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+#recruiter-dashboard-root .rd-table-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+#recruiter-dashboard-root .rd-table-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+#recruiter-dashboard-root .rd-table-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}

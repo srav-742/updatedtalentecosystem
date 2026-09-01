@@ -12,6 +12,7 @@ import ProctoringDetail from './ProctoringDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import './recruiter-theme.css';
 import TopUpModal from '../../components/TopUpModal';
 import ShareModal from '../../components/ShareModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -409,60 +410,81 @@ const Applicants = () => {
 
     return (
         <div className="space-y-8 min-h-[80vh]" onClick={() => setActiveMenuId(null)}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Applicants</h1>
-                    <p className="text-gray-400">Review and shortlist candidates based on skill match scores.</p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search applicants..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all w-64 text-sm font-medium"
-                        />
-                    </div>
-                    {targetJobId && (
-                        <button
-                            onClick={() => setUploadModalOpen(true)}
-                            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-                        >
-                            <UploadCloud size={16} />
-                            Bulk Upload
-                        </button>
-                    )}
-                    {/* Wallet balance display pill */}
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 shadow-lg shadow-black/5">
-                        <Wallet size={16} className="text-blue-400" />
-                        <div className="text-xs font-semibold text-gray-300">
-                            Wallet: <span className="text-white font-extrabold">₹{walletBalance.toFixed(2)}</span>
+            <header className="rec-hero p-8 md:p-9">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <span className="rec-badge-dark px-3 py-0.5 text-[10px] uppercase tracking-wider">
+                                Talent Review
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                                {filteredApplicants.length} Candidates Found
+                            </span>
                         </div>
-                        <button 
-                            onClick={() => setIsTopUpOpen(true)}
-                            className="ml-1.5 p-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors border border-blue-500/20 cursor-pointer"
-                            title="Top Up Wallet"
-                        >
-                            <Plus size={12} />
-                        </button>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Candidate <span className="rec-text-gradient">Applications</span>
+                        </h1>
+                        <p className="text-xs md:text-sm text-slate-600 max-w-xl">
+                            Review AI-screened candidate matches, proctored coding performance, and interview evaluations.
+                        </p>
                     </div>
 
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm border transition-all ${
-                            showFilters
-                                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:border-white/20'
-                        }`}
-                    >
-                        <Filter size={16} />
-                        Filters
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                        {/* Search Input */}
+                        <div className="relative min-w-[200px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="rec-input pl-9 pr-4 py-2.5 text-xs w-full"
+                            />
+                        </div>
+
+                        {targetJobId && (
+                            <button
+                                onClick={() => setUploadModalOpen(true)}
+                                className="rec-btn-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                                <UploadCloud size={15} />
+                                <span>Bulk Upload</span>
+                            </button>
+                        )}
+
+                        {/* Wallet balance display pill */}
+                        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                            <Wallet size={15} className="text-slate-500" />
+                            <div className="text-xs font-semibold text-slate-700">
+                                ₹<span className="font-bold text-slate-900">{walletBalance.toFixed(2)}</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsTopUpOpen(true)}
+                                className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                                title="Top Up Wallet"
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        {/* Filter Toggle Button */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                                showFilters 
+                                    ? 'bg-slate-900 border-slate-900 text-white shadow-xs' 
+                                    : 'bg-white border-slate-200/80 hover:bg-slate-50 text-slate-700'
+                            }`}
+                        >
+                            <Filter size={15} />
+                            <span>Filters</span>
+                            {(minResumeScore > 0 || minAssessmentScore > 0 || filterStatus !== 'All' || filterVideo !== 'All' || sortBy !== 'none') && (
+                                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </header>
 
             {/* Expandable Filter Panel */}
             {showFilters && (
@@ -471,7 +493,7 @@ const Applicants = () => {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="p-6 rounded-[2rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden"
+                    className="rec-card p-6 md:p-8 space-y-6 shadow-md overflow-hidden"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* 1. Status Dropdown */}
@@ -516,6 +538,7 @@ const Applicants = () => {
                                     <option value="none" className="bg-[#1a1d24] text-white">None (Standard)</option>
                                     <option value="resumeScore" className="bg-[#1a1d24] text-white">Resume Score</option>
                                     <option value="assessmentScore" className="bg-[#1a1d24] text-white">Assessment Score</option>
+                                    <option value="codingScore" className="bg-[#1a1d24] text-white">Coding Score</option>
                                     <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
                                     <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Trust Score</option>
                                     <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
@@ -601,15 +624,15 @@ const Applicants = () => {
 
                     return (
                     <div key={jobTitle} className={`space-y-4 mb-10 relative ${jobApplicants.some(app => app.id === activeMenuId) ? 'z-50' : 'z-0'}`}>
-                        <h2 className="text-xl font-bold uppercase tracking-tight text-white flex items-center gap-3">
+                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
                             <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
                             {jobTitle}
-                            <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-xl border border-blue-500/20">
+                            <span className="rec-badge-blue px-2.5 py-0.5 text-[11px] font-bold">
                                 {jobApplicants.length} {jobApplicants.length === 1 ? 'Candidate' : 'Candidates'}
                             </span>
                         </h2>
                         
-                        <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-visible relative">
+                        <div className="rec-card p-6 md:p-8 space-y-4 overflow-visible relative shadow-sm">
                             <div className="absolute top-0 right-0 p-8 opacity-[0.01] pointer-events-none">
                                 <Users size={150} />
                             </div>
@@ -628,7 +651,7 @@ const Applicants = () => {
                                     <col style={{ width: '5%' }} />
                                 </colgroup>
                                 <thead>
-                                    <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase font-bold tracking-wider bg-white/[0.01]">
+                                    <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold tracking-wider bg-slate-50/80">
                                         <th className="pb-4 pt-4 text-center">S.No</th>
                                         <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
                                         <th className="pb-4 pt-4 text-center">Video Intro</th>
@@ -653,7 +676,7 @@ const Applicants = () => {
                                                 <td className="py-5 pl-4" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-0.5">
-                                                            <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
+                                                            <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">{app.name}</p>
                                                             {app.isResumeLocked && (
                                                                 <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-400 border border-amber-500/20">
                                                                     Locked
@@ -901,20 +924,32 @@ const Applicants = () => {
                     </div>
                 )})
             ) : (
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
-                    <div className="min-h-[400px] flex flex-col items-center justify-center">
-                        <div className="flex flex-col items-center opacity-40">
-                            <Users size={48} className="mb-4" />
-                            <p className="text-xl font-bold uppercase tracking-widest">{searchTerm ? 'No matches found' : 'No Applicants Yet'}</p>
-                            <p className="text-xs mt-2 font-medium">{searchTerm ? 'Try adjusting your search criteria.' : 'Candidates will appear here once they apply to your jobs.'}</p>
-                        </div>
+                <div className="rec-card p-16 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <Users size={28} />
                     </div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                        {searchTerm ? 'No matching applicants' : 'No candidates in this pipeline yet'}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                        {searchTerm 
+                            ? `No applicants matched "${searchTerm}". Try adjusting your search query or filters.`
+                            : 'Candidates will appear here once they apply to your open job requisitions.'}
+                    </p>
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="rec-btn-secondary px-4 py-2 text-xs cursor-pointer"
+                        >
+                            Clear search
+                        </button>
+                    )}
                 </div>
             )}
 
-            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 text-xs text-gray-500 italic">
-                <CheckCircle2 size={16} className="text-emerald-500 flex-none" />
-                <p>Status logic is automatically handled by the system based on matching score, but you can manually override decisions using the action menu.</p>
+            <div className="rec-card p-4 rounded-2xl flex items-center gap-3 text-xs text-slate-600 bg-slate-50/60 border border-slate-200/80 shadow-xs">
+                <CheckCircle2 size={16} className="text-emerald-600 flex-none" />
+                <p className="font-medium">Status logic is automatically handled based on resume match and assessment benchmarks. You can manually adjust candidate decisions anytime using the actions menu.</p>
             </div>
 
             {/* Assessment Detail Modal */}

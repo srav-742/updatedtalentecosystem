@@ -1023,14 +1023,16 @@ async function finalizeInterview(session, sessionId) {
             const job = app.jobId;
 
             app.interviewScore = i;
-            app.finalScore = r + a + c + i;
+            // Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
+            app.finalScore = r + a + i;
 
             // FIX: Only shortlist if interview score > 0 when interview module is enabled and coding is completed
             const interviewEnabled = job?.mockInterview?.enabled !== false;
             const codingEnabled = job?.codingAssessment?.enabled === true;
             const isCodingDone = !codingEnabled || (app.codingScore !== null && app.codingScore !== undefined);
+            const isCodingPassed = !codingEnabled || (app.codingScore >= (job?.codingAssessment?.passingScore || 70));
 
-            if (app.finalScore >= 55 && (!interviewEnabled || i > 0) && isCodingDone) {
+            if (app.finalScore >= 55 && (!interviewEnabled || i > 0) && isCodingDone && isCodingPassed) {
                 app.status = 'SHORTLISTED';
             } else {
                 app.status = 'APPLIED';

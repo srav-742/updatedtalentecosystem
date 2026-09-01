@@ -411,32 +411,61 @@ export const RecruiterJobCardSkeleton = () => (
     </div>
 );
 
-// Recruiter - Dashboard Skeleton (Dark Theme)
+// Recruiter - Dashboard Skeleton (Light Theme)
 export const RecruiterDashboardSkeleton = () => (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-10">
         {/* Welcome Header Skeleton */}
-        <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-4">
-            <Skeleton className="h-4 w-32 rounded" />
-            <Skeleton className="h-10 w-96 rounded-md" />
-            <Skeleton className="h-5 w-full rounded" />
+        <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_12px_36px_rgba(15,23,42,0.04)] space-y-4">
+            <div className="flex items-center gap-3">
+                <Skeleton className="h-5 w-28 rounded-full" />
+                <Skeleton className="h-4 w-24 rounded" />
+            </div>
+            <Skeleton className="h-10 w-80 rounded-xl" />
+            <Skeleton className="h-4 w-full max-w-xl rounded" />
         </div>
 
-        {/* Stats Grid Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-                <div key={i} className="p-6 rounded-[2rem] bg-white/5 border border-white/10 space-y-4">
-                    <Skeleton className="w-12 h-12 rounded-2xl" variant="dark" />
-                    <Skeleton className="h-4 w-28 rounded" variant="dark" />
-                    <Skeleton className="h-8 w-16 rounded" variant="dark" />
+        {/* 4-Card Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="p-6 rounded-[1.75rem] bg-white border border-black/8 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                        <Skeleton className="w-12 h-12 rounded-2xl" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3.5 w-28 rounded" />
+                    <Skeleton className="h-8 w-20 rounded" />
+                    <div className="pt-3 border-t border-slate-100 flex justify-between">
+                        <Skeleton className="h-3.5 w-24 rounded" />
+                        <Skeleton className="h-3.5 w-4 rounded" />
+                    </div>
                 </div>
             ))}
         </div>
 
-        {/* Recent Jobs Table Skeleton */}
-        <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] space-y-6">
-            <div className="flex items-center justify-between">
+        {/* Pipeline & Tools Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 rounded-[2rem] bg-white border border-black/8 p-7 space-y-5 shadow-sm">
+                <Skeleton className="h-6 w-48 rounded" />
+                <Skeleton className="h-2.5 w-full rounded-full" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+                    ))}
+                </div>
+            </div>
+            <div className="rounded-[2rem] bg-white border border-black/8 p-7 space-y-4 shadow-sm">
                 <Skeleton className="h-6 w-36 rounded" />
-                <Skeleton className="h-4 w-20 rounded" />
+                <Skeleton className="h-14 w-full rounded-2xl" />
+                <Skeleton className="h-14 w-full rounded-2xl" />
+                <Skeleton className="h-14 w-full rounded-2xl" />
+            </div>
+        </div>
+
+        {/* Recent Jobs Table Skeleton */}
+        <div className="rounded-[2.25rem] border border-black/8 bg-white p-8 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+                <Skeleton className="h-7 w-44 rounded-lg" />
+                <Skeleton className="h-9 w-48 rounded-xl" />
             </div>
             <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
@@ -446,6 +475,8 @@ export const RecruiterDashboardSkeleton = () => (
                             <Skeleton className="h-3 w-32 rounded" />
                         </div>
                         <Skeleton className="h-6 w-20 rounded-full" />
+                        <Skeleton className="h-6 w-16 rounded" />
+                        <Skeleton className="h-8 w-28 rounded-xl" />
                     </div>
                 ))}
             </div>

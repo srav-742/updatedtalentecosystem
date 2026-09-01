@@ -135,7 +135,7 @@ const CodingAssessmentDetail = ({ applicationId, onClose }) => {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="px-4 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 font-extrabold text-sm flex items-center gap-2">
-                            <span>Score: {codingScore}%</span>
+                            <span>Score: {codingScore}/100</span>
                         </div>
                         <button
                             onClick={onClose}
@@ -159,6 +159,8 @@ const CodingAssessmentDetail = ({ applicationId, onClose }) => {
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-4">Questions</p>
                             {answers.map((ans, idx) => {
                                 const isActive = idx === activeQuestionIndex;
+                                const maxM = ans.maximumMarks !== undefined && ans.maximumMarks !== null ? ans.maximumMarks : 10;
+                                const obtM = ans.obtainedMarks !== undefined && ans.obtainedMarks !== null ? ans.obtainedMarks : (ans.score || 0);
                                 return (
                                     <button
                                         key={ans.questionId || idx}
@@ -167,9 +169,14 @@ const CodingAssessmentDetail = ({ applicationId, onClose }) => {
                                     >
                                         <div className="flex justify-between items-start w-full">
                                             <span className="text-[10px] font-black uppercase tracking-wider text-teal-400">Question {idx + 1}</span>
-                                            <span className="text-xs font-extrabold text-gray-500">{ans.score}/10 marks</span>
+                                            <span className="text-xs font-extrabold text-gray-400">{obtM}/{maxM} marks</span>
                                         </div>
                                         <span className="text-sm font-semibold truncate w-full text-white">{ans.questionTitle}</span>
+                                        {ans.difficulty && (
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400 w-fit">
+                                                {ans.difficulty}
+                                            </span>
+                                        )}
                                     </button>
                                 );
                             })}
@@ -183,15 +190,28 @@ const CodingAssessmentDetail = ({ applicationId, onClose }) => {
                                     <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4">
                                         <div>
                                             <h3 className="text-lg font-extrabold text-white mb-2">{currentQuestion.questionTitle}</h3>
-                                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                                            <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
                                                 <div className="flex items-center gap-1.5">
                                                     <Terminal size={14} className="text-teal-400" />
                                                     <span className="capitalize">{currentQuestion.language || 'Plaintext'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <Award size={14} className="text-yellow-400" />
-                                                    <span>Grade: {currentQuestion.score}/10</span>
+                                                    <span className="font-bold text-gray-300">
+                                                        Marks: {currentQuestion.obtainedMarks !== undefined ? currentQuestion.obtainedMarks : (currentQuestion.score || 0)} / {currentQuestion.maximumMarks !== undefined ? currentQuestion.maximumMarks : 10}
+                                                    </span>
                                                 </div>
+                                                {currentQuestion.difficulty && (
+                                                    <div className="flex items-center gap-1.5 text-gray-400 font-semibold">
+                                                        <span>Difficulty: <strong className="text-white uppercase">{currentQuestion.difficulty}</strong></span>
+                                                    </div>
+                                                )}
+                                                {currentQuestion.testCasesPassed !== undefined && currentQuestion.testCasesPassed !== null && (
+                                                    <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                                        <CheckCircle size={14} />
+                                                        <span>{currentQuestion.testCasesPassed}/{currentQuestion.totalTestCases || 10} Test Cases Passed</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

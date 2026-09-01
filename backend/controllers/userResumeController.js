@@ -115,7 +115,29 @@ const viewResumeFile = async (req, res) => {
 const getUserResumes = async (req, res) => {
     try {
         const { userId } = req.params;
-        const resumes = await UserResume.find({ userId }).sort({ createdAt: -1 });
+        const mongoose = require('mongoose');
+        const User = require('../models/User');
+
+        const queryUsers = [userId];
+        if (req.user?.uid) queryUsers.push(req.user.uid);
+        if (req.user?._id) queryUsers.push(req.user._id.toString());
+
+        // Also check if userId is a uid or _id in User model to link both
+        if (userId) {
+            const userDoc = await User.findOne({
+                $or: [
+                    { uid: userId },
+                    { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }
+                ].filter(q => Object.values(q)[0] != null)
+            }).select('uid _id').lean();
+            if (userDoc) {
+                if (userDoc.uid) queryUsers.push(userDoc.uid);
+                if (userDoc._id) queryUsers.push(userDoc._id.toString());
+            }
+        }
+
+        const uniqueUserIds = [...new Set(queryUsers.filter(Boolean))];
+        const resumes = await UserResume.find({ userId: { $in: uniqueUserIds } }).sort({ createdAt: -1 });
         res.json(resumes);
     } catch (error) {
         console.error("[USER-RESUMES-GET-ERROR]:", error);
@@ -163,39 +185,70 @@ const setDefaultResume = async (req, res) => {
 const deleteResume = async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await UserResume.findByIdAndDelete(id);
-        
-        if (!deleted) {
-            return res.status(404).json({ message: "Resume not found" });
+        if (!id || id === 'undefined' || id === 'null') {
+            return res.status(400).json({ message: "Invalid resume ID" });
         }
 
-        // If the deleted resume was the default one, clear User.resumeUrl or fallback
-        if (deleted.isDefault) {
-            const User = require('../models/User');
+        const mongoose = require('mongoose');
+        const User = require('../models/User');
+
+        let deleted = null;
+        if (mongoose.Types.ObjectId.isValid(id)) {
+            deleted = await UserResume.findByIdAndDelete(id);
+        }
+        if (!deleted) {
+            deleted = await UserResume.findOneAndDelete({
+                $or: [
+                    { _id: id },
+                    { id: id }
+                ]
+            });
+        }
+
+        const userId = deleted?.userId || req.user?.uid || req.user?._id || req.headers['x-user-id'];
+
+        // If the deleted resume was the default one, clear User.resumeUrl or fallback to next available
+        if (deleted && deleted.isDefault) {
             const nextResume = await UserResume.findOne({ userId: deleted.userId }).sort({ createdAt: -1 });
             if (nextResume) {
                 nextResume.isDefault = true;
                 await nextResume.save();
-                await User.findOneAndUpdate(
-                    {
-                        $or: [
-                            { uid: deleted.userId },
-                            { _id: require('mongoose').Types.ObjectId.isValid(deleted.userId) ? deleted.userId : null }
-                        ]
-                    },
-                    { resumeUrl: nextResume.fileUrl }
-                );
+                if (userId) {
+                    await User.findOneAndUpdate(
+                        {
+                            $or: [
+                                { uid: userId },
+                                { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }
+                            ]
+                        },
+                        { resumeUrl: nextResume.fileUrl }
+                    );
+                }
             } else {
-                await User.findOneAndUpdate(
-                    {
-                        $or: [
-                            { uid: deleted.userId },
-                            { _id: require('mongoose').Types.ObjectId.isValid(deleted.userId) ? deleted.userId : null }
-                        ]
-                    },
-                    { resumeUrl: '' }
-                );
+                if (userId) {
+                    await User.findOneAndUpdate(
+                        {
+                            $or: [
+                                { uid: userId },
+                                { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }
+                            ]
+                        },
+                        { resumeUrl: '' }
+                    );
+                }
             }
+        } else if (userId) {
+            // Even if UserResume record was not found (already deleted), also clear User.resumeUrl if it points to it
+            await User.findOneAndUpdate(
+                {
+                    $or: [
+                        { uid: userId },
+                        { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null }
+                    ],
+                    resumeUrl: new RegExp(id, 'i')
+                },
+                { resumeUrl: '' }
+            );
         }
 
         res.json({ success: true, message: "Resume deleted successfully" });

@@ -55,6 +55,7 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/wallet(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/payments(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/user-resumes(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i }
 ];
 

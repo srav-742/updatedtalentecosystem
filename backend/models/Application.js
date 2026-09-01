@@ -88,12 +88,24 @@ const applicationSchema = new mongoose.Schema({
         {
             questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodingQuestion' },
             questionTitle: String,
+            difficulty: String,
+            difficultyWeight: Number,
+            maximumMarks: Number,
+            obtainedMarks: Number,
+            testCasesPassed: Number,
+            totalTestCases: Number,
             code: String,
             language: String,
             score: Number,
             feedback: String
         }
     ],
+    codingDetails: {
+        totalQuestions: { type: Number, default: 0 },
+        totalMaximumMarks: { type: Number, default: 100 },
+        totalObtainedMarks: { type: Number, default: 0 },
+        finalPercentage: { type: Number, default: 0 }
+    },
     recommendationSummary: {
         keyStrengths: [String],
         weaknesses: [String],

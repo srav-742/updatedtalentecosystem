@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Trash2, Edit3, ChevronDown, Save, Loader2, CheckCircle2, ArrowLeft, Code2, Clock, Zap, AlertCircle, GripVertical, UploadCloud } from 'lucide-react';
+import { Plus, X, Trash2, Edit3, ChevronDown, Save, Loader2, CheckCircle2, ArrowLeft, Code2, Clock, Zap, AlertCircle, GripVertical, UploadCloud, BarChart3 } from 'lucide-react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import CodingQuestionBuilder from '../../components/recruiter/CodingQuestionBuilder';
+import {
+    calculateDynamicMarks,
+    getRecruiterDistributionSummary,
+    normalizeDifficulty
+} from '../../utils/codingScoreCalculator';
 
 const SUPPORTED_LANGUAGES = [
     'Java', 'Python', 'JavaScript', 'C++', 'C', 'Go', 'PHP', 'C#', 'Kotlin', 'Swift', 'SQL'
@@ -213,12 +218,22 @@ const CodingAssessmentConfig = () => {
         setEditingQuestion(null);
     };
 
+    // Dynamically calculate question marks and summary normalized to exactly 100 marks
+    const dynamicQuestions = useMemo(() => {
+        return calculateDynamicMarks(questions);
+    }, [questions]);
+
+    const distributionSummary = useMemo(() => {
+        return getRecruiterDistributionSummary(questions);
+    }, [questions]);
+
     // Difficulty badge colors
     const getDifficultyColor = (difficulty) => {
-        switch (difficulty) {
-            case 'Easy': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-            case 'Medium': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-            case 'Hard': return 'text-red-400 bg-red-500/10 border-red-500/20';
+        const d = normalizeDifficulty(difficulty);
+        switch (d) {
+            case 'LOW': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+            case 'MEDIUM': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+            case 'HIGH': return 'text-red-400 bg-red-500/10 border-red-500/20';
             default: return 'text-gray-400 bg-white/5 border-white/10';
         }
     };
@@ -429,6 +444,71 @@ const CodingAssessmentConfig = () => {
                     </div>
                 </div>
 
+                {/* Section 14: Dynamic Recruiter Score Distribution Summary */}
+                {questions.length > 0 && (
+                    <div className="mb-8 p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-white/10 shadow-lg">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-teal-400">Dynamic Scoring Engine</span>
+                                <h3 className="text-lg font-extrabold text-white mt-0.5">Coding Assessment Marks Distribution</h3>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Normalized to strictly <strong className="text-emerald-400 font-bold">100 total marks</strong> based on difficulty weights (Low = 1, Medium = 2, High = 3).
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                                    <CheckCircle2 size={14} /> Total Marks: 100
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Difficulty Distribution Stats */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+                            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Total Questions</p>
+                                <p className="text-xl font-black text-white mt-1">{distributionSummary.totalQuestions}</p>
+                            </div>
+                            <div className="p-3.5 rounded-2xl bg-red-500/5 border border-red-500/20">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">High: {distributionSummary.high}</p>
+                                <p className="text-xs text-gray-500 mt-0.5 font-medium">Weight: 3 per question</p>
+                            </div>
+                            <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Medium: {distributionSummary.medium}</p>
+                                <p className="text-xs text-gray-500 mt-0.5 font-medium">Weight: 2 per question</p>
+                            </div>
+                            <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Low: {distributionSummary.low}</p>
+                                <p className="text-xs text-gray-500 mt-0.5 font-medium">Weight: 1 per question</p>
+                            </div>
+                        </div>
+
+                        {/* Question Marks Breakdown */}
+                        <div className="mt-4 pt-3 border-t border-white/5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Question Marks Breakdown</p>
+                            <div className="flex flex-wrap gap-2">
+                                {distributionSummary.questionMarks.map((qm) => (
+                                    <div
+                                        key={qm.index}
+                                        className="px-3.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-xs font-mono flex items-center gap-2"
+                                    >
+                                        <span className="font-extrabold text-white">Q{qm.index}</span>
+                                        <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${getDifficultyColor(qm.difficulty)}`}>
+                                            {qm.difficulty}
+                                        </span>
+                                        <span className="text-gray-500">→</span>
+                                        <span className="font-extrabold text-teal-400">{qm.marks} marks</span>
+                                    </div>
+                                ))}
+                                <div className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono flex items-center gap-2">
+                                    <span className="font-extrabold text-emerald-300">Total</span>
+                                    <span className="text-emerald-400">→</span>
+                                    <span className="font-black text-emerald-400">100 marks</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Questions List */}
                 {questions.length === 0 ? (
                     <div className="p-16 text-center border-2 border-dashed border-white/5 rounded-[3rem] bg-white/[0.01]">
@@ -440,7 +520,10 @@ const CodingAssessmentConfig = () => {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {questions.map((q, idx) => (
+                        {questions.map((q, idx) => {
+                            const dynamicMark = dynamicQuestions[idx]?.maximumMarks ?? q.marks;
+                            const dynamicDiff = dynamicQuestions[idx]?.difficulty ?? normalizeDifficulty(q.difficulty);
+                            return (
                             <motion.div
                                 key={q._id || q.id || idx}
                                 initial={{ opacity: 0, y: 10 }}
@@ -455,14 +538,14 @@ const CodingAssessmentConfig = () => {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-3 mb-2 flex-wrap">
                                                 <h4 className="text-base font-bold text-white truncate">{q.title}</h4>
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${getDifficultyColor(q.difficulty)}`}>
-                                                    {q.difficulty}
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${getDifficultyColor(dynamicDiff)}`}>
+                                                    {dynamicDiff}
                                                 </span>
                                             </div>
                                             <p className="text-gray-500 text-xs line-clamp-2 mb-3">{q.description}</p>
                                             <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-gray-600">
-                                                <span className="flex items-center gap-1">
-                                                    <Zap size={12} className="text-amber-500" /> {q.marks} marks
+                                                <span className="flex items-center gap-1 text-teal-400 font-extrabold">
+                                                    <Zap size={12} className="text-amber-500" /> {dynamicMark} marks
                                                 </span>
                                                 {roundConfig.timerType === 'individual' ? (
                                                     <span className="flex items-center gap-1.5 bg-teal-500/10 text-teal-400 px-2 py-0.5 rounded-lg border border-teal-500/20">
@@ -502,7 +585,7 @@ const CodingAssessmentConfig = () => {
                                     </div>
                                 </div>
                             </motion.div>
-                        ))}
+                        ); })}
                     </div>
                 )}
             </div>
