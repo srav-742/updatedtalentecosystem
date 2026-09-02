@@ -1,9 +1,67 @@
-User-agent: *
+# ==========================================
+# Hire1Percent robots.txt
+# https://hire1percent.com
+# ==========================================
 
+# ------------------------------------------
+# Default rules for all standard crawlers
+# ------------------------------------------
+User-agent: *
 Allow: /
 
+# ------------------------------------------
+# Prevent crawling of private / backend paths
+# ------------------------------------------
 Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard/
+Disallow: /private/
+Disallow: /login/
+Disallow: /*.pdf$
+Disallow: /*.md$
+
+# ------------------------------------------
+# Explicit rules for AI & LLM Crawlers
+# Allow AI systems to access public Hire1Percent
+# content for search and answer-engine discovery
+# ------------------------------------------
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# ------------------------------------------
+# Explicitly allow Answer Engine Optimization
+# resources
+# ------------------------------------------
+
+User-agent: *
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /.well-known/llms.txt
+
+# ------------------------------------------
+# Sitemap
+# ------------------------------------------
 
 Sitemap: https://hire1percent.com/sitemap.xml
