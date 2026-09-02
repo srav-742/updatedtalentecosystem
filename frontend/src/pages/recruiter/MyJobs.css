@@ -1,0 +1,357 @@
+/* ==========================================================================
+   MyJobs Page Styling - Executive Requisition Management
+   ========================================================================== */
+
+/* Requisition KPI Cards */
+.myjobs-kpi-card {
+    background: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    border-radius: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.04);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.myjobs-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+.myjobs-kpi-card.active-kpi {
+    border-color: #0f172a !important;
+    box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.12);
+    background: linear-gradient(135deg, #ffffff 0%, #faf8f5 100%) !important;
+}
+
+.myjobs-kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.myjobs-kpi-card.kpi-total::before { background: #0f172a; }
+.myjobs-kpi-card.kpi-active::before { background: #10b981; }
+.myjobs-kpi-card.kpi-pending::before { background: #f59e0b; }
+.myjobs-kpi-card.kpi-candidates::before { background: #6366f1; }
+
+/* Filter Tabs Segmented Control */
+.myjobs-filter-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: transparent;
+    color: #64748b;
+}
+
+.myjobs-filter-tab:hover {
+    color: #0f172a;
+    background: rgba(15, 23, 42, 0.04);
+}
+
+.myjobs-filter-tab.active {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.myjobs-filter-tab.active * {
+    color: #ffffff !important;
+}
+
+.myjobs-filter-badge {
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.myjobs-filter-tab.active .myjobs-filter-badge {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+.myjobs-filter-tab:not(.active) .myjobs-filter-badge {
+    background: rgba(15, 23, 42, 0.06);
+    color: #475569;
+}
+
+/* Requisition Card */
+.myjobs-card {
+    background: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    border-radius: 1.75rem;
+    padding: 1.75rem 2rem;
+    box-shadow: 0 6px 24px -4px rgba(15, 23, 42, 0.04);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+    position: relative;
+}
+
+.myjobs-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Requisition Status Indicator Border */
+.myjobs-card::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.5rem;
+    bottom: 1.5rem;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.myjobs-card.status-approved::after {
+    background: #10b981;
+}
+
+.myjobs-card.status-pending::after {
+    background: #f59e0b;
+}
+
+.myjobs-card.status-rejected::after {
+    background: #f43f5e;
+}
+
+/* Role Icon Container */
+.myjobs-role-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1.25rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0f172a;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.myjobs-card:hover .myjobs-role-icon {
+    transform: scale(1.04);
+    border-color: rgba(15, 23, 42, 0.14);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+/* Meta Pill */
+.myjobs-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+/* AI Pipeline Step Badge */
+.myjobs-pipeline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    transition: transform 0.15s ease;
+}
+
+.myjobs-pipeline-badge:hover {
+    transform: translateY(-1px);
+}
+
+/* Skills Chips */
+.myjobs-skill-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.65rem;
+    border-radius: 0.5rem;
+    background-color: #f1f5f9;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    color: #334155;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.myjobs-skill-chip:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Candidate Stat Box */
+.myjobs-candidate-box {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    border-radius: 1.25rem;
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+
+/* Action Icon Buttons */
+.myjobs-action-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.875rem;
+    background-color: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+    position: relative;
+}
+
+.myjobs-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px -2px rgba(15, 23, 42, 0.1);
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.2) !important;
+}
+
+.myjobs-action-btn.btn-active {
+    background-color: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+}
+
+.myjobs-action-btn.btn-active * {
+    color: #ffffff !important;
+}
+
+.myjobs-action-btn.action-coding:hover {
+    border-color: #6366f1 !important;
+    color: #4f46e5;
+    background-color: #eef2ff !important;
+}
+
+.myjobs-action-btn.action-upload:hover {
+    border-color: #3b82f6 !important;
+    color: #2563eb;
+    background-color: #eff6ff !important;
+}
+
+.myjobs-action-btn.action-preview:hover {
+    border-color: #0d9488 !important;
+    color: #0f766e;
+    background-color: #f0fdfa !important;
+}
+
+.myjobs-action-btn.action-edit:hover {
+    border-color: #64748b !important;
+    color: #0f172a;
+    background-color: #f8fafc !important;
+}
+
+.myjobs-action-btn.action-delete:hover {
+    border-color: #f43f5e !important;
+    color: #e11d48;
+    background-color: #fff1f2 !important;
+}
+
+/* Floating Share Popover */
+.myjobs-share-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    width: 14.5rem;
+    background: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    border-radius: 1.25rem;
+    padding: 0.5rem;
+    box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.04);
+    z-index: 60;
+}
+
+.myjobs-share-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #334155;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.myjobs-share-item:hover {
+    background-color: #f8fafc;
+    color: #0f172a;
+}
+
+.myjobs-share-item.share-whatsapp:hover {
+    background-color: #ecfdf5;
+    color: #047857;
+}
+
+.myjobs-share-item.share-linkedin:hover {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+}
+
+.myjobs-share-item.share-twitter:hover {
+    background-color: #f0f9ff;
+    color: #0284c7;
+}
+
+.myjobs-share-item.share-email:hover {
+    background-color: #faf5ff;
+    color: #7e22ce;
+}
+
+/* Empty State Polish */
+.myjobs-empty-state {
+    background: #ffffff !important;
+    border: 2px dashed rgba(15, 23, 42, 0.1) !important;
+    border-radius: 2rem;
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.myjobs-empty-icon {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 1.5rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    margin: 0 auto 1.5rem;
+}

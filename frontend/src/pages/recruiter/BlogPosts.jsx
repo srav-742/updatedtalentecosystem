@@ -26,14 +26,14 @@ export default function BlogPosts() {
         setError(null);
         try {
             // Try fetching admin posts first (which includes drafts/scheduled)
-            const res = await getAllBlogPostsAdmin();
+            const res = await getAllBlogPostsAdmin({ limit: 1000 });
             if (res && res.posts) {
                 setPosts(res.posts);
             } else if (Array.isArray(res)) {
                 setPosts(res);
             } else {
                 // Fallback to public posts
-                const publicRes = await getBlogPosts({ limit: 100 });
+                const publicRes = await getBlogPosts({ limit: 1000 });
                 if (publicRes && publicRes.posts) {
                     setPosts(publicRes.posts);
                 } else if (Array.isArray(publicRes)) {
@@ -44,7 +44,7 @@ export default function BlogPosts() {
             console.warn("Admin fetch failed, attempting public posts fallback:", err);
             try {
                 // Public fallback
-                const publicRes = await getBlogPosts({ limit: 100 });
+                const publicRes = await getBlogPosts({ limit: 1000 });
                 if (publicRes && publicRes.posts) {
                     setPosts(publicRes.posts);
                 } else {

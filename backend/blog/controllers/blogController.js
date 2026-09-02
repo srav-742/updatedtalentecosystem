@@ -15,7 +15,7 @@ class BlogController {
      */
     async getBlogPosts(req, res) {
         try {
-            const { page = 1, limit = 9, category, search } = req.query;
+            const { page = 1, limit = 1000, category, search } = req.query;
             const result = await blogRepository.findPublishedPosts({
                 categorySlug: category,
                 searchQuery: search,
@@ -161,7 +161,7 @@ class BlogController {
      */
     async adminGetBlogPosts(req, res) {
         try {
-            const { page = 1, limit = 20, status, search } = req.query;
+            const { page = 1, limit = 1000, status, search } = req.query;
             const result = await blogRepository.findAdminPosts({
                 status,
                 searchQuery: search,
