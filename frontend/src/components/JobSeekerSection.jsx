@@ -50,7 +50,7 @@ const JobSeekerSection = ({ theme = 'light' }) => {
 
                             <div className="space-y-4 pt-4">
                                 {steps.map((step, idx) => (
-                                    <div key={idx} className={`flex flex-row-reverse items-start gap-4 p-4 rounded-2xl transition-colors border border-transparent text-right ${isLight ? 'hover:bg-slate-50 hover:border-gray-200' : 'hover:bg-white/5 hover:border-white/10'}`}>
+                                    <div key={idx} className={`flex items-start gap-4 p-4 rounded-2xl transition-colors border border-transparent ${isLight ? 'hover:bg-slate-50 hover:border-gray-200' : 'hover:bg-white/5 hover:border-white/10'}`}>
                                         <div className="mt-1 w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 shrink-0">
                                             {step.icon}
                                         </div>
