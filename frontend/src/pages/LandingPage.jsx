@@ -11,6 +11,7 @@ import FlowDiagram from '../components/FlowDiagram';
 import BlogSection from '../components/BlogSection';
 import CTA from '../components/CTA';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const LandingPage = () => {
     const [theme, setTheme] = useState(() => {
@@ -26,6 +27,12 @@ const LandingPage = () => {
 
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isLight ? 'bg-white text-gray-900 selection:bg-blue-500/20' : 'bg-[#0c0f16] text-white selection:bg-blue-500/30'}`}>
+            <SEO 
+                title="Hire1Percent Services" 
+                description="Explore Hire1Percent recruitment services." 
+                canonicalUrl="/service" 
+                robots="noindex"
+            />
             <Navbar
                 theme={theme}
                 onToggleTheme={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}

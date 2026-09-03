@@ -3,10 +3,16 @@ import { motion } from 'framer-motion';
 import { Briefcase, Users, Target, Zap, ShieldCheck, Heart } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const AboutPage = () => {
     return (
         <div className="min-h-screen bg-[#0c0f16] text-white">
+            <SEO 
+                title="About Us | Hire1Percent" 
+                description="Learn about Hire1Percent's mission to revolutionize recruitment with AI." 
+                canonicalUrl="/about" 
+            />
             <Navbar />
 
             <main className="pt-32 pb-20">

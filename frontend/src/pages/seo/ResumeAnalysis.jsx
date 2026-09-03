@@ -1,16 +1,14 @@
-import { Helmet } from "react-helmet-async";
+import SEO from "../../components/SEO";
 
 export default function ResumeAnalysis() {
   return (
     <div className="p-10 max-w-5xl mx-auto">
-      <Helmet>
-        <title>AI Resume Analysis & Parsing | Hire1Percent</title>
-        <meta
-          name="description"
-          content="Extract deep insights from resumes using our state-of-the-art AI parsing and analysis engine. Match skills and experience accurately."
-        />
-        <meta name="keywords" content="resume analysis, AI resume parsing, skill matching, experience verification" />
-      </Helmet>
+      <SEO 
+        title="AI Resume Analysis & Parsing | Hire1Percent"
+        description="Extract deep insights from resumes using our state-of-the-art AI parsing and analysis engine. Match skills and experience accurately."
+        keywords="resume analysis, AI resume parsing, skill matching, experience verification"
+        canonicalUrl="/resume-analysis"
+      />
 
       <h1>Resume Analysis</h1>
 

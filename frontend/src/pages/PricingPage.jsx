@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import PricingCalculator from '../components/PricingCalculator';
+import SEO from '../components/SEO';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, Sparkles, Building2, UserCircle, ArrowRight } from 'lucide-react';
@@ -54,6 +55,11 @@ const PricingPage = () => {
 
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isLight ? 'bg-white text-gray-900' : 'bg-[#0c0f16] text-white'}`}>
+            <SEO 
+                title="Pricing | Hire1Percent" 
+                description="Simple, transparent, and fair pricing for AI recruitment." 
+                canonicalUrl="/pricing" 
+            />
             <Navbar
                 theme={theme}
                 onToggleTheme={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}

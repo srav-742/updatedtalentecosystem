@@ -1,16 +1,14 @@
-import { Helmet } from "react-helmet-async";
+import SEO from "../../components/SEO";
 
 export default function AIRecruitmentSoftware() {
   return (
     <div className="p-10 max-w-5xl mx-auto">
-      <Helmet>
-        <title>AI Recruitment Software | Hire1Percent</title>
-        <meta
-          name="description"
-          content="AI recruitment software for automated hiring and candidate screening. Improve recruitment efficiency with Hire1Percent."
-        />
-        <meta name="keywords" content="AI recruitment, recruitment software, automated hiring, candidate ranking" />
-      </Helmet>
+      <SEO 
+        title="AI Recruitment Software | Hire1Percent"
+        description="AI recruitment software for automated hiring and candidate screening. Improve recruitment efficiency with Hire1Percent."
+        keywords="AI recruitment, recruitment software, automated hiring, candidate ranking"
+        canonicalUrl="/ai-recruitment-software"
+      />
 
       <h1>AI Recruitment Software</h1>
 

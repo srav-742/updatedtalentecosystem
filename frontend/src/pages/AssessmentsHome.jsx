@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 // Lazy-load CalibrationModal — it imports react-international-phone (~50 KB)
 // which is only needed when the user clicks the demo booking button
@@ -117,6 +118,11 @@ const AssessmentsHome = () => {
 
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isLight ? 'bg-white text-gray-900 selection:bg-blue-500/20' : 'bg-[#0c0f16] text-white selection:bg-blue-500/30'}`}>
+            <SEO 
+                title="Hire1Percent - AI Recruitment Platform" 
+                description="AI-powered recruitment platform for automated hiring, candidate screening, and AI interviews." 
+                canonicalUrl="/" 
+            />
             <Navbar theme={theme} onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} />
 
             {/* ─── SECTION 1: HERO ─── */}

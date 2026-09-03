@@ -1223,7 +1223,7 @@ export default function BlogPostDetailsPage() {
 
     const seoTitle = post.seo?.metaTitle || `${post.title} | Hire1Percent Blog`;
     const seoDesc = post.seo?.metaDescription || post.subtitle || post.content.substring(0, 155).replace(/[#*`_]/g, '');
-    const canonicalUrl = `${window.location.origin}/blog/${post.slug}`;
+    const canonicalUrl = `https://www.hire1percent.com/blog/${post.slug}`;
     const coverUrl = post.coverImage || `${window.location.origin}/og-image.png`;
 
     const structuredData = {

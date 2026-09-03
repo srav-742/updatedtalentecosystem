@@ -200,11 +200,11 @@ function App() {
         <Route path="/public/interview/:applicationId" element={<PublicInterviewDetail />} />
 
         {/* PascalCase aliases */}
-        <Route path="/AIInterviewPlatform" element={<AIInterviewPlatform />} />
-        <Route path="/AIRecruitmentSoftware" element={<AIRecruitmentSoftware />} />
-        <Route path="/AutomatedHiring" element={<AutomatedHiring />} />
-        <Route path="/CandidateScreening" element={<CandidateScreening />} />
-        <Route path="/ResumeAnalysis" element={<ResumeAnalysis />} />
+        <Route path="/AIInterviewPlatform" element={<Navigate to="/ai-interview-platform" replace />} />
+        <Route path="/AIRecruitmentSoftware" element={<Navigate to="/ai-recruitment-software" replace />} />
+        <Route path="/AutomatedHiring" element={<Navigate to="/automated-hiring" replace />} />
+        <Route path="/CandidateScreening" element={<Navigate to="/candidate-screening" replace />} />
+        <Route path="/ResumeAnalysis" element={<Navigate to="/resume-analysis" replace />} />
         {/* Redirects from old /seeker paths to /candidate */}
         <Route path="/seeker" element={<Navigate to="/candidate" replace />} />
         <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />

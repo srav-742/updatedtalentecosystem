@@ -17,6 +17,10 @@ Disallow: /api/
 Disallow: /dashboard/
 Disallow: /private/
 Disallow: /login/
+Disallow: /candidate/
+Disallow: /recruiter/
+Disallow: /seeker/
+Disallow: /agentInterview
 Disallow: /*.pdf$
 Disallow: /*.md$
 
@@ -64,4 +68,4 @@ Allow: /.well-known/llms.txt
 # Sitemap
 # ------------------------------------------
 
-Sitemap: https://hire1percent.com/sitemap.xml
+Sitemap: https://www.hire1percent.com/sitemap.xml

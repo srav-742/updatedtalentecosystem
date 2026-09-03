@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Clock, ArrowRight, Mail, User, BookOpen, AlertCircle, Calendar, Sun, Moon } from 'lucide-react';
 import { getBlogPosts, getFeaturedPost, getBlogCategories, subscribeNewsletter } from '../../services/blogService';
 import { useBlogTheme } from './BlogThemeContext';
+import SEO from '../../components/SEO';
 
 /* ─── Category Tabs (exact order per CodeSignal specification) ─── */
 const navItems = [
@@ -452,6 +453,11 @@ export default function BlogLandingPage() {
 
     return (
         <div style={{ minHeight: '100vh', fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif", background: t.pageBg, color: t.pageText, paddingTop: '72px', paddingBottom: '4rem', transition: 'background 0.4s ease, color 0.4s ease' }}>
+            <SEO 
+                title="Blog | Hire1Percent" 
+                description="Insights, updates, and best practices for AI-driven recruitment and technical hiring." 
+                canonicalUrl="/blog" 
+            />
             <style>{`
                 @keyframes shimmer {
                     0% { background-position: 200% 0; }

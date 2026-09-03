@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Lock, Eye, FileText, Globe, Mail } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const PrivacyPolicy = () => {
   const sections = [
@@ -40,6 +41,11 @@ const PrivacyPolicy = () => {
 
   return (
     <div className="min-h-screen bg-[#0c0f16] text-white">
+      <SEO 
+        title="Privacy Policy | Hire1Percent" 
+        description="Learn how Hire1Percent protects your personal data and privacy." 
+        canonicalUrl="/privacy" 
+      />
       <Navbar />
       
       <main className="pt-32 pb-20 px-6">

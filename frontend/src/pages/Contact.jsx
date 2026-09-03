@@ -3,10 +3,16 @@ import { motion } from 'framer-motion';
 import { Mail, MessageSquare, Info, Send } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const Contact = () => {
   return (
     <div className="min-h-screen bg-[#0c0f16] text-white">
+      <SEO 
+        title="Contact Us | Hire1Percent" 
+        description="Get in touch with the Hire1Percent support and legal team." 
+        canonicalUrl="/contact" 
+      />
       <Navbar />
       
       <main className="pt-32 pb-20 px-6">

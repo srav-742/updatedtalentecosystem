@@ -1,16 +1,14 @@
-import { Helmet } from "react-helmet-async";
+import SEO from "../../components/SEO";
 
 export default function AIInterviewPlatform() {
   return (
     <div className="p-10 max-w-5xl mx-auto">
-      <Helmet>
-        <title>AI Interview Platform | Hire1Percent</title>
-        <meta
-          name="description"
-          content="Scale your hiring with our AI interview platform. Automated candidate screening and recruitment workflows for modern teams."
-        />
-        <meta name="keywords" content="AI interview platform, automated interviews, candidate screening, AI hiring" />
-      </Helmet>
+      <SEO 
+        title="AI Interview Platform | Hire1Percent"
+        description="Scale your hiring with our AI interview platform. Automated candidate screening and recruitment workflows for modern teams."
+        keywords="AI interview platform, automated interviews, candidate screening, AI hiring"
+        canonicalUrl="/ai-interview-platform"
+      />
 
       <h1>AI Interview Platform</h1>
 
