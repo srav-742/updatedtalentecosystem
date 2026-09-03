@@ -165,5 +165,11 @@ createRoot(document.getElementById('root')).render(
 // Activate viewport-based route prefetching (preloads chunks when links are visible)
 initRoutePrefetcher();
 
-// Non-blocking asynchronous backend warmup ping to wake up sleeping Render backend
-pingBackendWarmup();
+// Non-blocking asynchronous backend warmup ping — scheduled during idle time after page render
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(() => pingBackendWarmup(), { timeout: 3000 });
+  } else {
+    setTimeout(pingBackendWarmup, 2000);
+  }
+}

@@ -99,13 +99,16 @@ export function initRoutePrefetcher() {
       }
     );
 
-    // Observe all internal links
+    // Observe all internal links & attach hover prefetch listeners
     function observeLinks() {
       const links = document.querySelectorAll('a[href^="/"]');
       links.forEach((link) => {
         const href = link.getAttribute('href');
         if (href && !prefetchedRoutes.has(href.replace(/\/$/, '') || '/')) {
           observer.observe(link);
+          // Instant on-hover / on-focus prefetch for immediate user interaction
+          link.addEventListener('mouseenter', () => prefetchRoute(href), { once: true, passive: true });
+          link.addEventListener('focusin', () => prefetchRoute(href), { once: true, passive: true });
         }
       });
     }
@@ -128,7 +131,7 @@ export function initRoutePrefetcher() {
       observer.disconnect();
       mutationObserver.disconnect();
     });
-  }, 100); // Start prefetch after 100ms
+  }, 2500); // Start background viewport prefetch 2.5s after load to avoid competing with FCP/LCP
 
   return () => clearTimeout(startDelay);
 }

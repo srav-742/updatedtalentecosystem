@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie, X, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import cookieManager from '../utils/cookieManager';
@@ -28,15 +27,12 @@ const CookieBanner = () => {
         setShow(false);
     };
 
+    if (!show) return null;
+
     return (
-        <AnimatePresence>
-            {show && (
-                <motion.div
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    className="fixed bottom-6 left-6 right-6 z-[9999] md:max-w-xl md:left-auto"
-                >
+        <div
+            className="fixed bottom-6 left-6 right-6 z-[9999] md:max-w-xl md:left-auto animate-in fade-in slide-in-from-bottom-6 duration-300"
+        >
                     <div className="bg-[#121620]/90 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-6 shadow-2xl shadow-black/50">
                         <div className="flex gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
@@ -48,6 +44,7 @@ const CookieBanner = () => {
                                     <button 
                                         onClick={() => setShow(false)}
                                         className="p-1 rounded-full hover:bg-white/5 text-gray-500 hover:text-white transition-colors"
+                                        aria-label="Close cookie banner"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -55,7 +52,7 @@ const CookieBanner = () => {
                                 <p className="text-gray-400 text-sm leading-relaxed mb-6">
                                     We use cookies to enhance your experience, analyze site traffic, and deliver personalized job matches. By clicking "Accept All", you agree to our use of cookies.
                                     <Link to="/cookies" className="text-blue-400 hover:underline ml-1 inline-flex items-center gap-1">
-                                        Learn more <ExternalLink className="w-3 h-3" />
+                                        View cookie policy <ExternalLink className="w-3 h-3" aria-hidden="true" />
                                     </Link>
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-3">
@@ -75,9 +72,7 @@ const CookieBanner = () => {
                             </div>
                         </div>
                     </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
+        </div>
     );
 };
 

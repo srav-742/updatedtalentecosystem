@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => ({
     // esbuild (default) is safe and fast — terser was causing blank page issues
     // due to aggressive code elimination on React initialization code
     minify: 'esbuild',
-    target: 'es2020',
+    target: 'es2022',
     cssCodeSplit: true,
     cssMinify: 'lightningcss',   // ~3x faster CSS minification than default
     chunkSizeWarningLimit: 1200,
@@ -67,6 +67,27 @@ export default defineConfig(({ mode }) => ({
           // TipTap rich-text editor — only loaded on blog editor page
           if (id.includes('@tiptap') || id.includes('prosemirror')) {
             return 'chunk-editor';
+          }
+
+          // Framer Motion — animation library used across many pages
+          if (id.includes('framer-motion')) {
+            return 'chunk-framer';
+          }
+
+          // react-international-phone — only used in CalibrationModal
+          if (id.includes('react-international-phone')) {
+            return 'chunk-phone';
+          }
+          
+          // React core framework — isolates React so it is not bundled into chunk-editor
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router/') ||
+            id.includes('node_modules/react-router-dom/') ||
+            id.includes('node_modules/scheduler/')
+          ) {
+            return 'chunk-react-core';
           }
           
           // Let Rollup handle the rest automatically to prevent initialization order bugs
@@ -112,7 +133,6 @@ export default defineConfig(({ mode }) => ({
       'react-dom/client',
       'react-router-dom',
       '@tanstack/react-query',
-      'framer-motion',
       'lucide-react',
       'axios',
       'firebase/app',

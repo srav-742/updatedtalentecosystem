@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { 
     Zap, CheckCircle2, AlertTriangle, ShieldCheck, 
     FileText, Video, ChevronDown, Sparkles, 
@@ -8,7 +8,10 @@ import {
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import CalibrationModal from '../components/CalibrationModal';
+
+// Lazy-load CalibrationModal — it imports react-international-phone (~50 KB)
+// which is only needed when the user clicks the demo booking button
+const CalibrationModal = lazy(() => import('../components/CalibrationModal'));
 
 const AssessmentsHome = () => {
     const [theme, setTheme] = useState(() => {
@@ -81,16 +84,16 @@ const AssessmentsHome = () => {
     ];
 
     const StatusIcon = ({ status }) => {
-        if (status === 'yes')     return <Check size={15} className="text-emerald-400 shrink-0" />;
-        if (status === 'no')      return <X     size={15} className="text-rose-400 shrink-0" />;
-        return                           <Minus size={15} className="text-amber-400 shrink-0" />;
+        if (status === 'yes')     return <Check size={15} className={`${isLight ? 'text-emerald-700' : 'text-emerald-400'} shrink-0`} />;
+        if (status === 'no')      return <X     size={15} className={`${isLight ? 'text-rose-700' : 'text-rose-400'} shrink-0`} />;
+        return                           <Minus size={15} className={`${isLight ? 'text-amber-800' : 'text-amber-400'} shrink-0`} />;
     };
 
     const StatusLabel = ({ status, label }) => {
-        const color = status === 'yes' ? (isLight ? 'text-emerald-700' : 'text-emerald-400')
-                    : status === 'no'  ? (isLight ? 'text-rose-600'    : 'text-rose-400')
-                    :                    (isLight ? 'text-amber-700'   : 'text-amber-400');
-        return <span className={`text-[10px] font-semibold ${color}`}>{label}</span>;
+        const color = status === 'yes' ? (isLight ? 'text-emerald-800' : 'text-emerald-400')
+                    : status === 'no'  ? (isLight ? 'text-rose-700'    : 'text-rose-400')
+                    :                    (isLight ? 'text-amber-800'   : 'text-amber-400');
+        return <span className={`text-[10px] font-bold ${color}`}>{label}</span>;
     };
 
     const faqs = [
@@ -242,7 +245,7 @@ const AssessmentsHome = () => {
                                     s.color === 'teal'   ? (isLight ? 'bg-teal-50   border-teal-200   text-teal-700'   : 'bg-teal-500/10   border-teal-500/25   text-teal-300')   :
                                                            (isLight ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-purple-500/10 border-purple-500/25 text-purple-300')
                                 }`}>
-                                    <span className="text-[10px] font-black opacity-50">Step {s.n}</span>
+                                    <span className={`text-[10px] font-black ${isLight ? 'opacity-80' : 'opacity-70'}`}>Step {s.n}</span>
                                     <span>{s.label}</span>
                                 </div>
                                 {idx < 2 && <ChevronRight className={`w-5 h-5 shrink-0 hidden md:block ${isLight ? 'text-gray-400' : 'text-gray-600'}`} />}
@@ -273,10 +276,10 @@ const AssessmentsHome = () => {
                             }
                         ].map((card, idx) => {
                             const Icon = card.icon;
-                            const bgMap   = { blue: 'bg-blue-500/10',   teal: 'bg-teal-500/10',   purple: 'bg-purple-500/10'   };
-                            const bdrMap  = { blue: 'border-blue-500/20', teal: 'border-teal-500/20', purple: 'border-purple-500/20' };
-                            const icMap   = { blue: 'text-blue-400',    teal: 'text-teal-400',    purple: 'text-purple-400'    };
-                            const lblMap  = { blue: 'text-blue-400',    teal: 'text-teal-400',    purple: 'text-purple-400'    };
+                            const bgMap   = { blue: isLight ? 'bg-blue-50' : 'bg-blue-500/10',     teal: isLight ? 'bg-teal-50' : 'bg-teal-500/10',     purple: isLight ? 'bg-purple-50' : 'bg-purple-500/10'   };
+                            const bdrMap  = { blue: isLight ? 'border-blue-200' : 'border-blue-500/20', teal: isLight ? 'border-teal-200' : 'border-teal-500/20', purple: isLight ? 'border-purple-200' : 'border-purple-500/20' };
+                            const icMap   = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
+                            const lblMap  = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
                             return (
                                 <div key={idx} className={`p-8 rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
                                     <div className={`w-12 h-12 ${bgMap[card.color]} border ${bdrMap[card.color]} rounded-xl flex items-center justify-center mb-6`}>
@@ -322,10 +325,10 @@ const AssessmentsHome = () => {
                         <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
                             <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
                                 <div className="flex items-center gap-2">
-                                    <AlertCircle size={14} className="text-rose-400" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Live Proctoring Audit Log</span>
+                                    <AlertCircle size={14} className={isLight ? "text-rose-600" : "text-rose-400"} />
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Live Proctoring Audit Log</span>
                                 </div>
-                                <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">LIVE MONITORING</span>
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-rose-700 bg-rose-100 border border-rose-200' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>LIVE MONITORING</span>
                             </div>
                             <div className="p-6 space-y-3">
                                 {[
@@ -337,14 +340,14 @@ const AssessmentsHome = () => {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${log.severity === 'HIGH' ? 'bg-rose-500' : 'bg-amber-400'}`} />
-                                                <p className="text-[10px] font-black uppercase text-rose-400">{log.type}</p>
-                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${log.severity === 'HIGH' ? 'bg-rose-500/15 text-rose-400' : 'bg-amber-500/15 text-amber-400'}`}>{log.severity}</span>
+                                                <p className={`text-[10px] font-black uppercase ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.type}</p>
+                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${log.severity === 'HIGH' ? (isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-500/15 text-rose-400') : (isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/15 text-amber-400')}`}>{log.severity}</span>
                                             </div>
-                                            <p className={`text-[10px] truncate ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>{log.desc}</p>
+                                            <p className={`text-[10px] truncate ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{log.desc}</p>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <p className="text-rose-400 font-extrabold text-sm">{log.penalty}</p>
-                                            <p className={`text-[9px] ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>{log.time}</p>
+                                            <p className={`font-extrabold text-sm ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.penalty}</p>
+                                            <p className={`text-[9px] ${isLight ? 'text-gray-600' : 'text-gray-500'}`}>{log.time}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -356,21 +359,21 @@ const AssessmentsHome = () => {
                         <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
                             <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
                                 <div className="flex items-center gap-2">
-                                    <LayoutDashboard size={14} className="text-blue-400" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Recruiter Insights Dashboard</span>
+                                    <LayoutDashboard size={14} className={isLight ? "text-blue-600" : "text-blue-400"} />
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-blue-700' : 'text-blue-400'}`}>Recruiter Insights Dashboard</span>
                                 </div>
-                                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">ACTIVE SESSION</span>
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-emerald-800 bg-emerald-100 border border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'}`}>ACTIVE SESSION</span>
                             </div>
                             <div className="p-6">
                                 <div className="grid grid-cols-3 gap-4 mb-6">
                                     {[
-                                        { val: "12", label: "Open Pipelines", color: "text-blue-500" },
-                                        { val: "85%", label: "Completion Rate", color: "text-teal-400" },
-                                        { val: "1,240", label: "Screened Candidates", color: "text-purple-400" }
+                                        { val: "12", label: "Open Pipelines", color: isLight ? "text-blue-700" : "text-blue-500" },
+                                        { val: "85%", label: "Completion Rate", color: isLight ? "text-teal-700" : "text-teal-400" },
+                                        { val: "1,240", label: "Screened Candidates", color: isLight ? "text-purple-700" : "text-purple-400" }
                                     ].map((stat, idx) => (
                                         <div key={idx} className={`p-3 rounded-2xl border text-center ${isLight ? 'bg-gray-50 border-gray-100' : 'bg-black/10 border-white/5'}`}>
                                             <p className={`text-xl font-extrabold ${stat.color}`}>{stat.val}</p>
-                                            <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-1">{stat.label}</p>
+                                            <p className={`text-[8px] font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'} mt-1`}>{stat.label}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -388,8 +391,8 @@ const AssessmentsHome = () => {
                                                 <p className="text-[10px] text-gray-500">{cand.role}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-black text-emerald-400 text-sm">{cand.score}</p>
-                                                <p className="text-[8px] font-bold text-emerald-600/60 uppercase">{cand.tag}</p>
+                                                <p className={`font-black text-sm ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>{cand.score}</p>
+                                                <p className={`text-[8px] font-bold uppercase ${isLight ? 'text-emerald-700' : 'text-emerald-600/60'}`}>{cand.tag}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -430,9 +433,9 @@ const AssessmentsHome = () => {
                     <div className="max-w-4xl mx-auto">
                         <div className={`rounded-[2rem] border overflow-hidden shadow-xl ${isLight ? 'border-gray-200' : 'border-white/8'}`}>
                             <div className={`grid grid-cols-3 ${isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-white/5 border-b border-white/8'}`}>
-                                <div className="px-6 py-4"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>Feature / Capability</p></div>
-                                <div className={`px-6 py-4 border-x text-center ${isLight ? 'border-gray-200' : 'border-white/8'}`}><p className="text-xs font-black uppercase tracking-wider text-rose-400">Legacy Multi-Tool Stack</p></div>
-                                <div className="px-6 py-4 text-center"><p className="text-xs font-black uppercase tracking-wider text-emerald-400">Hire 1% Platform</p></div>
+                                <div className="px-6 py-4"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Feature / Capability</p></div>
+                                <div className={`px-6 py-4 border-x text-center ${isLight ? 'border-gray-200' : 'border-white/8'}`}><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Legacy Multi-Tool Stack</p></div>
+                                <div className="px-6 py-4 text-center"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Hire 1% Platform</p></div>
                             </div>
                             {comparisonRows.map((row, idx) => (
                                 <div key={idx} className={`grid grid-cols-3 border-b last:border-b-0 transition-colors duration-200 ${isLight ? 'border-gray-100 hover:bg-gray-50/60' : 'border-white/5 hover:bg-white/3'}`}>
@@ -503,8 +506,8 @@ const AssessmentsHome = () => {
                             </div>
                         </div>
                         <div className={`rounded-2xl border p-6 mb-6 text-center ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/8'}`}>
-                            <p className={`text-sm font-semibold mb-1 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>Calendar Booking Module</p>
-                            <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>Calendly / booking embed goes here</p>
+                            <p className={`text-sm font-semibold mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>Calendar Booking Module</p>
+                            <p className={`text-xs ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Calendly / booking embed goes here</p>
                         </div>
                         <button id="final-cta-demo"
                             onClick={() => setIsModalOpen(true)}
@@ -512,7 +515,7 @@ const AssessmentsHome = () => {
                             <Calendar size={18} />
                             Schedule Your 15-Minute Live Demo
                         </button>
-                        <p className={`text-xs mt-4 ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <p className={`text-xs mt-4 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                             No credit card required. Experience the proctored assessment engine in action today.
                         </p>
                     </div>
@@ -520,7 +523,11 @@ const AssessmentsHome = () => {
             </section>
 
             <Footer theme={theme} />
-            <CalibrationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            {isModalOpen && (
+                <Suspense fallback={null}>
+                    <CalibrationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+                </Suspense>
+            )}
         </div>
     );
 };

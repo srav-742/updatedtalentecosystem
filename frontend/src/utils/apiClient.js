@@ -12,7 +12,7 @@
  *   3. If refresh also fails, redirect the user to /login
  */
 
-import { API_URL } from '../firebase';
+import { API_URL } from '../config';
 
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';

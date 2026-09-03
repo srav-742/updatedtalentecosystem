@@ -11,7 +11,7 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "optimize-images": "node scripts/optimize-images.mjs",
-        "lighthouse": "npx lighthouse http://localhost:5173 --output=html --output-path=./lighthouse-report.html"
+        "lighthouse": "npx lighthouse http://localhost:4173 --output=html --output-path=./lighthouse-report.html"
     },
     "dependencies": {
         "@tailwindcss/vite": "^4.1.18",

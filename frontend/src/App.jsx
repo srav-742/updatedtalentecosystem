@@ -4,40 +4,32 @@ import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import Navbar from './components/Navbar';
 import { GlobalPageSkeleton } from './components/Skeleton';
-import BlogNavbar from './components/BlogNavbar';
-import { BlogThemeProvider, useBlogTheme } from './pages/blog/BlogThemeContext';
 
-// Wrapper that reads blog theme context for Navbar + background
-function BlogRouteWrapper({ children }) {
-  const { isDark } = useBlogTheme();
-  return (
-    <div className="min-h-screen" style={{ background: isDark ? '#0c0f16' : '#f8f9fb' }}>
-      <Navbar theme={isDark ? 'dark' : 'light'} />
-      {children}
-    </div>
-  );
-}
+// ─── ALL page components are lazy-loaded ───────────────────────────────────────
+// Only the shell (Router, Navbar, Skeleton, ProtectedRoute) is in the initial bundle.
+// Each page's code is downloaded on-demand when the user navigates to that route.
 
-import LandingPage from './pages/LandingPage';
+// Public pages — AssessmentsHome is the root landing page, eagerly bundled to eliminate waterfall latency
 import AssessmentsHome from './pages/AssessmentsHome';
-import SignupPage from './pages/SignupPage';
-import LoginPage from './pages/LoginPage';
-import RecruiterLayout from './pages/recruiter/RecruiterLayout';
-import RecruiterDashboard from './pages/recruiter/RecruiterDashboard';
-import PostJob from './pages/recruiter/PostJob';
-import MyJobs from './pages/recruiter/MyJobs';
-import Applicants from './pages/recruiter/Applicants';
-import RecruiterProfile from './pages/recruiter/RecruiterProfile';
-import SeekerLayout from './pages/seeker/SeekerLayout';
-import SeekerDashboard from './pages/seeker/SeekerDashboard';
-import BrowseJobs from './pages/seeker/BrowseJobs';
-import MyApplications from './pages/seeker/MyApplications';
-import SeekerProfile from './pages/seeker/SeekerProfile';
-
-import AgentInterview from './pages/seeker/ApplicationFlow/AgentInterview';
-import JobDetails from './pages/seeker/JobDetails';
-
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const SignupPage = lazy(() => import('./pages/SignupPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+
+// Legal pages
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Cookies = lazy(() => import('./pages/Cookies'));
+const Contact = lazy(() => import('./pages/Contact'));
+
+// Recruiter pages
+const RecruiterLayout = lazy(() => import('./pages/recruiter/RecruiterLayout'));
+const RecruiterDashboard = lazy(() => import('./pages/recruiter/RecruiterDashboard'));
+const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
+const MyJobs = lazy(() => import('./pages/recruiter/MyJobs'));
+const Applicants = lazy(() => import('./pages/recruiter/Applicants'));
+const RecruiterProfile = lazy(() => import('./pages/recruiter/RecruiterProfile'));
 const ProctoringReports = lazy(() => import('./pages/recruiter/ProctoringReports'));
 const PerformanceDashboard = lazy(() => import('./pages/recruiter/PerformanceDashboard'));
 const OnboardingKit = lazy(() => import('./pages/recruiter/OnboardingKit'));
@@ -46,26 +38,64 @@ const BlogEditor = lazy(() => import('./pages/recruiter/BlogEditor'));
 const BlogPosts = lazy(() => import('./pages/recruiter/BlogPosts'));
 const CodingAssessmentConfig = lazy(() => import('./pages/recruiter/CodingAssessmentConfig'));
 const CustomCodingAssessmentConfig = lazy(() => import('./pages/recruiter/CustomCodingAssessmentConfig'));
-const PricingPage = lazy(() => import('./pages/PricingPage'));
+const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
-const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-const Terms = lazy(() => import('./pages/Terms'));
-const Cookies = lazy(() => import('./pages/Cookies'));
-const Contact = lazy(() => import('./pages/Contact'));
+
+// Candidate / Seeker pages
+const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
+const SeekerDashboard = lazy(() => import('./pages/seeker/SeekerDashboard'));
+const BrowseJobs = lazy(() => import('./pages/seeker/BrowseJobs'));
+const MyApplications = lazy(() => import('./pages/seeker/MyApplications'));
+const SeekerProfile = lazy(() => import('./pages/seeker/SeekerProfile'));
+const JobDetails = lazy(() => import('./pages/seeker/JobDetails'));
+const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
+const AgentInterview = lazy(() => import('./pages/seeker/ApplicationFlow/AgentInterview'));
 const ApplicationFlow = lazy(() => import('./pages/seeker/ApplicationFlow'));
 const InterviewFeedbackForm = lazy(() => import('./pages/seeker/ApplicationFlow/InterviewFeedbackForm'));
+const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
+const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
+
+// Blog pages (context + wrapper also lazy-loaded — not needed outside /blog)
+const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
+const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
+
+// SEO pages
 const AIInterviewPlatform = lazy(() => import('./pages/seo/AIInterviewPlatform.jsx'));
 const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftware.jsx'));
 const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
 const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
 const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
-const PublicJobDetails = lazy(() => import('./pages/seeker/PublicJobDetails'));
-const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
-const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
-const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
+
+// Public pages
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
-const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
+
+// ─── Lazy Blog Route Shell ─────────────────────────────────────────────────────
+// BlogThemeContext + BlogNavbar are only imported when user visits /blog routes.
+// This keeps the entire blog context/navbar out of the initial bundle.
+const LazyBlogShell = lazy(() => import('./pages/blog/BlogThemeContext').then(mod => {
+  // Return a component that wraps children with BlogThemeProvider + Navbar
+  const { BlogThemeProvider, useBlogTheme } = mod;
+  // We need a separate inner component to use the context
+  function BlogRouteInner({ children }) {
+    const { isDark } = useBlogTheme();
+    return (
+      <div className="min-h-screen" style={{ background: isDark ? '#0c0f16' : '#f8f9fb' }}>
+        <Navbar theme={isDark ? 'dark' : 'light'} />
+        {children}
+      </div>
+    );
+  }
+  // Return a wrapper component
+  return {
+    default: function BlogShell({ children }) {
+      return (
+        <BlogThemeProvider>
+          <BlogRouteInner>{children}</BlogRouteInner>
+        </BlogThemeProvider>
+      );
+    }
+  };
+}));
 
 function SeekerJobRedirect() {
   const { id } = useParams();
@@ -150,20 +180,16 @@ function App() {
           <Route path="proctoring-test" element={<ProctoringTest />} />
         </Route>
 
-        {/* Blog Routes */}
+        {/* Blog Routes — BlogThemeContext/Navbar lazy-loaded only when visiting /blog */}
         <Route path="/blog" element={
-          <BlogThemeProvider>
-            <BlogRouteWrapper>
-              <BlogLandingPage />
-            </BlogRouteWrapper>
-          </BlogThemeProvider>
+          <LazyBlogShell>
+            <BlogLandingPage />
+          </LazyBlogShell>
         } />
         <Route path="/blog/:slug" element={
-          <BlogThemeProvider>
-            <BlogRouteWrapper>
-              <BlogPostDetailsPage />
-            </BlogRouteWrapper>
-          </BlogThemeProvider>
+          <LazyBlogShell>
+            <BlogPostDetailsPage />
+          </LazyBlogShell>
         } />
 
         <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />

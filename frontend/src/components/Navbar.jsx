@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -42,17 +41,18 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
     ) : null;
 
     return (
-        <motion.nav
-            initial={{ y: -100 }}
-            animate={{ y: 0 }}
+        <nav
             className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md ${isLight ? 'border-b border-gray-200 bg-white/90' : 'border-b border-white/10 bg-[#0c0f16]/80'}`}
         >
             <div className="container mx-auto px-6 py-4 flex items-center justify-between">
                 <Link to="/" className="flex items-center space-x-2 group">
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#0c0f16] flex items-center justify-center shadow-lg shadow-blue-500/20 border border-white/10 group-hover:scale-110 transition-transform shrink-0">
                         <img 
-                            src="/logo.png" 
+                            src="/logo-icon.webp" 
                             alt="hire1percent icon" 
+                            width="40"
+                            height="40"
+                            onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                             className="w-full h-full object-cover object-top scale-110" 
                         />
                     </div>
@@ -91,6 +91,8 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                 <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className={`md:hidden p-2 transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}
+                    aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                    aria-expanded={isMenuOpen}
                 >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         {isMenuOpen ? (
@@ -103,58 +105,51 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
             </div>
 
             {/* Mobile Menu */}
-            <AnimatePresence>
-                {isMenuOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className={`md:hidden ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
-                    >
-                        <div className="flex flex-col p-6 space-y-4">
-                            <Link to="/pricing" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Pricing</Link>
-                            <Link to="/service" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Service</Link>
-                            <a href="/service#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
-                            <a href="/service#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
-                            <a href="/service#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
-                            <Link to="/blog" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Blog</Link>
-                            {onToggleTheme && (
-                                <div className="pt-2">
-                                    <button
-                                        onClick={() => {
-                                            onToggleTheme();
-                                            setIsMenuOpen(false);
-                                        }}
-                                        className={`inline-flex items-center justify-center rounded-full border w-10 h-10 transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
-                                        aria-label="Toggle Theme"
-                                    >
-                                        {isLight ? <Moon size={18} /> : <Sun size={18} />}
-                                    </button>
-                                </div>
-                            )}
-                            <div className="pt-4 flex flex-col space-y-4">
-                                {user ? (
-                                    <Link
-                                        to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
-                                        onClick={() => setIsMenuOpen(false)}
-                                        className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}
-                                    >
-                                        Dashboard
-                                    </Link>
-                                ) : (
-                                    <>
-                                        <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Login</Link>
-                                        <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="w-full py-3 text-center bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-full">
-                                            Sign Up
-                                        </Link>
-                                    </>
-                                )}
-                            </div>
+            <div
+                className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${isMenuOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'} ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
+            >
+                <div className="flex flex-col p-6 space-y-4">
+                    <Link to="/pricing" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Pricing</Link>
+                    <Link to="/service" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Service</Link>
+                    <a href="/service#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
+                    <a href="/service#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
+                    <a href="/service#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
+                    <Link to="/blog" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Blog</Link>
+                    {onToggleTheme && (
+                        <div className="pt-2">
+                            <button
+                                onClick={() => {
+                                    onToggleTheme();
+                                    setIsMenuOpen(false);
+                                }}
+                                className={`inline-flex items-center justify-center rounded-full border w-10 h-10 transition-all ${isLight ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}`}
+                                aria-label="Toggle Theme"
+                            >
+                                {isLight ? <Moon size={18} /> : <Sun size={18} />}
+                            </button>
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </motion.nav>
+                    )}
+                    <div className="pt-4 flex flex-col space-y-4">
+                        {user ? (
+                            <Link
+                                to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
+                                onClick={() => setIsMenuOpen(false)}
+                                className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}
+                            >
+                                Dashboard
+                            </Link>
+                        ) : (
+                            <>
+                                <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Login</Link>
+                                <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="w-full py-3 text-center bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-full">
+                                    Sign Up
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </nav>
     );
 };
 

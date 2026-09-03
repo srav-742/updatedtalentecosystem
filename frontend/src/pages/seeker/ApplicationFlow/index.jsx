@@ -1,15 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
-import ResumeAnalyzer from './ResumeAnalyzer';
-import SkillAssessment from './SkillAssessment';
-import CodingAssessment from './CodingAssessment';
-import AIInterview from './InterviewWrapper';
-import CandidateDeck from './CandidateDeck';
-import GlobalProctoringToasts from '../../../components/exam/GlobalProctoringToasts';
+
+// ─── Lazy-load each step component ─────────────────────────────────────────────
+// Only the active step's code is downloaded. This saves ~200 KB of assessment,
+// coding, and interview code from being loaded upfront.
+const ResumeAnalyzer = lazy(() => import('./ResumeAnalyzer'));
+const SkillAssessment = lazy(() => import('./SkillAssessment'));
+const CodingAssessment = lazy(() => import('./CodingAssessment'));
+const AIInterview = lazy(() => import('./InterviewWrapper'));
+const CandidateDeck = lazy(() => import('./CandidateDeck'));
+const GlobalProctoringToasts = lazy(() => import('../../../components/exam/GlobalProctoringToasts'));
+
+// Minimal loading spinner for step transitions
+const StepLoader = () => (
+    <div className="flex items-center justify-center py-24">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+    </div>
+);
 
 const ApplicationFlow = () => {
     const { jobId } = useParams();
@@ -230,6 +241,7 @@ const ApplicationFlow = () => {
                     </div>
                 )}
 
+                <Suspense fallback={<StepLoader />}>
                 <AnimatePresence mode="wait">
                     {currentStep?.id === 'resume' && (
                         <ResumeAnalyzer
@@ -341,6 +353,7 @@ const ApplicationFlow = () => {
                         </div>
                     )}
                 </AnimatePresence>
+                </Suspense>
             </div>
         </div>
     );

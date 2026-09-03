@@ -9,8 +9,11 @@ const Footer = ({ theme = 'dark' }) => {
                     <div className="flex items-center space-x-2">
                         <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#0c0f16] flex items-center justify-center shadow-lg border border-white/10 shrink-0">
                             <img 
-                                src="/logo.png" 
+                                src="/logo-icon.webp" 
                                 alt="hire1percent icon" 
+                                width="32"
+                                height="32"
+                                onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                                 className="w-full h-full object-cover object-top scale-110" 
                             />
                         </div>
