@@ -34,9 +34,10 @@ app.use(require('./middleware/performanceMiddleware'));
 // Middleware
 const corsOptions = {
     origin: (origin, callback) => {
-        // Broadly allow hire1percent.com and localhost
+        // Broadly allow hire1percent.com, admin dashboard and localhost
         if (!origin ||
             origin.includes('hire1percent.com') ||
+            origin.includes('hire1admindashboard.vercel.app') ||
             origin.includes('localhost') ||
             origin.includes('127.0.0.1')) {
             callback(null, true);
@@ -55,7 +56,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Explicitly handle all preflight OPTIONS requests to guarantee CORS headers
-app.options('/{*path}', cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 
 
