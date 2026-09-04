@@ -5,6 +5,7 @@ const BlogPost = require('../models/BlogPost');
 const Lead = require('../../models/Lead');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../../middleware/cacheMiddleware');
+const cloudinary = require('../../config/cloudinary');
 
 class BlogController {
     // ==========================================
@@ -249,12 +250,26 @@ class BlogController {
 
             const slug = await blogService.generateUniqueSlug(title);
 
+            // Auto-upload base64 cover image to Cloudinary if needed
+            let resolvedCoverImage = coverImage;
+            if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:image')) {
+                try {
+                    const uploadRes = await cloudinary.uploader.upload(coverImage, {
+                        folder: 'blog_covers',
+                        resource_type: 'image'
+                    });
+                    resolvedCoverImage = uploadRes.secure_url;
+                } catch (cErr) {
+                    console.warn('[BLOG-CONTROLLER] Cloudinary cover upload fallback:', cErr.message);
+                }
+            }
+
             const post = await blogRepository.createPost({
                 title,
                 slug,
                 subtitle,
                 content,
-                coverImage,
+                coverImage: resolvedCoverImage,
                 authorId,
                 category: categoryId,
                 tags,
@@ -299,7 +314,20 @@ class BlogController {
                 return res.status(404).json({ success: false, message: 'Blog post not found' });
             }
 
-            const updateData = { subtitle, content, coverImage, tags, status, publishedAt, seo };
+            let resolvedCoverImage = coverImage;
+            if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:image')) {
+                try {
+                    const uploadRes = await cloudinary.uploader.upload(coverImage, {
+                        folder: 'blog_covers',
+                        resource_type: 'image'
+                    });
+                    resolvedCoverImage = uploadRes.secure_url;
+                } catch (cErr) {
+                    console.warn('[BLOG-CONTROLLER] Cloudinary cover upload fallback:', cErr.message);
+                }
+            }
+
+            const updateData = { subtitle, content, coverImage: resolvedCoverImage, tags, status, publishedAt, seo };
 
             // Dynamic slug update
             if (slug && slug.trim()) {
@@ -376,7 +404,7 @@ class BlogController {
     }
 
     /**
-     * Upload cover image — converts to base64 data URI (no Cloudinary)
+     * Upload cover image — uploads to Cloudinary for high performance & CDN caching
      */
     async uploadCoverImage(req, res) {
         try {
@@ -384,15 +412,25 @@ class BlogController {
                 return res.status(400).json({ success: false, message: 'No file uploaded' });
             }
 
-            // Convert the image buffer to a base64 data URI
             const mimeType = req.file.mimetype || 'image/jpeg';
             const base64 = req.file.buffer.toString('base64');
             const dataUri = `data:${mimeType};base64,${base64}`;
 
+            let imageUrl = dataUri;
+            try {
+                const uploadRes = await cloudinary.uploader.upload(dataUri, {
+                    folder: 'blog_covers',
+                    resource_type: 'image'
+                });
+                imageUrl = uploadRes.secure_url;
+            } catch (cErr) {
+                console.warn('[BLOG-CONTROLLER] Cloudinary upload failed, falling back:', cErr.message);
+            }
+
             return res.json({
                 success: true,
                 message: 'Cover image processed successfully',
-                url: dataUri
+                url: imageUrl
             });
         } catch (error) {
             console.error('[BLOG-CONTROLLER] uploadCoverImage error:', error);
