@@ -26,5 +26,6 @@ const blogPostSchema = new mongoose.Schema({
 
 // Add text index for optimized native text search
 blogPostSchema.index({ title: "text", content: "text", subtitle: "text" });
+blogPostSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.models.BlogPost || mongoose.model("BlogPost", blogPostSchema);

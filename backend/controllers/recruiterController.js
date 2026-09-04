@@ -15,8 +15,10 @@ const getRecruiterDashboard = async (req, res) => {
         // Resolve identifiers once
         const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
 
+        const isAdmin = reqUser && reqUser.role === 'admin';
+
         // Enforce recruiter dashboard ownership check (admins bypass)
-        if (reqUser && reqUser.role !== 'admin') {
+        if (reqUser && !isAdmin) {
             const reqUserIds = [reqUser._id?.toString(), reqUser.uid, reqUser.email?.toLowerCase().trim()].filter(Boolean);
             const isSelf = reqUserIds.some(id => allIds.includes(id));
             if (!isSelf) {
@@ -24,9 +26,12 @@ const getRecruiterDashboard = async (req, res) => {
             }
         }
 
-        const jobQuery = allIds.length > 1
-            ? { recruiterId: { $in: allIds } }
-            : { recruiterId: allIds[0] || recruiterId };
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = allIds.length > 1
+                ? { recruiterId: { $in: allIds } }
+                : { recruiterId: allIds[0] || recruiterId };
+        }
 
         // Fetch lean summary of all jobs sorted by creation date
         const allJobs = await Job.find(jobQuery)
@@ -81,8 +86,10 @@ const getRecruiterApplications = async (req, res) => {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
 
+        const isAdmin = reqUser && reqUser.role === 'admin';
+
         // Enforce recruiter applications ownership check (admins bypass)
-        if (reqUser && reqUser.role !== 'admin') {
+        if (reqUser && !isAdmin) {
             const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
             const reqUserIds = [reqUser._id?.toString(), reqUser.uid, reqUser.email?.toLowerCase().trim()].filter(Boolean);
             const isSelf = reqUserIds.some(id => allIds.includes(id));
@@ -91,7 +98,11 @@ const getRecruiterApplications = async (req, res) => {
             }
         }
 
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        }
+        
         const jobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = jobs.map((job) => job._id);
 
@@ -190,8 +201,6 @@ const getRecruiterApplications = async (req, res) => {
             });
         }
 
-        const isAdmin = reqUser && reqUser.role === 'admin';
-        
         let unlockedAppMap = new Map();
         if (reqUser && !isAdmin) {
             const UnlockedApplicant = require('../models/UnlockedApplicant');
@@ -274,8 +283,15 @@ const getRecruiterApplications = async (req, res) => {
 
 const getRecruiterJobs = async (req, res) => {
     try {
+        const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        const isAdmin = reqUser && reqUser.role === 'admin';
+        
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        }
+        
         const jobs = await Job.find(jobQuery)
             .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved')
             .sort({ createdAt: -1 })

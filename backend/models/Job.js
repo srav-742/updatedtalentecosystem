@@ -48,6 +48,7 @@ const jobSchema = new mongoose.Schema({
 
 // Compound index for fast retrieval of live jobs sorted by date
 jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ createdAt: -1 });
 
 jobSchema.set('toJSON', { virtuals: true });
 jobSchema.set('toObject', { virtuals: true });

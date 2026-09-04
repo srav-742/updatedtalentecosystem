@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2 } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { ApplicantsSkeleton } from '../../components/Skeleton';
 import AssessmentDetail, { prefetchAssessmentDetails } from './AssessmentDetail';
 import CodingAssessmentDetail, { prefetchCodingDetails } from './CodingAssessmentDetail';
@@ -249,7 +249,6 @@ const Applicants = () => {
 
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
-
     // Handle Filters and Sorting
     const filteredApplicants = useMemo(() => {
         return applicants
@@ -1004,7 +1003,7 @@ const Applicants = () => {
                             <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleShareInterview(selectedVideoApplicationId, jobApplicants.find(a => a.id === selectedVideoApplicationId)?.name)}
+                                    onClick={() => handleShareInterview(selectedVideoApplicationId, applicants?.find(a => a.id === selectedVideoApplicationId)?.name)}
                                     className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Share2 size={13} />
