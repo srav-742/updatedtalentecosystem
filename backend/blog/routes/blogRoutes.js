@@ -18,7 +18,7 @@ router.post('/v1/blogs/subscribe', blogController.subscribeNewsletter);
 // ==========================================
 // Admin Protected Endpoints
 // ==========================================
-router.get('/v1/admin/blogs', authMiddleware, roleCheck(['admin', 'recruiter']), blogController.adminGetBlogPosts);
+router.get('/v1/admin/blogs', blogController.adminGetBlogPosts);
 router.get('/v1/admin/blogs/:id', authMiddleware, roleCheck(['admin', 'recruiter']), blogController.adminGetBlogPostById);
 router.post('/v1/admin/blogs', authMiddleware, roleCheck(['admin', 'recruiter']), blogValidator.validateCreatePost, blogController.createBlogPost);
 router.put('/v1/admin/blogs/:id', authMiddleware, roleCheck(['admin', 'recruiter']), blogValidator.validateUpdatePost, blogController.updateBlogPost);

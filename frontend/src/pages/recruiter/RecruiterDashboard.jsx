@@ -17,7 +17,8 @@ import {
     Package,
     ArrowRight,
     Zap,
-    Filter
+    Filter,
+    FileText
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -220,31 +221,58 @@ const RecruiterDashboard = () => {
                     </div>
                 </motion.div>
 
-                {/* Metric 4: AI Match Benchmark */}
-                <motion.div
-                    whileHover={{ y: -4 }}
-                    transition={{ duration: 0.2 }}
-                    className="rd-stat-card cursor-pointer group"
-                    onClick={() => navigate('/recruiter/ai-search')}
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 group-hover:scale-105 transition-transform">
-                            <Sparkles size={22} />
+                {/* Metric 4: Blog Count (Admin) or AI Match Benchmark (Recruiter) */}
+                {user.role === 'admin' ? (
+                    <motion.div
+                        whileHover={{ y: -4 }}
+                        transition={{ duration: 0.2 }}
+                        className="rd-stat-card cursor-pointer group"
+                        onClick={() => navigate('/recruiter/blog')}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-100 group-hover:scale-105 transition-transform">
+                                <FileText size={22} />
+                            </div>
+                            <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-2.5 py-1 rounded-full border border-violet-100/80">
+                                All Statuses
+                            </span>
                         </div>
-                        <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100/80">
-                            Top 1% Pool
-                        </span>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Avg. Match Threshold</p>
-                    <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">{avgBenchmark}%</h3>
-                        <span className="text-xs text-slate-500 font-medium">min score</span>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-indigo-600 transition-colors font-medium">
-                        <span>Search high-match talent</span>
-                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                    </div>
-                </motion.div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Blog Posts</p>
+                        <div className="flex items-baseline gap-2">
+                            <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">{stats.blogCount ?? 0}</h3>
+                            <span className="text-xs text-slate-500 font-medium">articles</span>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-violet-600 transition-colors font-medium">
+                            <span>Manage blog content</span>
+                            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        whileHover={{ y: -4 }}
+                        transition={{ duration: 0.2 }}
+                        className="rd-stat-card cursor-pointer group"
+                        onClick={() => navigate('/recruiter/ai-search')}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 group-hover:scale-105 transition-transform">
+                                <Sparkles size={22} />
+                            </div>
+                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100/80">
+                                Top 1% Pool
+                            </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Avg. Match Threshold</p>
+                        <div className="flex items-baseline gap-2">
+                            <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">{avgBenchmark}%</h3>
+                            <span className="text-xs text-slate-500 font-medium">min score</span>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-indigo-600 transition-colors font-medium">
+                            <span>Search high-match talent</span>
+                            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </motion.div>
+                )}
             </div>
 
             {/* 3. Recruitment Pipeline Funnel & Quick Tools Strip */}

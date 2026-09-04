@@ -69,11 +69,19 @@ const getRecruiterDashboard = async (req, res) => {
             applicantCount: top5CountMap.get(String(job._id)) || 0
         }));
 
+        // Fetch blog count for admin
+        let blogCount = 0;
+        if (isAdmin) {
+            const BlogPost = require('../blog/models/BlogPost');
+            blogCount = await BlogPost.countDocuments({});
+        }
+
         res.json({
             jobCount: allJobs.length,
             applicationCount,
             shortlistedCount,
-            recentJobs
+            recentJobs,
+            ...(isAdmin && { blogCount })
         });
     } catch (error) {
         console.error('[Dashboard] Error:', error);
