@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus, FileText } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
@@ -26,6 +26,14 @@ const RecruiterLayout = () => {
     const [profile, setProfile] = React.useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const [isMinimized, setIsMinimized] = React.useState(false);
+
+    const activeNavItems = React.useMemo(() => {
+        const items = [...navItems];
+        if (user.role === 'admin') {
+            items.splice(6, 0, { label: 'Blog Posts', icon: FileText, path: '/recruiter/blog' });
+        }
+        return items;
+    }, [user.role]);
 
     // Wallet States
     const [walletBalance, setWalletBalance] = React.useState(user.walletBalance || 0);
@@ -172,7 +180,7 @@ const RecruiterLayout = () => {
                 </div>
 
                 <nav className={`flex-1 space-y-1.5 transition-all duration-300 ${isMinimized ? 'px-2' : 'px-4 pb-2'}`}>
-                    {navItems.map((item) => {
+                    {activeNavItems.map((item) => {
                         const Icon = item.icon;
 
                         return (

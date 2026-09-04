@@ -4,6 +4,7 @@ const BlogCategory = require('../models/BlogCategory');
 const BlogPost = require('../models/BlogPost');
 const Lead = require('../../models/Lead');
 const mongoose = require('mongoose');
+const { invalidateCache } = require('../../middleware/cacheMiddleware');
 
 class BlogController {
     // ==========================================
@@ -262,6 +263,14 @@ class BlogController {
                 seo
             });
 
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
+            }
+
             return res.status(201).json({
                 success: true,
                 message: 'Blog post created successfully',
@@ -314,6 +323,14 @@ class BlogController {
 
             const updatedPost = await blogRepository.updatePost(id, updateData);
 
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
+            }
+
             return res.json({
                 success: true,
                 message: 'Blog post updated successfully',
@@ -338,6 +355,14 @@ class BlogController {
             const deleted = await blogRepository.deletePost(id);
             if (!deleted) {
                 return res.status(404).json({ success: false, message: 'Blog post not found' });
+            }
+
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
             }
 
             return res.json({

@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+require("./BlogCategory");
+require("../../models/User");
 
 const blogPostSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },

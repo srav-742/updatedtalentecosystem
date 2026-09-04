@@ -113,7 +113,7 @@ export default function BlogPosts() {
         
         const matchesStatus = statusFilter === 'all' || post.status === statusFilter;
         
-        const postCatSlug = typeof post.category === 'object' ? post.category.slug : post.category;
+        const postCatSlug = post.category ? (typeof post.category === 'object' ? post.category.slug : post.category) : '';
         const matchesCategory = categoryFilter === 'all' || postCatSlug === categoryFilter;
 
         return matchesSearch && matchesStatus && matchesCategory;
@@ -133,7 +133,7 @@ export default function BlogPosts() {
                         </p>
                     </div>
                     <button
-                        onClick={() => navigate('/recruiter/blog-editor')}
+                        onClick={() => navigate('/recruiter/blog/new')}
                         className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-black text-white hover:bg-gray-800 transition-all font-semibold text-sm active:scale-95 shadow-lg shadow-black/10 cursor-pointer self-start md:self-auto"
                     >
                         <Plus size={16} /> Write Article
@@ -277,7 +277,7 @@ export default function BlogPosts() {
                                             <td className="py-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5 pr-2">
                                                     <button
-                                                        onClick={() => navigate(`/recruiter/blog-editor/${id}`)}
+                                                        onClick={() => navigate(`/recruiter/blog/edit/${id}`)}
                                                         className="p-2 rounded-lg bg-gray-50 border border-black/5 hover:bg-gray-100 hover:text-blue-600 transition-all cursor-pointer"
                                                         title="Edit Article"
                                                     >
@@ -315,7 +315,7 @@ export default function BlogPosts() {
                             Start writing premium content to share technical assessment and engineering hiring insights with developers.
                         </p>
                         <button
-                            onClick={() => navigate('/recruiter/blog-editor')}
+                            onClick={() => navigate('/recruiter/blog/new')}
                             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-black text-white hover:bg-gray-800 transition-all text-xs font-bold active:scale-95 cursor-pointer"
                         >
                             <Plus size={14} /> Write Your First Article

@@ -15,7 +15,22 @@ const getRecruiterDashboard = async (req, res) => {
         // Resolve identifiers once
         const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
 
-        const isAdmin = reqUser && reqUser.role === 'admin';
+        let isAdmin = reqUser && reqUser.role === 'admin';
+        if (!isAdmin) {
+            const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+            const orQueries = [];
+            allIds.forEach(id => {
+                orQueries.push({ uid: id });
+                if (/^[0-9a-fA-F]{24}$/.test(id)) orQueries.push({ _id: id });
+                if (id.includes('@')) orQueries.push({ email: id.toLowerCase().trim() });
+            });
+            if (orQueries.length > 0) {
+                const userDoc = await User.findOne({ $or: orQueries }).select('role email').lean();
+                if (userDoc && (userDoc.role === 'admin' || adminEmails.includes(userDoc.email && userDoc.email.toLowerCase().trim()))) {
+                    isAdmin = true;
+                }
+            }
+        }
 
         // Enforce recruiter dashboard ownership check (admins bypass)
         if (reqUser && !isAdmin) {
@@ -41,12 +56,36 @@ const getRecruiterDashboard = async (req, res) => {
 
         const jobIds = allJobs.map((job) => job._id);
 
+        // Fetch blog data for admin dashboard
+        let blogCount = 0;
+        let recentBlogs = [];
+        if (isAdmin) {
+            try {
+                require('../blog/models/BlogCategory');
+                const BlogPost = require('../blog/models/BlogPost');
+                const [bCount, bPosts] = await Promise.all([
+                    BlogPost.countDocuments({}),
+                    BlogPost.find({})
+                        .sort({ createdAt: -1 })
+                        .limit(10)
+                        .populate('category', 'name slug')
+                        .select('title slug subtitle status category coverImage views publishedAt createdAt')
+                        .lean()
+                ]);
+                blogCount = bCount;
+                recentBlogs = bPosts;
+            } catch (bErr) {
+                console.warn('[Dashboard] Failed to fetch blog data:', bErr.message);
+            }
+        }
+
         if (jobIds.length === 0) {
             return res.json({
                 jobCount: 0,
                 applicationCount: 0,
                 shortlistedCount: 0,
-                recentJobs: []
+                recentJobs: [],
+                ...(isAdmin && { blogCount, recentBlogs })
             });
         }
 
@@ -69,19 +108,12 @@ const getRecruiterDashboard = async (req, res) => {
             applicantCount: top5CountMap.get(String(job._id)) || 0
         }));
 
-        // Fetch blog count for admin
-        let blogCount = 0;
-        if (isAdmin) {
-            const BlogPost = require('../blog/models/BlogPost');
-            blogCount = await BlogPost.countDocuments({});
-        }
-
         res.json({
             jobCount: allJobs.length,
             applicationCount,
             shortlistedCount,
             recentJobs,
-            ...(isAdmin && { blogCount })
+            ...(isAdmin && { blogCount, recentBlogs })
         });
     } catch (error) {
         console.error('[Dashboard] Error:', error);

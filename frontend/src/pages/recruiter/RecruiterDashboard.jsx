@@ -18,10 +18,13 @@ import {
     ArrowRight,
     Zap,
     Filter,
-    FileText
+    FileText,
+    Edit,
+    Eye
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import { getAllBlogPostsAdmin } from '../../services/blogService';
 import { useQuery } from '@tanstack/react-query';
 import { RecruiterDashboardSkeleton } from '../../components/Skeleton';
 import './RecruiterDashboard.css';
@@ -60,6 +63,27 @@ const RecruiterDashboard = () => {
     const recentJobs = (stats.recentJobs && stats.recentJobs.length > 0)
         ? stats.recentJobs
         : recruiterJobs.slice(0, 5);
+
+    // Secondary query for admin blog posts if not embedded in stats
+    const { data: fallbackAdminBlogs = [] } = useQuery({
+        queryKey: ['admin', 'dashboard', 'blogs'],
+        queryFn: async () => {
+            try {
+                const res = await getAllBlogPostsAdmin({ limit: 10 });
+                return res?.posts || (Array.isArray(res) ? res : []);
+            } catch (e) {
+                return [];
+            }
+        },
+        enabled: user.role === 'admin' && (!stats.recentBlogs || stats.recentBlogs.length === 0),
+        staleTime: 60 * 1000,
+    });
+
+    const recentBlogs = (stats.recentBlogs && stats.recentBlogs.length > 0)
+        ? stats.recentBlogs
+        : fallbackAdminBlogs;
+
+    const displayBlogCount = stats.blogCount ?? (recentBlogs.length > 0 ? recentBlogs.length : 0);
 
     const loading = statsLoading && !stats.jobCount && recentJobs.length === 0;
 
@@ -130,6 +154,15 @@ const RecruiterDashboard = () => {
                             <Plus size={16} />
                             <span>Post New Job</span>
                         </button>
+                        {user.role === 'admin' && (
+                            <button
+                                onClick={() => navigate('/recruiter/blog/new')}
+                                className="rd-btn-secondary flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-slate-800 hover:text-slate-900 cursor-pointer"
+                            >
+                                <FileText size={16} className="text-violet-600" />
+                                <span>Write Article</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => navigate('/recruiter/ai-search')}
                             className="rd-btn-secondary flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-slate-800 hover:text-slate-900 cursor-pointer"
@@ -239,7 +272,7 @@ const RecruiterDashboard = () => {
                         </div>
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Blog Posts</p>
                         <div className="flex items-baseline gap-2">
-                            <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">{stats.blogCount ?? 0}</h3>
+                            <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">{displayBlogCount}</h3>
                             <span className="text-xs text-slate-500 font-medium">articles</span>
                         </div>
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-violet-600 transition-colors font-medium">
@@ -405,6 +438,24 @@ const RecruiterDashboard = () => {
                                 </div>
                                 <ChevronRight size={16} className="text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                             </div>
+
+                            {user.role === 'admin' && (
+                                <div
+                                    onClick={() => navigate('/recruiter/blog')}
+                                    className="p-3 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all cursor-pointer flex items-center justify-between group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                                            <FileText size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-900 group-hover:text-violet-600 transition-colors">Blog Management</p>
+                                            <p className="text-[11px] text-slate-500">Publish articles & manage content</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -582,6 +633,150 @@ const RecruiterDashboard = () => {
                     </div>
                 )}
             </div>
+
+            {/* 5. Admin Blog Posts Section (Visible to Admins) */}
+            {user.role === 'admin' && (
+                <div className="rd-card rounded-[2.25rem] p-7 md:p-9">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-7 pb-5 border-b border-slate-100">
+                        <div>
+                            <div className="flex items-center gap-2.5">
+                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Blog Posts & Articles</h2>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-700">
+                                    {displayBlogCount} Total
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">Live articles published to the Hire1Percent engineering blog</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={() => navigate('/recruiter/blog/new')}
+                                className="rd-btn-primary inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            >
+                                <Plus size={15} />
+                                <span>Write Article</span>
+                            </button>
+                            <button
+                                onClick={() => navigate('/recruiter/blog')}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                                <span>Manage All Posts</span>
+                                <ArrowUpRight size={15} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {recentBlogs.length > 0 ? (
+                        <div className="rd-table-container overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                                        <th className="pb-3.5 pt-0 font-semibold">Article</th>
+                                        <th className="pb-3.5 pt-0 text-center font-semibold">Category</th>
+                                        <th className="pb-3.5 pt-0 text-center font-semibold">Status</th>
+                                        <th className="pb-3.5 pt-0 text-center font-semibold">Published</th>
+                                        <th className="pb-3.5 pt-0 text-right font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {recentBlogs.map((blog) => {
+                                        const blogId = blog._id || blog.id;
+                                        const catName = typeof blog.category === 'object' ? (blog.category?.name || blog.category?.slug) : blog.category;
+                                        return (
+                                            <tr key={blogId} className="rd-table-row group">
+                                                <td className="py-4 pr-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                                                            {blog.coverImage ? (
+                                                                <img src={blog.coverImage} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <FileText size={16} className="text-slate-400" />
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0 max-w-md">
+                                                            <p className="font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                                                                {blog.title}
+                                                            </p>
+                                                            <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">
+                                                                {blog.subtitle || (blog.slug ? `/blog/${blog.slug}` : 'No description')}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="py-4 px-4 text-center">
+                                                    <span className="inline-block text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                                                        {catName || 'Uncategorized'}
+                                                    </span>
+                                                </td>
+
+                                                <td className="py-4 px-4 text-center">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                                        blog.status === 'published'
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                            : blog.status === 'scheduled'
+                                                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                    }`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${
+                                                            blog.status === 'published' ? 'bg-emerald-500 rd-pulse-dot' : blog.status === 'scheduled' ? 'bg-blue-500' : 'bg-amber-500'
+                                                        }`} />
+                                                        {blog.status ? (blog.status.charAt(0).toUpperCase() + blog.status.slice(1)) : 'Published'}
+                                                    </span>
+                                                </td>
+
+                                                <td className="py-4 px-4 text-center text-xs text-slate-500 font-medium">
+                                                    {blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString() : (blog.createdAt ? new Date(blog.createdAt).toLocaleDateString() : 'Recent')}
+                                                </td>
+
+                                                <td className="py-4 pl-4 text-right">
+                                                    <div className="inline-flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => navigate(`/recruiter/blog/edit/${blogId}`)}
+                                                            className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
+                                                            title="Edit Article"
+                                                        >
+                                                            <Edit size={14} />
+                                                        </button>
+                                                        {blog.slug && (
+                                                            <a
+                                                                href={`/blog/${blog.slug}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-indigo-600 transition-colors cursor-pointer"
+                                                                title="View Live Article"
+                                                            >
+                                                                <Eye size={14} />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="py-12 px-4 flex flex-col items-center justify-center text-center">
+                            <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mb-4 border border-slate-200/80">
+                                <FileText size={28} />
+                            </div>
+                            <h3 className="text-base font-bold text-slate-900 mb-1">No blog articles found</h3>
+                            <p className="text-xs text-slate-500 max-w-md mb-6 leading-relaxed">
+                                Start sharing engineering hiring trends, AI recruitment guides, and tech insights with your audience.
+                            </p>
+                            <button
+                                onClick={() => navigate('/recruiter/blog/new')}
+                                className="rd-btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            >
+                                <Plus size={16} />
+                                <span>Write Your First Article</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

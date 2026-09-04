@@ -155,6 +155,8 @@ function App() {
           <Route path="blog" element={<BlogPosts />} />
           <Route path="blog/new" element={<BlogEditor />} />
           <Route path="blog/edit/:id" element={<BlogEditor />} />
+          <Route path="blog-editor" element={<BlogEditor />} />
+          <Route path="blog-editor/:id" element={<BlogEditor />} />
           <Route path="coding-assessment/:jobId" element={<CodingAssessmentConfig />} />
           <Route path="custom-coding-assessment/:jobId" element={<CustomCodingAssessmentConfig />} />
 
@@ -205,6 +207,15 @@ function App() {
         <Route path="/AutomatedHiring" element={<Navigate to="/automated-hiring" replace />} />
         <Route path="/CandidateScreening" element={<Navigate to="/candidate-screening" replace />} />
         <Route path="/ResumeAnalysis" element={<Navigate to="/resume-analysis" replace />} />
+
+        {/* Admin Aliases */}
+        <Route path="/admin" element={<Navigate to="/recruiter" replace />} />
+        <Route path="/admin/dashboard" element={<Navigate to="/recruiter" replace />} />
+        <Route path="/admindashboard" element={<Navigate to="/recruiter" replace />} />
+        <Route path="/admin/blogs" element={<Navigate to="/recruiter/blog" replace />} />
+        <Route path="/admin/blog" element={<Navigate to="/recruiter/blog" replace />} />
+        <Route path="/admin/blog/new" element={<Navigate to="/recruiter/blog/new" replace />} />
+        <Route path="/admin/blog-editor" element={<Navigate to="/recruiter/blog/new" replace />} />
         {/* Redirects from old /seeker paths to /candidate */}
         <Route path="/seeker" element={<Navigate to="/candidate" replace />} />
         <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />
