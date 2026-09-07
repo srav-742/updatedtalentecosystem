@@ -6,76 +6,76 @@
 export const HOMEPAGE_FAQS = [
   {
     question: "What is Hire1Percent?",
-    answer: "Hire1Percent is an enterprise AI recruitment and technical assessment platform. It unifies coding assessments across 20+ programming languages, asynchronous AI video interviews, proctored testing environments, and semantic resume intelligence to help engineering leaders and talent acquisition teams identify top 1% technical talent 70% faster."
+    answer: "Hire1Percent is an enterprise AI recruitment platform for engineering teams. First, it unifies coding assessments across 20+ programming languages. Next, hiring teams run asynchronous AI video interviews and proctored testing. In addition, semantic resume intelligence helps teams identify top developers 70% faster."
   },
   {
     question: "How do Hire1Percent automated coding assessments work?",
-    answer: "Recruiters and hiring managers can select role-specific benchmark coding challenges or author custom evaluation suites. Candidates write code directly in an integrated cloud IDE supporting unit tests, edge-case evaluations, computational efficiency analysis, and code quality scoring. Results and benchmarks are computed automatically within seconds of submission."
+    answer: "First, recruiters select role-specific benchmark challenges or author custom evaluation suites. Next, candidates write code in a secure cloud IDE. The editor supports automated unit tests, edge-case evaluations, and code quality scoring. Finally, objective benchmark results compute automatically within seconds of submission."
   },
   {
     question: "How does Hire1Percent prevent cheating during online assessments?",
-    answer: "Hire1Percent uses multi-layered integrity monitoring, including fullscreen browser lock enforcement, active tab-switch detection, copy-paste blocking, dual-camera verification, audio anomaly detection, and AI-assisted plagiarism checks against public repositories and generative AI outputs."
+    answer: "First, the system enforces fullscreen browser lock and tracks active tab switching. Next, copy-paste blocking and dual-camera verification prevent unauthorized collaboration. Furthermore, AI algorithms perform real-time plagiarism checks against public repositories and generative models."
   },
   {
     question: "Can Hire1Percent conduct asynchronous AI video interviews?",
-    answer: "Yes. Candidates answer structured technical and behavioral questions on video at their convenience. Hire1Percent's AI evaluates candidate responses using speech transcription, communication clarity scoring, depth of domain knowledge, and technical confidence metrics."
+    answer: "Yes. First, candidates record video responses to structured technical prompts at their convenience. Next, our AI evaluates candidate responses using speech transcription. Furthermore, it scores communication clarity, technical confidence, and domain depth automatically."
   },
   {
     question: "How does semantic resume intelligence differ from traditional keyword search?",
-    answer: "Traditional ATS keyword matching rejects qualified candidates who use different synonyms or phrasing. Hire1Percent uses semantic vector embeddings and large language models to understand the candidate's actual projects, architectural depth, skill progression, and context rather than mere buzzwords."
+    answer: "Traditional ATS keyword matching rejects qualified candidates who use synonyms. In contrast, Hire1Percent uses semantic vector embeddings and large language models. Therefore, the system understands candidate project depth, skill progression, and context accurately."
   },
   {
     question: "Does Hire1Percent offer a free trial or pilot tier?",
-    answer: "Yes. Hire1Percent offers a Free Starter Tier that includes candidate assessments, basic proctoring, and interview workflows with no credit card required. Paid tiers provide team collaboration, unlimited assessments, advanced proctoring, custom branding, and dedicated ATS integrations."
+    answer: "Yes. First, Hire1Percent provides a Free Starter Tier with no credit card required. It includes candidate assessments, basic proctoring, and interview workflows. In addition, paid tiers provide unlimited assessments, advanced proctoring, and ATS integrations."
   },
   {
     question: "Can Hire1Percent integrate with our existing ATS?",
-    answer: "Hire1Percent provides direct webhook and REST API integrations with popular Applicant Tracking Systems (ATS) including Greenhouse, Lever, Workday, and BambooHR, allowing candidate assessment scores and interview transcripts to sync automatically into existing recruiter workflows."
+    answer: "Yes. Hire1Percent provides direct webhook and REST API integrations. For example, it connects seamlessly with Greenhouse, Lever, Workday, and BambooHR. As a result, assessment scores and interview transcripts sync automatically into recruiter workflows."
   },
   {
     question: "What programming languages and tech stacks are supported?",
-    answer: "Hire1Percent supports over 20 programming languages and frameworks, including JavaScript/TypeScript, Python, Java, C++, Go, Rust, Ruby, PHP, SQL, React, Node.js, and cloud/DevOps tooling."
+    answer: "Hire1Percent supports over 20 programming languages and frameworks. For example, candidates can complete tests in Python, TypeScript, Java, C++, and Go. In addition, our platform supports Rust, Ruby, PHP, SQL, and modern cloud stacks."
   }
 ];
 
 export const HOMEPAGE_DEFINITIONS = [
   {
     term: "AI-Powered Technical Assessment",
-    definition: "An automated candidate testing environment that evaluates algorithmic problem solving, code efficiency, syntax correctness, and architecture design against standardized industry benchmarks."
+    definition: "An automated testing environment for software engineers. It evaluates algorithmic problem solving, code efficiency, and architecture design against standardized industry benchmarks."
   },
   {
     term: "Asynchronous Video Interviewing",
-    definition: "A digital interviewing process where candidates record video responses to predetermined technical and behavioral prompts on their schedule, analyzed by AI for speech clarity and domain mastery."
+    definition: "A structured digital interviewing process. Candidates record video responses to predetermined technical questions, which AI analyzes for communication clarity and domain mastery."
   },
   {
     term: "Automated Proctoring & Integrity Verification",
-    definition: "A real-time behavioral monitoring suite that detects suspicious activity such as tab switching, external screen sharing, second-person presence, and clipboard tampering during online exams."
+    definition: "A real-time behavioral monitoring suite. It detects tab switching, external screen sharing, second-person presence, and clipboard tampering during online exams."
   },
   {
     term: "Semantic Resume Intelligence",
-    definition: "An AI-based parsing and analysis engine that matches candidate project histories, code contributions, and technical competencies to job requisitions using semantic similarity instead of strict keyword matching."
+    definition: "An AI-based parsing and analysis engine. It matches candidate project histories, code contributions, and technical competencies to job requisitions using semantic similarity."
   }
 ];
 
 export const ABOUT_FAQS = [
   {
     question: "What was the founding mission of Hire1Percent?",
-    answer: "Hire1Percent was created to eliminate hiring friction, bias, and credentialism in technical recruitment. Our mission is to allow engineers to prove their capabilities through real-world challenges while giving hiring teams automated, objective tools to discover exceptional talent."
+    answer: "Hire1Percent was created to eliminate hiring friction, bias, and credentialism in technical recruitment. Our mission is to help engineers prove their skills through real-world challenges. In addition, we provide hiring teams with automated tools to discover exceptional talent."
   },
   {
     question: "How does Hire1Percent guarantee fairness and reduce unconscious bias?",
-    answer: "Our evaluation models score candidates strictly on verified code execution, test pass rates, architectural design quality, and structured rubric answers. Demographic identifiers can be masked during candidate screening to ensure decisions are merit-based."
+    answer: "Our evaluation models score candidates strictly on verified code execution and test pass rates. In addition, demographic identifiers can be masked during candidate screening to ensure decisions are merit-based."
   },
   {
     question: "Who uses Hire1Percent?",
-    answer: "Hire1Percent is used by high-growth startups, scale-ups, global enterprises, and technical recruiting agencies seeking to reduce time-to-hire, eliminate fake candidates, and evaluate thousands of applicants without overburdening engineering interview panels."
+    answer: "Hire1Percent serves high-growth startups, global enterprises, and technical recruiting agencies. Teams use our platform to reduce time-to-hire and eliminate fake candidates. Consequently, recruiters evaluate thousands of applicants without overburdening engineering interview panels."
   }
 ];
 
 export const ABOUT_DEFINITIONS = [
   {
     term: "Objective Skill Validation",
-    definition: "Scoring candidate competency based on live code execution, real-world bug fixing, and structured Rubrics rather than pedigree, school prestige, or previous employer brand."
+    definition: "Scoring candidate competency based on live code execution and bug fixing rather than school prestige or previous employer brand."
   },
   {
     term: "Talent Ecosystem",
@@ -86,11 +86,11 @@ export const ABOUT_DEFINITIONS = [
 export const PRICING_FAQS = [
   {
     question: "How does Hire1Percent pricing work?",
-    answer: "Hire1Percent offers flexible pricing starting with a Free Starter tier for individual recruiters and small teams. Paid plans include Pro ($99/mo) and Enterprise tiers ($299+/mo) offering increased assessment volume, advanced anti-cheat proctoring, custom challenge authoring, and API access."
+    answer: "Hire1Percent offers flexible pricing starting with a Free Starter tier for individual recruiters and small teams. Paid plans include Pro ($99/mo) and Enterprise tiers ($299+/mo). These tiers offer increased assessment volume, advanced anti-cheat proctoring, custom challenge authoring, and API access."
   },
   {
     question: "Can I upgrade, downgrade, or cancel at any time?",
-    answer: "Yes. All subscriptions are billed monthly or annually without long-term lock-in. You can upgrade, downgrade, or cancel your subscription at any time directly through the recruiter billing portal."
+    answer: "Yes. All subscriptions are billed monthly or annually without long-term lock-in. In addition, you can upgrade, downgrade, or cancel your subscription at any time directly through the recruiter billing portal."
   },
   {
     question: "Is there a discount for annual billing?",

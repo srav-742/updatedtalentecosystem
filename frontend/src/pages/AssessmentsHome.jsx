@@ -48,25 +48,25 @@ const AssessmentsHome = () => {
             icon: FileText,
             color: "orange",
             title: "Resume Noise Overload",
-            desc: "Sifting through hundreds of AI-generated resumes for a single engineering opening while top developers drop out of slow, friction-heavy pipelines."
+            desc: "First, teams sift through hundreds of AI-generated resumes. Meanwhile, top developers drop out of slow, friction-heavy pipelines."
         },
         {
             icon: BotMessageSquare,
             color: "amber",
             title: "Cheating & AI Test Fraud",
-            desc: "Unproctored coding assessments allow candidates to use external AI assistants, copy-paste answers, or switch tabs, resulting in artificial screening scores."
+            desc: "Unproctored assessments allow external AI assistants and tab switching. As a result, candidate scores are artificially inflated."
         },
         {
             icon: Clock,
             color: "purple",
             title: "Manager Review Bottlenecks",
-            desc: "Waiting days for busy engineering leads to join preliminary sync calls just to evaluate basic candidate communication before the real interviews can begin."
+            desc: "Engineering leads wait days to join preliminary sync calls. Therefore, technical interview schedules stall unnecessarily."
         },
         {
             icon: CreditCard,
             color: "rose",
             title: "The Multi-Tool Stack Tax",
-            desc: "Paying separate monthly subscriptions for an ATS, coding test platform, video interview software, and verification plugins — with separate logins and zero integration."
+            desc: "Companies pay separate monthly subscriptions for four different tools. Consequently, recruiters suffer fragmented logins and disconnected data."
         }
     ];
 
@@ -133,16 +133,14 @@ const AssessmentsHome = () => {
                             </div>
 
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08]">
-                                Filter the Top 1% Tech Talent.<br />
+                                Filter Top 1% Tech Talent.<br />
                                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">
                                     Unified Pipelines.
                                 </span>
-                                <br />
-                                <span className={isLight ? 'text-gray-700' : 'text-gray-200'}>Zero Tool Bloat.</span>
                             </h1>
 
                             <p className={`max-w-3xl mx-auto text-lg md:text-xl mb-10 leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Replace fragmented recruitment tools with one unified AI-driven platform. Automatically rank applicants with <Link to="/resume-analysis" className="underline decoration-blue-500 underline-offset-4 hover:text-blue-500">resume intelligence</Link>, conduct <Link to="/candidate-screening" className="underline decoration-teal-500 underline-offset-4 hover:text-teal-500">proctored technical assessments</Link> with native anti-cheating detection, and run <Link to="/ai-interview-platform" className="underline decoration-purple-500 underline-offset-4 hover:text-purple-500">asynchronous video interviews</Link> — all in one place.
+                                Replace fragmented recruitment tools with one unified platform. First, rank applicants instantly with <Link to="/resume-analysis" className="underline decoration-blue-500 underline-offset-4 hover:text-blue-500">resume intelligence</Link>. Next, conduct <Link to="/candidate-screening" className="underline decoration-teal-500 underline-offset-4 hover:text-teal-500">proctored technical assessments</Link> and run <Link to="/ai-interview-platform" className="underline decoration-purple-500 underline-offset-4 hover:text-purple-500">asynchronous video interviews</Link> without tool switching.
                             </p>
                         </header>
 
@@ -195,7 +193,7 @@ const AssessmentsHome = () => {
                                 </span>
                             </h2>
                             <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                The traditional technical recruitment pipeline is leaking time and money at every stage due to disparate subscriptions and unverified candidate claims.
+                                Traditional hiring leaks time and money at every stage. For example, disconnected tools and unverified claims slow down recruiter decisions.
                             </p>
                         </div>
 
@@ -229,7 +227,7 @@ const AssessmentsHome = () => {
                                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">One Automated Pipeline?</span>
                             </h2>
                             <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Hire1Percent eliminates tool switching by consolidating resume parsing, technical evaluation, and candidate review into three seamless steps.
+                                First, Hire1Percent consolidates resume parsing, technical evaluation, and candidate review into three seamless steps.
                             </p>
                         </div>
 
@@ -324,7 +322,7 @@ const AssessmentsHome = () => {
                                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400">Technical Test Integrity?</span>
                             </h2>
                             <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Skip resume exaggeration and get direct, verified evaluation scores right on your recruiter dashboard.
+                                Consequently, teams skip resume exaggeration and receive verified evaluation scores on their recruiter dashboard.
                             </p>
                         </div>
 
@@ -361,7 +359,7 @@ const AssessmentsHome = () => {
                                         </div>
                                     ))}
                                     <p className={`text-xs leading-relaxed pt-2 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        Every assessment generates a complete audit trail. Know exactly how candidates performed and whether they stayed focused on the test.
+                                        In addition, every assessment generates a complete audit trail. Teams know exactly how candidates performed throughout the test.
                                     </p>
                                 </div>
                             </div>
@@ -570,7 +568,7 @@ const AssessmentsHome = () => {
                                 How to Integrate Hire1Percent Assessments via API?
                             </h2>
                             <p className={`text-sm leading-relaxed max-w-2xl mx-auto ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Dispatch assessments, stream proctoring flags, and receive candidate evaluation webhooks programmatically.
+                                For example, teams dispatch assessments, stream proctoring flags, and receive candidate evaluation webhooks programmatically.
                             </p>
                         </div>
                         <div className="rounded-2xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl overflow-hidden text-left">
@@ -608,7 +606,7 @@ console.log("Assessment successfully generated:", inviteUrl);`}</code>
                                 Frequently Asked Questions About Hire1Percent
                             </h2>
                             <p className={isLight ? 'text-gray-600' : 'text-gray-400'}>
-                                Everything you need to know about our AI recruitment, coding assessments, and interview platform.
+                                First, explore direct answers to common questions about our coding assessments and AI interview workflows.
                             </p>
                         </div>
 
@@ -647,7 +645,7 @@ console.log("Assessment successfully generated:", inviteUrl);`}</code>
                             <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">True Top 1%?</span>
                         </h2>
                         <p className={`text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            Join forward-thinking tech teams, scale-ups, and recruitment firms using Hire1Percent to automate screening and safeguard assessment integrity.
+                            Also, join forward-thinking tech teams and recruitment firms using Hire1Percent to automate screening and safeguard test integrity.
                         </p>
 
                         <div className={`max-w-2xl mx-auto rounded-[2rem] border p-10 mb-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/4 border-white/8'}`}>
@@ -671,7 +669,7 @@ console.log("Assessment successfully generated:", inviteUrl);`}</code>
                                 Schedule Your 15-Minute Live Demo
                             </button>
                             <p className={`text-xs mt-4 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                No credit card required. Experience the proctored assessment engine in action today.
+                                In addition, no credit card is required. Experience the proctored assessment engine in action today.
                             </p>
                         </div>
                     </div>
