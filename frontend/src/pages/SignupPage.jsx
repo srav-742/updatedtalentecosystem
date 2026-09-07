@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET } from '../firebase';
+import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
@@ -38,6 +38,25 @@ const SignupPage = () => {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
+
+    // Handle Google Redirect Result (for mobile / popup-blocked browsers)
+    React.useEffect(() => {
+        const checkRedirect = async () => {
+            try {
+                const redirectRes = await getGoogleRedirectResult();
+                if (redirectRes && redirectRes.user) {
+                    const savedRole = sessionStorage.getItem('pendingRole') || role || 'candidate';
+                    setRole(savedRole);
+                    await processGoogleSignupUser(redirectRes.user, savedRole);
+                    sessionStorage.removeItem('pendingRole');
+                }
+            } catch (err) {
+                console.error('[SIGNUP-REDIRECT] Error:', err);
+                setMessage({ type: 'error', text: `Google signup failed: ${err.message}` });
+            }
+        };
+        checkRedirect();
+    }, []);
 
     const handleRoleSelect = (selectedRole) => {
         setRole(selectedRole);
@@ -160,26 +179,16 @@ const SignupPage = () => {
         }
     };
 
-    const handleGoogleSignup = async () => {
-        if (!role) {
-            setMessage({ type: 'error', text: 'Please select a role first.' });
-            return;
-        }
-        if (!acceptedTerms) {
-            setMessage({ type: 'error', text: 'You must agree to the Terms and Privacy Policy.' });
-            return;
-        }
+    const processGoogleSignupUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
-            // 1. Authenticate (Immediate)
-            const googleUser = await signInWithGoogle();
             const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
-            // 1.5 Check for role mismatch
-            const existingProfile = await getUserProfile(googleUser.uid);
+            // 1.5 Check for role mismatch if existing profile in DB
+            const existingProfile = await getUserProfile(googleUser.uid).catch(() => null);
             if (existingProfile && existingProfile.role) {
                 const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
-                const targetIsStaff  = role === 'recruiter' || role === 'admin';
+                const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
                 if (existingIsStaff !== targetIsStaff) {
                     const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
                     throw new Error(
@@ -192,47 +201,50 @@ const SignupPage = () => {
             // 2. Prepare Profile
             const newProfile = {
                 uid: googleUser.uid,
-                name: googleUser.displayName,
+                name: googleUser.displayName || normalizedEmail.split('@')[0],
                 email: normalizedEmail,
-                profilePic: googleUser.photoURL,
-                role: role,
+                profilePic: googleUser.photoURL || '',
+                role: targetRole,
                 createdAt: new Date().toISOString(),
                 isOptimistic: true
             };
 
-            // 3. Save to MongoDB — call BOTH endpoints for reliability
-            const savedProfile = await withRetry(
-                () => saveUserProfile(googleUser.uid, newProfile),
-                3, 'googleSaveProfile'
-            );
+            // 3. Save to MongoDB — call BOTH endpoints in parallel for complete resilience
+            const [savedProfile] = await Promise.all([
+                withRetry(
+                    () => saveUserProfile(googleUser.uid, newProfile),
+                    3, 'googleSaveProfile'
+                ).catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] saveUserProfile warning:', err.message);
+                    return newProfile;
+                }),
+                withRetry(async () => {
+                    return await apiClient.post('/users/sync', {
+                        uid: googleUser.uid,
+                        email: normalizedEmail,
+                        name: googleUser.displayName || normalizedEmail.split('@')[0],
+                        profilePic: googleUser.photoURL || '',
+                        role: targetRole
+                    });
+                }, 3, 'googleUserSync').catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] /users/sync warning:', err.message);
+                }),
+                withRetry(
+                    () => apiClient.initializeGatewaySession(normalizedEmail, googleUser.uid),
+                    3, 'googleGatewaySession'
+                ).catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] Gateway session warning:', err.message);
+                })
+            ]);
 
-            // 3b. Always call /users/sync to ensure canonical User record exists
-            await withRetry(async () => {
-                await apiClient.post('/users/sync', {
-                    uid: googleUser.uid,
-                    email: normalizedEmail,
-                    name: googleUser.displayName,
-                    profilePic: googleUser.photoURL,
-                    role: role
-                });
-            }, 3, 'googleUserSync').catch(err => {
-                console.warn('[GOOGLE-SIGNUP] Sync call failed (non-fatal):', err.message);
-            });
-
-            // 4. Initialize Gateway session tokens
-            await withRetry(
-                () => apiClient.initializeGatewaySession(normalizedEmail, googleUser.uid),
-                3, 'googleGatewaySession'
-            );
-
-            // 5. Store & Navigate
+            // 4. Store & Navigate
             localStorage.setItem('user', JSON.stringify(newProfile));
 
-            if (role === 'recruiter' && savedProfile && savedProfile.client) {
+            if (targetRole === 'recruiter' && savedProfile && savedProfile.client) {
                 setClientCredentials(savedProfile.client);
             } else {
                 setMessage({ type: 'success', text: "Account created! Logging in..." });
-                if (role === 'admin') navigate('/recruiter/my-jobs');
+                if (targetRole === 'admin') navigate('/recruiter/my-jobs');
                 else navigate('/candidate');
             }
 
@@ -241,6 +253,38 @@ const SignupPage = () => {
             setMessage({ type: 'error', text: error.message || "Google signup failed." });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleSignup = async () => {
+        if (!role) {
+            setMessage({ type: 'error', text: 'Please select a role first.' });
+            return;
+        }
+        if (!acceptedTerms) {
+            setMessage({ type: 'error', text: 'You must agree to the Terms and Privacy Policy.' });
+            return;
+        }
+        setLoading(true);
+        try {
+            const googleUser = await signInWithGoogle();
+            await processGoogleSignupUser(googleUser, role);
+        } catch (error) {
+            console.error("Popup Signup Failed:", error);
+            if (error.code === 'auth/popup-blocked' || error.message?.toLowerCase().includes('popup')) {
+                console.warn("Popup blocked. Switching to Redirect method...");
+                sessionStorage.setItem('pendingRole', role);
+                try {
+                    await signInWithGoogleRedirect();
+                } catch (redirErr) {
+                    console.error("Redirect failed:", redirErr);
+                    setMessage({ type: 'error', text: "Google Signup failed. Please try again." });
+                    setLoading(false);
+                }
+            } else {
+                setMessage({ type: 'error', text: error.message || "Google signup failed." });
+                setLoading(false);
+            }
         }
     };
 

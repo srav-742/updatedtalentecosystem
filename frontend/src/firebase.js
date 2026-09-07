@@ -84,7 +84,7 @@ export const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2
 export const saveUserProfile = async (userId, data) => {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
             signal: controller.signal,
@@ -107,7 +107,7 @@ export const saveUserProfile = async (userId, data) => {
 export const getUserProfile = async (userId) => {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             signal: controller.signal,
             headers: {
@@ -132,7 +132,7 @@ export const getUserProfile = async (userId) => {
 export const updateUserProfile = async (userId, data) => {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             method: 'PUT',
             signal: controller.signal,

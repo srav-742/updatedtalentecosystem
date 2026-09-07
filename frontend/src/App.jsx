@@ -108,9 +108,17 @@ function SeekerApplyRedirect() {
   return <Navigate to={`/candidate/apply/${jobId}${location.search}`} replace />;
 }
 
+import useFirebaseAuthSync from './hooks/useFirebaseAuthSync';
+
+function FirebaseAuthSync() {
+  useFirebaseAuthSync();
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <FirebaseAuthSync />
       <CookieBanner />
 
       <Suspense fallback={<GlobalPageSkeleton />}>
