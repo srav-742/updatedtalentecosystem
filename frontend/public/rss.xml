@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hire1Percent Recruitment &amp; Technical Hiring Blog</title>
+    <link>https://www.hire1percent.com/blog</link>
+    <description>Insights on AI technical recruitment, proctored coding assessments, and modern engineering hiring.</description>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 07 Sep 2026 12:00:00 GMT</lastBuildDate>
+    <atom:link href="https://www.hire1percent.com/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>How AI Coding Assessments Are Replacing Manual Screening</title>
+      <link>https://www.hire1percent.com/blog/ai-coding-assessments</link>
+      <description>Learn how automated test suites and runtime execution benchmarks cut engineering screening time by 70%.</description>
+      <pubDate>Mon, 07 Sep 2026 08:00:00 GMT</pubDate>
+      <guid>https://www.hire1percent.com/blog/ai-coding-assessments</guid>
+    </item>
+    <item>
+      <title>Preventing Remote Interview Fraud: A Deep Dive into Proctoring Telemetry</title>
+      <link>https://www.hire1percent.com/blog/proctoring-telemetry</link>
+      <description>Best practices for maintaining remote assessment integrity using multi-modal proctoring.</description>
+      <pubDate>Fri, 04 Sep 2026 10:00:00 GMT</pubDate>
+      <guid>https://www.hire1percent.com/blog/proctoring-telemetry</guid>
+    </item>
+  </channel>
+</rss>
