@@ -39,6 +39,7 @@ const BlogPosts = lazy(() => import('./pages/recruiter/BlogPosts'));
 const CodingAssessmentConfig = lazy(() => import('./pages/recruiter/CodingAssessmentConfig'));
 const CustomCodingAssessmentConfig = lazy(() => import('./pages/recruiter/CustomCodingAssessmentConfig'));
 const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
+const RecruiterKnowledgeHub = lazy(() => import('./pages/recruiter/RecruiterKnowledgeHub'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
 
 // Candidate / Seeker pages
@@ -160,6 +161,7 @@ function App() {
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="onboarding-kit" element={<OnboardingKit />} />
           <Route path="ai-search" element={<TalentSearch />} />
+          <Route path="knowledge-hub" element={<RecruiterKnowledgeHub />} />
           <Route path="blog" element={<BlogPosts />} />
           <Route path="blog/new" element={<BlogEditor />} />
           <Route path="blog/edit/:id" element={<BlogEditor />} />

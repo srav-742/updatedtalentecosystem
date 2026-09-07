@@ -20,7 +20,8 @@ import {
     Filter,
     FileText,
     Edit,
-    Eye
+    Eye,
+    BookOpen
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -391,6 +392,25 @@ const RecruiterDashboard = () => {
                         <p className="text-xs text-slate-500 mb-5">High-impact shortcuts to accelerate your hiring workflow</p>
 
                         <div className="space-y-2.5">
+                            <div
+                                onClick={() => navigate('/recruiter/knowledge-hub')}
+                                className="p-3 rounded-2xl border border-indigo-100 hover:border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50/60 transition-all cursor-pointer flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-indigo-100/80 text-indigo-700 flex items-center justify-center shrink-0">
+                                        <BookOpen size={16} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">Knowledge Hub</p>
+                                            <span className="text-[9px] font-extrabold uppercase tracking-wider bg-indigo-600 text-white px-1.5 py-0.2 rounded-full">New</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500">Hiring guides, assessments & recruiter assistant</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className="text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                            </div>
+
                             <div
                                 onClick={() => navigate('/recruiter/ai-search')}
                                 className="p-3 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all cursor-pointer flex items-center justify-between group"

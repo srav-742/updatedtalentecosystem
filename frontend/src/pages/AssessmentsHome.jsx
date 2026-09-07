@@ -1,14 +1,22 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Link } from 'react-router-dom';
 import { 
     Zap, CheckCircle2, AlertTriangle, ShieldCheck, 
     FileText, Video, ChevronDown, Sparkles, 
     Code, Award, ArrowRight, Target, Clock, AlertCircle,
     FileSpreadsheet, LayoutDashboard, CreditCard, BotMessageSquare, 
-    TrendingDown, Calendar, ChevronRight, X, Check, Minus
+    TrendingDown, Calendar, ChevronRight, X, Check, Minus, BookOpen, Layers
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import SEO from '../components/SEO';
+import { HOMEPAGE_FAQS, HOMEPAGE_DEFINITIONS } from '../utils/aeoContent';
+import { 
+    generateOrganizationSchema, 
+    generateWebSiteSchema, 
+    generateSoftwareApplicationSchema, 
+    generateFAQPageSchema 
+} from '../utils/schemas';
 
 // Lazy-load CalibrationModal — it imports react-international-phone (~50 KB)
 // which is only needed when the user clicks the demo booking button
@@ -34,12 +42,6 @@ const AssessmentsHome = () => {
     }, []);
 
     const isLight = theme === 'light';
-
-    const [activeFaq, setActiveFaq] = useState(null);
-
-    const toggleFaq = (index) => {
-        setActiveFaq(activeFaq === index ? null : index);
-    };
 
     const painPoints = [
         {
@@ -97,436 +99,485 @@ const AssessmentsHome = () => {
         return <span className={`text-[10px] font-bold ${color}`}>{label}</span>;
     };
 
-    const faqs = [
-        { 
-            q: "How does the AI validate session integrity?", 
-            a: "Our proctoring engine monitors workspace focus (tracking tab switches, window blur, and fullscreen exits) and webcam streams (detecting eye movements, face presence, and phone use). It also checks system telemetry to detect secondary monitors and hardware changes mid-test."
-        },
-        { 
-            q: "Are the assessment questions unique?", 
-            a: "Yes. Our AI engine dynamically constructs custom assessments based on your exact job descriptions. This guarantees that assessment questions are unique and fresh, preventing search engine leaks." 
-        },
-        { 
-            q: "Who can view the candidate scores and reports?", 
-            a: "The detailed Candidate Insight Report—comprising MCQ scoring, AI interview dialogue transcripts, and session integrity data—is generated exclusively for the recruiter dashboard. Candidates do not see their numeric scores; they are only notified of their final status." 
-        },
-        { 
-            q: "Can candidates take this assessment on mobile?", 
-            a: "For general candidate assessments and strict verification checks, candidates are required to use a webcam-equipped laptop or desktop computer." 
-        }
+    // Prepare JSON-LD Schemas for Homepage
+    const schemas = [
+        generateOrganizationSchema(),
+        generateWebSiteSchema(),
+        generateSoftwareApplicationSchema(),
+        generateFAQPageSchema(HOMEPAGE_FAQS)
     ];
 
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isLight ? 'bg-white text-gray-900 selection:bg-blue-500/20' : 'bg-[#0c0f16] text-white selection:bg-blue-500/30'}`}>
             <SEO 
-                title="Hire1Percent - AI Recruitment Platform" 
-                description="AI-powered recruitment platform for automated hiring, candidate screening, and AI interviews." 
-                canonicalUrl="/" 
+                title="Hire1Percent - AI Technical Recruitment, Coding Assessment & Video Interview Platform" 
+                description="Hire1Percent is the all-in-one AI recruitment platform for engineering teams. Automate coding assessments across 20+ languages, asynchronous AI video interviews, real-time proctoring, and semantic resume intelligence." 
+                canonicalUrl="/"
+                schema={schemas}
             />
             <Navbar theme={theme} onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} />
 
-            {/* ─── SECTION 1: HERO ─── */}
-            <section className="relative pt-32 pb-24 overflow-hidden">
-                <div className={`absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[140px] -z-10 ${isLight ? 'bg-blue-200/40' : 'bg-blue-600/10'}`} />
-                <div className={`absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[110px] -z-10 ${isLight ? 'bg-teal-100/50' : 'bg-teal-500/10'}`} />
+            <main id="main-content">
+                {/* ─── SECTION 1: HERO ─── */}
+                <section aria-label="Hero Introduction" className="relative pt-32 pb-24 overflow-hidden">
+                    <div className={`absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[140px] -z-10 ${isLight ? 'bg-blue-200/40' : 'bg-blue-600/10'}`} />
+                    <div className={`absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[110px] -z-10 ${isLight ? 'bg-teal-100/50' : 'bg-teal-500/10'}`} />
 
-                <div className="container mx-auto px-6 text-center">
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-8 ${isLight ? 'border-blue-200 bg-blue-50' : 'border-blue-500/30 bg-blue-500/5'}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                        <span className={`text-[11px] font-black uppercase tracking-[0.15em] ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
-                            Unified AI Technical Screening &amp; Proctored Assessments
-                        </span>
-                    </div>
-
-                    <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08] max-w-5xl mx-auto">
-                        Filter the Top 1% Tech Talent.<br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">
-                            Unified Pipelines.
-                        </span>
-                        <br />
-                        <span className={isLight ? 'text-gray-700' : 'text-gray-200'}>Zero Tool Bloat.</span>
-                    </h1>
-
-                    <p className={`max-w-2xl mx-auto text-lg md:text-xl mb-12 leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Replace fragmented recruitment tools with one unified AI driven Pipeline. Automatically rank candidates, run proctored technical assessments with native anti-cheating detection, and conduct async video interviews — all in one place.
-                    </p>
-
-                    <div className="flex flex-col items-center gap-5 mb-12">
-                        <button
-                            id="hero-cta-demo"
-                            onClick={() => setIsModalOpen(true)}
-                            className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base"
-                        >
-                            <Calendar size={18} />
-                            Book a 15-Minute Live Demo
-                        </button>
-
-                        <div className={`flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
-                            <span className="flex items-center gap-1.5">⏱️ 5-Minute Setup</span>
-                            <span className={`w-px h-3 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
-                            <span className="flex items-center gap-1.5">🛡️ Anti-Cheating Proctored Assessments</span>
-                            <span className={`w-px h-3 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
-                            <span className="flex items-center gap-1.5">✅ No Tool Switching</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-                        {[
-                            { value: "70%",  label: "Reduction in Time-to-Hire" },
-                            { value: "100%", label: "Proctoring Integrity" },
-                            { value: "Zero", label: "Tool Bloat" },
-                            { value: "10x",  label: "Faster Quality Hires" }
-                        ].map((stat, idx) => (
-                            <div key={idx} className={`p-6 rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 ${isLight ? 'bg-gray-50/70 border-gray-100 hover:bg-white hover:shadow-sm' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
-                                <p className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">{stat.value}</p>
-                                <p className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>{stat.label}</p>
+                    <div className="container mx-auto px-6 text-center">
+                        <header className="max-w-5xl mx-auto">
+                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-8 ${isLight ? 'border-blue-200 bg-blue-50' : 'border-blue-500/30 bg-blue-500/5'}`}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                <span className={`text-[11px] font-black uppercase tracking-[0.15em] ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                                    Unified AI Technical Screening &amp; Proctored Assessments
+                                </span>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
-            {/* ─── SECTION 2: AGITATION ─── */}
-            <section className={`py-24 border-y ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
-                <div className="container mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-rose-500/20 bg-rose-500/8 text-rose-400'}`}>
-                            <AlertTriangle size={12} /> The Problem
-                        </div>
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
-                            Modern Tech Hiring is Broken by{' '}
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-orange-400">
-                                SaaS Bloat and Unverified Skills
-                            </span>
-                        </h2>
-                        <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            The traditional technical recruitment pipeline is leaking time and money at every stage.
-                        </p>
-                    </div>
+                            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 tracking-tight leading-[1.08]">
+                                Filter the Top 1% Tech Talent.<br />
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">
+                                    Unified Pipelines.
+                                </span>
+                                <br />
+                                <span className={isLight ? 'text-gray-700' : 'text-gray-200'}>Zero Tool Bloat.</span>
+                            </h1>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-                        {painPoints.map((pain, idx) => {
-                            const Icon = pain.icon;
-                            const c = colorMap[pain.color];
-                            return (
-                                <div key={idx} className={`p-7 rounded-[1.75rem] border transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 hover:shadow-md' : 'bg-white/4 border-white/8 hover:bg-white/6'}`}>
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${c.bg} border ${c.border}`}>
-                                        <Icon className={`w-5 h-5 ${c.icon}`} />
-                                    </div>
-                                    <h3 className="text-lg font-black mb-2 tracking-tight">{pain.title}</h3>
-                                    <p className={`text-sm leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{pain.desc}</p>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </section>
+                            <p className={`max-w-3xl mx-auto text-lg md:text-xl mb-10 leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                Replace fragmented recruitment tools with one unified AI-driven platform. Automatically rank applicants with <Link to="/resume-analysis" className="underline decoration-blue-500 underline-offset-4 hover:text-blue-500">resume intelligence</Link>, conduct <Link to="/candidate-screening" className="underline decoration-teal-500 underline-offset-4 hover:text-teal-500">proctored technical assessments</Link> with native anti-cheating detection, and run <Link to="/ai-interview-platform" className="underline decoration-purple-500 underline-offset-4 hover:text-purple-500">asynchronous video interviews</Link> — all in one place.
+                            </p>
+                        </header>
 
-            {/* ─── SECTION 3: UNIQUE MECHANISM ─── */}
-            <section className="py-24">
-                <div className="container mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-blue-500/20 bg-blue-500/8 text-blue-400'}`}>
-                            <Zap size={12} /> How It Works
-                        </div>
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
-                            One Unified Pipeline.<br />{' '}
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">Total Evaluation Integrity.</span>
-                        </h2>
-                        <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            Hire 1% eliminates tool switching by consolidating resume parsing, technical evaluation, and candidate review into three seamless steps.
-                        </p>
-                    </div>
+                        <div className="flex flex-col items-center gap-5 mb-12">
+                            <button
+                                id="hero-cta-demo"
+                                onClick={() => setIsModalOpen(true)}
+                                className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base"
+                            >
+                                <Calendar size={18} />
+                                Book a 15-Minute Live Demo
+                            </button>
 
-                    {/* Pipeline flow */}
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 mb-16 max-w-4xl mx-auto">
-                        {[
-                            { n: "01", label: "AI Resume Parse",      color: "blue"   },
-                            { n: "02", label: "Proctored Assessment",   color: "teal"   },
-                            { n: "03", label: "Async Video Interview", color: "purple" }
-                        ].map((s, idx) => (
-                            <React.Fragment key={idx}>
-                                <div className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl border font-bold text-sm whitespace-nowrap ${
-                                    s.color === 'blue'   ? (isLight ? 'bg-blue-50   border-blue-200   text-blue-700'   : 'bg-blue-500/10   border-blue-500/25   text-blue-300')   :
-                                    s.color === 'teal'   ? (isLight ? 'bg-teal-50   border-teal-200   text-teal-700'   : 'bg-teal-500/10   border-teal-500/25   text-teal-300')   :
-                                                           (isLight ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-purple-500/10 border-purple-500/25 text-purple-300')
-                                }`}>
-                                    <span className={`text-[10px] font-black ${isLight ? 'opacity-80' : 'opacity-70'}`}>Step {s.n}</span>
-                                    <span>{s.label}</span>
-                                </div>
-                                {idx < 2 && <ChevronRight className={`w-5 h-5 shrink-0 hidden md:block ${isLight ? 'text-gray-400' : 'text-gray-600'}`} />}
-                            </React.Fragment>
-                        ))}
-                    </div>
-
-                    {/* 3 Cards */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                        {[
-                            {
-                                icon: FileSpreadsheet, color: "blue", step: "01",
-                                title: "Automated Resume Parsing & Skill Alignment",
-                                desc: "Stop manually reading every PDF. Our AI engine parses candidate resumes, extracts core stack competencies, and automatically ranks applicants against your role requirements — dropping resume noise immediately.",
-                                bullets: ["Skill extraction & gap analysis", "Auto-rank against role requirements", "Removes AI-generated resume noise"]
-                            },
-                            {
-                                icon: ShieldCheck, color: "teal", step: "02",
-                                title: "Proctored AI Technical Assessments",
-                                desc: "Deploy coding evaluations with active session integrity verification. Our engine monitors the candidate workspace to verify honest, native code execution and prevent test manipulation.",
-                                bullets: ["Real-time browser focus tracking", "Tab-switch detection validation", "Biometric face verification checks"]
-                            },
-                            {
-                                icon: Video, color: "purple", step: "03",
-                                title: "Async Video Interviews & Dashboard Review",
-                                desc: "Candidates complete AI-generated mock interview questions at their own pace. Logged-in hiring teams review the complete candidate evaluation — MCQ scores, validation summary, and full video interview — all in one unified recruiter dashboard.",
-                                bullets: ["Candidates record on their own schedule", "AI scores answers automatically", "Full picture available in the recruiter dashboard"]
-                            }
-                        ].map((card, idx) => {
-                            const Icon = card.icon;
-                            const bgMap   = { blue: isLight ? 'bg-blue-50' : 'bg-blue-500/10',     teal: isLight ? 'bg-teal-50' : 'bg-teal-500/10',     purple: isLight ? 'bg-purple-50' : 'bg-purple-500/10'   };
-                            const bdrMap  = { blue: isLight ? 'border-blue-200' : 'border-blue-500/20', teal: isLight ? 'border-teal-200' : 'border-teal-500/20', purple: isLight ? 'border-purple-200' : 'border-purple-500/20' };
-                            const icMap   = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
-                            const lblMap  = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
-                            return (
-                                <div key={idx} className={`p-8 rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
-                                    <div className={`w-12 h-12 ${bgMap[card.color]} border ${bdrMap[card.color]} rounded-xl flex items-center justify-center mb-6`}>
-                                        <Icon className={`w-5 h-5 ${icMap[card.color]}`} />
-                                    </div>
-                                    <span className={`text-[10px] font-black uppercase tracking-widest mb-3 block ${lblMap[card.color]}`}>Step {card.step}</span>
-                                    <h3 className="text-xl font-black mb-3 tracking-tight">{card.title}</h3>
-                                    <p className={`text-sm leading-relaxed mb-6 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{card.desc}</p>
-                                    <ul className="space-y-2.5 text-xs font-semibold">
-                                        {card.bullets.map((b, i) => (
-                                            <li key={i} className="flex items-center gap-2">
-                                                <CheckCircle2 size={13} className="text-teal-400 shrink-0" />
-                                                <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>{b}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </section>
-
-            {/* ─── SECTION 4: PROOF & INTEGRITY SHOWCASE ─── */}
-            <section className={`py-24 border-t ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
-                <div className="container mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-emerald-500/20 bg-emerald-500/8 text-emerald-400'}`}>
-                            <ShieldCheck size={12} /> Proof of Performance
-                        </div>
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
-                            Built for Engineering Teams Who {' '}
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400">Demand Proof, Not Promises</span>
-                        </h2>
-                        <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            Skip resume sifting and get direct, verified evaluation scores right on your dashboard.
-                        </p>
-                    </div>
-
-                    {/* Artifact Mockups Row */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
-                        {/* Artifact A: Proctoring Audit Log */}
-                        <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
-                            <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
-                                <div className="flex items-center gap-2">
-                                    <AlertCircle size={14} className={isLight ? "text-rose-600" : "text-rose-400"} />
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Live Proctoring Audit Log</span>
-                                </div>
-                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-rose-700 bg-rose-100 border border-rose-200' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>LIVE MONITORING</span>
-                            </div>
-                            <div className="p-6 space-y-3">
-                                {[
-                                    { type: "TAB SWITCH FLAGGED", time: "00:14:22", severity: "HIGH",   penalty: "+6", desc: "Candidate switched browser tabs temporarily" },
-                                    { type: "EYE LOOKING AWAY",   time: "00:08:08", severity: "MEDIUM", penalty: "+4", desc: "Rhythmic horizontal eye movement detected" },
-                                    { type: "HEAD TURNED",         time: "00:08:26", severity: "MEDIUM", penalty: "+3", desc: "Head turned excessively to the right" }
-                                ].map((log, i) => (
-                                    <div key={i} className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${isLight ? 'bg-rose-50/60 border-rose-100' : 'bg-rose-500/5 border-rose-500/15'}`}>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${log.severity === 'HIGH' ? 'bg-rose-500' : 'bg-amber-400'}`} />
-                                                <p className={`text-[10px] font-black uppercase ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.type}</p>
-                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${log.severity === 'HIGH' ? (isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-500/15 text-rose-400') : (isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/15 text-amber-400')}`}>{log.severity}</span>
-                                            </div>
-                                            <p className={`text-[10px] truncate ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{log.desc}</p>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <p className={`font-extrabold text-sm ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.penalty}</p>
-                                            <p className={`text-[9px] ${isLight ? 'text-gray-600' : 'text-gray-500'}`}>{log.time}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                                <p className={`text-xs leading-relaxed pt-2 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    Every assessment generates a complete audit trail. Know exactly how candidates performed and whether they stayed focused on the test.
-                                </p>
-                            </div>
-                        </div>                        {/* Artifact B: Recruiter Insights Dashboard */}
-                        <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
-                            <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
-                                <div className="flex items-center gap-2">
-                                    <LayoutDashboard size={14} className={isLight ? "text-blue-600" : "text-blue-400"} />
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-blue-700' : 'text-blue-400'}`}>Recruiter Insights Dashboard</span>
-                                </div>
-                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-emerald-800 bg-emerald-100 border border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'}`}>ACTIVE SESSION</span>
-                            </div>
-                            <div className="p-6">
-                                <div className="grid grid-cols-3 gap-4 mb-6">
-                                    {[
-                                        { val: "12", label: "Open Pipelines", color: isLight ? "text-blue-700" : "text-blue-500" },
-                                        { val: "85%", label: "Completion Rate", color: isLight ? "text-teal-700" : "text-teal-400" },
-                                        { val: "1,240", label: "Screened Candidates", color: isLight ? "text-purple-700" : "text-purple-400" }
-                                    ].map((stat, idx) => (
-                                        <div key={idx} className={`p-3 rounded-2xl border text-center ${isLight ? 'bg-gray-50 border-gray-100' : 'bg-black/10 border-white/5'}`}>
-                                            <p className={`text-xl font-extrabold ${stat.color}`}>{stat.val}</p>
-                                            <p className={`text-[8px] font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'} mt-1`}>{stat.label}</p>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="space-y-3">
-                                    <p className={`text-xs font-black uppercase tracking-wider mb-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>Top Ranked Candidates</p>
-                                    {[
-                                        { name: "Aarav Sharma", role: "AI/ML Scientist", score: "96/100", tag: "Strongly Recommended" },
-                                        { name: "Ananya Sen", role: "Senior Full-Stack Developer", score: "94/100", tag: "Strongly Recommended" },
-                                        { name: "Vikram Malhotra", role: "Frontend Architect", score: "92/100", tag: "Recommended" }
-                                    ].map((cand, idx) => (
-                                        <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between gap-4 ${isLight ? 'bg-gray-50 border-gray-100' : 'bg-white/5 border-white/5'}`}>
-                                            <div>
-                                                <p className="font-bold text-sm">{cand.name}</p>
-                                                <p className="text-[10px] text-gray-500">{cand.role}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className={`font-black text-sm ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>{cand.score}</p>
-                                                <p className={`text-[8px] font-bold uppercase ${isLight ? 'text-emerald-700' : 'text-emerald-600/60'}`}>{cand.tag}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                            <div className={`flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <span className="flex items-center gap-1.5">⏱️ 5-Minute Setup</span>
+                                <span className={`w-px h-3 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
+                                <span className="flex items-center gap-1.5">🛡️ Anti-Cheating Proctored Assessments</span>
+                                <span className={`w-px h-3 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
+                                <span className="flex items-center gap-1.5">✅ No Tool Switching</span>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Metrics Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                        {[
-                            { value: "70%", label: "Reduction in overall Time-to-Hire",                 grad: "from-blue-400 to-teal-400"   },
-                            { value: "100%",label: "Proctoring Audit Visibility",                      grad: "from-emerald-400 to-teal-400" },
-                            { value: "Single",label: "Subscription replacing legacy point solutions",    grad: "from-purple-400 to-blue-400"  }
-                        ].map((m, idx) => (
-                            <div key={idx} className={`p-8 rounded-[2rem] border text-center transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
-                                <p className={`text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${m.grad} mb-3`}>{m.value}</p>
-                                <p className={`text-sm font-semibold leading-snug ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{m.label}</p>
-                            </div>
-                        ))}
-                    </div>                </div>
-            </section>
-
-            {/* ─── SECTION 5: TOOL CONSOLIDATION TABLE ─── */}
-            <section className="py-24">
-                <div className="container mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-14">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-amber-500/20 bg-amber-500/8 text-amber-400'}`}>
-                            <TrendingDown size={12} /> Cost Comparison
-                        </div>
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
-                            Stop Paying the<br />{' '}
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-400">Fragmented Tool Tax</span>
-                        </h2>
-                        <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Compare how Hire 1% simplifies your recruiting operations:</p>
-                    </div>
-
-                    <div className="max-w-4xl mx-auto">
-                        <div className={`rounded-[2rem] border overflow-hidden shadow-xl ${isLight ? 'border-gray-200' : 'border-white/8'}`}>
-                            <div className={`grid grid-cols-3 ${isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-white/5 border-b border-white/8'}`}>
-                                <div className="px-6 py-4"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Feature / Capability</p></div>
-                                <div className={`px-6 py-4 border-x text-center ${isLight ? 'border-gray-200' : 'border-white/8'}`}><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Legacy Multi-Tool Stack</p></div>
-                                <div className="px-6 py-4 text-center"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Hire 1% Platform</p></div>
-                            </div>
-                            {comparisonRows.map((row, idx) => (
-                                <div key={idx} className={`grid grid-cols-3 border-b last:border-b-0 transition-colors duration-200 ${isLight ? 'border-gray-100 hover:bg-gray-50/60' : 'border-white/5 hover:bg-white/3'}`}>
-                                    <div className="px-6 py-5 flex items-center"><p className={`text-sm font-bold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>{row.feature}</p></div>
-                                    <div className={`px-6 py-5 border-x flex flex-col items-center justify-center gap-1 ${isLight ? 'border-gray-100' : 'border-white/5'}`}>
-                                        <StatusIcon status={row.legacy.status} />
-                                        <StatusLabel status={row.legacy.status} label={row.legacy.label} />
-                                    </div>
-                                    <div className="px-6 py-5 flex flex-col items-center justify-center gap-1">
-                                        <StatusIcon status={row.h1p.status} />
-                                        <StatusLabel status={row.h1p.status} label={row.h1p.label} />
-                                    </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                            {[
+                                { value: "70%",  label: "Reduction in Time-to-Hire" },
+                                { value: "100%", label: "Proctoring Integrity" },
+                                { value: "Zero", label: "Tool Bloat" },
+                                { value: "10x",  label: "Faster Quality Hires" }
+                            ].map((stat, idx) => (
+                                <div key={idx} className={`p-6 rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 ${isLight ? 'bg-gray-50/70 border-gray-100 hover:bg-white hover:shadow-sm' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
+                                    <p className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400 mb-1">{stat.value}</p>
+                                    <p className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>{stat.label}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            {/* ─── SECTION 6: FAQ ─── */}
-            <section className={`py-24 border-t ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
-                <div className="container mx-auto px-6 max-w-4xl">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">Frequently Asked Questions</h2>
-                        <p className={isLight ? 'text-gray-600' : 'text-gray-400'}>Everything you need to know about the hire1percent assessment platform.</p>
+                {/* ─── SECTION 2: AGITATION (QUESTION HEADING) ─── */}
+                <section aria-labelledby="problem-heading" className={`py-24 border-y ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
+                    <div className="container mx-auto px-6">
+                        <div className="text-center max-w-3xl mx-auto mb-16">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-rose-500/20 bg-rose-500/8 text-rose-400'}`}>
+                                <AlertTriangle size={12} /> The Problem
+                            </div>
+                            <h2 id="problem-heading" className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
+                                Why Is Modern Tech Hiring Broken by{' '}
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-orange-400">
+                                    SaaS Bloat and Test Fraud?
+                                </span>
+                            </h2>
+                            <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                The traditional technical recruitment pipeline is leaking time and money at every stage due to disparate subscriptions and unverified candidate claims.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                            {painPoints.map((pain, idx) => {
+                                const Icon = pain.icon;
+                                const c = colorMap[pain.color];
+                                return (
+                                    <article key={idx} className={`p-7 rounded-[1.75rem] border transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 hover:shadow-md' : 'bg-white/4 border-white/8 hover:bg-white/6'}`}>
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${c.bg} border ${c.border}`}>
+                                            <Icon className={`w-5 h-5 ${c.icon}`} />
+                                        </div>
+                                        <h3 className="text-lg font-black mb-2 tracking-tight">{pain.title}</h3>
+                                        <p className={`text-sm leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{pain.desc}</p>
+                                    </article>
+                                );
+                            })}
+                        </div>
                     </div>
-                    <div className="space-y-4">
-                        {faqs.map((faq, index) => (
-                            <div key={index} className={`rounded-2xl border transition-all duration-300 ${isLight ? 'bg-gray-50/50 border-gray-200 hover:bg-gray-50' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
-                                <button onClick={() => toggleFaq(index)} className="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-lg">
-                                    <span>{faq.q}</span>
-                                    <ChevronDown size={20} className={`transition-transform duration-300 shrink-0 ${activeFaq === index ? 'rotate-180 text-blue-500' : 'text-gray-400'}`} />
-                                </button>
-                                <div className={`overflow-hidden transition-all duration-300 ${activeFaq === index ? 'max-h-48 opacity-100 border-t border-gray-200/50 dark:border-white/10' : 'max-h-0 opacity-0'}`}>
-                                    <p className={`px-6 py-5 text-sm leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{faq.a}</p>
+                </section>
+
+                {/* ─── SECTION 3: UNIQUE MECHANISM (QUESTION HEADING) ─── */}
+                <section aria-labelledby="pipeline-heading" className="py-24">
+                    <div className="container mx-auto px-6">
+                        <div className="text-center max-w-3xl mx-auto mb-16">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-blue-500/20 bg-blue-500/8 text-blue-400'}`}>
+                                <Zap size={12} /> How It Works
+                            </div>
+                            <h2 id="pipeline-heading" className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
+                                How Does Hire1Percent Unify Technical Screening into{' '}
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">One Automated Pipeline?</span>
+                            </h2>
+                            <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                Hire1Percent eliminates tool switching by consolidating resume parsing, technical evaluation, and candidate review into three seamless steps.
+                            </p>
+                        </div>
+
+                        {/* Pipeline flow */}
+                        <nav aria-label="Recruitment Stages" className="flex flex-col md:flex-row items-center justify-center gap-3 mb-16 max-w-4xl mx-auto">
+                            {[
+                                { n: "01", label: "AI Resume Parse", link: "/resume-analysis", color: "blue" },
+                                { n: "02", label: "Proctored Assessment", link: "/candidate-screening", color: "teal" },
+                                { n: "03", label: "Async Video Interview", link: "/ai-interview-platform", color: "purple" }
+                            ].map((s, idx) => (
+                                <React.Fragment key={idx}>
+                                    <Link to={s.link} className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl border font-bold text-sm whitespace-nowrap transition-transform hover:scale-105 ${
+                                        s.color === 'blue'   ? (isLight ? 'bg-blue-50   border-blue-200   text-blue-700'   : 'bg-blue-500/10   border-blue-500/25   text-blue-300')   :
+                                        s.color === 'teal'   ? (isLight ? 'bg-teal-50   border-teal-200   text-teal-700'   : 'bg-teal-500/10   border-teal-500/25   text-teal-300')   :
+                                                               (isLight ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-purple-500/10 border-purple-500/25 text-purple-300')
+                                    }`}>
+                                        <span className={`text-[10px] font-black ${isLight ? 'opacity-80' : 'opacity-70'}`}>Step {s.n}</span>
+                                        <span>{s.label}</span>
+                                    </Link>
+                                    {idx < 2 && <ChevronRight className={`w-5 h-5 shrink-0 hidden md:block ${isLight ? 'text-gray-400' : 'text-gray-600'}`} />}
+                                </React.Fragment>
+                            ))}
+                        </nav>
+
+                        {/* 3 Cards */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                            {[
+                                {
+                                    icon: FileSpreadsheet, color: "blue", step: "01",
+                                    title: "Automated Resume Parsing & Skill Alignment",
+                                    link: "/resume-analysis",
+                                    desc: "Stop manually reading every PDF. Our AI engine parses candidate resumes, extracts core stack competencies, and automatically ranks applicants against role requirements.",
+                                    bullets: ["Skill extraction & gap analysis", "Auto-rank against role requirements", "Removes AI-generated resume noise"]
+                                },
+                                {
+                                    icon: ShieldCheck, color: "teal", step: "02",
+                                    title: "Proctored AI Technical Assessments",
+                                    link: "/candidate-screening",
+                                    desc: "Deploy coding evaluations with active session integrity verification. Our engine monitors candidate workspaces to verify honest, native code execution.",
+                                    bullets: ["Real-time browser focus tracking", "Tab-switch detection validation", "Biometric face verification checks"]
+                                },
+                                {
+                                    icon: Video, color: "purple", step: "03",
+                                    title: "Async Video Interviews & Dashboard Review",
+                                    link: "/ai-interview-platform",
+                                    desc: "Candidates complete AI-generated mock interview questions at their own pace. Logged-in hiring teams review complete candidate evaluations on a single dashboard.",
+                                    bullets: ["Candidates record on their own schedule", "AI scores answers automatically", "Full picture available in recruiter dashboard"]
+                                }
+                            ].map((card, idx) => {
+                                const Icon = card.icon;
+                                const bgMap   = { blue: isLight ? 'bg-blue-50' : 'bg-blue-500/10',     teal: isLight ? 'bg-teal-50' : 'bg-teal-500/10',     purple: isLight ? 'bg-purple-50' : 'bg-purple-500/10'   };
+                                const bdrMap  = { blue: isLight ? 'border-blue-200' : 'border-blue-500/20', teal: isLight ? 'border-teal-200' : 'border-teal-500/20', purple: isLight ? 'border-purple-200' : 'border-purple-500/20' };
+                                const icMap   = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
+                                const lblMap  = { blue: isLight ? 'text-blue-700' : 'text-blue-400',   teal: isLight ? 'text-teal-700' : 'text-teal-400',   purple: isLight ? 'text-purple-700' : 'text-purple-400'    };
+                                return (
+                                    <article key={idx} className={`p-8 rounded-[2rem] border transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
+                                        <div className={`w-12 h-12 ${bgMap[card.color]} border ${bdrMap[card.color]} rounded-xl flex items-center justify-center mb-6`}>
+                                            <Icon className={`w-5 h-5 ${icMap[card.color]}`} />
+                                        </div>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest mb-3 block ${lblMap[card.color]}`}>Step {card.step}</span>
+                                        <h3 className="text-xl font-black mb-3 tracking-tight">
+                                            <Link to={card.link} className="hover:text-blue-500 transition-colors">{card.title}</Link>
+                                        </h3>
+                                        <p className={`text-sm leading-relaxed mb-6 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{card.desc}</p>
+                                        <ul className="space-y-2.5 text-xs font-semibold mb-6">
+                                            {card.bullets.map((b, i) => (
+                                                <li key={i} className="flex items-center gap-2">
+                                                    <CheckCircle2 size={13} className="text-teal-400 shrink-0" />
+                                                    <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>{b}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <Link to={card.link} className={`inline-flex items-center gap-1.5 text-xs font-bold ${lblMap[card.color]} hover:underline`}>
+                                            Explore {card.title.split(' ')[0]} Solution <ArrowRight size={12} />
+                                        </Link>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </section>
+
+                {/* ─── SECTION 4: PROOF & INTEGRITY (QUESTION HEADING) ─── */}
+                <section aria-labelledby="integrity-heading" className={`py-24 border-t ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
+                    <div className="container mx-auto px-6">
+                        <div className="text-center max-w-3xl mx-auto mb-16">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-emerald-500/20 bg-emerald-500/8 text-emerald-400'}`}>
+                                <ShieldCheck size={12} /> Proof of Performance
+                            </div>
+                            <h2 id="integrity-heading" className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
+                                How Does Anti-Cheat Proctoring Guarantee{' '}
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400">Technical Test Integrity?</span>
+                            </h2>
+                            <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                Skip resume exaggeration and get direct, verified evaluation scores right on your recruiter dashboard.
+                            </p>
+                        </div>
+
+                        {/* Artifact Mockups Row */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
+                            {/* Artifact A: Proctoring Audit Log */}
+                            <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
+                                <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle size={14} className={isLight ? "text-rose-600" : "text-rose-400"} />
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Live Proctoring Audit Log</span>
+                                    </div>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-rose-700 bg-rose-100 border border-rose-200' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>LIVE MONITORING</span>
+                                </div>
+                                <div className="p-6 space-y-3">
+                                    {[
+                                        { type: "TAB SWITCH FLAGGED", time: "00:14:22", severity: "HIGH",   penalty: "+6", desc: "Candidate switched browser tabs temporarily" },
+                                        { type: "EYE LOOKING AWAY",   time: "00:08:08", severity: "MEDIUM", penalty: "+4", desc: "Rhythmic horizontal eye movement detected" },
+                                        { type: "HEAD TURNED",         time: "00:08:26", severity: "MEDIUM", penalty: "+3", desc: "Head turned excessively to the right" }
+                                    ].map((log, i) => (
+                                        <div key={i} className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${isLight ? 'bg-rose-50/60 border-rose-100' : 'bg-rose-500/5 border-rose-500/15'}`}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${log.severity === 'HIGH' ? 'bg-rose-500' : 'bg-amber-400'}`} />
+                                                    <p className={`text-[10px] font-black uppercase ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.type}</p>
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${log.severity === 'HIGH' ? (isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-500/15 text-rose-400') : (isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/15 text-amber-400')}`}>{log.severity}</span>
+                                                </div>
+                                                <p className={`text-[10px] truncate ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{log.desc}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className={`font-extrabold text-sm ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{log.penalty}</p>
+                                                <p className={`text-[9px] ${isLight ? 'text-gray-600' : 'text-gray-500'}`}>{log.time}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <p className={`text-xs leading-relaxed pt-2 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        Every assessment generates a complete audit trail. Know exactly how candidates performed and whether they stayed focused on the test.
+                                    </p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
-            {/* ─── SECTION 7: FINAL CTA ─── */}
-            <section className="relative py-28 overflow-hidden">
-                <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full blur-[150px] -z-10 ${isLight ? 'bg-blue-100/60' : 'bg-blue-600/8'}`} />
-                <div className={`absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full blur-[120px] -z-10 ${isLight ? 'bg-teal-100/50' : 'bg-teal-500/8'}`} />
+                            {/* Artifact B: Recruiter Insights Dashboard */}
+                            <div className={`rounded-[2rem] border overflow-hidden ${isLight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/5 border-white/8'}`}>
+                                <div className={`px-6 py-4 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-black/20 border-white/5'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <LayoutDashboard size={14} className={isLight ? "text-blue-600" : "text-blue-400"} />
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-blue-700' : 'text-blue-400'}`}>Recruiter Insights Dashboard</span>
+                                    </div>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isLight ? 'text-emerald-800 bg-emerald-100 border border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'}`}>ACTIVE SESSION</span>
+                                </div>
+                                <div className="p-6">
+                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                        {[
+                                            { val: "12", label: "Open Pipelines", color: isLight ? "text-blue-700" : "text-blue-500" },
+                                            { val: "85%", label: "Completion Rate", color: isLight ? "text-teal-700" : "text-teal-400" },
+                                            { val: "1,240", label: "Screened Candidates", color: isLight ? "text-purple-700" : "text-purple-400" }
+                                        ].map((stat, idx) => (
+                                            <div key={idx} className={`p-3 rounded-2xl border text-center ${isLight ? 'bg-gray-50 border-gray-100' : 'bg-black/10 border-white/5'}`}>
+                                                <p className={`text-xl font-extrabold ${stat.color}`}>{stat.val}</p>
+                                                <p className={`text-[8px] font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'} mt-1`}>{stat.label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
 
-                <div className="container mx-auto px-6 text-center max-w-4xl">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-6 ${isLight ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-blue-500/20 bg-blue-500/8 text-blue-400'}`}>
-                        <Sparkles size={12} /> Get Started Today
-                    </div>
-                    <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none">
-                        Ready to Hire the <br/>{' '}
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">True Top 1%?</span>
-                    </h2>
-                    <p className={`text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Join forward-thinking tech teams, scale-ups, and recruitment firms using Hire 1% to automate screening and safeguard assessment integrity.
-                    </p>
-
-                    <div className={`max-w-2xl mx-auto rounded-[2rem] border p-10 mb-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/4 border-white/8'}`}>
-                        <div className="flex items-center justify-center gap-3 mb-6">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isLight ? 'bg-blue-100' : 'bg-blue-500/15'}`}>
-                                <Calendar className="w-6 h-6 text-blue-500" />
-                            </div>
-                            <div className="text-left">
-                                <p className="font-black text-lg">Schedule a 15-Minute Demo</p>
-                                <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>Pick a time that works for you</p>
+                                    <div className="space-y-3">
+                                        <p className={`text-xs font-black uppercase tracking-wider mb-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>Top Ranked Candidates</p>
+                                        {[
+                                            { name: "Aarav Sharma", role: "AI/ML Scientist", score: "96/100", tag: "Strongly Recommended" },
+                                            { name: "Ananya Sen", role: "Senior Full-Stack Developer", score: "94/100", tag: "Strongly Recommended" },
+                                            { name: "Vikram Malhotra", role: "Frontend Architect", score: "92/100", tag: "Recommended" }
+                                        ].map((cand, idx) => (
+                                            <div key={idx} className={`p-3 rounded-xl border flex items-center justify-between gap-4 ${isLight ? 'bg-gray-50 border-gray-100' : 'bg-white/5 border-white/5'}`}>
+                                                <div>
+                                                    <p className="font-bold text-sm">{cand.name}</p>
+                                                    <p className="text-[10px] text-gray-500">{cand.role}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`font-black text-sm ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>{cand.score}</p>
+                                                    <p className={`text-[8px] font-bold uppercase ${isLight ? 'text-emerald-700' : 'text-emerald-600/60'}`}>{cand.tag}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className={`rounded-2xl border p-6 mb-6 text-center ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/8'}`}>
-                            <p className={`text-sm font-semibold mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>Calendar Booking Module</p>
-                            <p className={`text-xs ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Calendly / booking embed goes here</p>
+
+                        {/* Metrics Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                            {[
+                                { value: "70%", label: "Reduction in overall Time-to-Hire", grad: "from-blue-400 to-teal-400" },
+                                { value: "100%", label: "Proctoring Audit Visibility", grad: "from-emerald-400 to-teal-400" },
+                                { value: "Single", label: "Subscription replacing legacy point solutions", grad: "from-purple-400 to-blue-400" }
+                            ].map((m, idx) => (
+                                <div key={idx} className={`p-8 rounded-[2rem] border text-center transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
+                                    <p className={`text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${m.grad} mb-3`}>{m.value}</p>
+                                    <p className={`text-sm font-semibold leading-snug ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{m.label}</p>
+                                </div>
+                            ))}
                         </div>
-                        <button id="final-cta-demo"
-                            onClick={() => setIsModalOpen(true)}
-                            className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base w-full justify-center">
-                            <Calendar size={18} />
-                            Schedule Your 15-Minute Live Demo
-                        </button>
-                        <p className={`text-xs mt-4 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            No credit card required. Experience the proctored assessment engine in action today.
+                    </div>
+                </section>
+
+                {/* ─── SECTION 5: TOOL CONSOLIDATION TABLE (QUESTION HEADING) ─── */}
+                <section aria-labelledby="comparison-heading" className="py-24">
+                    <div className="container mx-auto px-6">
+                        <div className="text-center max-w-3xl mx-auto mb-14">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-amber-500/20 bg-amber-500/8 text-amber-400'}`}>
+                                <TrendingDown size={12} /> Cost Comparison
+                            </div>
+                            <h2 id="comparison-heading" className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
+                                How Does Hire1Percent Compare to<br />{' '}
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-400">Legacy Multi-Tool Stacks?</span>
+                            </h2>
+                            <p className={`text-base leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                Compare how Hire1Percent simplifies your recruiting operations while lowering costs:
+                            </p>
+                        </div>
+
+                        <div className="max-w-4xl mx-auto mb-8">
+                            <div className={`rounded-[2rem] border overflow-hidden shadow-xl ${isLight ? 'border-gray-200' : 'border-white/8'}`}>
+                                <div className={`grid grid-cols-3 ${isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-white/5 border-b border-white/8'}`}>
+                                    <div className="px-6 py-4"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Feature / Capability</p></div>
+                                    <div className={`px-6 py-4 border-x text-center ${isLight ? 'border-gray-200' : 'border-white/8'}`}><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Legacy Multi-Tool Stack</p></div>
+                                    <div className="px-6 py-4 text-center"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Hire1Percent Platform</p></div>
+                                </div>
+                                {comparisonRows.map((row, idx) => (
+                                    <div key={idx} className={`grid grid-cols-3 border-b last:border-b-0 transition-colors duration-200 ${isLight ? 'border-gray-100 hover:bg-gray-50/60' : 'border-white/5 hover:bg-white/3'}`}>
+                                        <div className="px-6 py-5 flex items-center"><p className={`text-sm font-bold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>{row.feature}</p></div>
+                                        <div className={`px-6 py-5 border-x flex flex-col items-center justify-center gap-1 ${isLight ? 'border-gray-100' : 'border-white/5'}`}>
+                                            <StatusIcon status={row.legacy.status} />
+                                            <StatusLabel status={row.legacy.status} label={row.legacy.label} />
+                                        </div>
+                                        <div className="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                                            <StatusIcon status={row.h1p.status} />
+                                            <StatusLabel status={row.h1p.status} label={row.h1p.label} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="text-center">
+                            <Link to="/pricing" className={`inline-flex items-center gap-2 text-sm font-bold text-blue-500 hover:underline`}>
+                                View detailed pricing and feature breakdowns <ArrowRight size={14} />
+                            </Link>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ─── SECTION 6: TECHNICAL GLOSSARY & DEFINITIONS (AEO LANDMARK) ─── */}
+                <section aria-labelledby="definitions-heading" className={`py-20 border-t ${isLight ? 'bg-white border-gray-100' : 'bg-[#0a0d14] border-white/5'}`}>
+                    <div className="container mx-auto px-6 max-w-5xl">
+                        <div className="text-center mb-12">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-purple-200 bg-purple-50 text-purple-600' : 'border-purple-500/20 bg-purple-500/8 text-purple-400'}`}>
+                                <BookOpen size={12} /> Recruitment Glossary
+                            </div>
+                            <h2 id="definitions-heading" className="text-3xl md:text-4xl font-black mb-4 tracking-tight">
+                                Key Technical Recruitment Concepts &amp; Definitions
+                            </h2>
+                            <p className={isLight ? 'text-gray-600' : 'text-gray-400'}>
+                                Understanding modern AI-assisted technical hiring architecture and methodologies.
+                            </p>
+                        </div>
+
+                        <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {HOMEPAGE_DEFINITIONS.map((def, idx) => (
+                                <div key={idx} className={`p-6 rounded-2xl border ${isLight ? 'bg-gray-50/70 border-gray-200' : 'bg-white/5 border-white/5'}`}>
+                                    <dt className="text-base font-extrabold text-blue-500 mb-2">{def.term}</dt>
+                                    <dd className={`text-sm leading-relaxed ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>{def.definition}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </div>
+                </section>
+
+                {/* ─── SECTION 7: CRAWLABLE ACCESSIBLE FAQ (AEO CRITICAL) ─── */}
+                <section aria-labelledby="faq-heading" className={`py-24 border-t ${isLight ? 'bg-gray-50/40 border-gray-100' : 'bg-[#0f131c] border-white/5'}`}>
+                    <div className="container mx-auto px-6 max-w-4xl">
+                        <div className="text-center mb-16">
+                            <h2 id="faq-heading" className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
+                                Frequently Asked Questions About Hire1Percent
+                            </h2>
+                            <p className={isLight ? 'text-gray-600' : 'text-gray-400'}>
+                                Everything you need to know about our AI recruitment, coding assessments, and interview platform.
+                            </p>
+                        </div>
+
+                        {/* Semantic details/summary: 100% crawlable, accessible, no hidden content traps */}
+                        <div className="space-y-4">
+                            {HOMEPAGE_FAQS.map((faq, index) => (
+                                <details 
+                                    key={index} 
+                                    open={index === 0}
+                                    className={`group rounded-2xl border transition-all duration-200 ${isLight ? 'bg-white border-gray-200 hover:border-gray-300 shadow-sm' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                                >
+                                    <summary className="w-full text-left px-6 py-5 font-bold flex items-center justify-between gap-4 text-base md:text-lg cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                                        <span className="flex-1">{faq.question}</span>
+                                        <ChevronDown size={20} className={`text-blue-500 transition-transform duration-200 group-open:rotate-180 shrink-0`} />
+                                    </summary>
+                                    <div className={`px-6 pb-6 pt-2 text-sm leading-relaxed border-t ${isLight ? 'border-gray-100 text-gray-700' : 'border-white/5 text-gray-300'}`}>
+                                        <p>{faq.answer}</p>
+                                    </div>
+                                </details>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* ─── SECTION 8: FINAL CTA ─── */}
+                <section aria-label="Schedule a Demo" className="relative py-28 overflow-hidden">
+                    <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full blur-[150px] -z-10 ${isLight ? 'bg-blue-100/60' : 'bg-blue-600/8'}`} />
+                    <div className={`absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full blur-[120px] -z-10 ${isLight ? 'bg-teal-100/50' : 'bg-teal-500/8'}`} />
+
+                    <div className="container mx-auto px-6 text-center max-w-4xl">
+                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-6 ${isLight ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-blue-500/20 bg-blue-500/8 text-blue-400'}`}>
+                            <Sparkles size={12} /> Get Started Today
+                        </div>
+                        <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none">
+                            Ready to Hire the <br/>{' '}
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-teal-400 to-emerald-400">True Top 1%?</span>
+                        </h2>
+                        <p className={`text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                            Join forward-thinking tech teams, scale-ups, and recruitment firms using Hire1Percent to automate screening and safeguard assessment integrity.
                         </p>
+
+                        <div className={`max-w-2xl mx-auto rounded-[2rem] border p-10 mb-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/4 border-white/8'}`}>
+                            <div className="flex items-center justify-center gap-3 mb-6">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isLight ? 'bg-blue-100' : 'bg-blue-500/15'}`}>
+                                    <Calendar className="w-6 h-6 text-blue-500" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-black text-lg">Schedule a 15-Minute Demo</p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>Pick a time that works for you</p>
+                                </div>
+                            </div>
+                            <div className={`rounded-2xl border p-6 mb-6 text-center ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/8'}`}>
+                                <p className={`text-sm font-semibold mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>Calendar Booking Module</p>
+                                <p className={`text-xs ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Book a customized walkthrough of our assessment &amp; interview engine</p>
+                            </div>
+                            <button id="final-cta-demo"
+                                onClick={() => setIsModalOpen(true)}
+                                className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-bold rounded-2xl transition-all duration-300 shadow-2xl shadow-blue-500/25 transform hover:-translate-y-0.5 text-base w-full justify-center">
+                                <Calendar size={18} />
+                                Schedule Your 15-Minute Live Demo
+                            </button>
+                            <p className={`text-xs mt-4 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                No credit card required. Experience the proctored assessment engine in action today.
+                            </p>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </main>
 
             <Footer theme={theme} />
             {isModalOpen && (

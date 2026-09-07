@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus, FileText } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus, FileText, BookOpen } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
@@ -16,6 +16,7 @@ const navItems = [
     { label: 'Applicants', icon: Users, path: '/recruiter/applicants' },
     { label: 'Onboarding Kit', icon: Package, path: '/recruiter/onboarding-kit' },
     { label: 'AI Search', icon: Sparkles, path: '/recruiter/ai-search' },
+    { label: 'Knowledge Hub', icon: BookOpen, path: '/recruiter/knowledge-hub' },
     { label: 'Profile', icon: UserCircle, path: '/recruiter/profile' },
 ];
 

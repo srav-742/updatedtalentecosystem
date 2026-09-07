@@ -241,6 +241,8 @@ app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 app.use('/api/user-resumes', require('./routes/userResumeRoutes'));
 app.use('/api', require('./routes/recruiterUploadRoutes'));
 app.use('/api', paymentRoutes);
+app.use('/api/recruiter-knowledge', require('./routes/knowledgeHubRoutes'));
+app.use('/api/candidate/job-readiness', require('./routes/jobReadinessRoutes'));
 
 // 🔍 TTS Debug Diagnostics Endpoint — Tests both ElevenLabs and Edge Neural TTS
 app.get('/api/tts-debug', async (req, res) => {

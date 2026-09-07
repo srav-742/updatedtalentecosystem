@@ -51,6 +51,7 @@ export const prefetchRecruiterRoutes = () => {
     prefetch(() => import('../pages/recruiter/PerformanceDashboard'), 'PerformanceDashboard');
     prefetch(() => import('../pages/recruiter/OnboardingKit'), 'OnboardingKit');
     prefetch(() => import('../pages/recruiter/TalentSearch'), 'TalentSearch');
+    prefetch(() => import('../pages/recruiter/RecruiterKnowledgeHub'), 'RecruiterKnowledgeHub');
 };
 
 /**

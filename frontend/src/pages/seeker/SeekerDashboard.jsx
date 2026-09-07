@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap, Sparkles, ChevronRight, Building2, MapPin, Target, TrendingUp } from 'lucide-react';
+import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap, Sparkles, ChevronRight, Building2, MapPin, Target, TrendingUp, Award, Code2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
 import { SeekerDashboardSkeleton } from '../../components/Skeleton';
+import JobReadinessModal from '../../components/candidate/JobReadinessModal';
 
 // Avatar gradient palettes for company badges
 const AVATAR_GRADIENTS = [
@@ -110,6 +111,19 @@ const quickActions = [
 const SeekerDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const userId = user.uid || user._id || user.id;
+    const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
+
+    // Dynamic Job Readiness Score query (cached, lightweight multi-pillar engine)
+    const { data: jobReadiness = null } = useQuery({
+        queryKey: ['jobReadiness', userId],
+        queryFn: async () => {
+            if (!userId) return null;
+            const res = await axios.get(`${API_URL}/candidate/job-readiness/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000,
+    });
 
     // Fetch lightweight candidate stats instantly (<5ms)
     const { data: serverStats, isLoading: statsLoading } = useQuery({
@@ -187,9 +201,21 @@ const SeekerDashboard = () => {
             <header className="overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] px-7 py-7 shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
                 <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr] xl:items-center">
                     <div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                            Candidate Dashboard
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                Candidate Dashboard
+                            </div>
+                            {jobReadiness && (
+                                <button
+                                    onClick={() => setIsReadinessModalOpen(true)}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/90 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+                                >
+                                    <Award size={13} className="text-indigo-600" />
+                                    <span>Readiness: <strong className="font-bold text-indigo-900">{jobReadiness.overallScore}%</strong></span>
+                                    <span className="text-[10px] bg-indigo-200/60 px-1.5 py-0.5 rounded-full font-medium">{jobReadiness.tier?.split(' - ')[0]}</span>
+                                </button>
+                            )}
                         </div>
                         <h1 className="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
                             Welcome back, {user.name || 'Candidate'}
@@ -217,6 +243,13 @@ const SeekerDashboard = () => {
                                 <Zap size={14} className="text-purple-600" />
                                 <span>Practice AI Interview</span>
                             </Link>
+                            <button
+                                onClick={() => setIsReadinessModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 cursor-pointer shadow-xs"
+                            >
+                                <Award size={14} className="text-indigo-600" />
+                                <span>Readiness Score ({jobReadiness ? jobReadiness.overallScore : 0}%)</span>
+                            </button>
                         </div>
                     </div>
 
@@ -437,48 +470,138 @@ const SeekerDashboard = () => {
                     </div>
                 </div>
 
-                {/* Profile Readiness & Checklist */}
-                <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+                {/* Job Readiness Score Cockpit */}
+                <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.04)] flex flex-col justify-between relative overflow-hidden group">
+                    {/* Decorative accent background gradient */}
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-indigo-50/70 via-purple-50/40 to-transparent rounded-bl-full pointer-events-none" />
+
                     <div>
-                        <div className="flex items-center justify-between">
+                        {/* Header */}
+                        <div className="flex items-start justify-between relative z-10">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Candidate Checklist</p>
-                                <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">Profile Readiness</h2>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Readiness Engine</p>
+                                    <span className="flex h-2 w-2 relative">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                </div>
+                                <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+                                    <span>Job Readiness Score</span>
+                                </h2>
                             </div>
-                            <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5">
-                                High Priority
+                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border shadow-xs ${
+                                (jobReadiness?.overallScore ?? 0) >= 80
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : (jobReadiness?.overallScore ?? 0) >= 60
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}>
+                                {jobReadiness?.tier?.split(' - ')[0] || 'Evaluating'}
                             </span>
                         </div>
-                        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                            Complete these key steps to maximize your automated resume score and recruiter shortlisting.
-                        </p>
 
-                        <div className="mt-4 space-y-2.5">
-                            {[
-                                { text: 'Upload latest resume for instant AI parsing', done: true },
-                                { text: 'Complete technical skills & experience details', done: true },
-                                { text: 'Practice AI mock interview to test readiness', done: false },
-                                { text: 'Review application status updates regularly', done: true }
-                            ].map((item) => (
-                                <div key={item.text} className="flex items-center gap-2.5 rounded-xl border border-black/[0.04] bg-[#faf7f1] p-3">
-                                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${item.done ? 'bg-emerald-600 text-white' : 'border border-gray-300 bg-white text-transparent'}`}>
-                                        <CheckCircle2 size={13} className={item.done ? 'text-white' : 'text-gray-300'} />
+                        {/* Readiness Score Big Counter & Percentile */}
+                        <div className="mt-5 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-[#faf7f1] to-white p-4.5 relative">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-extrabold tracking-tight text-gray-900">
+                                        {jobReadiness ? jobReadiness.overallScore : '--'}
+                                    </span>
+                                    <span className="text-sm font-semibold text-gray-400">/ 100</span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="flex items-center justify-end gap-1 text-xs font-bold text-indigo-600">
+                                        <Sparkles size={13} />
+                                        <span>Top {jobReadiness ? (100 - (jobReadiness.percentile || 50)) : 20}% Percentile</span>
                                     </div>
-                                    <p className="text-xs font-medium text-gray-700 leading-tight">{item.text}</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Recruiter candidate ranking</p>
+                                </div>
+                            </div>
+
+                            {/* Overall progress bar */}
+                            <div className="mt-3.5 h-2 w-full rounded-full bg-gray-200/80 overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-700"
+                                    style={{ width: `${jobReadiness ? jobReadiness.overallScore : 0}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 5 Core Pillars Preview */}
+                        <div className="mt-4 space-y-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Readiness Factors</p>
+                            
+                            {[
+                                { key: 'skills', label: 'Skills & Endorsements', score: jobReadiness?.dimensions?.skills?.percent ?? jobReadiness?.breakdown?.skills?.percent ?? 50 },
+                                { key: 'assessments', label: 'Verified Assessments', score: jobReadiness?.dimensions?.assessments?.percent ?? jobReadiness?.breakdown?.assessments?.percent ?? 0 },
+                                { key: 'projects', label: 'Portfolio & Projects', score: jobReadiness?.dimensions?.projects?.percent ?? jobReadiness?.breakdown?.projects?.percent ?? 0 },
+                                { key: 'resume', label: 'Resume & Profile Strength', score: jobReadiness?.dimensions?.resume?.percent ?? jobReadiness?.breakdown?.resume?.percent ?? 70 },
+                                { key: 'interview', label: 'AI Mock Interview', score: jobReadiness?.dimensions?.interview?.percent ?? jobReadiness?.breakdown?.interview?.percent ?? 0 },
+                            ].map((pillar) => (
+                                <div key={pillar.key} className="flex items-center justify-between text-xs py-1 border-b border-black/[0.03] last:border-0">
+                                    <span className="text-gray-600 font-medium">{pillar.label}</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${
+                                                    pillar.score >= 75 ? 'bg-emerald-500' : pillar.score >= 50 ? 'bg-indigo-500' : 'bg-amber-400'
+                                                }`}
+                                                style={{ width: `${pillar.score}%` }}
+                                            />
+                                        </div>
+                                        <span className="font-semibold text-gray-900 w-7 text-right">{pillar.score}%</span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
+
+                        {/* Highest Leverage Action Preview */}
+                        {jobReadiness?.improvementActions && jobReadiness.improvementActions.length > 0 && (
+                            <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                                        <Zap size={11} className="text-amber-600" />
+                                        Recommended Action
+                                    </span>
+                                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md">
+                                        {jobReadiness.improvementActions[0].pointsBoost}
+                                    </span>
+                                </div>
+                                <p className="text-xs font-semibold text-gray-900 mt-1 leading-snug">
+                                    {jobReadiness.improvementActions[0].title}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <Link
-                        to="/candidate/profile"
-                        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-[#faf7f1] py-2.5 text-xs font-semibold text-gray-800 transition hover:bg-black hover:text-white"
-                    >
-                        <span>Update Profile Settings</span>
-                        <ArrowRight size={14} />
-                    </Link>
+                    <div className="mt-5 space-y-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsReadinessModalOpen(true)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 active:scale-[0.99] shadow-sm cursor-pointer"
+                        >
+                            <Award size={14} className="text-amber-400" />
+                            <span>View Full Readiness Diagnostic</span>
+                            <ArrowRight size={14} />
+                        </button>
+
+                        <Link
+                            to="/candidate/profile"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-[#faf7f1] py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                        >
+                            <span>Update Profile Settings</span>
+                        </Link>
+                    </div>
                 </div>
             </section>
+
+            {/* Detailed Job Readiness Diagnostic & Action Modal */}
+            <JobReadinessModal
+                isOpen={isReadinessModalOpen}
+                onClose={() => setIsReadinessModalOpen(false)}
+                readinessData={jobReadiness}
+            />
         </div>
     );
 };

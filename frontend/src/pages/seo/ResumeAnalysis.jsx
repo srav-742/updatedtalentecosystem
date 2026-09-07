@@ -1,63 +1,178 @@
-import SEO from "../../components/SEO";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { FileText, ShieldCheck, CheckCircle2, ChevronDown, BookOpen, ArrowRight, Sparkles, Calendar, Layers } from 'lucide-react';
+import Navbar from '../../components/Navbar';
+import Footer from '../../components/Footer';
+import SEO from '../../components/SEO';
+import { SEO_PAGES_CONTENT } from '../../utils/aeoContent';
+import { generateWebPageSchema, generateFAQPageSchema, generateBreadcrumbSchema } from '../../utils/schemas';
 
 export default function ResumeAnalysis() {
+  const content = SEO_PAGES_CONTENT.resumeAnalysis;
+  const breadcrumbs = [
+    { name: 'Home', url: '/' },
+    { name: 'AI Resume Analysis', url: '/resume-analysis' }
+  ];
+
+  const schemas = [
+    generateWebPageSchema({
+      title: content.title,
+      description: content.description,
+      url: content.canonicalUrl,
+      breadcrumbs
+    }),
+    generateFAQPageSchema(content.faqs),
+    generateBreadcrumbSchema(breadcrumbs)
+  ];
+
   return (
-    <div className="p-10 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#0c0f16] text-white selection:bg-indigo-500/30">
       <SEO 
-        title="AI Resume Analysis & Parsing | Hire1Percent"
-        description="Extract deep insights from resumes using our state-of-the-art AI parsing and analysis engine. Match skills and experience accurately."
-        keywords="resume analysis, AI resume parsing, skill matching, experience verification"
-        canonicalUrl="/resume-analysis"
+        title={content.title}
+        description={content.description}
+        canonicalUrl={content.canonicalUrl}
+        schema={schemas}
       />
+      <Navbar />
 
-      <h1>Resume Analysis</h1>
+      <main id="main-content" className="pt-32 pb-24">
+        {/* Hero Section */}
+        <section aria-labelledby="resume-hero-heading" className="container mx-auto px-6 text-center max-w-5xl mb-24">
+          <header>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-xs font-black uppercase tracking-wider mb-6">
+              <FileText size={14} /> Semantic Contextual Intelligence
+            </div>
+            <h1 id="resume-hero-heading" className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight">
+              {content.heading}
+            </h1>
+            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-10">
+              {content.subheading}
+            </p>
+          </header>
 
-      <p>
-        Extract deep insights from resumes using our state-of-the-art AI 
-        parsing and analysis engine. Hire1Percent goes beyond simple 
-        keyword matching to understand the context and depth of a 
-        candidate's experience.
-      </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
+            <Link 
+              to="/?book-calibration=true" 
+              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-indigo-500/20"
+            >
+              <Calendar size={18} /> Schedule Parser Demo
+            </Link>
+            <Link 
+              to="/pricing" 
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-2xl transition-all"
+            >
+              View Pricing <ArrowRight size={16} />
+            </Link>
+          </div>
 
-      <h2>Key Capabilities of AI Resume Analysis</h2>
+          <div className="p-8 rounded-[2rem] bg-white/5 border border-white/10 text-left max-w-4xl mx-auto">
+            <p className="text-gray-300 leading-relaxed text-base md:text-lg">
+              {content.overview}
+            </p>
+          </div>
+        </section>
 
-      <ul>
-        <li>Semantic skill matching (understanding related skills and experience)</li>
-        <li>Experience verification and career progression analysis</li>
-        <li>Education background check and credential validation</li>
-        <li>Gap analysis and candidate potential prediction</li>
-      </ul>
+        {/* Key Features Section */}
+        <section aria-labelledby="resume-features-heading" className="container mx-auto px-6 max-w-5xl mb-24">
+          <div className="text-center mb-12">
+            <h2 id="resume-features-heading" className="text-3xl font-extrabold tracking-tight mb-4">
+              Advanced Resume Intelligence Capabilities
+            </h2>
+            <p className="text-gray-400">
+              Moving beyond naive keyword searches to evaluate actual engineering contributions.
+            </p>
+          </div>
 
-      <h2>Why Traditional Resume Parsing Isn't Enough</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              { title: "Contextual Stack Matching", desc: "Recognizes equivalent frameworks and architectural concepts even when wording differs from the job requisition." },
+              { title: "Project & Repository Verification", desc: "Correlates claimed technologies with practical code output and test performance during assessments." },
+              { title: "Automated Gap Identification", desc: "Identifies missing dependencies or domain prerequisites before advancing candidates to technical interviews." },
+              { title: "High-Volume Multi-Format Ingestion", desc: "Parses thousands of PDF, DOCX, and text resumes per minute without layout corruption or data loss." }
+            ].map((feature, idx) => (
+              <article key={idx} className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-500/30 transition-all">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 size={18} className="text-indigo-400 shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">{feature.desc}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
-      <p>
-        Simple parsers often miss high-quality candidates because they lack 
-        the context to understand varied terminology. Our AI uses natural 
-        language processing to grasp the true value of a candidate's history, 
-        ensuring you never overlook a great fit.
-      </p>
+        {/* Definitions Section */}
+        <section aria-labelledby="resume-defs-heading" className="container mx-auto px-6 max-w-5xl mb-24">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/8 text-indigo-400 text-xs font-black uppercase tracking-wider mb-4">
+              <BookOpen size={12} /> Parsing Glossary
+            </div>
+            <h2 id="resume-defs-heading" className="text-3xl font-extrabold tracking-tight mb-4">
+              Resume Intelligence Terms
+            </h2>
+          </div>
 
-      <h2>Frequently Asked Questions</h2>
+          <dl className="grid md:grid-cols-2 gap-6">
+            {content.definitions.map((def, idx) => (
+              <div key={idx} className="p-6 rounded-2xl bg-white/5 border border-white/8">
+                <dt className="text-base font-bold text-indigo-400 mb-2">{def.term}</dt>
+                <dd className="text-sm text-gray-300 leading-relaxed">{def.definition}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-      <h3>What is semantic resume analysis?</h3>
-      <p>
-        Semantic analysis goes beyond keywords to understand the meaning 
-        behind the text, identifying relevant skills even if they aren't 
-        explicitly listed with the exact wording in the job description.
-      </p>
+        {/* FAQ Section */}
+        <section aria-labelledby="resume-faq-heading" className="container mx-auto px-6 max-w-4xl mb-24">
+          <div className="text-center mb-12">
+            <h2 id="resume-faq-heading" className="text-3xl md:text-4xl font-black tracking-tight mb-4">
+              Frequently Asked Questions: AI Resume Intelligence
+            </h2>
+            <p className="text-gray-400">Common questions about automated resume screening and candidate ranking.</p>
+          </div>
 
-      <h3>How many resumes can it analyze at once?</h3>
-      <p>
-        Our system can process and analyze thousands of resumes per minute, 
-        providing instant feedback and ranking for your entire talent pool.
-      </p>
+          <div className="space-y-4">
+            {content.faqs.map((faq, idx) => (
+              <details 
+                key={idx} 
+                open={idx === 0}
+                className="group rounded-2xl bg-white/5 border border-white/8 p-6 transition-all duration-200"
+              >
+                <summary className="font-bold text-base md:text-lg flex items-center justify-between gap-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                  <span>{faq.question}</span>
+                  <ChevronDown size={20} className="text-indigo-400 transition-transform duration-200 group-open:rotate-180 shrink-0" />
+                </summary>
+                <div className="pt-4 mt-4 border-t border-white/5 text-sm text-gray-300 leading-relaxed">
+                  <p>{faq.answer}</p>
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
 
-      <h3>Does it support different resume formats?</h3>
-      <p>
-        Yes, our AI parsing engine supports PDF, Word documents, and text 
-        formats, accurately extracting data regardless of the layout.
-      </p>
+        {/* Internal Links */}
+        <nav aria-label="Related Recruitment Solutions" className="container mx-auto px-6 max-w-5xl border-t border-white/10 pt-16">
+          <h2 className="text-xl font-bold mb-6 text-center text-gray-400">Explore Other Hire1Percent Solutions</h2>
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <Link to="/ai-interview-platform" className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-purple-500/40 text-sm font-semibold text-gray-300 hover:text-white transition-all">
+              AI Interview Platform &rarr;
+            </Link>
+            <Link to="/ai-recruitment-software" className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/40 text-sm font-semibold text-gray-300 hover:text-white transition-all">
+              AI Recruitment Software &rarr;
+            </Link>
+            <Link to="/candidate-screening" className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-teal-500/40 text-sm font-semibold text-gray-300 hover:text-white transition-all">
+              Candidate Screening &rarr;
+            </Link>
+            <Link to="/automated-hiring" className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-emerald-500/40 text-sm font-semibold text-gray-300 hover:text-white transition-all">
+              Automated Pipelines &rarr;
+            </Link>
+          </div>
+        </nav>
+      </main>
 
+      <Footer />
     </div>
   );
 }
