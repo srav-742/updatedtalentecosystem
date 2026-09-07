@@ -483,29 +483,79 @@ const AssessmentsHome = () => {
                     </div>
                 </section>
 
-                {/* ─── SECTION 6: TECHNICAL GLOSSARY & DEFINITIONS (AEO LANDMARK) ─── */}
-                <section aria-labelledby="definitions-heading" className={`py-20 border-t ${isLight ? 'bg-white border-gray-100' : 'bg-[#0a0d14] border-white/5'}`}>
+                {/* ─── SECTION 6: PLATFORM OVERVIEW & DEFINITION LIST (AEO ESSENTIAL) ─── */}
+                <section aria-labelledby="glance-heading" className={`py-20 border-t ${isLight ? 'bg-white border-gray-100' : 'bg-[#0a0d14] border-white/5'}`}>
                     <div className="container mx-auto px-6 max-w-5xl">
                         <div className="text-center mb-12">
                             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-purple-200 bg-purple-50 text-purple-600' : 'border-purple-500/20 bg-purple-500/8 text-purple-400'}`}>
-                                <BookOpen size={12} /> Recruitment Glossary
+                                <BookOpen size={12} /> Platform Overview
                             </div>
-                            <h2 id="definitions-heading" className="text-3xl md:text-4xl font-black mb-4 tracking-tight">
-                                Key Technical Recruitment Concepts &amp; Definitions
+                            <h2 id="glance-heading" className="text-3xl md:text-4xl font-black mb-4 tracking-tight">
+                                Hire1Percent at a glance
                             </h2>
                             <p className={isLight ? 'text-gray-600' : 'text-gray-400'}>
-                                Understanding modern AI-assisted technical hiring architecture and methodologies.
+                                Verified summary of Hire1Percent capabilities, evaluation workflows, and platform architecture.
                             </p>
                         </div>
 
-                        <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {HOMEPAGE_DEFINITIONS.map((def, idx) => (
-                                <div key={idx} className={`p-6 rounded-2xl border ${isLight ? 'bg-gray-50/70 border-gray-200' : 'bg-white/5 border-white/5'}`}>
-                                    <dt className="text-base font-extrabold text-blue-500 mb-2">{def.term}</dt>
-                                    <dd className={`text-sm leading-relaxed ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>{def.definition}</dd>
-                                </div>
-                            ))}
-                        </dl>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                            {/* Definition List (<dl>) */}
+                            <div className={`p-8 rounded-[2rem] border ${isLight ? 'bg-gray-50/70 border-gray-200' : 'bg-white/4 border-white/8'}`}>
+                                <h3 className="text-lg font-bold mb-5 text-blue-500">Core Platform Definitions</h3>
+                                <dl className="space-y-4">
+                                    <div className="border-b border-gray-200/50 dark:border-white/5 pb-3">
+                                        <dt className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">Platform</dt>
+                                        <dd className={`text-sm md:text-base font-semibold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>AI-powered technical recruitment platform</dd>
+                                    </div>
+                                    <div className="border-b border-gray-200/50 dark:border-white/5 pb-3">
+                                        <dt className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">Primary users</dt>
+                                        <dd className={`text-sm md:text-base font-semibold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>Recruiters and technical candidates</dd>
+                                    </div>
+                                    <div className="border-b border-gray-200/50 dark:border-white/5 pb-3">
+                                        <dt className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">Technical evaluation</dt>
+                                        <dd className={`text-sm md:text-base font-semibold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>Technical assessments and coding evaluations</dd>
+                                    </div>
+                                    <div className="border-b border-gray-200/50 dark:border-white/5 pb-3">
+                                        <dt className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">Interview</dt>
+                                        <dd className={`text-sm md:text-base font-semibold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>AI-powered or asynchronous technical interviews</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">Integrity monitoring</dt>
+                                        <dd className={`text-sm md:text-base font-semibold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>Proctoring and assessment integrity signals</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            {/* Quick Facts (Key-Value List) */}
+                            <div className={`p-8 rounded-[2rem] border ${isLight ? 'bg-gray-50/70 border-gray-200' : 'bg-white/4 border-white/8'}`}>
+                                <h3 id="quick-facts-heading" className="text-lg font-bold mb-5 text-teal-500">Quick facts about Hire1Percent</h3>
+                                <ul className="space-y-4">
+                                    <li className="border-b border-gray-200/50 dark:border-white/5 pb-3 text-sm md:text-base">
+                                        <strong>Platform:</strong> <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>AI-powered technical recruitment platform</span>
+                                    </li>
+                                    <li className="border-b border-gray-200/50 dark:border-white/5 pb-3 text-sm md:text-base">
+                                        <strong>Primary users:</strong> <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>Recruiters and technical candidates</span>
+                                    </li>
+                                    <li className="border-b border-gray-200/50 dark:border-white/5 pb-3 text-sm md:text-base">
+                                        <strong>Core focus:</strong> <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>Technical recruitment and candidate evaluation</span>
+                                    </li>
+                                    <li className="border-b border-gray-200/50 dark:border-white/5 pb-3 text-sm md:text-base">
+                                        <strong>Assessment:</strong> <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>Technical and coding assessments</span>
+                                    </li>
+                                    <li className="text-sm md:text-base">
+                                        <strong>Interview:</strong> <span className={isLight ? 'text-gray-700' : 'text-gray-300'}>AI-powered technical interviews</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Last Updated Timestamp */}
+                        <div className="text-center pt-4 border-t border-gray-200/40 dark:border-white/5">
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <strong>Last updated:</strong>{' '}
+                                <time dateTime="2026-09-07">September 7, 2026</time>
+                            </p>
+                        </div>
                     </div>
                 </section>
 
