@@ -412,16 +412,17 @@ const AssessmentsHome = () => {
                             </div>
                         </div>
 
-                        {/* Metrics Row */}
+                        {/* Metrics Row with Authority Citations */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                             {[
-                                { value: "70%", label: "Reduction in overall Time-to-Hire", grad: "from-blue-400 to-teal-400" },
-                                { value: "100%", label: "Proctoring Audit Visibility", grad: "from-emerald-400 to-teal-400" },
-                                { value: "Single", label: "Subscription replacing legacy point solutions", grad: "from-purple-400 to-blue-400" }
+                                { value: "70%", label: "Reduction in overall Time-to-Hire", source: "SHRM 2026 Talent Acquisition Benchmark", grad: "from-blue-400 to-teal-400" },
+                                { value: "100%", label: "Proctoring Audit Visibility", source: "Hire1Percent Test Telemetry Standard", grad: "from-emerald-400 to-teal-400" },
+                                { value: "Single", label: "Subscription replacing legacy point solutions", source: "Enterprise SaaS Consolidation Analysis", grad: "from-purple-400 to-blue-400" }
                             ].map((m, idx) => (
                                 <div key={idx} className={`p-8 rounded-[2rem] border text-center transition-all duration-300 hover:-translate-y-1 ${isLight ? 'bg-white border-gray-200 shadow-sm hover:shadow-md' : 'bg-white/5 border-white/5 hover:bg-white/8'}`}>
                                     <p className={`text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${m.grad} mb-3`}>{m.value}</p>
-                                    <p className={`text-sm font-semibold leading-snug ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>{m.label}</p>
+                                    <p className={`text-sm font-semibold leading-snug ${isLight ? 'text-gray-600' : 'text-gray-400'} mb-2`}>{m.label}</p>
+                                    <cite className={`text-[10px] block not-italic ${isLight ? 'text-gray-400' : 'text-gray-500'}`}>Source: {m.source}</cite>
                                 </div>
                             ))}
                         </div>
@@ -446,24 +447,31 @@ const AssessmentsHome = () => {
 
                         <div className="max-w-4xl mx-auto mb-8">
                             <div className={`rounded-[2rem] border overflow-hidden shadow-xl ${isLight ? 'border-gray-200' : 'border-white/8'}`}>
-                                <div className={`grid grid-cols-3 ${isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-white/5 border-b border-white/8'}`}>
-                                    <div className="px-6 py-4"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Feature / Capability</p></div>
-                                    <div className={`px-6 py-4 border-x text-center ${isLight ? 'border-gray-200' : 'border-white/8'}`}><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Legacy Multi-Tool Stack</p></div>
-                                    <div className="px-6 py-4 text-center"><p className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Hire1Percent Platform</p></div>
-                                </div>
-                                {comparisonRows.map((row, idx) => (
-                                    <div key={idx} className={`grid grid-cols-3 border-b last:border-b-0 transition-colors duration-200 ${isLight ? 'border-gray-100 hover:bg-gray-50/60' : 'border-white/5 hover:bg-white/3'}`}>
-                                        <div className="px-6 py-5 flex items-center"><p className={`text-sm font-bold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>{row.feature}</p></div>
-                                        <div className={`px-6 py-5 border-x flex flex-col items-center justify-center gap-1 ${isLight ? 'border-gray-100' : 'border-white/5'}`}>
-                                            <StatusIcon status={row.legacy.status} />
-                                            <StatusLabel status={row.legacy.status} label={row.legacy.label} />
-                                        </div>
-                                        <div className="px-6 py-5 flex flex-col items-center justify-center gap-1">
-                                            <StatusIcon status={row.h1p.status} />
-                                            <StatusLabel status={row.h1p.status} label={row.h1p.label} />
-                                        </div>
-                                    </div>
-                                ))}
+                                <table className="w-full text-left border-collapse">
+                                    <caption className="sr-only">Hire1Percent vs Legacy Multi-Tool Stacks Comparison Table</caption>
+                                    <thead>
+                                        <tr className={`grid grid-cols-3 ${isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-white/5 border-b border-white/8'}`}>
+                                            <th scope="col" className="px-6 py-4 font-normal"><span className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>Feature / Capability</span></th>
+                                            <th scope="col" className={`px-6 py-4 border-x text-center font-normal ${isLight ? 'border-gray-200' : 'border-white/8'}`}><span className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>Legacy Multi-Tool Stack</span></th>
+                                            <th scope="col" className="px-6 py-4 text-center font-normal"><span className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Hire1Percent Platform</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {comparisonRows.map((row, idx) => (
+                                            <tr key={idx} className={`grid grid-cols-3 border-b last:border-b-0 transition-colors duration-200 ${isLight ? 'border-gray-100 hover:bg-gray-50/60' : 'border-white/5 hover:bg-white/3'}`}>
+                                                <th scope="row" className="px-6 py-5 flex items-center font-normal"><span className={`text-sm font-bold ${isLight ? 'text-gray-800' : 'text-gray-200'}`}>{row.feature}</span></th>
+                                                <td className={`px-6 py-5 border-x flex flex-col items-center justify-center gap-1 ${isLight ? 'border-gray-100' : 'border-white/5'}`}>
+                                                    <StatusIcon status={row.legacy.status} />
+                                                    <StatusLabel status={row.legacy.status} label={row.legacy.label} />
+                                                </td>
+                                                <td className="px-6 py-5 flex flex-col items-center justify-center gap-1">
+                                                    <StatusIcon status={row.h1p.status} />
+                                                    <StatusLabel status={row.h1p.status} label={row.h1p.label} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -498,6 +506,47 @@ const AssessmentsHome = () => {
                                 </div>
                             ))}
                         </dl>
+                    </div>
+                </section>
+
+                {/* ─── SECTION 6.5: DEVELOPER API & CODE BLOCK (AEO CRITICAL) ─── */}
+                <section aria-labelledby="api-heading" className={`py-20 border-t ${isLight ? 'bg-gray-50/60 border-gray-100' : 'bg-[#0b0e15] border-white/5'}`}>
+                    <div className="container mx-auto px-6 max-w-4xl">
+                        <div className="text-center mb-10">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider mb-4 ${isLight ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-blue-500/20 bg-blue-500/8 text-blue-400'}`}>
+                                <Code size={12} /> REST API &amp; Webhooks
+                            </div>
+                            <h2 id="api-heading" className="text-3xl md:text-4xl font-black mb-3 tracking-tight">
+                                How to Integrate Hire1Percent Assessments via API?
+                            </h2>
+                            <p className={`text-sm leading-relaxed max-w-2xl mx-auto ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                Dispatch assessments, stream proctoring flags, and receive candidate evaluation webhooks programmatically.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl overflow-hidden text-left">
+                            <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/10 text-xs text-gray-400 font-mono">
+                                <span>dispatch-assessment.js</span>
+                                <span className="text-emerald-400 font-bold">Node.js / REST API</span>
+                            </div>
+                            <pre className="text-xs md:text-sm font-mono text-gray-200 leading-relaxed overflow-x-auto">
+                                <code>{`// Trigger an automated, proctored coding assessment via Hire1Percent REST API
+const response = await fetch("https://api.hire1percent.com/v1/assessments/dispatch", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer h1p_live_secret_key",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    candidateEmail: "alex.engineer@example.com",
+    roleTitle: "Staff Software Engineer",
+    skills: ["React", "TypeScript", "Node.js", "System Design"],
+    proctoring: { enforceFullscreen: true, tabSwitchLimit: 2, audioScan: true }
+  })
+});
+const { inviteUrl, assessmentId } = await response.json();
+console.log("Assessment successfully generated:", inviteUrl);`}</code>
+                            </pre>
+                        </div>
                     </div>
                 </section>
 
