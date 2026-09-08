@@ -23,7 +23,7 @@
   <link rel="alternate" hreflang="x-default" href="https://www.hire1percent.com/" />
 
   <!-- Content Security Policy & Permissions Policy -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https://accounts.google.com; object-src 'none'; base-uri 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';" />
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self), display-capture=(self), geolocation=()" />
 
   <!-- Non-blocking Google Fonts: loads asynchronously, swaps in after download -->

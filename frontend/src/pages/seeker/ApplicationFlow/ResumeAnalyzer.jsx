@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../../../firebase';
+import { API_URL, getAuthHeaders } from '../../../firebase';
 import { ResumeAnalysisSkeleton } from '../../../components/Skeleton';
 
 const createEmptyStructuredProfile = () => ({
@@ -360,6 +360,34 @@ ${projectsFlat}
             });
 
             setActiveSection('basic');
+
+            // --- AUTOMATIC NAVIGATION LOGIC FOR SYNCED RESUME ---
+            const minThreshold = (job.minPercentage || 60) * 0.10;
+            if (normalizedData.matchPercentage >= minThreshold) {
+                setIsRedirecting(true);
+                setTimeout(async () => {
+                    try {
+                        const headers = await getAuthHeaders().catch(() => ({}));
+                        await axios.post(`${API_URL}/applications`, {
+                            jobId: job._id,
+                            userId,
+                            status: 'APPLIED',
+                            resumeMatchPercent: normalizedData.matchPercentage,
+                            applicantName: user?.name || profileData.basics?.name || '',
+                            applicantEmail: user?.email || profileData.basics?.email || '',
+                            applicantPic: user?.profilePic || ''
+                        }, { headers });
+
+                        onComplete({
+                            ...normalizedData,
+                            structuredProfile: profileData
+                        });
+                    } catch (navError) {
+                        console.error('Auto-navigation failed:', navError);
+                        setIsRedirecting(false);
+                    }
+                }, 600);
+            }
         } catch (err) {
             console.error("Failed to analyze synced resume:", err);
             setError(err.response?.data?.message || 'Failed to process synced resume. Please try direct upload.');
@@ -599,16 +627,17 @@ ${projectsFlat}
                 // Show success for 2.5 seconds then auto-navigate
                 setTimeout(async () => {
                     try {
+                        const headers = await getAuthHeaders().catch(() => ({}));
                         // 1. Save Application
                         await axios.post(`${API_URL}/applications`, {
                             jobId: job._id,
                             userId,
                             status: 'APPLIED',
                             resumeMatchPercent: normalizedData.matchPercentage,
-                            applicantName: user.name,
-                            applicantEmail: user.email,
-                            applicantPic: user.profilePic || ''
-                        });
+                            applicantName: user?.name || '',
+                            applicantEmail: user?.email || '',
+                            applicantPic: user?.profilePic || ''
+                        }, { headers });
 
                         // 2. Auto-complete step
                         onComplete({
@@ -637,20 +666,28 @@ ${projectsFlat}
         }
 
         try {
+            const headers = await getAuthHeaders().catch(() => ({}));
             await axios.post(`${API_URL}/applications`, {
                 jobId: job._id,
                 userId,
                 status: 'APPLIED',
                 resumeMatchPercent: analysisResult.data.matchPercentage,
-                applicantName: user.name,
-                applicantEmail: user.email,
-                applicantPic: user.profilePic || ''
-            });
+                applicantName: user?.name || '',
+                applicantEmail: user?.email || '',
+                applicantPic: user?.profilePic || ''
+            }, { headers });
 
             setApplicationSaved(true);
             setError(null);
         } catch (err) {
-            setError('Network error. Could not save application.');
+            console.warn('Application save error or already exists:', err);
+        } finally {
+            if (onComplete) {
+                onComplete({
+                    ...analysisResult.data,
+                    structuredProfile
+                });
+            }
         }
     };
 

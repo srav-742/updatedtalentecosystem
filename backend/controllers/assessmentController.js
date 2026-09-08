@@ -331,7 +331,7 @@ const getAssessmentDetails = async (req, res) => {
         }
 
         // 🔒 Pro recruiter validation check
-        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
+        const recruiterId = (req.headers && (req.headers['x-user-id'] || req.headers['x-h1p-user-id'])) || (req.user && (req.user.uid || req.user._id));
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }

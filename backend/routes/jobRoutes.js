@@ -18,6 +18,7 @@ router.post("/generate-description", authMiddleware, roleCheck('recruiter', 'adm
 
 // CREATE JOB
 router.post("/create", jobController.createJob);
+router.post("/", jobController.createJob);
 
 // GET ALL JOBS (candidates)
 router.get("/", jobController.getAllJobs);

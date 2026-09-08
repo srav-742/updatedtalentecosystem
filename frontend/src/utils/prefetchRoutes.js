@@ -65,6 +65,7 @@ export const prefetchSeekerRoutes = () => {
     prefetch(() => import('../pages/seeker/SeekerProfile'), 'SeekerProfile');
     prefetch(() => import('../pages/seeker/EliteCommunity'), 'EliteCommunity');
     prefetch(() => import('../pages/seeker/ApplicationFlow/AgentInterview'), 'AgentInterview');
+    prefetch(() => import('../pages/public/CandidateCareerHub'), 'CandidateCareerHub');
 };
 
 /**
@@ -75,4 +76,5 @@ export const prefetchPublicRoutes = () => {
     prefetch(() => import('../pages/SignupPage'), 'SignupPage');
     prefetch(() => import('../pages/PricingPage'), 'PricingPage');
     prefetch(() => import('../pages/AboutPage'), 'AboutPage');
+    prefetch(() => import('../pages/public/CandidateCareerHub'), 'CandidateCareerHub');
 };

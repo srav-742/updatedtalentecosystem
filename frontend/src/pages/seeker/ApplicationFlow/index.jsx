@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2 } from 'lucide-react';
 import axios from 'axios';
@@ -25,6 +25,8 @@ const StepLoader = () => (
 const ApplicationFlow = () => {
     const { jobId } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const requestedStep = searchParams.get('step') || searchParams.get('retest');
     const [stepIndex, setStepIndex] = useState(0);
     const [loading, setLoading] = useState(true);
     const [job, setJob] = useState(null);
@@ -82,10 +84,20 @@ const ApplicationFlow = () => {
                 // Check for existing application to resume state
                 try {
                     const appsRes = await axios.get(`${API_URL}/applications/candidate/${storedUser.uid || storedUser._id || storedUser.id}`);
-                    const existingApp = appsRes.data.find(app => (app.jobId._id || app.jobId) === jobId);
+                    const existingApp = (Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || []).find(app => {
+                        const appJobId = app?.jobId?._id || app?.jobId;
+                        return appJobId && String(appJobId) === String(jobId);
+                    });
+                    const enabledIds = enabledSteps.map(s => s.id);
 
-                    if (existingApp) {
-                        const enabledIds = enabledSteps.map(s => s.id);
+                    if (requestedStep && enabledIds.includes(requestedStep)) {
+                        setStepIndex(enabledIds.indexOf(requestedStep));
+                        if (existingApp) {
+                            if (existingApp.resumeMatchPercent) setResumeData({ matchPercentage: existingApp.resumeMatchPercent });
+                            if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
+                            if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
+                        }
+                    } else if (existingApp) {
                         if (existingApp.resumeMatchPercent) setResumeData({ matchPercentage: existingApp.resumeMatchPercent });
                         if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
                         if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
@@ -108,12 +120,17 @@ const ApplicationFlow = () => {
                             targetIndex = enabledIds.indexOf('interview');
                         } else if (resumeDone && videoDone && assessmentDone && codingDone && interviewDone) {
                             navigate('/candidate/applications');
+                            return;
                         }
 
                         setStepIndex(targetIndex);
                     }
                 } catch (e) {
                     // No existing application found or minor error - continue normally
+                    const enabledIds = enabledSteps.map(s => s.id);
+                    if (requestedStep && enabledIds.includes(requestedStep)) {
+                        setStepIndex(enabledIds.indexOf(requestedStep));
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);

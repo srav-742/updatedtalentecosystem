@@ -3,11 +3,13 @@ import { motion } from 'framer-motion';
 import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '../../firebase';
 import './recruiter-theme.css';
 
 const PostJob = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
     const editJobId = searchParams.get('edit');
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
@@ -233,7 +235,6 @@ const PostJob = () => {
             if (dataToSave.mockInterview) {
                 dataToSave.mockInterview.passingScore = Number(dataToSave.mockInterview.passingScore);
             }
-
             let targetJobId = editJobId;
             if (editJobId) {
                 await axios.put(`${API_URL}/jobs/${editJobId}`, dataToSave);
@@ -242,6 +243,7 @@ const PostJob = () => {
                 targetJobId = res.data?._id || res.data?.job?._id;
             }
 
+            queryClient.invalidateQueries({ queryKey: ['jobs'] });
             setSuccess(true);
             if (dataToSave.codingAssessment?.enabled && targetJobId) {
                 setTimeout(() => {

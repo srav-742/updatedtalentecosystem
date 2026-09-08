@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Briefcase,
@@ -17,10 +17,17 @@ import {
     Zap,
     Bookmark,
     Layers,
-    ArrowRight
+    ArrowRight,
+    RotateCcw,
+    Code2,
+    Brain,
+    Video,
+    AlertCircle,
+    X,
+    Check
 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { ApplicationTrackerSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -137,10 +144,19 @@ const getTimelineSteps = (status) => {
 };
 
 const MyApplications = () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [selectedTab, setSelectedTab] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Retest state
+    const [retestModalOpen, setRetestModalOpen] = useState(false);
+    const [selectedRetestApp, setSelectedRetestApp] = useState(null);
+    const [selectedRound, setSelectedRound] = useState('coding');
+    const [retesting, setRetesting] = useState(false);
+    const [retestError, setRetestError] = useState(null);
+    const [retestSuccess, setRetestSuccess] = useState(null);
 
     const userId = user.uid || user._id || user.id;
 
@@ -204,6 +220,59 @@ const MyApplications = () => {
 
     const handleUnsave = (appId) => {
         unsaveMutation.mutate(appId);
+    };
+
+    const handleOpenRetestModal = (app) => {
+        setSelectedRetestApp(app);
+        const job = app.jobId || {};
+        if (job.codingAssessment?.enabled) {
+            setSelectedRound('coding');
+        } else if (job.assessment?.enabled) {
+            setSelectedRound('assessment');
+        } else if (job.mockInterview?.enabled) {
+            setSelectedRound('interview');
+        } else {
+            setSelectedRound('coding');
+        }
+        setRetestError(null);
+        setRetestSuccess(null);
+        setRetestModalOpen(true);
+    };
+
+    const handleConfirmRetest = async () => {
+        if (!selectedRetestApp) return;
+        setRetesting(true);
+        setRetestError(null);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            const res = await axios.post(
+                `${API_URL}/applications/${selectedRetestApp._id}/retest`,
+                {
+                    round: selectedRound,
+                    reason: 'Candidate requested retest from dashboard'
+                },
+                { headers }
+            );
+
+            if (res.data?.success) {
+                const roundName = selectedRound === 'coding' ? 'Coding Assessment' : selectedRound === 'assessment' ? 'Skill Assessment' : 'AI Interview';
+                setRetestSuccess(`${roundName} reset successfully! Redirecting to test...`);
+                queryClient.invalidateQueries({ queryKey: ['applications', userId] });
+
+                setTimeout(() => {
+                    setRetestModalOpen(false);
+                    const targetJobId = selectedRetestApp.jobId?._id || selectedRetestApp.jobId;
+                    navigate(`/candidate/apply/${targetJobId}?step=${selectedRound}&retest=true`);
+                }, 900);
+            } else {
+                setRetestError(res.data?.message || 'Failed to initiate retest.');
+            }
+        } catch (err) {
+            console.error('Retest error:', err);
+            setRetestError(err.response?.data?.message || 'Failed to initiate retest. Please try again.');
+        } finally {
+            setRetesting(false);
+        }
     };
 
     return (
@@ -443,6 +512,115 @@ const MyApplications = () => {
                                             </div>
                                         </div>
 
+                                        {/* Assessment Rounds Breakdown & Retest Actions */}
+                                        <div className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-xs">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-gray-100">
+                                                <div className="flex items-center gap-2">
+                                                    <Layers size={14} className="text-gray-500" />
+                                                    <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">Evaluation Rounds & Performance</span>
+                                                </div>
+                                                
+                                                {/* Retest Action Button */}
+                                                {(job.codingAssessment?.enabled || job.assessment?.enabled || job.mockInterview?.enabled) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenRetestModal(application)}
+                                                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 hover:border-amber-400 cursor-pointer self-start sm:self-auto"
+                                                        title="Faced technical issues or want to improve your score? Retake assessment"
+                                                    >
+                                                        <RotateCcw size={12} className="text-amber-700" />
+                                                        <span>Retest Assessment</span>
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Badges Grid for All Configured Modules */}
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                                {/* Resume Analysis */}
+                                                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <FileText size={14} className="text-gray-600 shrink-0" />
+                                                        <span className="text-xs font-semibold text-gray-700 truncate">Resume Match</span>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-900 shrink-0">
+                                                        {application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined
+                                                            ? `${application.resumeMatchPercent}/10 (${Math.round(application.resumeMatchPercent * 10)}%)`
+                                                            : 'Pending'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Skill Assessment (MCQ) */}
+                                                {job.assessment?.enabled && (
+                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Brain size={14} className="text-blue-600 shrink-0" />
+                                                            <span className="text-xs font-semibold text-gray-700 truncate">Skill MCQ</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            application.assessmentScore !== null && application.assessmentScore !== undefined
+                                                                ? 'text-blue-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {application.assessmentScore !== null && application.assessmentScore !== undefined
+                                                                ? `${application.assessmentScore}/${job.assessment?.totalQuestions || 20}`
+                                                                : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Coding Assessment */}
+                                                {job.codingAssessment?.enabled && (
+                                                    <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                                                        application.codingScore !== null && application.codingScore !== undefined
+                                                            ? application.codingScore >= (job.codingAssessment?.passingScore || 60)
+                                                                ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
+                                                                : 'bg-amber-50/70 border-amber-200/80 text-amber-900'
+                                                            : 'bg-[#faf7f1] border-black/[0.04] text-gray-700'
+                                                    }`}>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Code2 size={14} className={
+                                                                application.codingScore !== null && application.codingScore !== undefined
+                                                                    ? application.codingScore >= (job.codingAssessment?.passingScore || 60)
+                                                                        ? 'text-emerald-600 shrink-0'
+                                                                        : 'text-amber-600 shrink-0'
+                                                                    : 'text-teal-600 shrink-0'
+                                                            } />
+                                                            <span className="text-xs font-semibold truncate">Coding Challenge</span>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <span className="text-xs font-bold">
+                                                                {application.codingScore !== null && application.codingScore !== undefined
+                                                                    ? `${application.codingScore}/100`
+                                                                    : 'Pending'}
+                                                            </span>
+                                                            <span className="block text-[9px] text-gray-500 font-medium">
+                                                                Passing: {job.codingAssessment?.passingScore || 60}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Mock Interview / Candidate Deck */}
+                                                {job.mockInterview?.enabled && (
+                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Video size={14} className="text-purple-600 shrink-0" />
+                                                            <span className="text-xs font-semibold text-gray-700 truncate">AI Interview</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            application.interviewScore !== null && application.interviewScore !== undefined
+                                                                ? 'text-purple-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {application.interviewScore !== null && application.interviewScore !== undefined
+                                                                ? `${application.interviewScore}/100`
+                                                                : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
                                         {/* Action / Resume Pipeline bar if incomplete */}
                                         {!isComplete && (
                                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-purple-200/70 bg-purple-50/50 p-4">
@@ -496,6 +674,192 @@ const MyApplications = () => {
                     </Link>
                 </div>
             )}
+
+            {/* Retest Assessment Modal */}
+            <AnimatePresence>
+                {retestModalOpen && selectedRetestApp && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white p-6 md:p-8 shadow-2xl border border-black/10"
+                        >
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+                                        <RotateCcw size={22} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Retake Assessment</h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {selectedRetestApp.jobId?.title || 'Application'} • {selectedRetestApp.jobId?.company || 'hire1percent Partner'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => !retesting && setRetestModalOpen(false)}
+                                    className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="mt-5 rounded-2xl bg-amber-50/80 border border-amber-200/80 p-4 text-xs text-amber-900 leading-relaxed">
+                                <p className="font-semibold">Faced technical glitches, proctoring issues, or want to improve your score?</p>
+                                <p className="mt-1 text-amber-800">Select the round below to retake. Your previous submission for that round will be reset so you can begin a fresh evaluation.</p>
+                            </div>
+
+                            {/* Round Selector Options */}
+                            <div className="mt-5 space-y-2.5">
+                                <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Select Round to Retake:</p>
+                                
+                                {/* Coding Round Option */}
+                                {selectedRetestApp.jobId?.codingAssessment?.enabled && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'coding'
+                                            ? 'border-teal-600 bg-teal-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="coding"
+                                                checked={selectedRound === 'coding'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-teal-600 focus:ring-teal-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Code2 size={16} className="text-teal-600" />
+                                                    Coding Assessment
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Passing requirement: {selectedRetestApp.jobId?.codingAssessment?.passingScore || 60}%
+                                                    {selectedRetestApp.codingScore !== null && selectedRetestApp.codingScore !== undefined && (
+                                                        <span className="ml-1 text-amber-700 font-semibold">• Current Score: {selectedRetestApp.codingScore}/100</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* Skill MCQ Option */}
+                                {selectedRetestApp.jobId?.assessment?.enabled && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'assessment'
+                                            ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="assessment"
+                                                checked={selectedRound === 'assessment'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Brain size={16} className="text-blue-600" />
+                                                    Skill Assessment (MCQ)
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Total Questions: {selectedRetestApp.jobId?.assessment?.totalQuestions || 20}
+                                                    {selectedRetestApp.assessmentScore !== null && selectedRetestApp.assessmentScore !== undefined && (
+                                                        <span className="ml-1 text-blue-700 font-semibold">• Current Score: {selectedRetestApp.assessmentScore}</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* AI Interview Option */}
+                                {selectedRetestApp.jobId?.mockInterview?.enabled && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'interview'
+                                            ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="interview"
+                                                checked={selectedRound === 'interview'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-purple-600 focus:ring-purple-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Video size={16} className="text-purple-600" />
+                                                    AI Video Interview
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Proctored video dialogue & behavioral assessment
+                                                    {selectedRetestApp.interviewScore !== null && selectedRetestApp.interviewScore !== undefined && (
+                                                        <span className="ml-1 text-purple-700 font-semibold">• Current Score: {selectedRetestApp.interviewScore}/100</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+                            </div>
+
+                            {/* Error / Success Feedback */}
+                            {retestError && (
+                                <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-medium">
+                                    <AlertCircle size={14} className="shrink-0 text-red-600" />
+                                    <span>{retestError}</span>
+                                </div>
+                            )}
+                            {retestSuccess && (
+                                <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 font-medium">
+                                    <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                                    <span>{retestSuccess}</span>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="mt-6 flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setRetestModalOpen(false)}
+                                    disabled={retesting}
+                                    className="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmRetest}
+                                    disabled={retesting}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-black hover:bg-gray-800 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition disabled:opacity-50 cursor-pointer"
+                                >
+                                    {retesting ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                                            <span>Resetting round...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RotateCcw size={14} />
+                                            <span>Start Retest Now</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

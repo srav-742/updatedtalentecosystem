@@ -156,7 +156,7 @@
                 },
                 {
                     "key": "Content-Security-Policy",
-                    "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https://accounts.google.com; object-src 'none'; base-uri 'self';"
+                    "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';"
                 }
             ]
         },
@@ -185,7 +185,7 @@
                 },
                 {
                     "key": "Content-Security-Policy",
-                    "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https://accounts.google.com; object-src 'none'; base-uri 'self';"
+                    "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: ws:; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';"
                 }
             ]
         }

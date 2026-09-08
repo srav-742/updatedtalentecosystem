@@ -58,6 +58,7 @@ const Footer = ({ theme = 'dark' }) => {
                             <li><Link to="/about" className={`${linkColor} transition-colors block`}>About Hire1Percent</Link></li>
                             <li><Link to="/pricing" className={`${linkColor} transition-colors block`}>Pricing &amp; Plans</Link></li>
                             <li><Link to="/blog" className={`${linkColor} transition-colors block`}>Technical Blog</Link></li>
+                            <li><Link to="/career-hub" className={`${linkColor} transition-colors block`}>Candidate Career Hub</Link></li>
                             <li><Link to="/contact" className={`${linkColor} transition-colors block`}>Contact &amp; Support</Link></li>
                         </ul>
                     </nav>

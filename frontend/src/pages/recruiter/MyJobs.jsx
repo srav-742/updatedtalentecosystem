@@ -79,7 +79,8 @@ const MyJobs = () => {
             return res.data;
         },
         enabled: !!userId,
-        staleTime: 60 * 1000
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 
     // Delete job mutation

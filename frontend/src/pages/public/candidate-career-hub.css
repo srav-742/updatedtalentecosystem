@@ -1,0 +1,176 @@
+/* ==========================================================================
+   Candidate Career Question Hub Theme
+   Scoped styling for candidate career guides, interactive Q&A, and tools
+   ========================================================================== */
+
+.career-hub-container {
+    --ch-blue: #3b82f6;
+    --ch-teal: #14b8a6;
+    --ch-indigo: #6366f1;
+    --ch-emerald: #10b981;
+    --ch-purple: #8b5cf6;
+    --ch-amber: #f59e0b;
+    --ch-rose: #f43f5e;
+}
+
+/* Light Theme Variables */
+.career-hub-container.theme-light {
+    --ch-bg: #f8fafc;
+    --ch-surface: #ffffff;
+    --ch-surface-subtle: #f1f5f9;
+    --ch-border: rgba(15, 23, 42, 0.08);
+    --ch-border-hover: rgba(59, 130, 246, 0.3);
+    --ch-text-primary: #0f172a;
+    --ch-text-secondary: #475569;
+    --ch-text-muted: #64748b;
+    --ch-card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    --ch-card-shadow-hover: 0 16px 36px -6px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+    --ch-code-bg: #f8fafc;
+    --ch-code-border: #e2e8f0;
+}
+
+/* Dark Theme Variables */
+.career-hub-container.theme-dark {
+    --ch-bg: #0c0f16;
+    --ch-surface: #131824;
+    --ch-surface-subtle: #1a2233;
+    --ch-border: rgba(255, 255, 255, 0.07);
+    --ch-border-hover: rgba(59, 130, 246, 0.4);
+    --ch-text-primary: #f8fafc;
+    --ch-text-secondary: #94a3b8;
+    --ch-text-muted: #64748b;
+    --ch-card-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.35);
+    --ch-card-shadow-hover: 0 16px 40px -6px rgba(0, 0, 0, 0.5);
+    --ch-code-bg: #090c12;
+    --ch-code-border: rgba(255, 255, 255, 0.1);
+}
+
+/* Ambient glow hero */
+.ch-hero-glow {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 450px;
+    border-radius: 50%;
+    filter: blur(140px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.theme-light .ch-hero-glow {
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.14) 0%, rgba(20, 184, 166, 0.1) 50%, transparent 70%);
+}
+
+.theme-dark .ch-hero-glow {
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, rgba(99, 102, 241, 0.12) 50%, transparent 70%);
+}
+
+/* Glassmorphic Cards */
+.ch-card {
+    background: var(--ch-surface);
+    border: 1px solid var(--ch-border);
+    box-shadow: var(--ch-card-shadow);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ch-card:hover {
+    border-color: var(--ch-border-hover);
+    box-shadow: var(--ch-card-shadow-hover);
+}
+
+/* Interactive Tabs */
+.ch-tab-active {
+    background: linear-gradient(135deg, #2563eb 0%, #0d9488 100%);
+    color: #ffffff !important;
+    box-shadow: 0 4px 16px -2px rgba(37, 99, 235, 0.4);
+    border-color: transparent !important;
+}
+
+/* Search Input */
+.ch-search-box {
+    background: var(--ch-surface);
+    border: 1px solid var(--ch-border);
+    transition: all 0.2s ease;
+}
+
+.ch-search-box:focus-within {
+    border-color: var(--ch-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Question Accordion */
+.ch-accordion-summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.ch-accordion-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Diagnostic Progress Bar */
+.ch-meter-fill {
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Code Snippet Container */
+.ch-code-block {
+    background-color: var(--ch-code-bg);
+    border: 1px solid var(--ch-code-border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Markdown prose inside AI advisor response */
+.ch-prose h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--ch-text-primary);
+    border-bottom: 1px solid var(--ch-border);
+    padding-bottom: 0.35rem;
+}
+
+.ch-prose p {
+    margin-bottom: 0.85rem;
+    line-height: 1.65;
+    color: var(--ch-text-secondary);
+}
+
+.ch-prose ul, .ch-prose ol {
+    margin-left: 1.25rem;
+    margin-bottom: 1rem;
+    color: var(--ch-text-secondary);
+}
+
+.ch-prose li {
+    margin-bottom: 0.4rem;
+    line-height: 1.5;
+}
+
+.ch-prose strong {
+    color: var(--ch-text-primary);
+}
+
+/* Custom scrollbar for drawer/modals */
+.ch-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.ch-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ch-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.25);
+    border-radius: 9999px;
+}
+
+.ch-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.4);
+}

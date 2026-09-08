@@ -489,6 +489,8 @@ const LoginPage = () => {
                     setMessage({ type: 'error', text: "Google Login failed completely." });
                     setLoading(false);
                 }
+                // Ensure loading state doesn't hang forever if redirect is silently blocked
+                setTimeout(() => setLoading(false), 5000);
             } else {
                 setMessage({ type: 'error', text: error.message || "Google login failed." });
                 setLoading(false);

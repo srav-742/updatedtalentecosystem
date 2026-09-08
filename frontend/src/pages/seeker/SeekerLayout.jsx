@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
@@ -12,6 +12,7 @@ const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/candidate' },
     { label: 'Browse Jobs', icon: Briefcase, path: '/candidate/jobs' },
     { label: 'My Applications', icon: Clock, path: '/candidate/applications' },
+    { label: 'Career Hub', icon: BookOpen, path: '/candidate/career-hub' },
     { label: 'Profile', icon: UserCircle, path: '/candidate/profile' }
 ];
 

@@ -69,6 +69,7 @@ const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 
 // Public pages
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
+const CandidateCareerHub = lazy(() => import('./pages/public/CandidateCareerHub'));
 
 // ─── Lazy Blog Route Shell ─────────────────────────────────────────────────────
 // BlogThemeContext + BlogNavbar are only imported when user visits /blog routes.
@@ -190,7 +191,14 @@ function App() {
           <Route path="agentInterview.jsx" element={<AgentInterview />} />
           <Route path="community" element={<EliteCommunity />} />
           <Route path="proctoring-test" element={<ProctoringTest />} />
+          <Route path="career-hub" element={<CandidateCareerHub isCandidatePortal={true} />} />
         </Route>
+
+        {/* Career Question Hub (Public) */}
+        <Route path="/career-hub" element={<CandidateCareerHub />} />
+        <Route path="/career-guide" element={<Navigate to="/career-hub" replace />} />
+        <Route path="/career-questions" element={<Navigate to="/career-hub" replace />} />
+        <Route path="/candidate-career-hub" element={<Navigate to="/career-hub" replace />} />
 
         {/* Blog Routes — BlogThemeContext/Navbar lazy-loaded only when visiting /blog */}
         <Route path="/blog" element={

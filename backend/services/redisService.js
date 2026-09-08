@@ -21,12 +21,21 @@ try {
     const port = parseInt(process.env.REDIS_PORT || '6379', 10);
     const password = process.env.REDIS_PASSWORD || null;
 
+    let hasLoggedOfflineWarning = false;
+
     const redisOptions = {
         host,
         port,
         maxRetriesPerRequest: 2,
         enableOfflineQueue: false, // Prevent request stacking during downtime
         connectTimeout: 2000,
+        retryStrategy(times) {
+            if (times > 2) {
+                // Terminate retry loop when local Redis daemon is not running
+                return null;
+            }
+            return Math.min(times * 500, 2000);
+        }
     };
 
     if (password) {
@@ -42,7 +51,10 @@ try {
 
     redisClient.on('error', (err) => {
         isConnected = false;
-        console.warn('[Redis] Connection offline. Falling back to in-memory store:', err.message);
+        if (!hasLoggedOfflineWarning) {
+            console.warn('[Redis] Connection offline. Falling back to in-memory store:', err.message);
+            hasLoggedOfflineWarning = true;
+        }
     });
 } catch (err) {
     console.warn('[Redis] Failed to initialize client. Utilizing in-memory fallback:', err.message);

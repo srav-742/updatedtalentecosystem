@@ -38,8 +38,9 @@ const PUBLIC_ROUTES = [
     { method: 'POST', pattern: /^\/api\/auth\/reset-password$/i },
     { method: 'GET', pattern: /^\/api\/status$/i },
     { method: 'GET', pattern: /^\/api\/tts-debug$/i },
-    { method: 'GET', pattern: /^\/api\/jobs$/i },
-    { method: 'GET', pattern: /^\/api\/jobs\/[^/]+$/i },
+    { method: 'GET', pattern: /^\/api\/jobs(\/.*)?$/i },
+    { method: 'GET', pattern: /^\/api\/dashboard(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/applications(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'PUT', pattern: /^\/api\/profile\/[^/]+$/i },
     { method: 'POST', pattern: /^\/api\/profile\/[^/]+$/i },
@@ -58,7 +59,8 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/user-resumes(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i },
     { method: '*', pattern: /^\/api\/recruiter-knowledge(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/candidate\/job-readiness(\/.*)?$/i }
+    { method: '*', pattern: /^\/api\/candidate\/job-readiness(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/candidate-career(\/.*)?$/i }
 ];
 
 

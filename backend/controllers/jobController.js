@@ -16,9 +16,12 @@ const clearJobsCache = () => {
     invalidateCache('/api/jobs');
 };
 
-// GET ALL JOBS — candidates only see approved jobs
+// GET ALL JOBS — candidates see approved jobs (plus pending_approval on localhost for testing)
 const getAllJobs = async (req, res) => {
     try {
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        const queryFilter = isLocalhost ? { status: { $in: ['approved', 'pending_approval'] } } : { status: 'approved' };
+
         // L1 cache: serve from memory if fresh (sub-millisecond)
         if (jobsCache && Date.now() - jobsCacheTime < CACHE_DURATION) {
             // Set browser-side cache header: browsers can cache for 60s,
@@ -27,7 +30,7 @@ const getAllJobs = async (req, res) => {
             return res.json(jobsCache);
         }
 
-        const jobs = await Job.find({ status: 'approved' })
+        const jobs = await Job.find(queryFilter)
             .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education')
             .populate('recruiter', 'name company')
             .sort({ createdAt: -1 })
@@ -36,7 +39,11 @@ const getAllJobs = async (req, res) => {
         jobsCache = jobs;
         jobsCacheTime = Date.now();
 
-        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+        if (isLocalhost) {
+            res.set('Cache-Control', 'private, no-cache, no-transform');
+        } else {
+            res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+        }
         res.json(jobs);
     } catch (error) {
         console.error("[GET-JOBS] Failure:", error);
@@ -116,7 +123,9 @@ const deleteJob = async (req, res) => {
 
 const createJob = async (req, res) => {
     try {
-        const jobData = { ...req.body, status: 'pending_approval' };
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
+        const jobData = { ...req.body, status: initialStatus };
         const job = new Job(jobData);
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches

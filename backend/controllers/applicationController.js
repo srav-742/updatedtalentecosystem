@@ -90,7 +90,7 @@ const getSeekerApplications = async (req, res) => {
     try {
         const apps = await Application.find({ userId: req.params.userId })
             .select('-interviewAnswers -assessmentAnswers -codingAnswers -recommendationSummary')
-            .populate('jobId', 'title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved')
+            .populate('jobId', 'title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved resumeAnalysis assessment codingAssessment mockInterview')
             .sort({ appliedAt: -1 })
             .lean();
         const validApps = apps.filter(app => app.jobId);
@@ -235,11 +235,86 @@ const deleteApplication = async (req, res) => {
     }
 };
 
+const retestApplicationRound = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { round = 'coding', reason = 'Candidate requested retest' } = req.body || {};
+
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Valid Application ID is required" });
+        }
+
+        const application = await Application.findById(id).populate('jobId');
+        if (!application) {
+            return res.status(404).json({ success: false, message: "Application not found" });
+        }
+
+        const updateSet = {
+            status: 'APPLIED',
+            lastRetestAt: new Date(),
+            lastRetestRound: round,
+            lastRetestReason: reason
+        };
+
+        if (round === 'coding' || round === 'all') {
+            updateSet.codingScore = null;
+            updateSet.codingAnswers = [];
+            updateSet.codingDetails = null;
+        }
+
+        if (round === 'assessment' || round === 'all') {
+            updateSet.assessmentScore = null;
+            updateSet.assessmentAnswers = [];
+            updateSet.assessmentSubmissionId = null;
+            updateSet.assessmentRecordingSessionId = null;
+            updateSet.assessmentRecordingUrl = null;
+            updateSet.assessmentRecordingStatus = 'pending';
+        }
+
+        if (round === 'interview' || round === 'all') {
+            updateSet.interviewScore = null;
+            updateSet.interviewAnswers = [];
+            updateSet.videoIntroUrl = null;
+            updateSet.recordingSessionId = null;
+            updateSet.recordingUrl = null;
+            updateSet.recordingStatus = 'pending';
+        }
+
+        // Recalculate final score:
+        const currentResume = application.resumeMatchPercent || 0;
+        const currentAssessment = (round === 'assessment' || round === 'all') ? 0 : (application.assessmentScore || 0);
+        const currentInterview = (round === 'interview' || round === 'all') ? 0 : (application.interviewScore || 0);
+        updateSet.finalScore = currentResume + currentAssessment + currentInterview;
+
+        const updatedApp = await Application.findByIdAndUpdate(
+            id,
+            { 
+                $set: updateSet,
+                $inc: { retestCount: 1 }
+            },
+            { new: true }
+        ).populate('jobId');
+
+        invalidateCache('/api/applications');
+        console.log(`[RETEST] Successfully reset round '${round}' for application ${id}`);
+
+        res.json({
+            success: true,
+            message: `Retest for ${round} initiated successfully`,
+            application: updatedApp
+        });
+    } catch (error) {
+        console.error("[RETEST] Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     submitApplication,
     getSeekerApplications,
     getSeekerDashboardStats,
     updateApplicationStatus,
     resetApplicationAfterProctoring,
+    retestApplicationRound,
     deleteApplication
 };
