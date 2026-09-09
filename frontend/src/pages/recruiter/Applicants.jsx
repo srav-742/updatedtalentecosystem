@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2 } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL, getAuthHeaders } from '../../firebase';
@@ -164,6 +164,20 @@ const Applicants = () => {
 
     const handleUnlockApplicant = async (applicationId, itemType) => {
         unlockMutation.mutate({ applicationId, itemType });
+    };
+
+    const handleGrantRetest = async (applicationId, round) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await axios.post(`${API_URL}/applications/${applicationId}/grant-retest`, { round }, { headers });
+            if (res.data.success) {
+                alert(`Retest access granted for ${round}. The candidate can now retest this round from their dashboard.`);
+                queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+            }
+        } catch (err) {
+            console.error('Failed to grant retest access:', err);
+            alert('Failed to grant retest access. Please try again later.');
+        }
     };
 
     useEffect(() => {
@@ -889,6 +903,30 @@ const Applicants = () => {
                                                                     >
                                                                         <Sparkles size={14} /> Mark Hired (AI Learn)
                                                                     </button>
+                                                                    {app.hasAssessment && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'assessment'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-orange-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Assessment Retest
+                                                                        </button>
+                                                                    )}
+                                                                    {app.hasCoding && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'coding'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-teal-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Coding Retest
+                                                                        </button>
+                                                                    )}
+                                                                    {app.hasInterview && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'interview'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-purple-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Interview Retest
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
                                                                         className="w-full text-left px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-100/50 flex items-center gap-2 border-t border-gray-100"

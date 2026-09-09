@@ -44,6 +44,11 @@ const applicationSchema = new mongoose.Schema({
     lastProctoringResetReason: String,
     lastProctoringResetStage: String,
     lastProctoringViolation: mongoose.Schema.Types.Mixed,
+    retestAccess: {
+        assessment: { granted: { type: Boolean, default: false } },
+        coding: { granted: { type: Boolean, default: false } },
+        interview: { granted: { type: Boolean, default: false } }
+    },
     integrityPenalty: { type: Number, default: 0 },
     proctoringScore: { type: Number, default: 100 },
     finalScore: Number,

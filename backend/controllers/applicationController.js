@@ -253,12 +253,20 @@ const retestApplicationRound = async (req, res) => {
             return res.status(404).json({ success: false, message: "Application not found" });
         }
 
+        if (round !== 'all' && (!application.retestAccess || !application.retestAccess[round] || !application.retestAccess[round].granted)) {
+            return res.status(403).json({ success: false, message: `Retest access for ${round} not granted by recruiter.` });
+        }
+
         const updateSet = {
             status: 'APPLIED',
             lastRetestAt: new Date(),
             lastRetestRound: round,
             lastRetestReason: reason
         };
+
+        if (round !== 'all') {
+            updateSet[`retestAccess.${round}.granted`] = false;
+        }
 
         if (round === 'coding' || round === 'all') {
             updateSet.codingScore = null;
@@ -313,6 +321,35 @@ const retestApplicationRound = async (req, res) => {
     }
 };
 
+const grantRetestAccess = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { round } = req.body;
+        
+        if (!round || !['assessment', 'coding', 'interview'].includes(round)) {
+            return res.status(400).json({ success: false, message: "Invalid round specified." });
+        }
+
+        const application = await Application.findById(id);
+        if (!application) {
+            return res.status(404).json({ success: false, message: "Application not found" });
+        }
+
+        const updateKey = `retestAccess.${round}.granted`;
+        const updatedApp = await Application.findByIdAndUpdate(
+            id,
+            { $set: { [updateKey]: true } },
+            { new: true }
+        );
+
+        invalidateCache('/api/applications');
+        res.json({ success: true, message: `Retest access granted for ${round}`, application: updatedApp });
+    } catch (error) {
+        console.error("[GRANT RETEST ACCESS] Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     submitApplication,
     getSeekerApplications,
@@ -320,5 +357,6 @@ module.exports = {
     updateApplicationStatus,
     resetApplicationAfterProctoring,
     retestApplicationRound,
+    grantRetestAccess,
     deleteApplication
 };

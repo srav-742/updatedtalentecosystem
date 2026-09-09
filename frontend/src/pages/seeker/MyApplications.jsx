@@ -524,17 +524,27 @@ const MyApplications = () => {
                                                 </div>
                                                 
                                                 {/* Retest Action Button */}
-                                                {(job.codingAssessment?.enabled || job.assessment?.enabled || job.mockInterview?.enabled) && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleOpenRetestModal(application)}
-                                                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 hover:border-amber-400 cursor-pointer self-start sm:self-auto"
-                                                        title="Faced technical issues or want to improve your score? Retake assessment"
-                                                    >
-                                                        <RotateCcw size={12} className="text-amber-700" />
-                                                        <span>Retest Assessment</span>
-                                                    </button>
-                                                )}
+                                                {(() => {
+                                                    const app = application;
+                                                    const hasAssessmentRetest = app.jobId?.assessment?.enabled && app.retestAccess?.assessment?.granted;
+                                                    const hasCodingRetest = app.jobId?.codingAssessment?.enabled && app.retestAccess?.coding?.granted;
+                                                    const hasInterviewRetest = app.jobId?.mockInterview?.enabled && app.retestAccess?.interview?.granted;
+                                                    
+                                                    if (hasAssessmentRetest || hasCodingRetest || hasInterviewRetest) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenRetestModal(application)}
+                                                                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 hover:border-amber-400 cursor-pointer self-start sm:self-auto"
+                                                                title="Faced technical issues or want to improve your score? Retake assessment"
+                                                            >
+                                                                <RotateCcw size={12} className="text-amber-700" />
+                                                                <span>Retest Assessment</span>
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
 
                                             {/* Badges Grid for All Configured Modules */}
@@ -721,7 +731,7 @@ const MyApplications = () => {
                                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Select Round to Retake:</p>
                                 
                                 {/* Coding Round Option */}
-                                {selectedRetestApp.jobId?.codingAssessment?.enabled && (
+                                {selectedRetestApp.jobId?.codingAssessment?.enabled && selectedRetestApp.retestAccess?.coding?.granted && (
                                     <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
                                         selectedRound === 'coding'
                                             ? 'border-teal-600 bg-teal-50/50 shadow-xs'
@@ -753,7 +763,7 @@ const MyApplications = () => {
                                 )}
 
                                 {/* Skill MCQ Option */}
-                                {selectedRetestApp.jobId?.assessment?.enabled && (
+                                {selectedRetestApp.jobId?.assessment?.enabled && selectedRetestApp.retestAccess?.assessment?.granted && (
                                     <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
                                         selectedRound === 'assessment'
                                             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
@@ -785,7 +795,7 @@ const MyApplications = () => {
                                 )}
 
                                 {/* AI Interview Option */}
-                                {selectedRetestApp.jobId?.mockInterview?.enabled && (
+                                {selectedRetestApp.jobId?.mockInterview?.enabled && selectedRetestApp.retestAccess?.interview?.granted && (
                                     <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
                                         selectedRound === 'interview'
                                             ? 'border-purple-600 bg-purple-50/50 shadow-xs'
