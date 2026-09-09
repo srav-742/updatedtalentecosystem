@@ -102,7 +102,8 @@ export default defineConfig(({ mode }) => ({
       'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
-      'Referrer-Policy': 'strict-origin-when-cross-origin'
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Cross-Origin-Opener-Policy': 'unsafe-none'
     },
     warmup: {
       clientFiles: [
@@ -136,7 +137,8 @@ export default defineConfig(({ mode }) => ({
       'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
-      'Referrer-Policy': 'strict-origin-when-cross-origin'
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Cross-Origin-Opener-Policy': 'unsafe-none'
     },
   },
 
