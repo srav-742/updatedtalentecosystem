@@ -77,7 +77,7 @@ const gatewayMiddleware = async (req, res, next) => {
         const fullPath = req.baseUrl + req.path;
 
         // ─── Admin Bypass Check ──────────────────────────────────────────
-        const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+        const adminEmails = ['sravyaadmin@gmail.com'];
         let isAdminRequest = false;
         let adminUser = null;
 

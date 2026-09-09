@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const { withRetry } = require('../utils/retry');
-const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com'];
 
 
 const syncUser = async (req, res) => {

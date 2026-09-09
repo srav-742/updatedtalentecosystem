@@ -56,7 +56,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Explicitly handle all preflight OPTIONS requests to guarantee CORS headers
-app.options('/{*path}', cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 
 

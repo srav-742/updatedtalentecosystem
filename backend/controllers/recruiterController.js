@@ -17,7 +17,7 @@ const getRecruiterDashboard = async (req, res) => {
 
         let isAdmin = reqUser && reqUser.role === 'admin';
         if (!isAdmin) {
-            const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+            const adminEmails = ['sravyaadmin@gmail.com'];
             const orQueries = [];
             allIds.forEach(id => {
                 orQueries.push({ uid: id });
