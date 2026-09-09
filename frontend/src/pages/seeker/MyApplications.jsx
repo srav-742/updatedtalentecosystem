@@ -555,9 +555,13 @@ const MyApplications = () => {
                                                         <FileText size={14} className="text-gray-600 shrink-0" />
                                                         <span className="text-xs font-semibold text-gray-700 truncate">Resume Match</span>
                                                     </div>
-                                                    <span className="text-xs font-bold text-gray-900 shrink-0">
+                                                    <span className={`text-xs font-bold shrink-0 ${
+                                                        application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined
+                                                            ? 'text-emerald-700'
+                                                            : 'text-gray-900'
+                                                    }`}>
                                                         {application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined
-                                                            ? `${application.resumeMatchPercent}/10 (${Math.round(application.resumeMatchPercent * 10)}%)`
+                                                            ? 'Completed'
                                                             : 'Pending'}
                                                     </span>
                                                 </div>
@@ -575,7 +579,7 @@ const MyApplications = () => {
                                                                 : 'text-gray-400 font-medium'
                                                         }`}>
                                                             {application.assessmentScore !== null && application.assessmentScore !== undefined
-                                                                ? `${application.assessmentScore}/${job.assessment?.totalQuestions || 20}`
+                                                                ? 'Completed'
                                                                 : 'Pending'}
                                                         </span>
                                                     </div>
@@ -585,17 +589,13 @@ const MyApplications = () => {
                                                 {job.codingAssessment?.enabled && (
                                                     <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
                                                         application.codingScore !== null && application.codingScore !== undefined
-                                                            ? application.codingScore >= (job.codingAssessment?.passingScore || 60)
-                                                                ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
-                                                                : 'bg-amber-50/70 border-amber-200/80 text-amber-900'
+                                                            ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
                                                             : 'bg-[#faf7f1] border-black/[0.04] text-gray-700'
                                                     }`}>
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             <Code2 size={14} className={
                                                                 application.codingScore !== null && application.codingScore !== undefined
-                                                                    ? application.codingScore >= (job.codingAssessment?.passingScore || 60)
-                                                                        ? 'text-emerald-600 shrink-0'
-                                                                        : 'text-amber-600 shrink-0'
+                                                                    ? 'text-emerald-600 shrink-0'
                                                                     : 'text-teal-600 shrink-0'
                                                             } />
                                                             <span className="text-xs font-semibold truncate">Coding Challenge</span>
@@ -603,11 +603,8 @@ const MyApplications = () => {
                                                         <div className="text-right shrink-0">
                                                             <span className="text-xs font-bold">
                                                                 {application.codingScore !== null && application.codingScore !== undefined
-                                                                    ? `${application.codingScore}/100`
+                                                                    ? 'Completed'
                                                                     : 'Pending'}
-                                                            </span>
-                                                            <span className="block text-[9px] text-gray-500 font-medium">
-                                                                Passing: {job.codingAssessment?.passingScore || 60}%
                                                             </span>
                                                         </div>
                                                     </div>
@@ -626,7 +623,7 @@ const MyApplications = () => {
                                                                 : 'text-gray-400 font-medium'
                                                         }`}>
                                                             {application.interviewScore !== null && application.interviewScore !== undefined
-                                                                ? `${application.interviewScore}/100`
+                                                                ? 'Completed'
                                                                 : 'Pending'}
                                                         </span>
                                                     </div>
