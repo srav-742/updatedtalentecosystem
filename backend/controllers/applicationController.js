@@ -216,17 +216,21 @@ const resetApplicationAfterProctoring = async (req, res) => {
 
 const deleteApplication = async (req, res) => {
     try {
-        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
-        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
-        if (!isPrimaryAdmin) {
-            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete applications." });
-        }
-
-        console.log(`[DELETE-APP] Attempting to delete application with ID: ${req.params.id} by primary admin`);
-        const app = await Application.findByIdAndDelete(req.params.id);
+        const app = await Application.findById(req.params.id);
         if (!app) {
             return res.status(404).json({ message: "Application not found" });
         }
+
+        // Restrict delete operation to the primary admin OR the owner unsaving a job
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        const isOwnerUnsaving = req.user && (req.user.uid === app.userId || req.user._id?.toString() === app.userId) && app.status === 'SAVED';
+
+        if (!isPrimaryAdmin && !isOwnerUnsaving) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator or the candidate unsaving a job can delete this application." });
+        }
+
+        console.log(`[DELETE-APP] Deleting application with ID: ${req.params.id} by ${req.user?.email || req.user?.uid}`);
+        await Application.findByIdAndDelete(req.params.id);
         invalidateCache('/api/applications');
         res.json({ message: "Application removed successfully" });
     } catch (error) {

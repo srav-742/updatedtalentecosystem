@@ -114,12 +114,13 @@ const getTimelineSteps = (status) => {
     const isSelected = ['ELIGIBLE', 'HIRED'].includes(status);
     const isHired = status === 'HIRED';
     const isRejected = status === 'REJECTED';
+    const isSaved = status === 'SAVED';
 
     return [
         {
             label: 'Submitted',
             description: 'Application received',
-            completed: true,
+            completed: !isSaved,
             active: false
         },
         {
@@ -207,7 +208,8 @@ const MyApplications = () => {
     // Mutation for unsaving jobs
     const unsaveMutation = useMutation({
         mutationFn: async (appId) => {
-            await axios.delete(`${API_URL}/applications/${appId}`);
+            const headers = await getAuthHeaders().catch(() => ({}));
+            await axios.delete(`${API_URL}/applications/${appId}`, { headers });
         },
         onSuccess: (_, appId) => {
             queryClient.setQueryData(['applications', userId], (oldApps) => {
@@ -452,67 +454,68 @@ const MyApplications = () => {
                                 </div>
 
                                 {/* Content Section: Saved role action OR Stage Timeline Stepper */}
-                                {isSaved ? (
-                                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-black/[0.06] bg-[#fbf8f3] p-4">
-                                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                                            <Bookmark size={15} className="text-amber-500 shrink-0" />
-                                            <span>This job is saved in your bookmark list. Ready to proceed with your application?</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <button
-                                                onClick={() => handleUnsave(application._id)}
-                                                className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                                            >
-                                                <Trash2 size={13} />
-                                                <span>Remove</span>
-                                            </button>
-                                            <Link
-                                                to={`/candidate/job/${job._id || application.jobId}`}
-                                                className="inline-flex items-center gap-1.5 rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
-                                            >
-                                                <span>Apply Now</span>
-                                                <ArrowRight size={13} />
-                                            </Link>
+                                <div className="mt-5 space-y-4">
+                                    {/* Horizontal Stepper Progress Pipeline */}
+                                    <div className="rounded-2xl border border-black/[0.06] bg-[#faf7f1] p-4 md:p-5">
+                                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                            {timeline.map((step, idx) => (
+                                                <div key={step.label} className="relative flex flex-col justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                                                            step.completed
+                                                                ? 'bg-black text-white'
+                                                                : step.active
+                                                                ? 'bg-amber-500 text-white ring-4 ring-amber-100'
+                                                                : 'border border-gray-300 bg-white text-gray-400'
+                                                        }`}>
+                                                            {step.completed ? (
+                                                                <CheckCircle2 size={13} />
+                                                            ) : step.active ? (
+                                                                <CircleDot size={13} />
+                                                            ) : (
+                                                                <Circle size={13} />
+                                                            )}
+                                                        </div>
+                                                        <span className={`text-xs font-bold leading-tight ${
+                                                            step.completed || step.active ? 'text-gray-900' : 'text-gray-400'
+                                                        }`}>
+                                                            {step.label}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 text-[11px] text-gray-500 pl-8 leading-tight">
+                                                        {step.description}
+                                                    </p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="mt-5 space-y-4">
-                                        {/* Horizontal Stepper Progress Pipeline */}
-                                        <div className="rounded-2xl border border-black/[0.06] bg-[#faf7f1] p-4 md:p-5">
-                                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                                {timeline.map((step, idx) => (
-                                                    <div key={step.label} className="relative flex flex-col justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                                                                step.completed
-                                                                    ? 'bg-black text-white'
-                                                                    : step.active
-                                                                    ? 'bg-amber-500 text-white ring-4 ring-amber-100'
-                                                                    : 'border border-gray-300 bg-white text-gray-400'
-                                                            }`}>
-                                                                {step.completed ? (
-                                                                    <CheckCircle2 size={13} />
-                                                                ) : step.active ? (
-                                                                    <CircleDot size={13} />
-                                                                ) : (
-                                                                    <Circle size={13} />
-                                                                )}
-                                                            </div>
-                                                            <span className={`text-xs font-bold leading-tight ${
-                                                                step.completed || step.active ? 'text-gray-900' : 'text-gray-400'
-                                                            }`}>
-                                                                {step.label}
-                                                            </span>
-                                                        </div>
-                                                        <p className="mt-1 text-[11px] text-gray-500 pl-8 leading-tight">
-                                                            {step.description}
-                                                        </p>
-                                                    </div>
-                                                ))}
+
+                                    {isSaved ? (
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-black/[0.06] bg-[#fbf8f3] p-4">
+                                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                                                <Bookmark size={15} className="text-amber-500 shrink-0" />
+                                                <span>This job is saved in your bookmark list. Ready to proceed with your application?</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <button
+                                                    onClick={() => handleUnsave(application._id)}
+                                                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                                                >
+                                                    <Trash2 size={13} />
+                                                    <span>Remove</span>
+                                                </button>
+                                                <Link
+                                                    to={`/candidate/job/${job._id || application.jobId}`}
+                                                    className="inline-flex items-center gap-1.5 rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+                                                >
+                                                    <span>Apply Now</span>
+                                                    <ArrowRight size={13} />
+                                                </Link>
                                             </div>
                                         </div>
-
-                                        {/* Assessment Rounds Breakdown & Retest Actions */}
+                                    ) : (
+                                        <>
+                                            {/* Assessment Rounds Breakdown & Retest Actions */}
                                         <div className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-xs">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-gray-100">
                                                 <div className="flex items-center gap-2">
@@ -643,8 +646,9 @@ const MyApplications = () => {
                                                 </Link>
                                             </div>
                                         )}
-                                    </div>
-                                )}
+                                        </>
+                                    )}
+                                </div>
                             </motion.article>
                         );
                     })}

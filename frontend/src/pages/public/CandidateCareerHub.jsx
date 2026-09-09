@@ -552,7 +552,7 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
     const [advisorRoleContext, setAdvisorRoleContext] = useState('Full Stack Engineer');
     const [advisorSeniority, setAdvisorSeniority] = useState('Mid-Level (2-4 YOE)');
     const [advisorLoading, setAdvisorLoading] = useState(false);
-    const [advisorResponse, setAdvisorResponse] = useState(null);
+    const [advisorHistory, setAdvisorHistory] = useState([]);
     const [advisorError, setAdvisorError] = useState(null);
 
     // Selected Project Blueprint Modal
@@ -615,6 +615,9 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
         const query = overrideQuestion || advisorQuestion;
         if (!query.trim()) return;
 
+        const userMsg = { role: 'user', content: query };
+        setAdvisorHistory(prev => [...prev, userMsg]);
+        setAdvisorQuestion('');
         setAdvisorLoading(true);
         setAdvisorError(null);
 
@@ -627,20 +630,20 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
             });
 
             if (res.data?.success && res.data.answer) {
-                setAdvisorResponse(res.data.answer);
+                setAdvisorHistory(prev => [...prev, { role: 'advisor', content: res.data.answer }]);
             } else {
                 throw new Error(res.data?.message || 'Failed to get answer');
             }
         } catch (err) {
             console.error('Advisor error:', err);
             // High quality fallback answer if backend offline
-            setAdvisorResponse(
+            setAdvisorHistory(prev => [...prev, { role: 'advisor', content: 
                 `### Career Strategy for: "${query}"\n\n` +
                 `1. **Build Verifiable Proof**: High-performing candidates distinguish themselves with production-grade engineering artifacts—specifically, deploying a live project with real authentication, background workers, and automated test coverage.\n` +
                 `2. **Master the Interview Fundamentals**: Prioritize Two Pointers, Graph BFS/DFS, and dynamic programming for coding rounds. Frame answers with the STAR method (Situation, Task, Action, Result).\n` +
                 `3. **Job Readiness Benchmark**: Target at least 12 categorized skills and a >80% assessment score on Hire1Percent to trigger automated recruiter recommendations.\n\n` +
                 `*Next Step*: Test your technical communication in our AI Mock Interview tool.`
-            );
+            }]);
         } finally {
             setAdvisorLoading(false);
         }
@@ -1516,7 +1519,7 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
 
                             {/* Response / Chat Body */}
                             <div className="flex-1 p-5 overflow-y-auto ch-scrollbar space-y-4">
-                                {!advisorResponse && !advisorLoading && (
+                                {advisorHistory.length === 0 && !advisorLoading && (
                                     <div className="text-center py-8 text-slate-400 space-y-3">
                                         <HelpCircle size={36} className="mx-auto text-blue-400 opacity-60" />
                                         <p className="text-sm font-semibold">What would you like to ask the engineering career mentor?</p>
@@ -1537,22 +1540,33 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                     </div>
                                 )}
 
-                                {advisorLoading && (
-                                    <div className="flex flex-col items-center justify-center py-12 space-y-3">
-                                        <RefreshCw size={28} className="animate-spin text-blue-400" />
-                                        <p className="text-xs text-slate-400 font-medium">Synthesizing personalized career advice...</p>
+                                {advisorHistory.map((msg, idx) => (
+                                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`p-4 rounded-2xl max-w-[90%] ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1e2536] border border-white/10 ch-prose text-xs sm:text-sm text-slate-300'}`}>
+                                            {msg.role === 'user' ? (
+                                                <p className="text-sm">{msg.content}</p>
+                                            ) : (
+                                                <div dangerouslySetInnerHTML={{
+                                                    __html: msg.content
+                                                        .replace(/#{1,6} (.*?)(?:\n|$)/g, '<h3 class="font-bold text-sm mt-3 mb-1 pb-1 border-b border-white/10" style="color: white;">$1</h3>')
+                                                        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold" style="color: white;">$1</strong>')
+                                                        .replace(/`([^`]+)`/g, '<code class="bg-[#0f1420] text-emerald-300 px-1.5 py-0.5 rounded font-mono text-xs border border-white/10">$1</code>')
+                                                        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-400 underline hover:text-blue-300" target="_blank" rel="noopener noreferrer">$1</a>')
+                                                        .replace(/(?:^|\n)(\d+)\. (.*?)(?=\n|$)/g, '<div class="mt-3 mb-1"><span class="font-bold text-blue-400">$1.</span> $2</div>')
+                                                        .replace(/(?:^|\n)[\*-] (.*?)(?=\n|$)/g, '<div class="flex items-start gap-2 mt-1.5 mb-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0"></span><span class="flex-1">$1</span></div>')
+                                                        .replace(/\n\n/g, '<br/><br/>')
+                                                }} />
+                                            )}
+                                        </div>
                                     </div>
-                                )}
+                                ))}
 
-                                {advisorResponse && !advisorLoading && (
-                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 ch-prose text-xs sm:text-sm">
-                                        <div dangerouslySetInnerHTML={{
-                                            __html: advisorResponse
-                                                .replace(/### (.*?)\n/g, '<h3 class="font-bold text-sm text-blue-400 mt-3 mb-1 pb-1 border-b border-white/10">$1</h3>')
-                                                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
-                                                .replace(/\n\n/g, '<br/><br/>')
-                                                .replace(/\* (.*?)\n/g, '<li class="ml-4 list-disc">$1</li>')
-                                        }} />
+                                {advisorLoading && (
+                                    <div className="flex justify-start">
+                                        <div className="p-4 rounded-2xl max-w-[85%] bg-[#1e2536] border border-white/10 flex items-center space-x-3 text-slate-400">
+                                            <RefreshCw size={18} className="animate-spin text-blue-400" />
+                                            <p className="text-xs font-medium">Thinking...</p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
