@@ -96,10 +96,6 @@ const gatewayMiddleware = async (req, res, next) => {
                 query.uid = xUserId;
             }
             adminUser = await User.findOne(query);
-            // Fallback: If it's the admin dashboard client and they have an unrecognized UID, fall back to default admin profile
-            if (!adminUser && req.headers['x-client-id'] === 'hire1percent_web_client') {
-                adminUser = await User.findOne({ uid: 'SQKunisKWhb49NUPKuk9R38iwQN2' });
-            }
             if (adminUser) {
                 isAdminRequest = true;
             }
