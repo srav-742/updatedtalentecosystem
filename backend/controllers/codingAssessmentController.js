@@ -289,21 +289,28 @@ const submitCodingAssessment = async (req, res) => {
             };
             const questionMaxMarks = dynamicInfo.maximumMarks;
 
-            const systemPrompt = `You are an expert technical interviewer and code reviewer. Your job is to grade the candidate's coding solution for a programming challenge.
+            const systemPrompt = `You are an expert technical interviewer and code reviewer. Your job is to thoroughly analyze and grade the candidate's coding solution for a programming challenge.
 You must evaluate test case pass performance and return a raw JSON object fitting this schema:
 {
   "testCasesPassed": <integer between 0 and 10 representing passed test cases>,
   "totalTestCases": 10,
   "performancePercentage": <number 0 to 100, e.g. 80 if 8 of 10 passed>,
-  "feedback": "Detailed constructive feedback on correctness, efficiency, code quality, and style."
-}`;
+  "correctnessVerdict": <one of "Correct", "Partially Correct", or "Incorrect">,
+  "feedback": "Detailed constructive feedback covering: (1) Correctness analysis - does the logic solve the problem? (2) Edge case handling (3) Time/space complexity analysis (4) Code quality, readability, and style (5) Specific improvements needed.",
+  "suggestedCode": "A complete, clean, efficient, and fully correct implementation of the optimal solution in the SAME programming language the candidate used. Do NOT use markdown code blocks. Write the FULL working code, not partial snippets."
+}
+
+IMPORTANT: The suggestedCode MUST be a complete, runnable solution. Do NOT truncate it.`;
 
             const userPrompt = `
 Programming Challenge:
 Title: ${question.title}
 Difficulty: ${dynamicInfo.difficulty} (Weight: ${dynamicInfo.difficultyWeight})
 Description: ${question.description}
+${question.inputFormat ? 'Input Format: ' + question.inputFormat : ''}
+${question.outputFormat ? 'Output Format: ' + question.outputFormat : ''}
 Constraints: ${question.constraints}
+${question.expectedApproach ? 'Expected Approach: ' + question.expectedApproach : ''}
 Maximum Marks: ${questionMaxMarks}
 
 Candidate's Solution:
@@ -313,27 +320,48 @@ Code:
 ${ans.code}
 \`\`\`
 
-Evaluate this solution. Check if it:
-1. Solves the problem logic correctly.
-2. Satisfies the constraints.
-3. Follows clean coding standards.
+Evaluate this solution thoroughly:
+1. Does it solve the problem correctly for all inputs including edge cases?
+2. Does it satisfy the constraints (time and space complexity)?
+3. Is the code clean, well-structured, and following best practices?
+4. Compare the candidate's approach with the optimal solution.
 
-Provide testCasesPassed (out of 10), performancePercentage, and constructive feedback.
+Provide correctnessVerdict, testCasesPassed (out of 10), performancePercentage, detailed feedback, and the complete suggestedCode (the optimal correct solution in the same language).
 `;
 
-            let gradeResult = { testCasesPassed: 0, totalTestCases: 10, performancePercentage: 0, feedback: 'Grading could not be completed.' };
-            try {
-                const responseText = await callGemini(userPrompt, 1000, true, systemPrompt, 0.5);
-                const parsed = safeParseAIJson(responseText, null);
-                if (parsed) {
-                    if (typeof parsed.testCasesPassed === 'number') gradeResult.testCasesPassed = parsed.testCasesPassed;
-                    if (typeof parsed.totalTestCases === 'number') gradeResult.totalTestCases = parsed.totalTestCases;
-                    if (typeof parsed.performancePercentage === 'number') gradeResult.performancePercentage = parsed.performancePercentage;
-                    else if (typeof parsed.score === 'number') gradeResult.performancePercentage = parsed.score * 10;
-                    if (parsed.feedback) gradeResult.feedback = parsed.feedback;
+            let gradeResult = { testCasesPassed: 0, totalTestCases: 10, performancePercentage: 0, feedback: 'Grading could not be completed.', suggestedCode: '', correctnessVerdict: 'Not Evaluated' };
+            let aiEvaluationStatus = 'failed';
+
+            // Attempt AI grading with retry
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    const responseText = await callGemini(userPrompt, 4000, true, systemPrompt, 0.5);
+                    const parsed = safeParseAIJson(responseText, null);
+                    if (parsed) {
+                        if (typeof parsed.testCasesPassed === 'number') gradeResult.testCasesPassed = parsed.testCasesPassed;
+                        if (typeof parsed.totalTestCases === 'number') gradeResult.totalTestCases = parsed.totalTestCases;
+                        if (typeof parsed.performancePercentage === 'number') gradeResult.performancePercentage = parsed.performancePercentage;
+                        else if (typeof parsed.score === 'number') gradeResult.performancePercentage = parsed.score * 10;
+                        if (parsed.feedback) gradeResult.feedback = parsed.feedback;
+                        if (parsed.suggestedCode) gradeResult.suggestedCode = parsed.suggestedCode;
+                        if (parsed.correctnessVerdict) gradeResult.correctnessVerdict = parsed.correctnessVerdict;
+                        else {
+                            // Derive correctness verdict from performance
+                            if (gradeResult.performancePercentage >= 90) gradeResult.correctnessVerdict = 'Correct';
+                            else if (gradeResult.performancePercentage >= 40) gradeResult.correctnessVerdict = 'Partially Correct';
+                            else gradeResult.correctnessVerdict = 'Incorrect';
+                        }
+                        aiEvaluationStatus = 'success';
+                        console.log(`[CODING-GRADE] AI Grading succeeded for question: ${question._id} (attempt ${attempt})`);
+                        break; // Success, exit retry loop
+                    }
+                } catch (err) {
+                    console.error(`[CODING-GRADE] AI Grading attempt ${attempt} failed for question:`, question._id, err.message);
+                    if (attempt < 2) {
+                        console.log(`[CODING-GRADE] Retrying AI grading for question: ${question._id}...`);
+                        await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+                    }
                 }
-            } catch (err) {
-                console.error('[CODING-GRADE] AI Grading failed for question:', question._id, err.message);
             }
 
             const evalResult = evaluateQuestionScore(
@@ -355,7 +383,10 @@ Provide testCasesPassed (out of 10), performancePercentage, and constructive fee
                 code: ans.code,
                 language: ans.language,
                 score: evalResult.obtainedMarks, // backward compatibility
-                feedback: gradeResult.feedback
+                feedback: gradeResult.feedback,
+                suggestedCode: gradeResult.suggestedCode,
+                aiEvaluationStatus,
+                correctnessVerdict: gradeResult.correctnessVerdict
             });
         }
 
@@ -445,6 +476,22 @@ const getCodingAssessmentDetails = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
+        const formattedAnswers = (application.codingAnswers || []).map(ans => {
+            const ansObj = ans.toObject ? ans.toObject() : { ...ans };
+            const q = ans.questionId && typeof ans.questionId === 'object' ? ans.questionId : null;
+            return {
+                ...ansObj,
+                questionTitle: ansObj.questionTitle || q?.title || 'Coding Question',
+                questionDescription: q?.description || ansObj.questionDescription || '',
+                constraints: q?.constraints || ansObj.constraints || '',
+                inputFormat: q?.inputFormat || ansObj.inputFormat || '',
+                outputFormat: q?.outputFormat || ansObj.outputFormat || '',
+                expectedApproach: q?.expectedApproach || ansObj.expectedApproach || '',
+                sampleInput: q?.sampleInput || ansObj.sampleInput || '',
+                sampleOutput: q?.sampleOutput || ansObj.sampleOutput || ''
+            };
+        });
+
         res.json({
             success: true,
             codingScore: application.codingScore,
@@ -454,10 +501,185 @@ const getCodingAssessmentDetails = async (req, res) => {
                 totalObtainedMarks: application.codingScore || 0,
                 finalPercentage: application.codingScore || 0
             },
-            codingAnswers: application.codingAnswers
+            codingAnswers: formattedAnswers
         });
     } catch (error) {
         console.error('[CODING-ASSESSMENT] Get Details Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ─── Re-evaluate a specific coding answer with AI ───────────
+
+const reEvaluateCodingAnswer = async (req, res) => {
+    try {
+        const { applicationId, questionIndex } = req.params;
+        const qIdx = parseInt(questionIndex, 10);
+
+        if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+            return res.status(400).json({ success: false, message: 'Valid Application ID is required.' });
+        }
+        if (isNaN(qIdx) || qIdx < 0) {
+            return res.status(400).json({ success: false, message: 'Valid question index is required.' });
+        }
+
+        const application = await Application.findById(applicationId);
+        if (!application) {
+            return res.status(404).json({ success: false, message: 'Application not found.' });
+        }
+        if (!application.codingAnswers || qIdx >= application.codingAnswers.length) {
+            return res.status(400).json({ success: false, message: 'Invalid question index for this application.' });
+        }
+
+        const answer = application.codingAnswers[qIdx];
+        let question = answer.questionId ? await CodingQuestion.findById(answer.questionId) : null;
+        if (!question && answer.questionTitle) {
+            question = await CodingQuestion.findOne({ title: answer.questionTitle });
+            if (!question && application.jobId) {
+                try {
+                    const round = await CodingRound.findOne({ jobId: application.jobId._id || application.jobId }).populate('questions');
+                    if (round && round.questions) {
+                        question = round.questions.find(q => q.title === answer.questionTitle) || null;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        const systemPrompt = `You are an expert technical interviewer and code reviewer. Your job is to thoroughly analyze and grade the candidate's coding solution for a programming challenge.
+You must evaluate test case pass performance and return a raw JSON object fitting this schema:
+{
+  "testCasesPassed": <integer between 0 and 10 representing passed test cases>,
+  "totalTestCases": 10,
+  "performancePercentage": <number 0 to 100, e.g. 80 if 8 of 10 passed>,
+  "correctnessVerdict": <one of "Correct", "Partially Correct", or "Incorrect">,
+  "feedback": "Detailed constructive feedback covering: (1) Correctness analysis - does the logic solve the problem? (2) Edge case handling (3) Time/space complexity analysis (4) Code quality, readability, and style (5) Specific improvements needed.",
+  "suggestedCode": "A complete, clean, efficient, and fully correct implementation of the optimal solution in the SAME programming language the candidate used. Do NOT use markdown code blocks. Write the FULL working code, not partial snippets."
+}
+
+CRITICAL REQUIREMENTS:
+1. You MUST always provide "suggestedCode" containing the complete, optimal, bug-free, runnable code that solves the programming challenge. Never leave suggestedCode empty or null under any circumstance.
+2. If the candidate wrote in Python, write Python. If JavaScript, write JavaScript.
+3. suggestedCode must be complete and ready to run.`;
+
+        const questionTitle = answer.questionTitle || question?.title || 'Coding Question';
+        const questionDesc = question?.description || answer.questionDescription || '';
+        const questionConstraints = question?.constraints || answer.constraints || '';
+        const questionInputFormat = question?.inputFormat || answer.inputFormat || '';
+        const questionOutputFormat = question?.outputFormat || answer.outputFormat || '';
+        const questionExpectedApproach = question?.expectedApproach || answer.expectedApproach || '';
+
+        const userPrompt = `
+Programming Challenge:
+Title: ${questionTitle}
+Difficulty: ${answer.difficulty || 'MEDIUM'}
+Description: ${questionDesc}
+${questionInputFormat ? 'Input Format: ' + questionInputFormat : ''}
+${questionOutputFormat ? 'Output Format: ' + questionOutputFormat : ''}
+Constraints: ${questionConstraints}
+${questionExpectedApproach ? 'Expected Approach: ' + questionExpectedApproach : ''}
+Maximum Marks: ${answer.maximumMarks || 10}
+
+Candidate's Solution:
+Language: ${answer.language || 'python'}
+Code:
+\`\`\`${(answer.language || 'python').toLowerCase()}
+${answer.code}
+\`\`\`
+
+Evaluate this solution thoroughly:
+1. Does it solve the problem correctly for all inputs including edge cases?
+2. Does it satisfy the constraints (time and space complexity)?
+3. Is the code clean, well-structured, and following best practices?
+4. Compare the candidate's approach with the optimal solution.
+
+Provide correctnessVerdict, testCasesPassed (out of 10), performancePercentage, detailed feedback, and the complete suggestedCode (the optimal correct solution in the same language).
+`;
+
+        let gradeResult = { testCasesPassed: 0, totalTestCases: 10, performancePercentage: 0, feedback: 'Re-evaluation could not be completed.', suggestedCode: '', correctnessVerdict: 'Not Evaluated' };
+        let aiEvaluationStatus = 'failed';
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const responseText = await callGemini(userPrompt, 4000, true, systemPrompt, 0.5);
+                const parsed = safeParseAIJson(responseText, null);
+                if (parsed) {
+                    if (typeof parsed.testCasesPassed === 'number') gradeResult.testCasesPassed = parsed.testCasesPassed;
+                    if (typeof parsed.totalTestCases === 'number') gradeResult.totalTestCases = parsed.totalTestCases;
+                    if (typeof parsed.performancePercentage === 'number') gradeResult.performancePercentage = parsed.performancePercentage;
+                    else if (typeof parsed.score === 'number') gradeResult.performancePercentage = parsed.score * 10;
+                    if (parsed.feedback) gradeResult.feedback = parsed.feedback;
+                    if (parsed.suggestedCode) gradeResult.suggestedCode = parsed.suggestedCode;
+                    if (parsed.correctnessVerdict) gradeResult.correctnessVerdict = parsed.correctnessVerdict;
+                    else {
+                        if (gradeResult.performancePercentage >= 90) gradeResult.correctnessVerdict = 'Correct';
+                        else if (gradeResult.performancePercentage >= 40) gradeResult.correctnessVerdict = 'Partially Correct';
+                        else gradeResult.correctnessVerdict = 'Incorrect';
+                    }
+                    aiEvaluationStatus = 'success';
+                    console.log(`[CODING-REEVAL] AI Re-evaluation succeeded for application: ${applicationId}, question index: ${qIdx} (attempt ${attempt})`);
+                    break;
+                }
+            } catch (err) {
+                console.error(`[CODING-REEVAL] AI Re-evaluation attempt ${attempt} failed:`, err.message);
+                if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        // Recalculate obtained marks
+        const maxMarks = answer.maximumMarks || 10;
+        const evalResult = evaluateQuestionScore(
+            maxMarks,
+            gradeResult.testCasesPassed,
+            gradeResult.totalTestCases,
+            gradeResult.performancePercentage
+        );
+
+        // Update the specific answer in the array
+        application.codingAnswers[qIdx].testCasesPassed = gradeResult.testCasesPassed;
+        application.codingAnswers[qIdx].totalTestCases = gradeResult.totalTestCases || 10;
+        application.codingAnswers[qIdx].obtainedMarks = evalResult.obtainedMarks;
+        application.codingAnswers[qIdx].score = evalResult.obtainedMarks;
+        application.codingAnswers[qIdx].feedback = gradeResult.feedback;
+        application.codingAnswers[qIdx].suggestedCode = gradeResult.suggestedCode;
+        application.codingAnswers[qIdx].aiEvaluationStatus = aiEvaluationStatus;
+        application.codingAnswers[qIdx].correctnessVerdict = gradeResult.correctnessVerdict;
+        if (questionDesc) application.codingAnswers[qIdx].questionDescription = questionDesc;
+        if (questionConstraints) application.codingAnswers[qIdx].constraints = questionConstraints;
+        if (questionExpectedApproach) application.codingAnswers[qIdx].expectedApproach = questionExpectedApproach;
+
+        // Recalculate totals
+        const assessmentTotals = calculateAssessmentTotal(application.codingAnswers);
+        application.codingScore = assessmentTotals.totalObtainedMarks;
+        application.codingDetails = assessmentTotals;
+
+        application.markModified('codingAnswers');
+        await application.save();
+
+        const updatedAns = application.codingAnswers[qIdx].toObject ? application.codingAnswers[qIdx].toObject() : application.codingAnswers[qIdx];
+        const enrichedUpdatedAnswer = {
+            ...updatedAns,
+            questionTitle,
+            questionDescription: questionDesc,
+            constraints: questionConstraints,
+            expectedApproach: questionExpectedApproach,
+            suggestedCode: gradeResult.suggestedCode,
+            feedback: gradeResult.feedback,
+            correctnessVerdict: gradeResult.correctnessVerdict,
+            aiEvaluationStatus
+        };
+
+        res.json({
+            success: true,
+            message: 'Re-evaluation completed successfully.',
+            aiEvaluationStatus,
+            updatedAnswer: enrichedUpdatedAnswer,
+            codingScore: application.codingScore,
+            codingDetails: application.codingDetails
+        });
+    } catch (error) {
+        console.error('[CODING-REEVAL] Re-evaluate Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -470,5 +692,6 @@ module.exports = {
     updateCodingQuestion,
     deleteCodingQuestion,
     submitCodingAssessment,
-    getCodingAssessmentDetails
+    getCodingAssessmentDetails,
+    reEvaluateCodingAnswer
 };

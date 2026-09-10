@@ -102,7 +102,10 @@ const applicationSchema = new mongoose.Schema({
             code: String,
             language: String,
             score: Number,
-            feedback: String
+            feedback: String,
+            suggestedCode: String,
+            aiEvaluationStatus: { type: String, enum: ['success', 'failed', 'pending'], default: 'pending' },
+            correctnessVerdict: { type: String, enum: ['Correct', 'Partially Correct', 'Incorrect', 'Not Evaluated'], default: 'Not Evaluated' }
         }
     ],
     codingDetails: {

@@ -60,7 +60,9 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i },
     { method: '*', pattern: /^\/api\/recruiter-knowledge(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/candidate\/job-readiness(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/candidate-career(\/.*)?$/i }
+    { method: '*', pattern: /^\/api\/candidate-career(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/coding-assessments(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/custom-coding-assessments(\/.*)?$/i }
 ];
 
 

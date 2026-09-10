@@ -21,7 +21,10 @@ mongoose.plugin((schema) => {
                 questionDescription: { type: String, default: '' },
                 constraints: { type: String, default: '' },
                 correctAnswer: { type: String, default: '' }, // standardized correct answer
-                expectedApproach: { type: String, default: '' } // direct copy of expectedApproach
+                expectedApproach: { type: String, default: '' }, // direct copy of expectedApproach
+                suggestedCode: { type: String, default: '' },
+                aiEvaluationStatus: { type: String, default: 'pending' },
+                correctnessVerdict: { type: String, default: 'Not Evaluated' }
             });
         }
 
@@ -131,7 +134,10 @@ express.response.json = function (body) {
                                     code: a.code || '',
                                     language: a.language || '',
                                     score: obtMarks,
-                                    feedback: a.feedback || ''
+                                    feedback: a.feedback || '',
+                                    suggestedCode: a.suggestedCode || '',
+                                    aiEvaluationStatus: a.aiEvaluationStatus || 'pending',
+                                    correctnessVerdict: a.correctnessVerdict || 'Not Evaluated'
                                 };
                             })
                         };
@@ -231,13 +237,8 @@ try {
                         maximumMarks: 10
                     };
 
-                    let qTimer = parseInt(q.timer);
-                    // Automatically set default timers based on difficulty level if per-question timers are enabled
-                    if ((timerType || codingRound.timerType) === 'individual' && !qTimer) {
-                        if (dynamicInfo.difficulty === 'LOW') qTimer = 15;
-                        else if (dynamicInfo.difficulty === 'HIGH') qTimer = 45;
-                        else qTimer = 30; // Medium
-                    }
+                    let qTimer = parseInt(q.timer) || 0;
+                    // Timer is purely set by the recruiter — no hardcoded fallbacks
 
                     const questionDoc = new CodingQuestion({
                         codingRoundId: codingRound._id,

@@ -265,17 +265,22 @@ const safeParseAIJson = (rawText, fallbackDefault = null) => {
 
     let str = String(rawText).trim();
 
-    // 1. Remove markdown block formatting
-    if (str.includes('```')) {
-        const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-        if (match && match[1]) {
-            str = match[1].trim();
-        } else {
-            str = str.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+    // 1. First attempt: direct parse without modifying anything
+    try {
+        return JSON.parse(str);
+    } catch (_) {}
+
+    // 2. If wrapped in outer markdown code fence (```json ... ```), strip ONLY the outer wrapper
+    if (str.startsWith('```')) {
+        const stripped = str.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+        try {
+            return JSON.parse(stripped);
+        } catch (_) {
+            str = stripped;
         }
     }
 
-    // 2. Extract JSON payload boundaries ({ ... } or [ ... ])
+    // 3. Extract outermost JSON payload boundaries ({ ... } or [ ... ])
     if (!str.startsWith('{') && !str.startsWith('[')) {
         const firstObj = str.indexOf('{');
         const firstArr = str.indexOf('[');
@@ -292,23 +297,23 @@ const safeParseAIJson = (rawText, fallbackDefault = null) => {
             const isObj = str[startIndex] === '{';
             const lastIndex = isObj ? str.lastIndexOf('}') : str.lastIndexOf(']');
             if (lastIndex !== -1 && lastIndex > startIndex) {
-                str = str.substring(startIndex, lastIndex + 1).trim();
+                const candidate = str.substring(startIndex, lastIndex + 1).trim();
+                try {
+                    return JSON.parse(candidate);
+                } catch (_) {
+                    str = candidate;
+                }
             }
         }
     }
 
-    // 3. Attempt direct parse
+    // 4. Attempt syntax fixes (trailing commas)
     try {
-        return JSON.parse(str);
-    } catch (_) {
-        // 4. Attempt syntax fix (trailing comma removal)
-        try {
-            const fixedStr = str.replace(/,\s*([}\]])/g, '$1');
-            return JSON.parse(fixedStr);
-        } catch (e2) {
-            console.warn('[AI-CLIENT] safeParseAIJson failed to parse AI JSON response:', str.substring(0, 100));
-            return fallbackDefault;
-        }
+        const fixedStr = str.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixedStr);
+    } catch (e2) {
+        console.warn('[AI-CLIENT] safeParseAIJson failed to parse AI JSON response:', str.substring(0, 100));
+        return fallbackDefault;
     }
 };
 

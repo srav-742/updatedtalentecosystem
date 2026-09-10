@@ -5,7 +5,7 @@ const QuestionLog = require('../models/QuestionLog');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { callSkillAI, safeParseAIJson } = require('../utils/aiClients');
+const { callSkillAI, safeParseAIJson, callGemini } = require('../utils/aiClients');
 const { findRecruiterUser } = require('../utils/userResolver');
 const { generateHash } = require('../utils/helpers');
 
@@ -197,37 +197,96 @@ const submitAssessment = async (req, res) => {
         const processedAnswers = [];
 
         if (!isTerminated) {
-            safeAnswers.forEach((ans, idx) => {
+            const evalPromises = safeAnswers.map(async (ans, idx) => {
                 const question = sanitizedQuestions[idx];
-                if (!question) return;
+                if (!question) return null;
 
                 let isCorrect = false;
                 let score = 0;
+                let correctAnswerField = question.type === 'mcq' ? (Array.isArray(question.options) ? question.options[question.correctAnswer || 0] : '') : (question.starterCode || '// Write your solution here');
 
                 if (question.type === 'mcq') {
                     const correctOptionIndex = typeof question.correctAnswer === 'number' ? question.correctAnswer : 0;
                     const correctOption = Array.isArray(question.options) ? question.options[correctOptionIndex] : '';
                     isCorrect = ans.userAnswer === correctOption;
                     score = isCorrect ? 1 : 0;
-                    if (isCorrect) correctCount++;
+                    correctAnswerField = correctOption;
+                    
+                    return {
+                        questionId: question._id || null,
+                        question: question.question,
+                        questionType: question.type,
+                        skill: question.skill,
+                        userAnswer: ans.userAnswer,
+                        correctAnswer: correctAnswerField,
+                        isCorrect,
+                        score
+                    };
                 } else if (question.type === 'coding') {
                     if (ans.userAnswer && typeof ans.userAnswer === 'string' && ans.userAnswer.trim().length > 20) {
                         isCorrect = true;
                         score = 1;
-                        correctCount++;
                     }
-                }
 
-                processedAnswers.push({
-                    questionId: question._id || null,
-                    question: question.question,
-                    questionType: question.type,
-                    skill: question.skill,
-                    userAnswer: ans.userAnswer,
-                    correctAnswer: question.type === 'mcq' ? (Array.isArray(question.options) ? question.options[question.correctAnswer] : '') : (question.starterCode || '// Write your solution here'),
-                    isCorrect,
-                    score
-                });
+                    if (ans.userAnswer && typeof ans.userAnswer === 'string' && ans.userAnswer.trim().length > 0) {
+                        const prompt = `
+Evaluate this submitted code for a technical assessment.
+
+Question: ${question.question}
+Target Skill: ${question.skill}
+Starter Code: ${question.starterCode || ''}
+
+Candidate's Code:
+${ans.userAnswer}
+
+Task: Determine if the candidate's code is a correct and working solution to the question. It doesn't have to be perfect, but it should solve the core problem logically.
+
+Respond ONLY with a JSON object in this exact format:
+{
+  "isCorrect": true/false,
+  "score": 0 or 1,
+  "feedback": "A brief 1-2 sentence explanation of why it is correct or what is wrong."
+}
+`;
+                        try {
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 30000));
+                            const aiResponse = await Promise.race([
+                                callGemini(prompt, 500, true),
+                                timeoutPromise
+                            ]);
+                            
+                            const parsed = safeParseAIJson(aiResponse, null);
+                            if (parsed && typeof parsed.isCorrect === 'boolean') {
+                                isCorrect = parsed.isCorrect;
+                                score = parsed.score === 1 || parsed.isCorrect ? 1 : 0;
+                                correctAnswerField = parsed.feedback || correctAnswerField;
+                            }
+                        } catch (err) {
+                            console.warn('[ASSESSMENT AI EVAL ERROR]', err.message);
+                        }
+                    }
+
+                    return {
+                        questionId: question._id || null,
+                        question: question.question,
+                        questionType: question.type,
+                        skill: question.skill,
+                        userAnswer: ans.userAnswer,
+                        correctAnswer: correctAnswerField,
+                        isCorrect,
+                        score
+                    };
+                }
+                return null;
+            });
+
+            const evaluatedAnswers = await Promise.all(evalPromises);
+            
+            evaluatedAnswers.forEach(evalAns => {
+                if (evalAns) {
+                    if (evalAns.isCorrect) correctCount++;
+                    processedAnswers.push(evalAns);
+                }
             });
         }
 

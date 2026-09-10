@@ -86,7 +86,7 @@ const CodingAssessment = ({
                 setQuestions(enrichedQuestions);
                 if (round.timerType === 'individual') {
                     const firstQ = enrichedQuestions[0];
-                    const qTimer = firstQ?.timer || (firstQ?.difficulty === 'LOW' ? 15 : firstQ?.difficulty === 'HIGH' ? 45 : 30);
+                    const qTimer = firstQ?.timer || Math.floor((round.totalTime || 60) / enrichedQuestions.length);
                     setTimeLeft(qTimer * 60);
                 } else {
                     setTimeLeft((round.totalTime || 60) * 60);
@@ -153,7 +153,7 @@ const CodingAssessment = ({
     useEffect(() => {
         if (started && roundConfig?.timerType === 'individual' && questions.length > 0) {
             const currentQ = questions[currentQIndex];
-            const qTimer = currentQ?.timer || (currentQ?.difficulty === 'Easy' ? 15 : currentQ?.difficulty === 'Hard' ? 45 : 30);
+            const qTimer = currentQ?.timer || Math.floor((roundConfig?.totalTime || 60) / questions.length);
             setTimeLeft(qTimer * 60);
         }
     }, [currentQIndex, started, roundConfig, questions]);
@@ -514,23 +514,42 @@ const CodingAssessment = ({
                             Challenge {currentQIndex + 1} of {questions.length} • {currentQuestion?.marks || 10} Marks
                         </span>
 
-                        <button
-                            onClick={handleSubmitSolutions}
-                            disabled={saving}
-                            className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
-                        >
-                            {saving ? (
-                                <>
+                        {currentQIndex === questions.length - 1 ? (
+                            <button
+                                onClick={handleSubmitSolutions}
+                                disabled={saving}
+                                className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                            >
+                                {saving ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span>Submitting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 size={14} />
+                                        <span>Submit Final Solutions</span>
+                                    </>
+                                )}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('Are you sure you want to finish the test early? This will submit all your current answers.')) {
+                                        handleSubmitSolutions();
+                                    }
+                                }}
+                                disabled={saving}
+                                className="px-5 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-white font-bold text-xs transition-all border border-[#30363d] flex items-center gap-2 cursor-pointer"
+                            >
+                                {saving ? (
                                     <Loader2 size={14} className="animate-spin" />
-                                    <span>Submitting...</span>
-                                </>
-                            ) : (
-                                <>
+                                ) : (
                                     <CheckCircle2 size={14} />
-                                    <span>Submit Final Solutions</span>
-                                </>
-                            )}
-                        </button>
+                                )}
+                                <span>Finish Test Early</span>
+                            </button>
+                        )}
                     </div>
                 </header>
 
@@ -709,30 +728,31 @@ const CodingAssessment = ({
                                 {currentQIndex < questions.length - 1 ? (
                                     <button
                                         onClick={() => setCurrentQIndex(prev => prev + 1)}
-                                        className="px-5 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
                                     >
-                                        <span>Next Challenge</span>
+                                        <CheckCircle2 size={14} />
+                                        <span>Submit & Next Challenge</span>
                                         <ArrowRight size={13} />
                                     </button>
-                                ) : null}
-
-                                <button
-                                    onClick={handleSubmitSolutions}
-                                    disabled={saving}
-                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
-                                >
-                                    {saving ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin" />
-                                            <span>Submitting...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle2 size={14} />
-                                            <span>Submit Coding Solutions</span>
-                                        </>
-                                    )}
-                                </button>
+                                ) : (
+                                    <button
+                                        onClick={handleSubmitSolutions}
+                                        disabled={saving}
+                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <Loader2 size={14} className="animate-spin" />
+                                                <span>Submitting...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 size={14} />
+                                                <span>Submit Final Solutions</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

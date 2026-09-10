@@ -1004,9 +1004,21 @@ const Applicants = () => {
             {showCodingDetail && (
                 <CodingAssessmentDetail
                     applicationId={selectedApplicationId}
+                    onScoreUpdate={(newScore) => {
+                        queryClient.setQueryData(['applicants', userId], (oldData) => {
+                            if (!Array.isArray(oldData)) return oldData;
+                            return oldData.map(app => 
+                                (String(app._id) === String(selectedApplicationId) || String(app.id) === String(selectedApplicationId))
+                                    ? { ...app, codingScore: newScore }
+                                    : app
+                            );
+                        });
+                        queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+                    }}
                     onClose={() => {
                         setShowCodingDetail(false);
                         setSelectedApplicationId(null);
+                        queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
                     }}
                 />
             )}

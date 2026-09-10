@@ -258,7 +258,7 @@ const SkillAssessment = ({
 
     const nextQuestion = () => {
         if (currentQIndex < questions.length - 1) {
-            setCurrentQIndex((value) => value + 1);
+            setCurrentQIndex(currentQIndex + 1);
             return;
         }
 
@@ -281,10 +281,9 @@ const SkillAssessment = ({
                     isCorrect = true;
                 }
             } else if (question.type === 'coding') {
-                if (userAnswer && userAnswer.trim().length > 20) {
-                    correct += 1;
-                    isCorrect = true;
-                }
+                // Frontend no longer scores coding questions (deferred to AI on backend)
+                // We leave isCorrect as false and let the backend evaluate it.
+                isCorrect = null; // Send null to indicate it's not pre-scored
             }
 
             formattedAnswers.push({
@@ -293,18 +292,20 @@ const SkillAssessment = ({
             });
         });
 
+        // This is a fallback/optimistic score for UI purposes if the backend doesn't return one
         const finalScore = Math.round((correct / questions.length) * 20);
 
         try {
-            await axios.post(`${API_URL}/submit-assessment`, {
+            const response = await axios.post(`${API_URL}/submit-assessment`, {
                 jobId: job._id,
                 userId: user.uid,
                 sessionId,
                 questions,
                 answers: formattedAnswers
             });
-            // Successfully submitted!
-            setScore(finalScore);
+            // Successfully submitted! Use the backend's definitive AI-calculated score if available.
+            setScore(response.data.score !== undefined ? response.data.score : finalScore);
+
 
             // Always stop and finalize assessment recording on assessment complete!
             const recorder = localRecorderRef.current || sharedRecorder;

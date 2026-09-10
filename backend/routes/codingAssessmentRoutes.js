@@ -17,4 +17,7 @@ router.delete('/questions/:questionId', authMiddleware, roleCheck('recruiter'), 
 router.post('/submit', authMiddleware, codingAssessmentController.submitCodingAssessment);
 router.get('/details/:applicationId', authMiddleware, codingAssessmentController.getCodingAssessmentDetails);
 
+// ─── AI Re-evaluation ────────────────────────────────────
+router.post('/re-evaluate/:applicationId/:questionIndex', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.reEvaluateCodingAnswer);
+
 module.exports = router;

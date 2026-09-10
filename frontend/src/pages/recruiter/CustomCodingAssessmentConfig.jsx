@@ -81,12 +81,12 @@ const CustomCodingAssessmentConfig = () => {
                     let qTimer = 0;
                     if ((location.state?.timerType || timerType) === 'individual') {
                         const diff = (q.difficulty || '').toLowerCase();
-                        if (diff === 'easy' || diff === 'normal') {
-                            qTimer = location.state?.normalTime || 15;
+                        if (diff === 'easy' || diff === 'normal' || diff === 'low') {
+                            qTimer = location.state?.normalTime || 10;
                         } else if (diff === 'hard' || diff === 'high') {
-                            qTimer = location.state?.highTime || 45;
+                            qTimer = location.state?.highTime || 20;
                         } else {
-                            qTimer = location.state?.moderateTime || 30; // moderate / medium
+                            qTimer = location.state?.moderateTime || 15; // moderate / medium
                         }
                     }
                     return { ...q, timer: qTimer };

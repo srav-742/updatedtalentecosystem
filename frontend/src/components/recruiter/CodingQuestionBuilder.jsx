@@ -42,16 +42,8 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
         }
     }, [question]);
 
-    // Initialize default timer for new questions
-    useEffect(() => {
-        if (!question && timerType === 'individual' && formData.timer === 0) {
-            const diff = normalizeDifficulty(formData.difficulty);
-            setFormData(prev => ({
-                ...prev,
-                timer: diff === 'LOW' ? 15 : diff === 'HIGH' ? 45 : 30
-            }));
-        }
-    }, [question, timerType, formData.timer]);
+    // No auto-fill for timers — recruiter sets them explicitly
+    // Timer field is available in the question builder when timerType is 'individual'
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };

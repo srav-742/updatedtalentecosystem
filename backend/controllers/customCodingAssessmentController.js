@@ -131,7 +131,7 @@ const saveCustomCodingRound = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-        const { jobId, questions, totalTime, languages } = req.body;
+        const { jobId, questions, totalTime, timerType, languages } = req.body;
 
         if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Valid jobId is required.' });
@@ -154,6 +154,7 @@ const saveCustomCodingRound = async (req, res) => {
             
             // Update coding round attributes
             codingRound.totalTime = totalTime || 60;
+            codingRound.timerType = timerType || codingRound.timerType || 'overall';
             codingRound.languages = languages || [];
             codingRound.status = 'published';
             codingRound.questions = [];
@@ -161,7 +162,7 @@ const saveCustomCodingRound = async (req, res) => {
             codingRound = new CodingRound({
                 jobId,
                 totalTime: totalTime || 60,
-                timerType: 'overall',
+                timerType: timerType || 'overall',
                 languages: languages || [],
                 instructions: 'Write the code logic. Make sure to satisfy the examples and constraints.',
                 status: 'published',
@@ -197,7 +198,7 @@ const saveCustomCodingRound = async (req, res) => {
                 difficultyWeight: dynamicInfo.difficultyWeight,
                 marks: dynamicInfo.maximumMarks,
                 allowedLanguages: Array.isArray(q.allowedLanguages) ? q.allowedLanguages : languages,
-                timer: 0
+                timer: parseInt(q.timer) || 0
             });
             await questionDoc.save({ session });
             savedQuestionIds.push(questionDoc._id);
