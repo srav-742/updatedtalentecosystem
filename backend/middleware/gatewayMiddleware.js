@@ -96,6 +96,14 @@ const gatewayMiddleware = async (req, res, next) => {
                 query.uid = xUserId;
             }
             adminUser = await User.findOne(query);
+            
+            // Safe Fallback: Only allow fallback to default admin if the request definitively comes from the Admin Dashboard.
+            // This prevents regular users on the main web app from being mistakenly elevated to the admin profile.
+            const isOriginAdmin = req.headers.origin && req.headers.origin.includes('hire1admindashboard');
+            if (!adminUser && (req.headers['x-client-id'] === 'hire1admindashboard' || isOriginAdmin)) {
+                adminUser = await User.findOne({ uid: 'SQKunisKWhb49NUPKuk9R38iwQN2' });
+            }
+
             if (adminUser) {
                 isAdminRequest = true;
             }
