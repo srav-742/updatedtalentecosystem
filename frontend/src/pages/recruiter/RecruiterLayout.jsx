@@ -107,7 +107,7 @@ const RecruiterLayout = () => {
             if (!uid) return;
 
             try {
-                const profileData = await getUserProfile(uid);
+                const profileData = await getUserProfile(user.email || uid);
                 if (profileData) {
                     setProfile(profileData);
                     // IMPORTANT: Always preserve the session role (set at login time).

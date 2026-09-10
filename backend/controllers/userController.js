@@ -19,14 +19,22 @@ const getUserProfile = async (req, res) => {
     try {
         const { userId } = req.params;
         
-        // Find user by UID, _id, or Email
-        const user = await User.findOne({
-            $or: [
-                { uid: userId },
-                { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null },
-                { email: userId }
-            ]
-        });
+        let user;
+        
+        // 1. Prioritize precise Object ID match
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+            user = await User.findById(userId);
+        }
+        
+        // 2. Prioritize Email match if the param is an email
+        if (!user && userId.includes('@')) {
+            user = await User.findOne({ email: userId.toLowerCase().trim() });
+        }
+        
+        // 3. Fallback to Firebase UID
+        if (!user) {
+            user = await User.findOne({ uid: userId });
+        }
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });

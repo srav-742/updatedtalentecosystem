@@ -29,7 +29,7 @@ const RecruiterProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const profile = await getUserProfile(user.uid || user._id || user.id);
+                const profile = await getUserProfile(user.email || user._id || user.uid || user.id);
                 if (profile) {
                     setProfileData({
                         ...profile,

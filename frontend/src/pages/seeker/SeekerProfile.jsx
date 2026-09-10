@@ -113,7 +113,7 @@ const SeekerProfile = () => {
         queryKey: ['userProfile', uid],
         queryFn: async () => {
             if (!uid) return null;
-            return await getUserProfile(uid);
+            return await getUserProfile(user.email || uid);
         },
         enabled: !!uid,
     });

@@ -273,7 +273,7 @@ const LoginPage = () => {
 
                 // Fetch Profile and initialize Gateway Session in parallel
                 const [fetchedProfile] = await Promise.all([
-                    withRetry(() => getUserProfile(user.uid), 3, 'getProfile').catch(() => null),
+                    withRetry(() => getUserProfile(normalizedEmail), 3, 'getProfile').catch(() => null),
                     withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, user.uid), 3, 'gatewaySession').catch(err => {
                         console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
                     }),
@@ -381,7 +381,7 @@ const LoginPage = () => {
 
             // Step 1: Check if this Google account already has a profile in the backend.
             const existingProfile = await withRetry(
-                () => getUserProfile(googleUser.uid),
+                () => getUserProfile(normalizedEmail),
                 3, 'googleGetProfile'
             ).catch(() => null);
 

@@ -185,7 +185,7 @@ const SignupPage = () => {
             const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
             // 1.5 Check for role mismatch if existing profile in DB
-            const existingProfile = await getUserProfile(googleUser.uid).catch(() => null);
+            const existingProfile = await getUserProfile(normalizedEmail).catch(() => null);
             if (existingProfile && existingProfile.role) {
                 const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
                 const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';

@@ -60,7 +60,7 @@ const SeekerLayout = () => {
             if (!uid) return;
 
             try {
-                const profileData = await getUserProfile(uid);
+                const profileData = await getUserProfile(user.email || uid);
                 if (profileData) {
                     setProfile(profileData);
                     localStorage.setItem('user', JSON.stringify({ ...user, ...profileData, role: user.role }));
