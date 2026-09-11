@@ -708,7 +708,7 @@ const RecruiterDashboard = () => {
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-12 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
                                                             {blog.coverImage ? (
-                                                                <img src={blog.coverImage} alt="" className="w-full h-full object-cover" />
+                                                                <img src={blog.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                                                             ) : (
                                                                 <FileText size={16} className="text-slate-400" />
                                                             )}

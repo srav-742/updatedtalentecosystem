@@ -9,8 +9,8 @@ import { GlobalPageSkeleton } from './components/Skeleton';
 // Only the shell (Router, Navbar, Skeleton, ProtectedRoute) is in the initial bundle.
 // Each page's code is downloaded on-demand when the user navigates to that route.
 
-// Public pages — AssessmentsHome is the root landing page, eagerly bundled to eliminate waterfall latency
-import AssessmentsHome from './pages/AssessmentsHome';
+// Public pages — ALL pages are lazy-loaded on demand for maximum initial performance
+const AssessmentsHome = lazy(() => import('./pages/AssessmentsHome'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));

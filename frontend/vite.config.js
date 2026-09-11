@@ -6,6 +6,9 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  esbuild: {
+    drop: ['console', 'debugger'],
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -103,7 +106,9 @@ export default defineConfig(({ mode }) => ({
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cross-Origin-Opener-Policy': 'unsafe-none'
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-DNS-Prefetch-Control': 'on'
     },
     warmup: {
       clientFiles: [
@@ -138,7 +143,9 @@ export default defineConfig(({ mode }) => ({
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cross-Origin-Opener-Policy': 'unsafe-none'
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-DNS-Prefetch-Control': 'on'
     },
   },
 

@@ -75,7 +75,12 @@ function prefetchRoute(pathname) {
  */
 export function initRoutePrefetcher() {
   if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
-    return; // SSR or unsupported browser — skip
+    return () => {}; // SSR or unsupported browser — skip
+  }
+
+  // Skip background viewport prefetching on local dev to prevent flooding the dev server with unbundled modules
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return () => {};
   }
 
   // Delay initialization to avoid competing with initial page load
@@ -131,7 +136,7 @@ export function initRoutePrefetcher() {
       observer.disconnect();
       mutationObserver.disconnect();
     });
-  }, 2500); // Start background viewport prefetch 2.5s after load to avoid competing with FCP/LCP
+  }, 4000); // Start background viewport prefetch 4s after load to avoid competing with FCP/LCP
 
   return () => clearTimeout(startDelay);
 }

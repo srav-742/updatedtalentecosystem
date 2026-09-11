@@ -39,8 +39,8 @@ export default function SEO({
       <link rel="alternate" type="application/rss+xml" title="Hire1Percent Recruitment Blog" href="/rss.xml" />
 
       {/* Multi-Language & Region Hreflang Canonical Annotations */}
-      <link rel="alternate" hreflang="en" href={absoluteCanonicalUrl} />
-      <link rel="alternate" hreflang="x-default" href={absoluteCanonicalUrl} />
+      <link rel="alternate" hrefLang="en" href={absoluteCanonicalUrl} />
+      <link rel="alternate" hrefLang="x-default" href={absoluteCanonicalUrl} />
 
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={ogType} />

@@ -236,7 +236,7 @@ export default function BlogPosts() {
                                             <td className="py-4">
                                                 <div className="w-16 h-10 rounded-lg overflow-hidden border border-black/5 bg-gray-100 flex items-center justify-center">
                                                     {post.coverImage ? (
-                                                        <img src={post.coverImage} alt="" className="w-full h-full object-cover" />
+                                                        <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                                                     ) : (
                                                         <FileText size={16} className="text-gray-400" />
                                                     )}

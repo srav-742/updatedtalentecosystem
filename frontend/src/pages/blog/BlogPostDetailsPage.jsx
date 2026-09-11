@@ -61,7 +61,7 @@ const parseInline = (text, isDark) => {
             const [, alt, src] = earliest.match;
             element = (
                 <span className="block my-10 select-none" key={index}>
-                    <img src={src} alt={alt} style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
+                    <img src={src} alt={alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
                 </span>
             );
         } else if (earliest.type === 'link') {
@@ -924,7 +924,7 @@ const renderBlock = (block, index, isDark) => {
         case 'image':
             return (
                 <span className="block my-10 select-none" key={index}>
-                    <img src={block.src} alt={block.alt} style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
+                    <img src={block.src} alt={block.alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
                 </span>
             );
         case 'hr':
@@ -1349,7 +1349,7 @@ export default function BlogPostDetailsPage() {
                 {/* HD Cover Image - Up/Top (Bounded inside max-w-7xl) */}
                 <div className="max-w-4xl mx-auto w-full h-auto mb-12 relative z-0" style={{ borderRadius: '2.5rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, boxShadow: isDark ? '0 25px 50px rgba(0,0,0,0.4)' : '0 25px 50px rgba(0,0,0,0.15)' }}>
                     {post.coverImage ? (
-                        <img src={post.coverImage} alt={post.title} className="w-full h-auto block" />
+                        <img src={post.coverImage} alt={post.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block" />
                     ) : (
                         <div className="w-full flex items-center justify-center" style={{ height: '250px', background: isDark ? 'linear-gradient(135deg, #1e3a5f, #1e1b4b)' : 'linear-gradient(135deg, #1e3a8a, #312e81)', color: 'rgba(255,255,255,0.05)' }}>
                             <BookOpen size={96} />
@@ -1586,7 +1586,7 @@ export default function BlogPostDetailsPage() {
                                         <div>
                                             <div className="overflow-hidden relative" style={{ height: '160px', borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}`, background: isDark ? '#1e2535' : '#f8fafc' }}>
                                                 {relPost.coverImage ? (
-                                                    <img src={relPost.coverImage} alt={relPost.title} className="w-full h-full object-cover" />
+                                                    <img src={relPost.coverImage} alt={relPost.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center" style={{ background: isDark ? '#1e2535' : '#f1f5f9', color: t.mutedText }}>
                                                         <BookOpen size={24} />
