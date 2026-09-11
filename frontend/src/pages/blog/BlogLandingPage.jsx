@@ -280,7 +280,12 @@ export default function BlogLandingPage() {
             <Link key={post._id} to={`/blog/${post.slug}`} state={{ post }} className="group flex flex-col no-underline" style={{ color: t.pageText }}>
                 <div style={{ borderRadius: '1.5rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'box-shadow 0.3s ease' }}>
                     {post.coverImage ? (
-                        <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block group-hover:scale-[1.03] transition-transform duration-500" />
+                        <>
+                            <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
+                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', minHeight: '180px', background: t.placeholderGradient, color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.05)' }}>
+                                <BookOpen size={48} />
+                            </div>
+                        </>
                     ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.05)' }}>
                             <BookOpen size={48} />
@@ -324,7 +329,12 @@ export default function BlogLandingPage() {
                             <Link to={`/blog/${mainPost.slug}`} state={{ post: mainPost }} className="group flex flex-col no-underline">
                                 <div style={{ borderRadius: '1rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                                     {mainPost.coverImage ? (
-                                        <img src={mainPost.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+                                        <>
+                                            <img src={mainPost.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
+                                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                                <BookOpen size={64} />
+                                            </div>
+                                        </>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
                                             <BookOpen size={64} />
@@ -351,7 +361,12 @@ export default function BlogLandingPage() {
                                 <Link key={post._id} to={`/blog/${post.slug}`} state={{ post }} className="group flex flex-col no-underline">
                                     <div style={{ borderRadius: '0.75rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                                         {post.coverImage ? (
-                                            <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+                                            <>
+                                                <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
+                                                <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                                    <BookOpen size={32} />
+                                                </div>
+                                            </>
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
                                                 <BookOpen size={32} />
@@ -629,16 +644,22 @@ export default function BlogLandingPage() {
                                     {/* Image */}
                                     <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '16px 16px 0 0' }}>
                                         {post.coverImage ? (
-                                            <img
-                                                src={post.coverImage}
-                                                alt={post.title}
-                                                loading="lazy"
-                                                decoding="async"
-                                                crossOrigin="anonymous"
-                                                referrerPolicy="no-referrer"
-                                                className="blog-card-img"
-                                                style={{ width: '100%', height: '200px', objectFit: 'cover', display: 'block', transition: 'transform 0.4s ease' }}
-                                            />
+                                            <>
+                                                <img
+                                                    src={post.coverImage}
+                                                    alt={post.title}
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    crossOrigin="anonymous"
+                                                    referrerPolicy="no-referrer"
+                                                    className="blog-card-img"
+                                                    style={{ width: '100%', height: '200px', objectFit: 'cover', display: 'block', transition: 'transform 0.4s ease' }}
+                                                    onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }}
+                                                />
+                                                <div style={{ display: 'none', width: '100%', height: '200px', alignItems: 'center', justifyContent: 'center', background: t.placeholderGradient }}>
+                                                    <BookOpen size={36} style={{ color: isDark ? '#60a5fa' : '#93c5fd' }} />
+                                                </div>
+                                            </>
                                         ) : (
                                             <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.placeholderGradient }}>
                                                 <BookOpen size={36} style={{ color: isDark ? '#60a5fa' : '#93c5fd' }} />

@@ -1349,7 +1349,12 @@ export default function BlogPostDetailsPage() {
                 {/* HD Cover Image - Up/Top (Bounded inside max-w-7xl) */}
                 <div className="max-w-4xl mx-auto w-full h-auto mb-12 relative z-0" style={{ borderRadius: '2.5rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, boxShadow: isDark ? '0 25px 50px rgba(0,0,0,0.4)' : '0 25px 50px rgba(0,0,0,0.15)' }}>
                     {post.coverImage ? (
-                        <img src={post.coverImage} alt={post.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block" />
+                        <>
+                            <img src={post.coverImage} alt={post.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
+                            <div className="w-full items-center justify-center" style={{ display: 'none', height: '250px', background: isDark ? 'linear-gradient(135deg, #1e3a5f, #1e1b4b)' : 'linear-gradient(135deg, #1e3a8a, #312e81)', color: 'rgba(255,255,255,0.05)' }}>
+                                <BookOpen size={96} />
+                            </div>
+                        </>
                     ) : (
                         <div className="w-full flex items-center justify-center" style={{ height: '250px', background: isDark ? 'linear-gradient(135deg, #1e3a5f, #1e1b4b)' : 'linear-gradient(135deg, #1e3a8a, #312e81)', color: 'rgba(255,255,255,0.05)' }}>
                             <BookOpen size={96} />
@@ -1586,7 +1591,12 @@ export default function BlogPostDetailsPage() {
                                         <div>
                                             <div className="overflow-hidden relative" style={{ height: '160px', borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}`, background: isDark ? '#1e2535' : '#f8fafc' }}>
                                                 {relPost.coverImage ? (
-                                                    <img src={relPost.coverImage} alt={relPost.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                                                    <>
+                                                        <img src={relPost.coverImage} alt={relPost.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
+                                                        <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: isDark ? '#1e2535' : '#f1f5f9', color: t.mutedText }}>
+                                                            <BookOpen size={24} />
+                                                        </div>
+                                                    </>
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center" style={{ background: isDark ? '#1e2535' : '#f1f5f9', color: t.mutedText }}>
                                                         <BookOpen size={24} />

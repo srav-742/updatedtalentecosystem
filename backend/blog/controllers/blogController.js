@@ -5,7 +5,6 @@ const BlogPost = require('../models/BlogPost');
 const Lead = require('../../models/Lead');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../../middleware/cacheMiddleware');
-// const cloudinary = require('../../config/cloudinary');
 
 class BlogController {
     // ==========================================
@@ -383,7 +382,7 @@ class BlogController {
     }
 
     /**
-     * Upload cover image — uploads to Cloudinary for high performance & CDN caching
+     * Upload cover image — converts to Base64 Data URI for direct MongoDB storage
      */
     async uploadCoverImage(req, res) {
         try {

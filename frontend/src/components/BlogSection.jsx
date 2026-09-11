@@ -82,15 +82,28 @@ const BlogSection = ({ theme = 'light' }) => {
                             >
                                 <div className="relative w-full h-48 overflow-hidden bg-slate-800">
                                     {post.coverImage ? (
-                                        <img
-                                            src={post.coverImage}
-                                            alt={post.title}
-                                            loading="lazy"
-                                            decoding="async"
-                                            crossOrigin="anonymous"
-                                            referrerPolicy="no-referrer"
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                        />
+                                        <>
+                                            <img
+                                                src={post.coverImage}
+                                                alt={post.title}
+                                                loading="lazy"
+                                                decoding="async"
+                                                crossOrigin="anonymous"
+                                                referrerPolicy="no-referrer"
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    if (e.target.nextElementSibling) {
+                                                        e.target.nextElementSibling.style.display = 'flex';
+                                                    }
+                                                }}
+                                            />
+                                            <div className="w-full h-full bg-gradient-to-br from-blue-900 to-indigo-950 items-center justify-center p-6 text-center" style={{ display: 'none' }}>
+                                                <span className="text-white font-bold text-lg leading-snug drop-shadow">
+                                                    {post.title}
+                                                </span>
+                                            </div>
+                                        </>
                                     ) : (
                                         <div className="w-full h-full bg-gradient-to-br from-blue-900 to-indigo-950 flex items-center justify-center p-6 text-center">
                                             <span className="text-white font-bold text-lg leading-snug drop-shadow">
