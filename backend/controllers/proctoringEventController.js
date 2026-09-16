@@ -148,10 +148,12 @@ const logEvent = async (req, res) => {
         // Queue the MongoDB report compile worker so it doesn't block Express main thread
         await queueService.addJob('update-report', { examId: targetExamId, userId: targetUserId });
 
+        const calculatedScore = proctoringScore || (cachedReport ? Math.max(0, 100 - Math.round((cachedReport.totalPenaltyRating || 0) * 2.5)) : 100);
+
         return res.status(200).json({
             recorded: true,
             examId: targetExamId,
-            score: proctoringScore || 100,
+            score: calculatedScore,
             status: cachedReport ? cachedReport.status : 'clean',
         });
     } catch (error) {
@@ -283,9 +285,12 @@ const getScore = async (req, res) => {
         const cacheKey = `proctoring:report:${examId}`;
         const cached = await redisService.get(cacheKey);
         if (cached) {
+            const score = cached.proctoringScore !== undefined
+                ? cached.proctoringScore
+                : Math.max(0, 100 - Math.round((cached.totalPenaltyRating || 0) * 2.5));
             return res.status(200).json({
                 totalPenaltyRating: cached.totalPenaltyRating,
-                score: 100,
+                score,
                 status: cached.status,
                 verdict: cached.verdict,
             });
@@ -305,9 +310,13 @@ const getScore = async (req, res) => {
         // Cache report
         await redisService.set(cacheKey, report, 600);
 
+        const score = report.proctoringScore !== undefined
+            ? report.proctoringScore
+            : Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
+
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,
-            score: 100,
+            score,
             status: report.status,
             verdict: report.verdict,
         });

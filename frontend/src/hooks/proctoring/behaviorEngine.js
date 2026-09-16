@@ -310,8 +310,12 @@ export function evaluatePhoneProximity(phoneBbox, faceBbox) {
 
 // ── Proctoring score calculator ──────────────────────────────────────────────
 export function computeProctoringScore(events, startScore = 100) {
-    // System should not reduce the score of the candidate for penalty
-    return startScore;
+    let score = startScore;
+    for (const event of events) {
+        const penalty = SCORE_PENALTIES[event.eventType] || SCORE_PENALTIES[event] || 1;
+        score = Math.max(0, score - penalty);
+    }
+    return score;
 }
 
 export function getStatusFromScore(score) {
@@ -594,8 +598,9 @@ export function analyzeFrame(state, signals) {
 
     for (const act of actions) {
         if (act.action !== 'wait' && act.action !== 'ok') {
-            // System should not reduce candidate score for penalty
-            act.proctoringScore = 100;
+            const penalty = SCORE_PENALTIES[act.eventType] || 1;
+            state.score = Math.max(0, state.score - penalty);
+            act.proctoringScore = state.score;
             if (act.severity === 'critical') state.warningLevel = 'critical';
             else if (act.severity === 'high' && state.warningLevel !== 'critical') state.warningLevel = 'high';
             else if (act.severity === 'medium' && !['critical', 'high'].includes(state.warningLevel)) state.warningLevel = 'medium';
@@ -603,7 +608,18 @@ export function analyzeFrame(state, signals) {
         }
     }
 
-    state.score = 100;
+    const suspicion = 100 - state.score;
+    if (suspicion >= 50) {
+        state.warningLevel = 'critical';
+    } else if (suspicion >= 30) {
+        state.warningLevel = 'high';
+    } else if (suspicion >= 15) {
+        state.warningLevel = 'medium';
+    } else if (suspicion >= 5) {
+        state.warningLevel = 'low';
+    } else {
+        state.warningLevel = 'none';
+    }
 
     return actions;
 }

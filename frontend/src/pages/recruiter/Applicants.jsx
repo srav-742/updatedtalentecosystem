@@ -103,8 +103,8 @@ const Applicants = () => {
             linkedinUrl: app.user?.linkedinUrl,
             resumeUrl: app.user?.resumeUrl,
             finalScore: app.finalScore,
-            integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : (app.proctoringScore || 0),
-            proctoringScore: app.proctoringScore || 0,
+            integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : 0,
+            proctoringScore: app.proctoringScore !== undefined ? app.proctoringScore : Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)),
             proctoringFlags: app.proctoringFlags || [],
             status: app.status,
             teamFit: app.teamFit,
@@ -838,22 +838,28 @@ const Applicants = () => {
                                                  </td>
                                                  )}
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                     <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Raw Penalty Points: ${app.integrityPenalty || 0}`}>
-                                                             <span>{app.integrityPenalty ?? app.proctoringScore ?? 0}</span>
-                                                             <button
-                                                                 onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     handleViewProctoring(app.id);
-                                                                 }}
-                                                                 className="p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                                                 title="View Proctoring Report"
-                                                             >
-                                                                 <Eye size={15} />
-                                                             </button>
-                                                         </div>
-                                                     </div>
-                                                </td>
+                                                      <div className="flex items-center justify-center">
+                                                          <div className={`inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl font-extrabold text-sm shadow-sm border ${
+                                                              (app.proctoringScore ?? 100) >= 80 
+                                                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
+                                                                  : (app.proctoringScore ?? 100) >= 50 
+                                                                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                                                                      : "bg-red-500/10 border-red-500/20 text-red-400"
+                                                          }`} title={`Integrity Trust Score: ${app.proctoringScore ?? 100}% | Penalty Points: ${app.integrityPenalty || 0}`}>
+                                                              <span>{app.proctoringScore ?? 100}%</span>
+                                                              <button
+                                                                  onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      handleViewProctoring(app.id);
+                                                                  }}
+                                                                  className="p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer opacity-80 hover:opacity-100 hover:bg-white/10"
+                                                                  title="View Proctoring Report"
+                                                              >
+                                                                  <Eye size={15} />
+                                                              </button>
+                                                          </div>
+                                                      </div>
+                                                 </td>
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
                                                         {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}

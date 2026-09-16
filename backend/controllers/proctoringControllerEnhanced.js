@@ -173,6 +173,8 @@ const updateProctoringReport = async (examId, userId) => {
             }
         }
         
+        const proctoringScore = Math.max(0, 100 - Math.round(totalPenaltyRating * 2.5));
+
         const report = await ProctoringReport.findOneAndUpdate(
             { examId },
             {
@@ -181,6 +183,7 @@ const updateProctoringReport = async (examId, userId) => {
                 applicationId,
                 totalViolations,
                 totalPenaltyRating,
+                proctoringScore,
                 status,
                 verdict,
                 summary,
@@ -190,11 +193,11 @@ const updateProctoringReport = async (examId, userId) => {
             { upsert: true, new: true }
         );
         
-        // Update application integrity state without reducing candidate score for penalty
+        // Update application integrity state with accurate proctoring score
         if (applicationId) {
             await Application.findByIdAndUpdate(applicationId, {
                 integrityPenalty: totalPenaltyRating,
-                proctoringScore: 100,
+                proctoringScore: proctoringScore,
             });
         }
 

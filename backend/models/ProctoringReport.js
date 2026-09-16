@@ -26,6 +26,10 @@ const proctoringReportSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    proctoringScore: {
+        type: Number,
+        default: 100,
+    },
     status: {
         type: String,
         enum: ['clean', 'low_risk', 'suspicious', 'critical'],

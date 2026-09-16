@@ -19,17 +19,17 @@ import { useYOLODetector } from './proctoring/useYOLODetector';
  */
 
 const DEFAULT_THRESHOLDS = {
-    headTurnRatioHigh: 2.0,       // Nose-to-cheek ratio > this → looking far right
-    headTurnRatioLow: 0.5,        // Nose-to-cheek ratio < this → looking far left
+    headTurnRatioHigh: 1.42,       // Nose-to-cheek ratio > this → looking right
+    headTurnRatioLow: 0.70,        // Nose-to-cheek ratio < this → looking left
     gazeSwipeCount: 3,            // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,      // Sliding window for sweep detection
-    noPersonTimeoutMs: 5000,      // How long 0 faces before flagging
+    noPersonTimeoutMs: 3000,      // 3 seconds no face before flagging (as requested)
     phoneConfidenceThreshold: 0.40, // Optimal for COCO
     objectConfidenceThreshold: 0.45, // Optimal for COCO
     phoneRequiredFrames: 2,        // 2 frames (at 1000ms interval) = ~2s detection
     objectRequiredFrames: 2,       // 2 frames (at 1000ms interval) = ~2s detection
-    sideGazeRatioLow: 0.35,       // Gaze horizontal ratio < this → looking to the left
-    sideGazeRatioHigh: 0.65,      // Gaze horizontal ratio > this → looking to the right
+    sideGazeRatioLow: 0.38,       // Gaze horizontal ratio < this → looking to the left
+    sideGazeRatioHigh: 0.62,      // Gaze horizontal ratio > this → looking to the right
     detectionIntervalMs: 500,     // How often to run FaceMesh frame analysis
     objectDetectionIntervalMs: 1000, // Run object check every 1000ms (1 FPS) to prevent video stuttering
     onnxLoadTimeoutMs: 8000,
@@ -251,18 +251,21 @@ export function useAIProctoring({
     const processFaceMeshResultsRef = useRef(null);
 
     const lastViolationTimeRef = useRef({});
-    const VIOLATION_COOLDOWN_MS = 5000;
+    const VIOLATION_COOLDOWN_MS = 2500;
     const PHONE_VIOLATION_COOLDOWN_MS = 3000;
     const OBJECT_VIOLATION_COOLDOWN_MS = 3000;
 
-    const noPersonTimerRef = useRef(null);
-    const gazeHistoryRef = useRef([]);
-    const sideGazeStartRef = useRef(null);
-    const sideGazeViolationEmittedRef = useRef(false);
+    const noPersonStartRef = useRef(null);
+    const noPersonViolationEmittedRef = useRef(false);
+    const lastNoPersonEmitTimeRef = useRef(0);
 
+    const lookingAwayStartRef = useRef(null);
+    const lookingAwayViolationEmittedRef = useRef(false);
+    const lastLookingAwayEmitTimeRef = useRef(0);
+
+    const gazeHistoryRef = useRef([]);
     const multipleFacesStreakRef = useRef(0);
     const objectHistoryRef = useRef({});
-    const headTurnStreakRef = useRef(0);
 
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
     useEffect(() => { isAnsweringRef.current = isAnswering; }, [isAnswering]);
@@ -368,26 +371,34 @@ export function useAIProctoring({
 
         if (count === 0) {
             multipleFacesStreakRef.current = 0;
-            if (!noPersonTimerRef.current) {
-                noPersonTimerRef.current = setTimeout(() => {
-                    if (isActiveRef.current) {
+            lookingAwayStartRef.current = null;
+            lookingAwayViolationEmittedRef.current = false;
+
+            const now = Date.now();
+            if (!noPersonStartRef.current) {
+                noPersonStartRef.current = now;
+            } else {
+                const elapsed = now - noPersonStartRef.current;
+                if (elapsed >= 3000) {
+                    const canEmit = !noPersonViolationEmittedRef.current || (now - lastNoPersonEmitTimeRef.current >= 3500);
+                    if (canEmit && isActiveRef.current) {
                         emitViolation(
                             "NO_PEOPLE",
-                            "No face detected in camera frame for over 5 seconds. (Ranking: 1)",
-                            { faceCount: 0 }
+                            `No face detected in camera frame for over ${(elapsed / 1000).toFixed(0)} seconds (candidate moved away). (Ranking: 1)`,
+                            { faceCount: 0, duration: elapsed / 1000 }
                         );
+                        noPersonViolationEmittedRef.current = true;
+                        lastNoPersonEmitTimeRef.current = now;
                     }
-                    noPersonTimerRef.current = null;
-                }, T.noPersonTimeoutMs);
+                }
             }
             setLandmarks(null);
             return;
         }
 
-        if (noPersonTimerRef.current) {
-            clearTimeout(noPersonTimerRef.current);
-            noPersonTimerRef.current = null;
-        }
+        // Face is present, reset no-person tracking
+        noPersonStartRef.current = null;
+        noPersonViolationEmittedRef.current = false;
 
         if (count > 1) {
             multipleFacesStreakRef.current += 1;
@@ -408,11 +419,11 @@ export function useAIProctoring({
         const face = validFaces[0];
         setLandmarks(face);
 
-        let isLookingSide = false;
-
         const nose = face[1];
         const leftCheek = face[234];
         const rightCheek = face[454];
+        const leftEyeOuter = face[33];
+        const rightEyeOuter = face[263];
 
         let isHeadTurnedNow = false;
         let headTurnDirection = null;
@@ -424,28 +435,35 @@ export function useAIProctoring({
             currentHeadTurnRatio = distRight > 0.001 ? distLeft / distRight : 1;
             setHeadTurnRatio(currentHeadTurnRatio);
 
-            if (currentHeadTurnRatio > T.headTurnRatioHigh || currentHeadTurnRatio < T.headTurnRatioLow) {
+            let noseEyeOffset = 0;
+            if (leftEyeOuter && rightEyeOuter) {
+                const eyeMidX = (leftEyeOuter.x + rightEyeOuter.x) / 2;
+                const eyeWidth = euclidean(leftEyeOuter, rightEyeOuter);
+                noseEyeOffset = eyeWidth > 0.001 ? (nose.x - eyeMidX) / eyeWidth : 0;
+            }
+
+            if (currentHeadTurnRatio > T.headTurnRatioHigh || noseEyeOffset > 0.14) {
                 isHeadTurnedNow = true;
-                headTurnDirection = currentHeadTurnRatio > T.headTurnRatioHigh ? "right" : "left";
+                headTurnDirection = "right";
+            } else if (currentHeadTurnRatio < T.headTurnRatioLow || noseEyeOffset < -0.14) {
+                isHeadTurnedNow = true;
+                headTurnDirection = "left";
             }
         }
 
-        if (isHeadTurnedNow) {
-            isLookingSide = true;
-            headTurnStreakRef.current += 1;
-            if (headTurnStreakRef.current >= 3) {
-                const violationType = isAnsweringRef.current
-                    ? "HEAD_TURNED_WHILE_ANSWERING"
-                    : "HEAD_TURNED";
-                emitViolation(
-                    violationType,
-                    `Head turned excessively to the ${headTurnDirection}. (Ranking: 1)`,
-                    { headTurnRatio: currentHeadTurnRatio, direction: headTurnDirection }
-                );
+        // Check vertical head pitch / looking down
+        if (face[10] && face[152] && nose) {
+            const distForehead = euclidean(face[10], nose);
+            const distChin = euclidean(nose, face[152]);
+            const pitchRatio = distChin > 0.001 ? distForehead / distChin : 1.0;
+            if (pitchRatio > 1.75) {
+                isHeadTurnedNow = true;
+                headTurnDirection = "down";
             }
-        } else {
-            headTurnStreakRef.current = 0;
         }
+
+        let isGazeAway = false;
+        let avgGaze = 0.5;
 
         if (face.length > 473) {
             const leftIris = face[468];
@@ -464,11 +482,11 @@ export function useAIProctoring({
                 const rightIrisOffset = euclidean(rightIris, rightOuter);
                 const rightRatio = rightEyeWidth > 0.001 ? rightIrisOffset / rightEyeWidth : 0.5;
 
-                const avgGaze = (leftRatio + rightRatio) / 2;
+                avgGaze = (leftRatio + rightRatio) / 2;
                 setGazeRatio(avgGaze);
 
                 if (avgGaze < T.sideGazeRatioLow || avgGaze > T.sideGazeRatioHigh) {
-                    isLookingSide = true;
+                    isGazeAway = true;
                 }
 
                 const now = Date.now();
@@ -490,48 +508,63 @@ export function useAIProctoring({
                     }
 
                     if (directionChanges >= T.gazeSwipeCount) {
-                        const headIsStill =
-                            headTurnRatio >= T.headTurnRatioLow &&
-                            headTurnRatio <= T.headTurnRatioHigh;
-
-                        if (headIsStill) {
-                            const violationType = isAnsweringRef.current
-                                ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
-                                : "EYE_LOOKING_AWAY";
-                            emitViolation(
-                                violationType,
-                                "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 1)",
-                                { directionChanges, gazeRatio: avgGaze }
-                            );
-                            gazeHistoryRef.current = [];
-                        }
+                        const violationType = isAnsweringRef.current
+                            ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
+                            : "EYE_LOOKING_AWAY";
+                        emitViolation(
+                            violationType,
+                            "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 1)",
+                            { directionChanges, gazeRatio: avgGaze }
+                        );
+                        gazeHistoryRef.current = [];
                     }
                 }
             }
         }
 
-        if (isLookingSide) {
-            if (!sideGazeStartRef.current) {
-                sideGazeStartRef.current = Date.now();
+        // ── 3-Second Temporal Rule for Lookaway & Head Turn ──────────────────────
+        // If candidate turns head away (left or right) or looks away continuously for > 3 seconds,
+        // it is recorded as an eye looking away flag with 1 penalty point.
+        // Brief glances under 3 seconds do NOT trigger a violation.
+        const isCandidateLookingAway = isHeadTurnedNow || isGazeAway;
+
+        if (isCandidateLookingAway) {
+            const now = Date.now();
+            if (!lookingAwayStartRef.current) {
+                lookingAwayStartRef.current = now;
             } else {
-                const elapsed = Date.now() - sideGazeStartRef.current;
-                if (elapsed >= 4000 && !sideGazeViolationEmittedRef.current) {
-                    sideGazeViolationEmittedRef.current = true;
-                    const violationType = isAnsweringRef.current
-                        ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
-                        : "EYE_LOOKING_AWAY";
-                    emitViolation(
-                        violationType,
-                        `Candidate looked away/to the side for more than 4 seconds. (Ranking: 1)`,
-                        { duration: elapsed / 1000, seesSide: true }
-                    );
+                const elapsed = now - lookingAwayStartRef.current;
+                if (elapsed >= 3000) {
+                    const canEmit = !lookingAwayViolationEmittedRef.current || (now - lastLookingAwayEmitTimeRef.current >= 3500);
+                    if (canEmit && isActiveRef.current) {
+                        const violationType = isAnsweringRef.current
+                            ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
+                            : "EYE_LOOKING_AWAY";
+                        const detail = headTurnDirection
+                            ? `Candidate turned head ${headTurnDirection} and looked away for over ${(elapsed / 1000).toFixed(0)} seconds. (Ranking: 1)`
+                            : `Candidate looked away from screen for over ${(elapsed / 1000).toFixed(0)} seconds. (Ranking: 1)`;
+
+                        emitViolation(
+                            violationType,
+                            detail,
+                            {
+                                duration: elapsed / 1000,
+                                direction: headTurnDirection,
+                                headTurnRatio: currentHeadTurnRatio,
+                                gazeRatio: avgGaze,
+                            }
+                        );
+                        lookingAwayViolationEmittedRef.current = true;
+                        lastLookingAwayEmitTimeRef.current = now;
+                    }
                 }
             }
         } else {
-            sideGazeStartRef.current = null;
-            sideGazeViolationEmittedRef.current = false;
+            // Returned to looking straight ahead before 3s or after flag: reset timer
+            lookingAwayStartRef.current = null;
+            lookingAwayViolationEmittedRef.current = false;
         }
-    }, [T, emitViolation, headTurnRatio]);
+    }, [T, emitViolation]);
 
     useEffect(() => {
         processFaceMeshResultsRef.current = processFaceMeshResults;
@@ -643,7 +676,6 @@ export function useAIProctoring({
     useEffect(() => {
         return () => {
             if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-            if (noPersonTimerRef.current) clearTimeout(noPersonTimerRef.current);
             faceMeshRef.current = null;
         };
     }, []);

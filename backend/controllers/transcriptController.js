@@ -372,8 +372,10 @@ const getJobCandidates = async (req, res) => {
 
         const candidates = applications.map(app => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = app.integrityPenalty ? app.integrityPenalty : (userPenaltyMap[key] || 0);
-            const proctoringScore = 100;
+            const rawPenalty = (app.integrityPenalty !== undefined && app.integrityPenalty !== null && app.integrityPenalty > 0)
+                ? app.integrityPenalty 
+                : (userPenaltyMap[key] || 0);
+            const proctoringScore = Math.max(0, 100 - Math.round(rawPenalty * 2.5));
 
             // Compute live accurate scores using unified score calculator
             const scoreData = calculateCandidateScores(app, null);
