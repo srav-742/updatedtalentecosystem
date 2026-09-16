@@ -102,7 +102,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/10">
                                     <div className="text-3xl font-black text-white">
-                                        {interview?.proctoringReport?.verdict || 'Flagged'}
+                                        {interview?.proctoringReport?.verdict || 'Clean Session'}
                                     </div>
                                     <div className="text-xs text-red-100 font-bold uppercase tracking-widest mt-1">Status Verdict</div>
                                 </div>

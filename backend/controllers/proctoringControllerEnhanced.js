@@ -2,7 +2,12 @@ const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanc
 const ProctoringViolation = require('../models/ProctoringViolation');
 const ProctoringReport = require('../models/ProctoringReport');
 const Application = require('../models/Application');
-const { getViolationRating } = require('../utils/proctoringScoring');
+const {
+    getViolationRating,
+    sanitizeViolationDetail,
+    getStatusAndVerdict,
+    calculateProctoringScore,
+} = require('../utils/proctoringScoring');
 const mongoose = require('mongoose');
 
 
@@ -116,23 +121,8 @@ const updateProctoringReport = async (examId, userId) => {
         const totalViolations = allViolations.length;
         const totalPenaltyRating = allViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
         
-        let status = 'clean';
-        let verdict = 'Seriousness Verified';
-        let summary = 'No anomalies detected. Candidate followed rules during the assessment.';
-        
-        if (totalPenaltyRating > 0 && totalPenaltyRating <= 5) {
-            status = 'low_risk';
-            verdict = 'Pass with Minor Alerts';
-            summary = 'A few minor alerts recorded. Candidate is likely serious.';
-        } else if (totalPenaltyRating > 5 && totalPenaltyRating <= 12) {
-            status = 'suspicious';
-            verdict = 'Review Recommended';
-            summary = 'Multiple alerts recorded (e.g., eye movement or head turns). Review of proctoring evidence recommended.';
-        } else if (totalPenaltyRating > 12) {
-            status = 'critical';
-            verdict = 'Critical Cheating Alert';
-            summary = 'Critical violations detected (e.g., cell phone detected, screen share stop). Strong evidence of candidate cheating.';
-        }
+        const { status, verdict, summary } = getStatusAndVerdict(totalPenaltyRating);
+
         
         const countsMap = {};
         allViolations.forEach(v => {
@@ -173,7 +163,7 @@ const updateProctoringReport = async (examId, userId) => {
             }
         }
         
-        const proctoringScore = Math.max(0, 100 - Math.round(totalPenaltyRating * 2.5));
+        const proctoringScore = calculateProctoringScore(totalPenaltyRating);
 
         const report = await ProctoringReport.findOneAndUpdate(
             { examId },
@@ -417,7 +407,15 @@ const getReportByExam = async (req, res) => {
         const { examId } = req.params;
         const report = await ProctoringReport.findOne({ examId }).lean();
         if (!report) {
-            return res.status(404).json({ message: 'Proctoring report not found for this session.' });
+            return res.status(200).json({
+                status: 'clean',
+                verdict: 'No significant issues detected.',
+                summary: 'The candidate maintained a clean testing environment.',
+                totalPenaltyRating: 0,
+                proctoringScore: 100,
+                totalViolations: 0,
+                timeline: []
+            });
         }
         return res.status(200).json(report);
     } catch (error) {

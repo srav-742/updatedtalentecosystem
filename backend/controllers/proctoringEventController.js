@@ -5,6 +5,11 @@ const mongoose = require('mongoose');
 const redisService = require('../services/redisService');
 const queueService = require('../services/queueService');
 const { updateProctoringReport } = require('./proctoringControllerEnhanced');
+const {
+    getViolationRating,
+    getStatusAndVerdict,
+    calculateProctoringScore,
+} = require('../utils/proctoringScoring');
 
 /**
  * Proctoring Event Controller (Single Collection & Cache-First Mode)
@@ -13,6 +18,74 @@ const { updateProctoringReport } = require('./proctoringControllerEnhanced');
  * and pushes heavy reports compiling to BullMQ background workers.
  * ──────────────────────────────────────────────────────────────────────────────
  */
+
+/**
+ * EVENT_TYPE_MAP
+ * ──────────────────────────────────────────────────────────────────────────────
+ * Maps every event type string emitted by the frontend detection engines
+ * (behaviorEngine.js, useAIProctoring.js, useStrictProctoring.js) to the
+ * canonical DB type stored in ProctoringViolationEnhanced plus its rating.
+ *
+ * Rating scale:
+ *   2 = Red Mark  (phone / multiple faces / objects) — maps to REDMARK_VIOLATIONS
+ *   1 = Standard flag (eye movement, head turns, tab switches, etc.)
+ *
+ * IMPORTANT: When adding new frontend event types, add an entry here.
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
+const EVENT_TYPE_MAP = {
+    // ── AI presence / face detection ─────────────────────────────────────────
+    NO_PEOPLE:                      { type: 'NO_PEOPLE',              rating: 1, detail: 'No face detected in camera frame.' },
+    no_face_detected:               { type: 'NO_PEOPLE',              rating: 1, detail: 'No face detected in camera frame.' },
+    MULTIPLE_PEOPLE:                { type: 'MULTIPLE_PEOPLE',        rating: 2, detail: 'Multiple faces detected in camera frame.' },
+    multiple_faces_detected:        { type: 'MULTIPLE_PEOPLE',        rating: 2, detail: 'Multiple faces detected in camera frame.' },
+    person_count_violation:         { type: 'MULTIPLE_PEOPLE',        rating: 2, detail: 'Multiple people detected in camera frame.' },
+
+    // ── AI gaze / eye movement ────────────────────────────────────────────────
+    EYE_LOOKING_AWAY:               { type: 'EYE_LOOKING_AWAY',       rating: 1, detail: 'Candidate looked away from screen.' },
+    EYE_LOOKING_AWAY_WHILE_ANSWERING: { type: 'EYE_LOOKING_AWAY_WHILE_ANSWERING', rating: 1, detail: 'Candidate looked away while answering.' },
+    looking_away:                   { type: 'EYE_LOOKING_AWAY',       rating: 1, detail: 'Candidate looked away from screen.' },
+    rapid_gaze_movement:            { type: 'EYE_LOOKING_AWAY',       rating: 1, detail: 'Rapid eye movement pattern detected.' },
+
+    // ── AI head-pose ──────────────────────────────────────────────────────────
+    HEAD_TURNED:                    { type: 'HEAD_TURNED',            rating: 1, detail: 'Candidate turned head away.' },
+    HEAD_TURNED_WHILE_ANSWERING:    { type: 'HEAD_TURNED_WHILE_ANSWERING', rating: 1, detail: 'Candidate turned head while answering.' },
+    head_turned:                    { type: 'HEAD_TURNED',            rating: 1, detail: 'Candidate turned head away.' },
+    eyes_closed:                    { type: 'EYE_LOOKING_AWAY',       rating: 1, detail: 'Eyes closed for extended period.' },
+
+    // ── AI phone / object detection ───────────────────────────────────────────
+    PHONE_DETECTED:                 { type: 'PHONE_DETECTED',         rating: 2, detail: 'Phone detected in camera frame.' },
+    mobile_phone_detected:          { type: 'PHONE_DETECTED',         rating: 2, detail: 'Mobile phone detected in camera frame.' },
+    phone_near_face:                { type: 'PHONE_DETECTED',         rating: 2, detail: 'Phone detected near candidate face.' },
+    phone_near_ear:                 { type: 'PHONE_DETECTED',         rating: 2, detail: 'Phone detected near candidate ear.' },
+    OBJECT_DETECTED:                { type: 'OBJECT_DETECTED',        rating: 2, detail: 'Suspicious object detected in camera frame.' },
+    HEADPHONES_DETECTED:            { type: 'HEADPHONES_DETECTED',    rating: 2, detail: 'Earphones/headphones detected.' },
+    new_object_appeared:            { type: 'OBJECT_DETECTED',        rating: 2, detail: 'New object appeared in camera frame.' },
+    secondary_laptop_detected:      { type: 'OBJECT_DETECTED',        rating: 2, detail: 'Secondary laptop detected.' },
+    book_detected:                  { type: 'OBJECT_DETECTED',        rating: 2, detail: 'Book/notes detected in camera frame.' },
+    tablet_detected:                { type: 'OBJECT_DETECTED',        rating: 2, detail: 'Tablet device detected.' },
+    earphone_detected:              { type: 'HEADPHONES_DETECTED',    rating: 2, detail: 'Earphones detected.' },
+    suspicious_object_detected:     { type: 'OBJECT_DETECTED',        rating: 2, detail: 'Suspicious object detected.' },
+
+    // ── AI audio signals ──────────────────────────────────────────────────────
+    continuous_talking:             { type: 'EYE_LOOKING_AWAY',       rating: 1, detail: 'Candidate talking continuously (possible prompting).' },
+    multiple_voices:                { type: 'MULTIPLE_PEOPLE',        rating: 1, detail: 'Multiple voices detected in audio.' },
+    background_noise:               { type: 'OBJECT_DETECTED',        rating: 1, detail: 'Significant background noise detected.' },
+
+    // ── AI hand signals ───────────────────────────────────────────────────────
+    hand_near_lap:                  { type: 'OBJECT_DETECTED',        rating: 1, detail: 'Hand detected near lap (possible hidden device).' },
+    hand_leaving_frame:             { type: 'OBJECT_DETECTED',        rating: 1, detail: 'Hand leaving camera frame.' },
+    environment_change:             { type: 'OBJECT_DETECTED',        rating: 1, detail: 'Environmental change detected.' },
+
+    // ── Browser/tab-level violations ──────────────────────────────────────────
+    TAB_SWITCH:                     { type: 'TAB_SWITCH',             rating: 1, detail: 'Candidate switched to another tab.' },
+    WINDOW_BLUR:                    { type: 'WINDOW_BLUR',            rating: 1, detail: 'Candidate switched to another application.' },
+    KEYBOARD_SHORTCUT:              { type: 'KEYBOARD_SHORTCUT',      rating: 1, detail: 'Blocked keyboard shortcut used.' },
+    RIGHT_CLICK:                    { type: 'KEYBOARD_SHORTCUT',      rating: 1, detail: 'Right-click attempted.' },
+    SCREEN_SHARE_STOPPED:           { type: 'SCREEN_SHARE_STOPPED',   rating: 1, detail: 'Screen sharing stopped.' },
+    FULLSCREEN_EXIT:                { type: 'FULLSCREEN_EXIT',        rating: 1, detail: 'Candidate exited fullscreen mode.' },
+    MULTIPLE_DEVICES:               { type: 'MULTIPLE_DEVICES',       rating: 1, detail: 'Multiple display devices detected.' },
+};
 
 
 /**
@@ -100,7 +173,9 @@ const logEvent = async (req, res) => {
                 duration: durationSec,
                 evidenceFrames: evidence,
                 model: signals?.model || 'FaceMesh',
-                proctoringScore: proctoringScore || 100,
+                // NOTE: proctoringScore per-violation is informational only.
+                // The authoritative score lives in ProctoringReport, calculated from all events.
+                proctoringScore: proctoringScore || null,
                 timestamp: new Date()
             });
             console.log(`[PROCTORING-ENHANCED] Logged new violation type ${mapped.type} for exam: ${targetExamId}`);
@@ -148,7 +223,11 @@ const logEvent = async (req, res) => {
         // Queue the MongoDB report compile worker so it doesn't block Express main thread
         await queueService.addJob('update-report', { examId: targetExamId, userId: targetUserId });
 
-        const calculatedScore = proctoringScore || (cachedReport ? Math.max(0, 100 - Math.round((cachedReport.totalPenaltyRating || 0) * 2.5)) : 100);
+        // Use centralized formula. If cache not yet populated, the score will be
+        // recalculated after the background job compiles the ProctoringReport.
+        const calculatedScore = cachedReport
+            ? calculateProctoringScore(cachedReport.totalPenaltyRating)
+            : null; // null = analysis in progress (not a fake 100)
 
         return res.status(200).json({
             recorded: true,
@@ -287,23 +366,27 @@ const getScore = async (req, res) => {
         if (cached) {
             const score = cached.proctoringScore !== undefined
                 ? cached.proctoringScore
-                : Math.max(0, 100 - Math.round((cached.totalPenaltyRating || 0) * 2.5));
+                : calculateProctoringScore(cached.totalPenaltyRating);
             return res.status(200).json({
                 totalPenaltyRating: cached.totalPenaltyRating,
                 score,
                 status: cached.status,
                 verdict: cached.verdict,
+                analysisStatus: 'COMPLETED',
             });
         }
 
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
+            // No violations logged yet for this session — perfectly clean session
+            // Return 100 score.
             return res.status(200).json({
                 totalPenaltyRating: 0,
                 score: 100,
                 status: 'clean',
-                verdict: 'Seriousness Verified',
+                verdict: 'No significant issues detected.',
+                analysisStatus: 'COMPLETED',
             });
         }
 
@@ -312,13 +395,14 @@ const getScore = async (req, res) => {
 
         const score = report.proctoringScore !== undefined
             ? report.proctoringScore
-            : Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
+            : calculateProctoringScore(report.totalPenaltyRating);
 
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,
             score,
             status: report.status,
             verdict: report.verdict,
+            analysisStatus: 'COMPLETED',
         });
     } catch (error) {
         console.error('[GET REPORT SCORE ERROR]', error);
