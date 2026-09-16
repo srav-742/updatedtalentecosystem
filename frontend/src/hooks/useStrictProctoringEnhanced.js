@@ -80,18 +80,9 @@ export function useStrictProctoringEnhanced({
                 // If permission is not granted, labels will be empty. We should wait and retry once permission is granted.
                 const hasLabels = cameras.some(c => c.label);
 
-                if (cameras.length > 1 && hasLabels) {
-                    const detail = `Multiple cameras detected at startup: ${cameras.length} video inputs found.`;
-                    triggerViolation("MULTIPLE_DEVICES", detail);
-                    logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                        metadata: {
-                            cameraCount: cameras.length,
-                            labels: cameras.map((c) => c.label || "unknown"),
-                        },
-                    });
-                    deviceCheckDoneRef.current = true;
-                } else if (hasLabels) {
-                    // Labels exist, and only 1 camera. The check is complete.
+                if (hasLabels) {
+                    // Camera permission confirmed. Multiple camera devices (e.g. laptop webcam + IR camera/virtual camera)
+                    // are standard hardware inputs and must not be flagged as a violation.
                     deviceCheckDoneRef.current = true;
                 } else {
                     // Retry checking in 2 seconds (waiting for permission)
@@ -108,7 +99,7 @@ export function useStrictProctoringEnhanced({
         return () => {
             if (retryTimeout) clearTimeout(retryTimeout);
         };
-    }, [isActive, triggerViolation, logEnhancedViolation]);
+    }, [isActive]);
 
     // ── Live devicechange listener ──────────────────────────────────────────
     useEffect(() => {
@@ -117,30 +108,15 @@ export function useStrictProctoringEnhanced({
         }
 
         const handleDeviceChange = async () => {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const cameras = devices.filter((d) => d.kind === "videoinput");
-
-                if (cameras.length > 1) {
-                    const detail = `New device connected mid-session: ${cameras.length} video inputs now active.`;
-                    triggerViolation("MULTIPLE_DEVICES", detail);
-                    logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                        metadata: {
-                            cameraCount: cameras.length,
-                            labels: cameras.map((c) => c.label || "unknown"),
-                        },
-                    });
-                }
-            } catch (_) {
-                // silent
-            }
+            // Live device changes: do not flag violations for camera reconnects or multiple camera inputs.
+            // Secondary monitor changes are handled by Window Management API below.
         };
 
         navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
         return () => {
             navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
         };
-    }, [isActive, triggerViolation, logEnhancedViolation]);
+    }, [isActive]);
 
     // ── Secondary monitor detection (Window Management API) ─────────────────
     useEffect(() => {

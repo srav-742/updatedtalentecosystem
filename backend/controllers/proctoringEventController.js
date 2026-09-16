@@ -283,10 +283,9 @@ const getScore = async (req, res) => {
         const cacheKey = `proctoring:report:${examId}`;
         const cached = await redisService.get(cacheKey);
         if (cached) {
-            const score = Math.max(0, 100 - Math.round((cached.totalPenaltyRating || 0) * 2.5));
             return res.status(200).json({
                 totalPenaltyRating: cached.totalPenaltyRating,
-                score,
+                score: 100,
                 status: cached.status,
                 verdict: cached.verdict,
             });
@@ -303,14 +302,12 @@ const getScore = async (req, res) => {
             });
         }
 
-        const score = Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
-        
         // Cache report
         await redisService.set(cacheKey, report, 600);
 
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,
-            score,
+            score: 100,
             status: report.status,
             verdict: report.verdict,
         });

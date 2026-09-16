@@ -391,12 +391,15 @@ export function useAIProctoring({
 
         if (count > 1) {
             multipleFacesStreakRef.current += 1;
-            if (multipleFacesStreakRef.current >= 3) {
+            // Require sustained detection (~3.5 seconds at ~250ms interval) to prevent camera reflections,
+            // background posters, or transient detection flickers from falsely flagging multiple people
+            if (multipleFacesStreakRef.current >= 15) {
                 emitViolation(
                     "MULTIPLE_PEOPLE",
-                    `${count} faces detected in camera frame. (Ranking: 2)`,
+                    `${count} faces detected in camera frame for over 3 seconds. (Ranking: 2)`,
                     { faceCount: count }
                 );
+                multipleFacesStreakRef.current = 0;
             }
         } else {
             multipleFacesStreakRef.current = 0;

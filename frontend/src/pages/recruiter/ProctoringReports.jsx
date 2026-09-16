@@ -223,7 +223,8 @@ export default function ProctoringReports() {
                                     const name = app?.applicantName || "Anonymous Candidate";
                                     const email = app?.applicantEmail || "N/A";
                                     const jobTitle = app?.jobId?.title || "Legacy Assessment";
-                                    const proctoringScore = Math.max(0, 100 - Math.round(report.totalPenaltyRating * 2.5));
+                                    // Candidate score is not reduced for proctoring penalty
+                                    const proctoringScore = 100;
 
                                     // Verdict Styling
                                     let verdictClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";

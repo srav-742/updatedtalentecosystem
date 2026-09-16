@@ -357,17 +357,23 @@ const getJobCandidates = async (req, res) => {
         };
 
         baseViolations.forEach(v => {
+            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                return;
+            }
             addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         enhancedViolations.forEach(v => {
+            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                return;
+            }
             addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         const candidates = applications.map(app => {
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
             const rawPenalty = app.integrityPenalty ? app.integrityPenalty : (userPenaltyMap[key] || 0);
-            const proctoringScore = rawPenalty;
+            const proctoringScore = 100;
 
             // Compute live accurate scores using unified score calculator
             const scoreData = calculateCandidateScores(app, null);

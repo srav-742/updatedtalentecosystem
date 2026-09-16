@@ -72,32 +72,44 @@ const updateProctoringReport = async (examId, userId) => {
         const baseViolations = await ProctoringViolation.find(baseQuery).lean();
         const enhancedViolations = await ProctoringViolationEnhanced.find(baseQuery).lean();
         
-        const allViolations = [
+        const rawViolations = [
             ...baseViolations.map(v => ({
+                _id: v._id,
                 type: v.type,
-                detail: v.detail,
-                timestamp: v.timestamp || v.createdAt || new Date(),
-                rating: v.rating || getViolationRating(v.type, v.metadata),
-                startTime: v.timestamp || v.createdAt,
-                endTime: v.timestamp || v.createdAt,
+                detail: sanitizeViolationDetail(v.type, v.detail, v.rating || 1),
+                timestamp: v.timestamp,
+                rating: v.rating || 1,
+                metadata: v.metadata,
+                startTime: v.timestamp,
+                endTime: v.timestamp,
                 duration: 0,
                 maxConfidence: null,
                 evidenceFrames: [],
-                model: 'Browser'
+                model: 'RuleEngine'
             })),
             ...enhancedViolations.map(v => ({
+                _id: v._id,
                 type: v.type,
-                detail: v.detail,
-                timestamp: v.timestamp || v.createdAt || new Date(),
-                rating: v.rating || getViolationRating(v.type, v.metadata),
-                startTime: v.startTime,
-                endTime: v.endTime,
+                detail: sanitizeViolationDetail(v.type, v.detail, v.rating || 1),
+                timestamp: v.timestamp,
+                rating: v.rating || 1,
+                metadata: v.metadata,
+                startTime: v.startTime || v.timestamp,
+                endTime: v.endTime || v.timestamp,
                 duration: v.duration || 0,
                 maxConfidence: v.maxConfidence || v.confidence || null,
                 evidenceFrames: v.evidenceFrames || [],
                 model: v.model || 'Unknown'
             }))
         ];
+
+        // Filter out false camera device violations (standard multi-camera hardware is not a violation)
+        const allViolations = rawViolations.filter(v => {
+            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                return false;
+            }
+            return true;
+        });
         
         allViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
@@ -178,11 +190,11 @@ const updateProctoringReport = async (examId, userId) => {
             { upsert: true, new: true }
         );
         
-        // Update application integrity state
+        // Update application integrity state without reducing candidate score for penalty
         if (applicationId) {
             await Application.findByIdAndUpdate(applicationId, {
                 integrityPenalty: totalPenaltyRating,
-                proctoringScore: Math.max(0, 100 - Math.round(totalPenaltyRating * 2.5)),
+                proctoringScore: 100,
             });
         }
 
@@ -222,6 +234,11 @@ const logViolation = async (req, res) => {
 
         if (!examId || !userId || !type || !detail) {
             return res.status(400).json({ message: 'Missing required fields: examId, userId, type, detail' });
+        }
+
+        // Standard multi-camera hardware inputs (e.g. laptop webcam + IR/virtual camera) are not a violation
+        if (type === 'MULTIPLE_DEVICES' && (/camera/i.test(detail) || metadata?.cameraCount)) {
+            return res.status(200).json({ message: 'Ignored multi-camera hardware as non-violation', recorded: false });
         }
 
         const rating = getViolationRating(type, metadata);

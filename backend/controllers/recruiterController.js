@@ -234,10 +234,16 @@ const getRecruiterApplications = async (req, res) => {
             };
 
             baseViolations.forEach(v => {
+                if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                    return;
+                }
                 addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
             });
 
             enhancedViolations.forEach(v => {
+                if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                    return;
+                }
                 addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
             });
         }
@@ -263,7 +269,7 @@ const getRecruiterApplications = async (req, res) => {
             const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
             const rawPenalty = app.integrityPenalty ? app.integrityPenalty : (applicationPenaltyMap[appKey] || 0);
             app.integrityPenalty = rawPenalty;
-            app.proctoringScore = rawPenalty;
+            app.proctoringScore = 100;
             
             const flags = applicationFlagsMap[appKey];
             app.proctoringFlags = flags ? Array.from(flags) : [];
