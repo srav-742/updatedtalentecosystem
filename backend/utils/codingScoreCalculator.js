@@ -136,11 +136,12 @@ function evaluateQuestionScore(maximumMarks, testCasesPassed, totalTestCases, ra
     }
 
     let ratio = 0;
-    if (typeof totalTestCases === 'number' && totalTestCases > 0) {
+    // When rawPercentage (evidence-based partial credit) is explicitly provided, prioritize it
+    if (typeof rawPercentage === 'number' && !isNaN(rawPercentage)) {
+        ratio = Math.max(0, Math.min(100, rawPercentage)) / 100;
+    } else if (typeof totalTestCases === 'number' && totalTestCases > 0) {
         const passed = Math.max(0, Math.min(totalTestCases, Number(testCasesPassed) || 0));
         ratio = passed / totalTestCases;
-    } else if (typeof rawPercentage === 'number' && !isNaN(rawPercentage)) {
-        ratio = Math.max(0, Math.min(100, rawPercentage)) / 100;
     }
 
     // Clamp ratio between 0 and 1
@@ -154,6 +155,21 @@ function evaluateQuestionScore(maximumMarks, testCasesPassed, totalTestCases, ra
         performancePercentage,
         performanceRatio: ratio
     };
+}
+
+/**
+ * Calculates question score from a structured partial credit evaluation.
+ * 
+ * @param {number} maximumMarks 
+ * @param {{ finalScore?: number, performancePercentage?: number }} evalResult 
+ * @returns {{ obtainedMarks: number, performancePercentage: number, performanceRatio: number }}
+ */
+function calculatePartialCreditScore(maximumMarks, evalResult) {
+    const maxMarks = Number(maximumMarks) || 0;
+    const percentage = typeof evalResult?.finalScore === 'number'
+        ? evalResult.finalScore
+        : (typeof evalResult?.performancePercentage === 'number' ? evalResult.performancePercentage : 0);
+    return evaluateQuestionScore(maxMarks, null, null, percentage);
 }
 
 /**
@@ -240,6 +256,7 @@ module.exports = {
     getDifficultyWeight,
     calculateDynamicMarks,
     evaluateQuestionScore,
+    calculatePartialCreditScore,
     calculateAssessmentTotal,
     getRecruiterDistributionSummary,
     round2

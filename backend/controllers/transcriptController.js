@@ -4,6 +4,8 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const User = require('../models/User');
 const Job = require('../models/Job');
+const CodingQuestion = require('../models/CodingQuestion');
+const CodingRound = require('../models/CodingRound');
 const mongoose = require('mongoose');
 const ProctoringViolation = require('../models/ProctoringViolation');
 const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
@@ -82,8 +84,10 @@ const getTranscript = async (req, res) => {
             return res.status(400).json({ message: 'Invalid application ID' });
         }
 
-        // 1. Fetch the application (populated with job)
-        const application = await Application.findById(applicationId).lean();
+        // 1. Fetch the application (populated with job and coding question details)
+        const application = await Application.findById(applicationId)
+            .populate('codingAnswers.questionId')
+            .lean();
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
@@ -207,6 +211,54 @@ const getTranscript = async (req, res) => {
             ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL] Error updating DB:', err));
         }
 
+        // 6.8 Build Coding Assessment Data if present
+        let codingData = null;
+        if (application.codingAnswers && application.codingAnswers.length > 0) {
+            const answers = application.codingAnswers.map((a, idx) => {
+                const qDoc = (a.questionId && typeof a.questionId === 'object' && a.questionId.title) ? a.questionId : {};
+                const maxMarks = a.maximumMarks !== undefined && a.maximumMarks !== null ? a.maximumMarks : (qDoc.marks || 10);
+                const obtMarks = a.obtainedMarks !== undefined && a.obtainedMarks !== null ? a.obtainedMarks : (a.score !== undefined ? a.score : 0);
+
+                return {
+                    questionId: a.questionId?._id || a.questionId,
+                    questionTitle: a.questionTitle || qDoc.title || `Problem ${idx + 1}`,
+                    questionDescription: a.questionDescription || qDoc.description || '',
+                    difficulty: a.difficulty || qDoc.difficulty || 'MEDIUM',
+                    difficultyWeight: a.difficultyWeight || 1,
+                    maximumMarks: maxMarks,
+                    obtainedMarks: obtMarks,
+                    testCasesPassed: a.testCasesPassed !== undefined ? a.testCasesPassed : null,
+                    totalTestCases: a.totalTestCases || 10,
+                    constraints: a.constraints || qDoc.constraints || '',
+                    correctAnswer: a.correctAnswer || qDoc.expectedApproach || '',
+                    expectedApproach: a.expectedApproach || qDoc.expectedApproach || '',
+                    code: a.code || '',
+                    language: a.language || 'Python',
+                    score: obtMarks,
+                    feedback: a.feedback || '',
+                    suggestedCode: a.suggestedCode || '',
+                    aiEvaluationStatus: a.aiEvaluationStatus || 'success',
+                    correctnessVerdict: a.correctnessVerdict || 'Evaluated'
+                };
+            });
+
+            const passingScore = job?.codingAssessment?.passingScore || 60;
+            const codingScore = application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : (scoreData.codingScore || 0);
+
+            codingData = {
+                score: codingScore,
+                passingScore,
+                isPassed: codingScore >= passingScore,
+                codingDetails: application.codingDetails || {
+                    totalQuestions: answers.length,
+                    totalMaximumMarks: 100,
+                    totalObtainedMarks: codingScore,
+                    finalPercentage: codingScore
+                },
+                answers
+            };
+        }
+
         // 7. Build the unified transcript
         const transcript = {
             generatedAt: new Date().toISOString(),
@@ -274,6 +326,7 @@ const getTranscript = async (req, res) => {
                     score: a.score || 0,
                 })),
             } : null,
+            coding: codingData,
             interview: {
                 score: scoreData.interviewScore,
                 totalQuestions: application.interviewAnswers?.length || 0,
@@ -293,7 +346,7 @@ const getTranscript = async (req, res) => {
             scores: {
                 resumeMatch: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
-                codingScore: scoreData.codingScore,
+                codingScore: application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : scoreData.codingScore,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 ownershipScore: application.metrics?.ownershipMindset || null,
@@ -322,7 +375,7 @@ const getJobCandidates = async (req, res) => {
         }
 
         const applications = await Application.find({ jobId })
-            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore')
+            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore codingAnswers')
             .lean();
 
         const userIdList = applications.map(app => app.userId).filter(Boolean);
@@ -387,6 +440,10 @@ const getJobCandidates = async (req, res) => {
                     { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
                 ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL-LIST] Error updating DB:', err));
             }
+            const hasCoding = Boolean(
+                (app.codingAnswers && app.codingAnswers.length > 0) || 
+                (app.codingScore !== null && app.codingScore !== undefined)
+            );
             return {
                 applicationId: app._id,
                 name: app.applicantName || 'Unknown',
@@ -394,6 +451,7 @@ const getJobCandidates = async (req, res) => {
                 profilePic: app.applicantPic || null,
                 resumeScore: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
+                codingScore: app.codingScore !== undefined && app.codingScore !== null ? app.codingScore : scoreData.codingScore,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 proctoringScore,
@@ -401,6 +459,7 @@ const getJobCandidates = async (req, res) => {
                 status: app.status,
                 appliedAt: app.appliedAt,
                 hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,
+                hasCoding,
                 hasInterview: (app.interviewAnswers?.length || 0) > 0,
                 ownershipScore: app.metrics?.ownershipMindset || null,
                 teamFitScore: app.teamFit?.score || null,

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Phone, MapPin, CheckCircle, XCircle, Award, FileText, Code, MessageSquare, BarChart2, Printer, ExternalLink, ShieldAlert, ShieldCheck, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, CheckCircle, XCircle, Award, FileText, Code, MessageSquare, BarChart2, Printer, ExternalLink, ShieldAlert, ShieldCheck, Clock, AlertTriangle, Code2, Terminal, Sparkles, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
 
 // ── Error Boundary ──────────────────────────────────────────────────────
 class TranscriptErrorBoundary extends Component {
@@ -70,6 +70,7 @@ const CandidateTranscriptPage = () => {
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -135,11 +136,26 @@ const CandidateTranscriptPage = () => {
   );
 
   const { candidate, job, application, resume, assessment, interview, scores, generatedAt } = data;
+  const codingData = data.coding && Array.isArray(data.coding.answers) && data.coding.answers.length > 0 ? data.coding : (
+    application?.codingAnswers?.length > 0 ? {
+      score: scores?.codingScore ?? application.codingScore ?? 0,
+      passingScore: job?.codingAssessment?.passingScore || 60,
+      isPassed: (scores?.codingScore ?? application.codingScore ?? 0) >= (job?.codingAssessment?.passingScore || 60),
+      codingDetails: application.codingDetails || {
+        totalQuestions: application.codingAnswers.length,
+        totalMaximumMarks: 100,
+        totalObtainedMarks: scores?.codingScore ?? application.codingScore ?? 0,
+        finalPercentage: scores?.codingScore ?? application.codingScore ?? 0
+      },
+      answers: application.codingAnswers
+    } : null
+  );
+
   // Use the single source of truth from the backend's unified score calculator
   const dynResume = scores?.resumeMatch || 0;
   const dynAssessment = scores?.assessmentScore || 0;
   const dynInterview = scores?.interviewScore || 0;
-  const dynCoding = scores?.codingScore !== undefined && scores?.codingScore !== null ? scores.codingScore : (data.coding?.score || 0);
+  const dynCoding = scores?.codingScore !== undefined && scores?.codingScore !== null ? scores.codingScore : (codingData?.score || 0);
   const fs = scores?.finalScore || 0;
   
   const verdict = fs >= 80 ? { l: 'Strongly Recommended', c: 'text-emerald-600', b: 'bg-emerald-50 border-emerald-200' }
@@ -339,52 +355,165 @@ const CandidateTranscriptPage = () => {
           </Sec>
         )}
 
-        {data.coding?.answers?.length > 0 && (
-          <Sec title='Coding Assessment Transcript' icon={<Code size={16} />} grad='from-teal-500 to-emerald-500'>
-            <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-teal-50 border border-teal-200'>
-              <div className='text-center'>
-                <p className='text-4xl font-black text-teal-600'>{dynCoding !== null && dynCoding !== undefined ? `${dynCoding}/100` : 'N/A'}</p>
-                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Coding Score</p>
+        {codingData && (
+          <Sec title='Coding Assessment Transcript' icon={<Code2 size={16} />} grad='from-cyan-500 to-blue-600'>
+            <div className='flex flex-wrap items-center justify-between gap-4 mb-6 p-5 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50 border border-cyan-200/80 shadow-sm'>
+              <div className='flex items-center gap-6'>
+                <div className='text-center'>
+                  <p className='text-4xl font-black text-cyan-600'>{codingData.score != null ? `${Math.round(codingData.score)}/100` : '0/100'}</p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Coding Score</p>
+                </div>
+                <div className='h-10 w-px bg-cyan-200'></div>
+                <div className='text-center'>
+                  <p className='text-3xl font-black text-gray-900'>{codingData.answers.length}</p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Challenges</p>
+                </div>
+                <div className='h-10 w-px bg-cyan-200'></div>
+                <div className='text-center'>
+                  <p className='text-3xl font-black text-indigo-600'>
+                    {codingData.answers.reduce((acc, cur) => acc + (cur.testCasesPassed || 0), 0)} / {codingData.answers.reduce((acc, cur) => acc + (cur.totalTestCases || 10), 0)}
+                  </p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Test Cases Passed</p>
+                </div>
               </div>
-              <div className='text-center'>
-                <p className='text-4xl font-black text-gray-900'>{data.coding.answers.length}</p>
-                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Challenges</p>
+              <div className='flex items-center gap-3'>
+                <div className={'px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border ' + (codingData.isPassed ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300')}>
+                  {codingData.isPassed ? '✓ Target Score Cleared' : 'Below Passing Target'}
+                </div>
+                <span className='text-[11px] font-bold text-gray-500'>Target: {codingData.passingScore || 60}%</span>
               </div>
             </div>
-            <div className='space-y-4'>
-              {data.coding.answers.map((ans, idx) => (
-                <div key={idx} className='p-5 rounded-2xl border border-teal-200 bg-white shadow-sm space-y-3'>
-                  <div className='flex items-center justify-between flex-wrap gap-2'>
-                    <span className='text-[10px] font-black uppercase tracking-widest text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200'>
-                      Challenge {idx + 1}: {ans.questionTitle || 'Coding Problem'}
-                    </span>
-                    <span className='text-xs font-black text-teal-600 bg-teal-50/80 px-3 py-1 rounded-lg border border-teal-200'>
-                      Score: {ans.score}/10
-                    </span>
-                  </div>
-                  {ans.questionDescription && (
-                    <p className='text-xs text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100'>
-                      {ans.questionDescription}
-                    </p>
-                  )}
-                  {ans.code && (
-                    <div className='rounded-xl border border-gray-200 bg-gray-900 overflow-hidden text-xs font-mono'>
-                      <div className='px-4 py-2 bg-gray-800 text-gray-400 border-b border-gray-700 flex justify-between'>
-                        <span>Language: {ans.language || 'plaintext'}</span>
-                        <span className='text-teal-400 font-bold'>Submitted Code</span>
+
+            <div className='space-y-6'>
+              {codingData.answers.map((a, i) => {
+                const diff = (a.difficulty || 'MEDIUM').toUpperCase();
+                const diffBadge = diff === 'LOW' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : diff === 'HIGH' ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200';
+                
+                const isPassed = a.testCasesPassed > 0 && a.testCasesPassed === a.totalTestCases;
+                const isPartial = a.testCasesPassed > 0 && a.testCasesPassed < a.totalTestCases;
+                const verdictClass = isPassed ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : isPartial ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200';
+
+                return (
+                  <div key={i} className='rounded-2xl border border-cyan-200/80 bg-white shadow-sm overflow-hidden'>
+                    <div className='flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-gradient-to-r from-cyan-50/70 to-blue-50/70 border-b border-cyan-100'>
+                      <div className='flex items-center gap-3'>
+                        <div className='w-8 h-8 rounded-full bg-cyan-600 text-white flex items-center justify-center font-black text-sm'>
+                          {i + 1}
+                        </div>
+                        <div>
+                          <div className='flex items-center gap-2 flex-wrap'>
+                            <h4 className='text-sm font-black text-gray-900'>{a.questionTitle || `Coding Challenge ${i + 1}`}</h4>
+                            <span className={'text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ' + diffBadge}>
+                              {diff}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <pre className='p-4 text-emerald-300 overflow-x-auto leading-relaxed'>
-                        {ans.code}
-                      </pre>
+                      <div className='flex items-center gap-3'>
+                        <span className={'text-[11px] font-black px-2.5 py-1 rounded-lg border ' + verdictClass}>
+                          {a.correctnessVerdict || (isPassed ? 'Correct' : isPartial ? 'Partially Correct' : 'Incorrect')}
+                        </span>
+                        <div className='text-right'>
+                          <span className='text-sm font-black text-gray-900'>{a.obtainedMarks != null ? Number(a.obtainedMarks).toFixed(1) : '0.0'}/{a.maximumMarks || 10}</span>
+                          <span className='text-[10px] font-bold text-gray-500 ml-1'>marks</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {ans.feedback && (
-                    <p className='text-xs text-gray-700 p-3 rounded-xl bg-emerald-50 border border-emerald-100 leading-relaxed'>
-                      <span className='font-bold text-emerald-700'>AI Feedback: </span>{ans.feedback}
-                    </p>
-                  )}
-                </div>
-              ))}
+
+                    <div className='p-5 space-y-4'>
+                      <div>
+                        <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 flex items-center gap-1.5'>
+                          <FileText size={12} className='text-cyan-600' /> Problem Statement
+                        </p>
+                        <div className='p-4 rounded-xl bg-gray-50 border border-black/5 text-xs text-gray-800 leading-relaxed font-medium whitespace-pre-wrap'>
+                          {a.questionDescription || 'No description provided.'}
+                        </div>
+                      </div>
+
+                      {(a.constraints || a.expectedApproach) && (
+                        <div className='grid md:grid-cols-2 gap-3'>
+                          {a.constraints && (
+                            <div className='p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/60'>
+                              <p className='text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1'>Constraints</p>
+                              <p className='text-xs text-gray-700 font-medium leading-normal'>{a.constraints}</p>
+                            </div>
+                          )}
+                          {a.expectedApproach && (
+                            <div className='p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/60'>
+                              <p className='text-[10px] font-black uppercase tracking-widest text-blue-800 mb-1'>Expected Approach</p>
+                              <p className='text-xs text-gray-700 font-medium leading-normal'>{a.expectedApproach}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs'>
+                        <span className='font-bold text-gray-600'>Test Cases Outcome:</span>
+                        <span className='font-black text-indigo-700'>{a.testCasesPassed ?? 0} / {a.totalTestCases || 10} passed</span>
+                        {a.testCasesPassed === a.totalTestCases && a.totalTestCases > 0 ? (
+                          <span className='text-[10px] font-bold text-emerald-600 flex items-center gap-1'><CheckCircle size={12} /> All test cases passed</span>
+                        ) : (
+                          <span className='text-[10px] font-bold text-amber-600 flex items-center gap-1'><AlertCircle size={12} /> Some or all test cases failed</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className='flex items-center justify-between mb-1.5'>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5'>
+                            <Terminal size={12} className='text-cyan-600' /> Candidate Solution ({a.language || 'Python'})
+                          </p>
+                          {a.code && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(a.code);
+                                setCopiedIndex(i);
+                                setTimeout(() => setCopiedIndex(null), 2000);
+                              }}
+                              className='flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-gray-900 px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors'
+                            >
+                              {copiedIndex === i ? <Check size={11} className='text-emerald-600' /> : <Copy size={11} />}
+                              {copiedIndex === i ? 'Copied' : 'Copy Code'}
+                            </button>
+                          )}
+                        </div>
+                        {a.code && a.code.trim() ? (
+                          <pre className='p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner'>
+                            <code>{a.code}</code>
+                          </pre>
+                        ) : (
+                          <p className='p-4 rounded-xl bg-gray-100 text-gray-500 text-xs italic font-medium'>No code was submitted for this question.</p>
+                        )}
+                      </div>
+
+                      {a.feedback && (
+                        <div className='p-4 rounded-xl bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border border-indigo-200/70 space-y-1.5'>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-indigo-800 flex items-center gap-1.5'>
+                            <Sparkles size={12} className='text-indigo-600' /> Automated Code Evaluation & Feedback
+                          </p>
+                          <p className='text-xs text-gray-800 leading-relaxed font-medium whitespace-pre-wrap'>
+                            {a.feedback}
+                          </p>
+                        </div>
+                      )}
+
+                      {a.suggestedCode && (
+                        <div>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1.5 flex items-center gap-1.5'>
+                            <CheckCircle size={12} className='text-emerald-600' /> Recommended Optimal Implementation
+                          </p>
+                          <pre className='p-4 rounded-xl bg-[#0f172a] text-[#86efac] font-mono text-xs overflow-x-auto leading-relaxed border border-emerald-950/40 shadow-inner'>
+                            <code>{a.suggestedCode}</code>
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Sec>
         )}
@@ -509,8 +638,14 @@ const CandidateTranscriptPage = () => {
         )}
 
         <Sec title='Overall Evaluation Summary' icon={<Award size={16} />} grad='from-yellow-500 to-orange-500'>
-          <div className='grid grid-cols-2 md:grid-cols-3 gap-4 mb-6'>
-            {[{ l: 'Resume Match', v: dynResume, c: '#3b82f6', m: 10 }, { l: 'Assessment', v: dynAssessment, c: '#f97316', m: 20 }, { l: 'Interview', v: dynInterview, c: '#8b5cf6', m: 70 }, { l: 'Final Score', v: fs, c: '#f59e0b', m: 100 }].map((s, i) => (
+          <div className={'grid gap-4 mb-6 ' + (codingData ? 'grid-cols-2 md:grid-cols-4 lg:grid-cols-5' : 'grid-cols-2 md:grid-cols-4')}>
+            {[
+              { l: 'Resume Match', v: dynResume, c: '#3b82f6', m: 10 },
+              ...(assessment?.totalQuestions > 0 ? [{ l: 'MCQ Assessment', v: dynAssessment, c: '#f97316', m: 20 }] : []),
+              ...(codingData ? [{ l: 'Coding Test', v: codingData.score, c: '#06b6d4', m: 100 }] : []),
+              { l: 'Interview', v: dynInterview, c: '#8b5cf6', m: 70 },
+              { l: 'Final Score', v: fs, c: '#f59e0b', m: 100 }
+            ].map((s, i) => (
               <div key={i} className='p-4 rounded-2xl bg-white shadow-sm border border-black/5 flex flex-col items-center'>
                 <ScoreRing value={s.v} color={s.c} size={80} max={s.m} />
                 <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2'>{s.l}</p>
@@ -577,10 +712,32 @@ const CandidateTranscriptPage = () => {
             <div className='mt-6 space-y-6 page-break-inside-avoid'>
               <div className='p-6 rounded-3xl bg-gradient-to-br from-blue-50/70 to-purple-50/70 border border-purple-100/50 shadow-sm relative overflow-hidden'>
                 <div className='absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-2xl -mr-6 -mt-6'></div>
-                <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 mb-3 flex items-center gap-1.5'>
-                  <span className='w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse'></span>
-                  Refined Overall Summary
-                </h3>
+                <div className='flex items-center justify-between mb-3'>
+                  <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 flex items-center gap-1.5'>
+                    <span className='w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse'></span>
+                    Refined Overall Summary
+                  </h3>
+                  <button 
+                    onClick={async () => {
+                      setLoadingSummary(true);
+                      setSummaryError(null);
+                      try {
+                        const h = await getAuthHeaders();
+                        const r = await axios.get(API_URL + '/transcripts/' + applicationId + '/recommendation?force=true', { headers: h });
+                        setSummary(r.data);
+                      } catch (e) {
+                        setSummaryError(e.response?.data?.message || 'Failed to reload recommendation summary');
+                      } finally {
+                        setLoadingSummary(false);
+                      }
+                    }}
+                    className='px-3 py-1 bg-white hover:bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-200 transition-colors flex items-center gap-1.5 shadow-sm no-print'
+                    title='Re-evaluate recommendation with AI including coding test performance'
+                  >
+                    <RefreshCw size={11} className={loadingSummary ? 'animate-spin' : ''} />
+                    Re-evaluate with AI
+                  </button>
+                </div>
                 <p className='text-sm text-gray-800 leading-relaxed font-semibold italic'>
                   "{summary.refineSummary || summary.overallSummary}"
                 </p>
