@@ -211,9 +211,13 @@ const getTranscript = async (req, res) => {
             ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL] Error updating DB:', err));
         }
 
-        // 6.8 Build Coding Assessment Data if present
+        // 6.8 Build Coding Assessment Data if present (strictly for coding/Python jobs)
+        const isJobCoding = Boolean(
+            job?.codingAssessment?.enabled === true || 
+            (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false)
+        );
         let codingData = null;
-        if (application.codingAnswers && application.codingAnswers.length > 0) {
+        if (isJobCoding && application.codingAnswers && application.codingAnswers.length > 0) {
             const answers = application.codingAnswers.map((a, idx) => {
                 const qDoc = (a.questionId && typeof a.questionId === 'object' && a.questionId.title) ? a.questionId : {};
                 const maxMarks = a.maximumMarks !== undefined && a.maximumMarks !== null ? a.maximumMarks : (qDoc.marks || 10);
@@ -346,7 +350,7 @@ const getTranscript = async (req, res) => {
             scores: {
                 resumeMatch: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
-                codingScore: application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : scoreData.codingScore,
+                codingScore: isJobCoding ? (application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : scoreData.codingScore) : null,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 ownershipScore: application.metrics?.ownershipMindset || null,
@@ -374,9 +378,17 @@ const getJobCandidates = async (req, res) => {
             return res.status(400).json({ message: 'Invalid job ID' });
         }
 
-        const applications = await Application.find({ jobId })
-            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore codingAnswers')
-            .lean();
+        const [job, applications] = await Promise.all([
+            Job.findById(jobId).lean(),
+            Application.find({ jobId })
+                .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore codingAnswers')
+                .lean()
+        ]);
+
+        const isJobCoding = Boolean(
+            job?.codingAssessment?.enabled === true || 
+            (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false)
+        );
 
         const userIdList = applications.map(app => app.userId).filter(Boolean);
         const jobIdStr = jobId.toString();
@@ -440,9 +452,9 @@ const getJobCandidates = async (req, res) => {
                     { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
                 ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL-LIST] Error updating DB:', err));
             }
-            const hasCoding = Boolean(
+            const hasCoding = isJobCoding && Boolean(
                 (app.codingAnswers && app.codingAnswers.length > 0) || 
-                (app.codingScore !== null && app.codingScore !== undefined)
+                (app.codingScore !== null && app.codingScore !== undefined && app.codingScore > 0)
             );
             return {
                 applicationId: app._id,
@@ -451,7 +463,7 @@ const getJobCandidates = async (req, res) => {
                 profilePic: app.applicantPic || null,
                 resumeScore: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
-                codingScore: app.codingScore !== undefined && app.codingScore !== null ? app.codingScore : scoreData.codingScore,
+                codingScore: isJobCoding ? (app.codingScore !== undefined && app.codingScore !== null ? app.codingScore : scoreData.codingScore) : null,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 proctoringScore,

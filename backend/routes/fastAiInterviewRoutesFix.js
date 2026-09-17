@@ -1183,7 +1183,11 @@ router.post('/start', async (req, res) => {
         const systemPrompt = buildSystemPrompt(roleInfo, job);
 
         // Check question source mode (default to AI_GENERATED for old jobs)
-        const questionSource = job?.mockInterview?.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
+        const isRecruiterMode = (
+            job?.mockInterview?.questionSource === 'RECRUITER_PROVIDED' ||
+            job?.questionSource === 'RECRUITER_PROVIDED'
+        );
+        const questionSource = isRecruiterMode ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
         console.log(`[FIX-INTERVIEW-START] Question Source Mode: ${questionSource} | Job: ${job?.title}`);
 
         let firstQuestion = '';
@@ -1191,10 +1195,16 @@ router.post('/start', async (req, res) => {
         let selectedQuestions = [];
 
         if (questionSource === 'RECRUITER_PROVIDED') {
-            const rawBank = (job?.mockInterview?.recruiterQuestions || []).filter(q => q && q.question && String(q.question).trim().length > 0);
-            const configuredCount = Number(job?.mockInterview?.questionCount) || rawBank.length || 5;
+            const rawBank = (
+                (Array.isArray(job?.mockInterview?.recruiterQuestions) && job.mockInterview.recruiterQuestions.length > 0)
+                    ? job.mockInterview.recruiterQuestions
+                    : (Array.isArray(job?.recruiterQuestions) ? job.recruiterQuestions : [])
+            ).filter(q => q && (q.question || q.text) && String(q.question || q.text).trim().length > 0);
+
+            // FIX: Prefer root-level questionCount (recruiter's explicit setting, e.g. 2) over mockInterview default
+            const configuredCount = Number(job?.questionCount || job?.mockInterview?.questionCount) || rawBank.length || 5;
             const targetCount = Math.max(1, Math.min(configuredCount, rawBank.length));
-            const selectionMode = job?.mockInterview?.selectionMode || 'ORDERED';
+            const selectionMode = job?.selectionMode || job?.mockInterview?.selectionMode || 'ORDERED';
 
             let pool = [...rawBank];
             if (selectionMode === 'RANDOM') {
@@ -1208,31 +1218,36 @@ router.post('/start', async (req, res) => {
                 pool.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             }
 
-            selectedQuestions = pool.slice(0, targetCount).map((q, idx) => ({
-                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
-                question: String(q.question).trim(),
-                order: idx + 1,
-                category: q.category || 'GENERAL',
-                difficulty: q.difficulty || 'MEDIUM',
-                questionType: q.questionType || 'CONCEPTUAL',
-                source: 'RECRUITER'
-            }));
+            selectedQuestions = pool.slice(0, targetCount).map((q, idx) => {
+                const qText = String(q.question || q.text || '').trim();
+                return {
+                    questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                    question: qText,
+                    text: qText,
+                    order: idx + 1,
+                    category: q.category || 'General',
+                    difficulty: q.difficulty || 'Medium',
+                    questionType: q.questionType || 'Conceptual',
+                    source: 'RECRUITER'
+                };
+            });
 
             if (selectedQuestions.length === 0) {
                 selectedQuestions.push({
                     questionId: `q_fallback_1`,
                     question: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    text: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
                     order: 1,
-                    category: 'GENERAL',
-                    difficulty: 'MEDIUM',
-                    questionType: 'CONCEPTUAL',
+                    category: 'General',
+                    difficulty: 'Medium',
+                    questionType: 'Conceptual',
                     source: 'RECRUITER'
                 });
             }
 
             totalQuestions = selectedQuestions.length;
             firstQuestion = selectedQuestions[0].question;
-            console.log(`[FIX-INTERVIEW-START] RECRUITER_PROVIDED mode: Selected ${totalQuestions} questions. First Q: "${firstQuestion.substring(0, 60)}..."`);
+            console.log(`[FIX-INTERVIEW-START] RECRUITER_PROVIDED mode: Selected exactly ${totalQuestions} questions from document bank. First Q: "${firstQuestion.substring(0, 60)}..."`);
         } else {
             // AI_GENERATED mode: exactly existing prompt and AI question generation
             const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);

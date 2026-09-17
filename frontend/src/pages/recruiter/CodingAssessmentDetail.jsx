@@ -269,16 +269,16 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                                     <button
                                         key={ans.questionId || idx}
                                         onClick={() => setActiveQuestionIndex(idx)}
-                                        className={`w-full text-left p-4 rounded-2xl transition-all border flex flex-col gap-2 ${isActive ? 'bg-teal-500/10 border-teal-500/35 text-white shadow-lg shadow-teal-500/5' : 'bg-white/[0.01] border-white/5 hover:bg-white/[0.03] text-gray-400'}`}
+                                        className={`w-full text-left p-4 rounded-2xl transition-all border flex flex-col gap-2 ${isActive ? 'bg-[#0f2427] border-teal-500/50 text-white shadow-lg shadow-teal-500/10' : 'bg-[#0e1320] border-slate-800 hover:bg-[#151c2e] text-slate-300'}`}
                                     >
                                         <div className="flex justify-between items-start w-full">
                                             <span className="text-[10px] font-black uppercase tracking-wider text-teal-400">Question {idx + 1}</span>
-                                            <span className="text-xs font-extrabold text-gray-400">{obtM}/{maxM} marks</span>
+                                            <span className="text-xs font-bold text-slate-300">{obtM}/{maxM} marks</span>
                                         </div>
-                                        <span className="text-sm font-semibold truncate w-full text-white">{ans.questionTitle}</span>
+                                        <span className="text-sm font-bold truncate w-full text-slate-100">{ans.questionTitle}</span>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {ans.difficulty && (
-                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400 w-fit">
+                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400 w-fit">
                                                     {ans.difficulty}
                                                 </span>
                                             )}
@@ -504,16 +504,81 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                                     </div>
 
                                     {/* AI Evaluation Feedback */}
-                                    <div className="space-y-2">
-                                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                                            <Sparkles size={14} className="text-violet-400" />
-                                            AI Assessment & Feedback
-                                        </h4>
-                                        <div className="p-6 rounded-2xl bg-teal-500/[0.02] border border-teal-500/10">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                                <Sparkles size={14} className="text-violet-400" />
+                                                <span>AI Assessment & Feedback</span>
+                                            </h4>
+                                            {currentQuestion.evaluation?.finalScore !== undefined && (
+                                                <span className="text-xs font-extrabold px-3 py-1 rounded-lg bg-teal-500/15 border border-teal-500/40 text-teal-300">
+                                                    Internal Score: {currentQuestion.evaluation.finalScore}/100
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Structured Identified Mistakes (if bugs array available) */}
+                                        {currentQuestion.evaluation?.bugs && currentQuestion.evaluation.bugs.length > 0 && (
+                                            <div className="space-y-3">
+                                                <h5 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                                    <AlertTriangle size={14} className="text-amber-400" />
+                                                    <span>Identified Mistakes ({currentQuestion.evaluation.bugs.length})</span>
+                                                </h5>
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {currentQuestion.evaluation.bugs.map((bug, bIdx) => (
+                                                        <div key={bIdx} className="p-4 rounded-xl bg-[#111726] border border-slate-700/80 shadow-md space-y-2.5">
+                                                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300">
+                                                                        {bug.severity || 'issue'}
+                                                                    </span>
+                                                                    {bug.lineNumber && (
+                                                                        <span className="text-xs font-mono font-bold text-amber-400">
+                                                                            Line {bug.lineNumber}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-xs font-semibold text-slate-300">
+                                                                        {bug.type}
+                                                                    </span>
+                                                                </div>
+                                                                {typeof bug.marksDeducted === 'number' && (
+                                                                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                                                                        −{bug.marksDeducted} marks
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {bug.codeSnippet && (
+                                                                <div className="bg-[#1b1215] border border-rose-900/40 rounded-lg p-2.5">
+                                                                    <span className="text-[10px] font-bold uppercase text-rose-400 block mb-1">Flawed Code:</span>
+                                                                    <pre className="text-xs font-mono text-rose-200 overflow-x-auto whitespace-pre">{bug.codeSnippet}</pre>
+                                                                </div>
+                                                            )}
+
+                                                            {bug.description && (
+                                                                <p className="text-xs text-slate-200 leading-relaxed">
+                                                                    <strong className="text-rose-400">Mistake: </strong>{bug.description}
+                                                                </p>
+                                                            )}
+
+                                                            {bug.correction && (
+                                                                <div className="bg-[#0e1e17] border border-emerald-900/40 rounded-lg p-2.5">
+                                                                    <span className="text-[10px] font-bold uppercase text-emerald-400 block mb-1">Recommended Correction:</span>
+                                                                    <pre className="text-xs font-mono text-emerald-200 overflow-x-auto whitespace-pre">{bug.correction}</pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Full Assessment Feedback Text (High Contrast Container) */}
+                                        <div className="p-6 rounded-2xl bg-[#0e1320] border border-slate-700/80 shadow-lg">
                                             <div className="flex items-start gap-3">
                                                 <CheckCircle size={18} className="text-teal-400 shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-sm text-gray-300 leading-relaxed font-medium whitespace-pre-line">
+                                                <div className="w-full">
+                                                    <p className="text-sm text-slate-100 leading-relaxed font-sans whitespace-pre-line select-text">
                                                         {currentQuestion.feedback || 'No evaluation feedback generated.'}
                                                     </p>
                                                 </div>

@@ -38,16 +38,40 @@ const jobSchema = new mongoose.Schema({
             default: 'ORDERED'
         },
         recruiterQuestions: [{
-            questionId: { type: String, required: true },
-            question: { type: String, required: true },
+            questionId: { type: String },
+            question: { type: String },
+            text: { type: String },
             order: { type: Number },
-            category: { type: String, default: 'GENERAL' },
-            difficulty: { type: String, default: 'MEDIUM' },
-            questionType: { type: String, default: 'CONCEPTUAL' },
+            category: { type: String, default: 'General' },
+            difficulty: { type: String, default: 'Medium' },
+            questionType: { type: String, default: 'Conceptual' },
+            timeLimit: { type: Number, default: 120 },
             source: { type: String, default: 'RECRUITER' }
         }],
         passingScore: { type: Number, default: 70 }
     },
+    questionSource: {
+        type: String,
+        enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+        default: 'AI_GENERATED'
+    },
+    questionCount: { type: Number, default: 5 },
+    selectionMode: {
+        type: String,
+        enum: ['ORDERED', 'RANDOM'],
+        default: 'ORDERED'
+    },
+    recruiterQuestions: [{
+        questionId: { type: String },
+        question: { type: String },
+        text: { type: String },
+        order: { type: Number },
+        category: { type: String, default: 'General' },
+        difficulty: { type: String, default: 'Medium' },
+        questionType: { type: String, default: 'Conceptual' },
+        timeLimit: { type: Number, default: 120 },
+        source: { type: String, default: 'RECRUITER' }
+    }],
     codingAssessment: {
         enabled: { type: Boolean, default: false },
         passingScore: { type: Number, default: 70 }

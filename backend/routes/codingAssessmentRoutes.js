@@ -5,7 +5,7 @@ const { authMiddleware, roleCheck } = require('../middleware/authMiddleware');
 
 // ─── Coding Round ────────────────────────────────────────
 router.post('/round', authMiddleware, roleCheck('recruiter'), codingAssessmentController.createOrUpdateCodingRound);
-router.get('/round/:jobId', authMiddleware, codingAssessmentController.getCodingRoundByJobId);
+router.get('/round/:jobId', codingAssessmentController.getCodingRoundByJobId);
 router.delete('/round/:jobId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.deleteCodingRound);
 
 // ─── Coding Questions ────────────────────────────────────

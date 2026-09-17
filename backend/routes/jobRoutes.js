@@ -23,7 +23,20 @@ const upload = multer({
 });
 
 // PARSE RECRUITER QUESTIONS (Text or File)
-router.post("/parse-questions", upload.single('file'), jobController.parseQuestions);
+router.post("/parse-questions", (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('[PARSE-QUESTIONS-UPLOAD] Multer error:', err);
+            return res.status(400).json({
+                success: false,
+                message: err.code === 'LIMIT_FILE_SIZE'
+                    ? 'File size exceeds the 10MB limit.'
+                    : `Upload error: ${err.message}`
+            });
+        }
+        next();
+    });
+}, jobController.parseQuestions);
 
 // CREATE JOB
 router.post("/create", jobController.createJob);

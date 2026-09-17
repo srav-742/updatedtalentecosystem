@@ -939,23 +939,64 @@ router.post('/start', async (req, res) => {
         // Determine Question Source and First Question
         let firstQuestion;
         let selectedQuestions = [];
-        const isRecruiterMode = job?.questionSource === 'RECRUITER_PROVIDED' && Array.isArray(job.recruiterQuestions) && job.recruiterQuestions.length > 0;
+        const isRecruiterMode = (
+            job?.mockInterview?.questionSource === 'RECRUITER_PROVIDED' ||
+            job?.questionSource === 'RECRUITER_PROVIDED'
+        );
         let totalQuestions;
 
         if (isRecruiterMode) {
             console.log(`[INTERVIEW-START] Using RECRUITER_PROVIDED question mode for job: ${job._id}`);
-            const bank = [...job.recruiterQuestions].sort((a, b) => (a.order || 0) - (b.order || 0));
-            const countRequested = Math.max(1, Math.min(job.questionCount || bank.length, bank.length));
+            const rawBank = (
+                (Array.isArray(job?.mockInterview?.recruiterQuestions) && job.mockInterview.recruiterQuestions.length > 0)
+                    ? job.mockInterview.recruiterQuestions
+                    : (Array.isArray(job?.recruiterQuestions) ? job.recruiterQuestions : [])
+            ).filter(q => q && (q.question || q.text) && String(q.question || q.text).trim().length > 0);
 
-            if (job.selectionMode === 'RANDOM') {
-                const shuffled = [...bank];
-                for (let i = shuffled.length - 1; i > 0; i--) {
+            // FIX: Prefer root-level questionCount (recruiter's explicit setting, e.g. 2) over mockInterview default
+            const countRequested = Math.max(1, Math.min(
+                Number(job?.questionCount || job?.mockInterview?.questionCount) || rawBank.length || 5,
+                rawBank.length
+            ));
+            const selectionMode = job?.selectionMode || job?.mockInterview?.selectionMode || 'ORDERED';
+
+            let pool = [...rawBank];
+            if (selectionMode === 'RANDOM') {
+                for (let i = pool.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
-                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
                 }
-                selectedQuestions = shuffled.slice(0, countRequested);
+                selectedQuestions = pool.slice(0, countRequested);
             } else {
-                selectedQuestions = bank.slice(0, countRequested);
+                pool.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+                selectedQuestions = pool.slice(0, countRequested);
+            }
+
+            selectedQuestions = selectedQuestions.map((q, idx) => {
+                const qText = String(q.question || q.text || '').trim();
+                return {
+                    questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                    question: qText,
+                    text: qText,
+                    order: idx + 1,
+                    category: q.category || 'General',
+                    difficulty: q.difficulty || 'Medium',
+                    questionType: q.questionType || 'Conceptual',
+                    source: 'RECRUITER'
+                };
+            });
+
+            if (selectedQuestions.length === 0) {
+                selectedQuestions.push({
+                    questionId: `q_fallback_1`,
+                    question: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    text: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    order: 1,
+                    category: 'General',
+                    difficulty: 'Medium',
+                    questionType: 'Conceptual',
+                    source: 'RECRUITER'
+                });
             }
 
             totalQuestions = selectedQuestions.length;
@@ -1223,7 +1264,7 @@ router.post('/next', async (req, res) => {
         let nextQuestion;
 
         if (session.questionSource === 'RECRUITER_PROVIDED' && session.selectedQuestions?.length > interviewers.length) {
-            nextQuestion = session.selectedQuestions[interviewers.length].text;
+            nextQuestion = session.selectedQuestions[interviewers.length].text || session.selectedQuestions[interviewers.length].question;
             console.log(`[INTERVIEW-NEXT] Serving canonical recruiter question ${nextQuestionNumber}: "${nextQuestion.slice(0, 60)}..."`);
         } else {
             // Build role-aware follow-up prompt

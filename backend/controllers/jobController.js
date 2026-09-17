@@ -82,26 +82,98 @@ const getJobById = async (req, res) => {
     }
 };
 
+const normalizeJobRecruiterQuestions = (jobData) => {
+    // FIX: Check if EITHER field says RECRUITER_PROVIDED (the || fallback to 'AI_GENERATED' was
+    // swallowing the root-level value because 'AI_GENERATED' is truthy in JavaScript)
+    const isRecruiterProvided = (
+        jobData.questionSource === 'RECRUITER_PROVIDED' ||
+        jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED'
+    );
+    const qSource = isRecruiterProvided ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
+    const rawQuestions = jobData.mockInterview?.recruiterQuestions || jobData.recruiterQuestions || [];
+    // FIX: Prefer root-level questionCount (set by the recruiter UI) over mockInterview default
+    const qCount = Number(jobData.questionCount || jobData.mockInterview?.questionCount) || rawQuestions.length || 5;
+    const sMode = jobData.selectionMode || jobData.mockInterview?.selectionMode || 'ORDERED';
+
+    const normalizedQuestions = (rawQuestions || []).map((q, idx) => {
+        const txt = String(q.text || q.question || '').trim();
+        return {
+            questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+            text: txt,
+            question: txt,
+            order: Number(q.order) || (idx + 1),
+            category: q.category || 'General',
+            difficulty: q.difficulty || 'Medium',
+            questionType: q.questionType || 'Conceptual',
+            timeLimit: Number(q.timeLimit) || 120,
+            source: 'RECRUITER'
+        };
+    }).filter(q => q.text.length > 0);
+
+    if (qSource === 'RECRUITER_PROVIDED') {
+        const validation = validateQuestionBank(normalizedQuestions, qCount);
+        if (!validation.isValid) {
+            return { isValid: false, error: validation.error };
+        }
+        const validQuestions = validation.validQuestions.map((q, idx) => {
+            const txt = String(q.text || q.question || '').trim();
+            return {
+                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                text: txt,
+                question: txt,
+                order: Number(q.order) || (idx + 1),
+                category: q.category || 'General',
+                difficulty: q.difficulty || 'Medium',
+                questionType: q.questionType || 'Conceptual',
+                timeLimit: Number(q.timeLimit) || 120,
+                source: 'RECRUITER'
+            };
+        });
+
+        if (jobData.mockInterview) {
+            jobData.mockInterview.questionSource = 'RECRUITER_PROVIDED';
+            jobData.mockInterview.questionCount = validation.normalizedCount;
+            jobData.mockInterview.selectionMode = sMode;
+            jobData.mockInterview.recruiterQuestions = validQuestions;
+        }
+        jobData.questionSource = 'RECRUITER_PROVIDED';
+        jobData.questionCount = validation.normalizedCount;
+        jobData.selectionMode = sMode;
+        jobData.recruiterQuestions = validQuestions;
+    } else {
+        if (jobData.mockInterview) {
+            jobData.mockInterview.questionSource = 'AI_GENERATED';
+            jobData.mockInterview.questionCount = qCount;
+            jobData.mockInterview.selectionMode = sMode;
+            jobData.mockInterview.recruiterQuestions = normalizedQuestions;
+        }
+        jobData.questionSource = 'AI_GENERATED';
+        jobData.questionCount = qCount;
+        jobData.selectionMode = sMode;
+        jobData.recruiterQuestions = normalizedQuestions;
+    }
+
+    return { isValid: true };
+};
+
 const updateJob = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
         
-        // Force the status to 'pending_approval' when updating a job
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
         const jobData = { ...req.body };
-        jobData.status = 'pending_approval';
+        if (isLocalhost) {
+            jobData.status = 'approved';
+        } else {
+            jobData.status = req.body.status || 'pending_approval';
+        }
         jobData.adminFeedback = { reason: '', reviewedAt: null };
 
-        // Validate recruiter questions if RECRUITER_PROVIDED mode is selected
-        if (jobData.mockInterview?.enabled && jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED') {
-            const rawQuestions = jobData.mockInterview.recruiterQuestions || [];
-            const validation = validateQuestionBank(rawQuestions, jobData.mockInterview.questionCount);
-            if (!validation.isValid) {
-                return res.status(400).json({ success: false, message: validation.error });
-            }
-            jobData.mockInterview.questionCount = validation.normalizedCount;
-            jobData.mockInterview.recruiterQuestions = validation.validQuestions;
+        const norm = normalizeJobRecruiterQuestions(jobData);
+        if (!norm.isValid) {
+            return res.status(400).json({ success: false, message: norm.error });
         }
 
         const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true });
@@ -139,15 +211,9 @@ const createJob = async (req, res) => {
         const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
         const jobData = { ...req.body, status: initialStatus };
 
-        // Validate recruiter questions if RECRUITER_PROVIDED mode is selected
-        if (jobData.mockInterview?.enabled && jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED') {
-            const rawQuestions = jobData.mockInterview.recruiterQuestions || [];
-            const validation = validateQuestionBank(rawQuestions, jobData.mockInterview.questionCount);
-            if (!validation.isValid) {
-                return res.status(400).json({ success: false, message: validation.error });
-            }
-            jobData.mockInterview.questionCount = validation.normalizedCount;
-            jobData.mockInterview.recruiterQuestions = validation.validQuestions;
+        const norm = normalizeJobRecruiterQuestions(jobData);
+        if (!norm.isValid) {
+            return res.status(400).json({ success: false, message: norm.error });
         }
 
         const job = new Job(jobData);
@@ -173,10 +239,17 @@ const parseQuestions = async (req, res) => {
         }
 
         const result = parseRawQuestionText(rawText);
+        if (!result.questions || result.questions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No questions could be extracted. Please ensure questions are clearly separated by new lines or numbers (e.g. 1., 2.)."
+            });
+        }
+
         res.json({ success: true, count: result.questions.length, ...result });
     } catch (error) {
         console.error("[PARSE-QUESTIONS] Error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: error.message || "Failed to process questions." });
     }
 };
 

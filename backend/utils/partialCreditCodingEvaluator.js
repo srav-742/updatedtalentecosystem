@@ -15,7 +15,7 @@
  * Total:                         100 marks
  */
 
-const { callGemini, safeParseAIJson } = require('./aiClients');
+const { callGemini, callInterviewAI, safeParseAIJson } = require('./aiClients');
 
 // Configurable Scoring Dimension Weights (Total = 100)
 const SCORING_WEIGHTS = Object.freeze({
@@ -123,6 +123,24 @@ function isMeaningfulCode(code, language) {
 }
 
 /**
+ * Checks if submitted code contains basic syntactical programming constructs (functions, variables, statements).
+ * Used to guarantee baseline credit for valid syntax attempts.
+ */
+function isSyntaxAttempt(code) {
+    if (!code || typeof code !== 'string') return false;
+    const clean = code
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*/g, '')
+        .replace(/#.*/g, '')
+        .replace(/--.*/g, '')
+        .trim();
+    if (clean.length < 5) return false;
+    // Identifies basic code constructs: function/def, assignments, loops, prints, conditionals, return, pass
+    const hasStructure = /\b(def|function|class|public|static|void|var|let|const|print|console|return|pass|for|while|if|switch|SELECT|INSERT)\b/i.test(clean) || /=/.test(clean);
+    return hasStructure;
+}
+
+/**
  * Creates an immediate deterministic evaluation for empty or boilerplate-only submissions.
  */
 function createDeterministicZeroEvaluation(reason = 'No meaningful solution submitted.') {
@@ -196,6 +214,40 @@ function buildStructuredFeedbackText({
     }
     lines.push('');
 
+    // Code Attempt & Rubric Breakdown
+    lines.push(`📊 SCORING RUBRIC APPLIED:`);
+    if (finalScore >= 88 && bugs && bugs.length <= 1) {
+        lines.push(`• Single-Issue Rule Applied: Candidate demonstrated sound algorithmic logic with only 1 isolated issue. Deducted 1 mark (~10%) from full credit.`);
+    } else if (finalScore >= 40) {
+        lines.push(`• Partial Logic Credit: Candidate demonstrated valid syntax and substantial algorithmic reasoning, with partial test-case coverage.`);
+    } else if (finalScore >= 20) {
+        lines.push(`• Syntax & Structure Credit: Awarded baseline marks (20-30%) for valid language syntax, function structure, and code attempt.`);
+    } else {
+        lines.push(`• Non-Attempt / Incorrect: Code lacks working syntax or relevant problem-solving logic.`);
+    }
+    lines.push('');
+
+    // Pinpointed Mistakes Section (rendered first for immediate visibility)
+    if (Array.isArray(bugs) && bugs.length > 0) {
+        lines.push(`📍 IDENTIFIED MISTAKES & EXACT LOCATIONS:`);
+        bugs.forEach((b, idx) => {
+            const typeStr = b.type || 'BUG';
+            const sevStr = (b.severity || 'minor').toUpperCase();
+            const lineInfo = b.lineNumber ? `Line ${b.lineNumber}` : 'Location unspecified';
+            const deduction = typeof b.marksDeducted === 'number' ? ` (−${b.marksDeducted} marks)` : '';
+
+            lines.push(`${idx + 1}. [${typeStr} | ${sevStr}]${deduction}`);
+            if (b.lineNumber || b.codeSnippet) {
+                lines.push(`   📌 ${lineInfo}${b.codeSnippet ? ': `' + b.codeSnippet + '`' : ''}`);
+            }
+            if (b.description) lines.push(`   ❌ Mistake: ${b.description}`);
+            if (b.correction) lines.push(`   ✅ Recommended Fix: ${b.correction}`);
+            if (b.evidence && !b.codeSnippet) lines.push(`   Evidence: ${b.evidence}`);
+            if (b.impact) lines.push(`   Impact: ${b.impact}`);
+        });
+        lines.push('');
+    }
+
     lines.push(`DIMENSION BREAKDOWN:`);
     lines.push(`• Core Algorithm / Logic: ${algorithm.score}/${algorithm.maxScore} (${algorithm.status})`);
     if (algorithm.reason) lines.push(`  - ${algorithm.reason}`);
@@ -211,18 +263,6 @@ function buildStructuredFeedbackText({
 
     lines.push(`• Code Quality & Efficiency: ${quality.score}/${quality.maxScore}`);
     if (quality.reason) lines.push(`  - ${quality.reason}`);
-
-    if (Array.isArray(bugs) && bugs.length > 0) {
-        lines.push('');
-        lines.push(`IDENTIFIED ISSUES & ROOT CAUSES:`);
-        bugs.forEach((b, idx) => {
-            const typeStr = b.type || 'BUG';
-            const sevStr = (b.severity || 'minor').toUpperCase();
-            lines.push(`${idx + 1}. [${typeStr} | ${sevStr}] ${b.description || 'Issue detected'}`);
-            if (b.evidence) lines.push(`   Evidence: ${b.evidence}`);
-            if (b.impact) lines.push(`   Impact: ${b.impact}`);
-        });
-    }
 
     return lines.join('\n');
 }
@@ -281,6 +321,52 @@ function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 1
     qualScore = Math.max(0, Math.min(qualMax, round2(qualScore)));
     const qualReason = String(rawQual.reason || rawQual.description || '').trim();
 
+    // Normalize Bugs (with line-number pinpointing, correction hints, and marks deducted)
+    const rawBugs = Array.isArray(rawJson.bugs) ? rawJson.bugs : [];
+    const bugs = rawBugs.map(b => ({
+        type: normalizeBugType(b.type),
+        severity: normalizeBugSeverity(b.severity),
+        description: String(b.description || '').trim(),
+        evidence: String(b.evidence || '').trim(),
+        impact: String(b.impact || '').trim(),
+        lineNumber: (typeof b.lineNumber === 'number' || typeof b.lineNumber === 'string') ? String(b.lineNumber).trim() : '',
+        codeSnippet: String(b.codeSnippet || '').trim(),
+        correction: String(b.correction || '').trim(),
+        marksDeducted: typeof b.marksDeducted === 'number' ? Math.max(0, round2(b.marksDeducted)) : null
+    })).filter(b => b.description.length > 0 || b.evidence.length > 0);
+
+    // =========================================================================
+    // USER SCORING RULES ENFORCEMENT (PROGRAMMATIC SAFEGUARDS)
+    // =========================================================================
+    const meaningful = isMeaningfulCode(originalCode);
+    const syntaxAttempt = isSyntaxAttempt(originalCode);
+
+    // RULE 1: SINGLE BUG DEDUCTION RULE
+    // If candidate's solution has sound core logic (algoScore >= 25 or algoStatus === 'correct') and only 1 bug:
+    // Deduct strictly ~10 marks (1 mark on 10-point scale), ensuring finalScore >= 88.
+    const isSingleBug = bugs.length <= 1 && (algoScore >= 25 || algoStatus === 'correct');
+    if (isSingleBug && algoScore >= 25) {
+        algoScore = Math.max(algoScore, 36);
+        funcScore = Math.max(funcScore, 24);
+        covScore = Math.max(covScore, 13);
+        edgeScore = Math.max(edgeScore, 8);
+        qualScore = Math.max(qualScore, 4);
+        if (bugs.length === 1 && (!bugs[0].marksDeducted || bugs[0].marksDeducted > 12)) {
+            bugs[0].marksDeducted = 10;
+        }
+    }
+
+    // RULE 2: SYNTAX & STRUCTURE ATTEMPT CREDIT
+    // If the candidate wrote valid programming syntax (function def, variables, statements) and it's not empty boilerplate:
+    // Guarantee baseline score between 20-30% (never 0).
+    if (syntaxAttempt && meaningful && (algoScore + funcScore + covScore + edgeScore + qualScore) < 20) {
+        algoScore = Math.max(algoScore, 10);
+        funcScore = Math.max(funcScore, 5);
+        covScore = Math.max(covScore, 2);
+        edgeScore = Math.max(edgeScore, 1);
+        qualScore = Math.max(qualScore, 3);
+    }
+
     // Enforce exact sum invariant: finalScore = algo + func + cov + edge + qual
     const calculatedTotal = round2(algoScore + funcScore + covScore + edgeScore + qualScore);
     const finalScore = Math.max(0, Math.min(100, calculatedTotal));
@@ -289,21 +375,14 @@ function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 1
     let confidence = typeof rawJson.confidence === 'number' ? rawJson.confidence : 85;
     confidence = Math.max(0, Math.min(100, round2(confidence)));
 
-    // Normalize Bugs
-    const rawBugs = Array.isArray(rawJson.bugs) ? rawJson.bugs : [];
-    const bugs = rawBugs.map(b => ({
-        type: normalizeBugType(b.type),
-        severity: normalizeBugSeverity(b.severity),
-        description: String(b.description || '').trim(),
-        evidence: String(b.evidence || '').trim(),
-        impact: String(b.impact || '').trim()
-    })).filter(b => b.description.length > 0 || b.evidence.length > 0);
-
-    // Derive Correctness Verdict
+    // Derive Correctness Verdict:
+    // - 90-100: Correct
+    // - 20-89: Partially Correct (covers syntax credit, partial logic, near-correct)
+    // - 0-19: Incorrect (empty, boilerplate only, or no valid attempt)
     let correctnessVerdict = 'Incorrect';
     if (finalScore >= 90) {
         correctnessVerdict = 'Correct';
-    } else if (finalScore >= 35) {
+    } else if (finalScore >= 20) {
         correctnessVerdict = 'Partially Correct';
     } else {
         correctnessVerdict = 'Incorrect';
@@ -484,11 +563,38 @@ function buildEvaluationPrompts({ question, code, language, dynamicInfo }) {
     const systemPrompt = `You are an expert technical interviewer, senior algorithmic reviewer, and code evaluation engine.
 Your task is to provide an objective, EVIDENCE-BASED, PARTIAL-CREDIT evaluation of candidate code for a programming challenge.
 
-CRITICAL EVALUATION PRINCIPLE:
-Execution correctness and algorithmic correctness are NOT the same thing.
-A failed test case does NOT mean algorithm score is 0.
-Distinguish root causes from symptom effects. If a candidate used the correct algorithm or data structure but had an off-by-one error, initialization bug, or syntax issue, award high logic marks while reducing functional/edge-case marks. Do NOT double-penalize.
-NEVER hallucinate candidate intent ("the candidate probably meant to..."). Every logic score must cite explicit code structures.
+CRITICAL EVALUATION PRINCIPLES:
+
+1. EXECUTION CORRECTNESS ≠ ALGORITHMIC CORRECTNESS:
+   A failed test case does NOT mean algorithm score is 0.
+   Distinguish root causes from symptom effects. If a candidate used the correct algorithm or data structure but had an off-by-one error, initialization bug, or syntax issue, award high logic marks while reducing functional/edge-case marks. Do NOT double-penalize.
+   NEVER hallucinate candidate intent ("the candidate probably meant to..."). Every logic score must cite explicit code structures.
+
+2. MANDATORY GRADUATED SCORING RULES (YOU MUST FOLLOW THESE EXACTLY):
+
+   RULE 1 — COMPLETELY WRONG / EMPTY / NON-ATTEMPT:
+   If the code is completely irrelevant to the problem, uses no code syntax, or is essentially empty/unmodified boilerplate → finalScore = 0-10, verdict = "Incorrect".
+
+   RULE 2 — VALID SYNTAX ONLY (compiles/parses or writes function/variable structure, but minimal/no working logic):
+   If the candidate wrote valid programming syntax (e.g., function definition 'def solution():', variable declarations, basic statements, 'pass') but implements no working algorithm for this problem → finalScore = 20-30, verdict = "Partially Correct".
+   You MUST credit the candidate for writing syntactically valid code and setting up the structure. NEVER give 0 marks if valid syntax is present.
+
+   RULE 3 — VALID SYNTAX + SUBSTANTIAL PARTIAL LOGIC:
+   If the code has correct syntax AND implements a reasonable partial approach to the problem (correct loops, data structures, partial algorithm, some logic) but has multiple issues or is incomplete → finalScore = 40-75, verdict = "Partially Correct".
+
+   RULE 4 — NEAR-PERFECT CODE WITH ONLY 1-2 MINOR ISSUES (CRITICAL USER RULE):
+   If the code is fundamentally correct and has ONLY 1 mistake (e.g., single missing parameter, off-by-one error, wrong initialization, boundary bug, variable name typo, missing null check):
+   - You MUST deduct ONLY 1 MARK out of 10 (8-12 marks on 100-point scale), giving finalScore = 88-92. Verdict = "Partially Correct" or "Correct".
+   - If there are 2 minor issues, deduct ~2 marks (giving finalScore = 78-87).
+   - NEVER drop the score below 85 for a single minor bug!
+   The algorithm dimension MUST remain high (35-40) if the core approach is correct.
+   The functionality dimension should remain high (22-28) since most logic is sound.
+
+   RULE 5 — FULLY CORRECT:
+   If the code correctly solves the problem for all inputs including edge cases → finalScore = 93-100, verdict = "Correct".
+
+3. LINE-NUMBER BUG PINPOINTING (MANDATORY):
+   For EVERY bug you identify, you MUST specify the EXACT line number in the candidate's code where the bug occurs, the exact flawed code snippet from that line, a plain-English explanation of why it is wrong, and the specific correction to fix it.
 
 You must evaluate exactly according to this 100-point internal framework:
 1. CORE ALGORITHM / LOGIC (0-40 marks): Did the candidate choose the right algorithmic approach, data structure, traversal, or state management?
@@ -545,9 +651,13 @@ Return ONLY a raw JSON object fitting this EXACT schema (no markdown blocks, no 
     {
       "type": "<one of the 12 types above>",
       "severity": "minor" | "major" | "critical",
-      "description": "<What is the root cause bug>",
-      "evidence": "<Exact snippet or line showing the bug>",
-      "impact": "<Why it causes failures>"
+      "lineNumber": <integer or string - exact line number in candidate code where the bug is>,
+      "codeSnippet": "<the exact flawed line/expression from candidate code>",
+      "description": "<Plain-English explanation of what is wrong and why>",
+      "correction": "<Exact recommended fix for that line/expression>",
+      "evidence": "<Additional context or test case that exposes the bug>",
+      "impact": "<Why it causes failures or lost marks>",
+      "marksDeducted": <number - how many marks (out of 100 internal scale) this single bug costs>
     }
   ],
   "finalScore": <sum of all 5 dimension scores above, 0 to 100>,
@@ -556,8 +666,10 @@ Return ONLY a raw JSON object fitting this EXACT schema (no markdown blocks, no 
   "suggestedCode": "<Complete, runnable, optimal solution in the SAME language without markdown formatting>"
 }
 
-CRITICAL:
+CRITICAL REMINDERS:
 - Ensure algorithm.score + functionality.score + testCoverage.score + edgeCases.score + quality.score === finalScore.
+- For near-perfect code with only 1 minor bug, finalScore MUST be 88-93. Do NOT over-penalize.
+- Every bug MUST include lineNumber, codeSnippet, description, correction, and marksDeducted.
 - Always provide complete runnable optimal solution in suggestedCode in ${language}.`;
 
     const userPrompt = `
@@ -650,9 +762,27 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
         }
     }
 
-    // 4. Fallback if AI was unavailable or output was malformed
+    // 3b. Groq fallback if Gemini failed entirely
     if (!evalResult || aiEvaluationStatus === 'failed') {
-        console.warn(`[EVALUATOR] AI evaluation failed or timed out. Falling back to deterministic analysis.`);
+        try {
+            console.log(`[EVALUATOR] Gemini failed. Attempting Groq fallback for: "${question?.title || 'Question'}"`);
+            const groqResponse = await callInterviewAI(userPrompt, 4000, true, systemPrompt, 0.3);
+            if (groqResponse) {
+                const parsed = safeParseAIJson(groqResponse, null);
+                if (parsed && (parsed.algorithm || parsed.finalScore !== undefined)) {
+                    evalResult = validateAndNormalizeEvaluation(parsed, code, questionMaxMarks);
+                    aiEvaluationStatus = 'success';
+                    console.log(`[EVALUATOR] Groq fallback succeeded. Final internal score: ${evalResult.finalScore}/100`);
+                }
+            }
+        } catch (groqErr) {
+            console.error(`[EVALUATOR] Groq fallback also failed:`, groqErr.message);
+        }
+    }
+
+    // 4. Deterministic fallback if ALL AI providers were unavailable or output was malformed
+    if (!evalResult || aiEvaluationStatus === 'failed') {
+        console.warn(`[EVALUATOR] All AI evaluations failed. Falling back to deterministic analysis.`);
         evalResult = createDeterministicFallbackEvaluation({
             code,
             language: normLang,

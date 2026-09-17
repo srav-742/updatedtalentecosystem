@@ -136,7 +136,8 @@ const CandidateTranscriptPage = () => {
   );
 
   const { candidate, job, application, resume, assessment, interview, scores, generatedAt } = data;
-  const codingData = data.coding && Array.isArray(data.coding.answers) && data.coding.answers.length > 0 ? data.coding : (
+  const isJobCoding = job?.codingAssessment?.enabled === true || (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false);
+  const codingData = isJobCoding ? (data.coding && Array.isArray(data.coding.answers) && data.coding.answers.length > 0 ? data.coding : (
     application?.codingAnswers?.length > 0 ? {
       score: scores?.codingScore ?? application.codingScore ?? 0,
       passingScore: job?.codingAssessment?.passingScore || 60,
@@ -149,7 +150,7 @@ const CandidateTranscriptPage = () => {
       },
       answers: application.codingAnswers
     } : null
-  );
+  )) : null;
 
   // Use the single source of truth from the backend's unified score calculator
   const dynResume = scores?.resumeMatch || 0;

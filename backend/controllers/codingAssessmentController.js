@@ -535,16 +535,16 @@ const reEvaluateCodingAnswer = async (req, res) => {
             questionDescription: questionDesc,
             constraints: questionConstraints,
             expectedApproach: questionExpectedApproach,
-            suggestedCode: gradeResult.suggestedCode,
-            feedback: gradeResult.feedback,
-            correctnessVerdict: gradeResult.correctnessVerdict,
-            aiEvaluationStatus
+            suggestedCode: evalResult.suggestedCode,
+            feedback: evalResult.feedback,
+            correctnessVerdict: evalResult.correctnessVerdict,
+            aiEvaluationStatus: evalResult.aiEvaluationStatus
         };
 
         res.json({
             success: true,
             message: 'Re-evaluation completed successfully.',
-            aiEvaluationStatus,
+            aiEvaluationStatus: evalResult.aiEvaluationStatus,
             updatedAnswer: enrichedUpdatedAnswer,
             codingScore: application.codingScore,
             codingDetails: application.codingDetails

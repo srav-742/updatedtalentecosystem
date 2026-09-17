@@ -115,7 +115,7 @@ const Applicants = () => {
             interviewAnswerCount: app.interviewAnswers?.length || 0,
             recordingStatus: app.recordingStatus || 'pending',
             hasAssessment: app.jobId?.assessment?.enabled === true,
-            hasCoding: app.jobId?.codingAssessment?.enabled === true,
+            hasCoding: Boolean(app.jobId?.codingAssessment?.enabled === true || (app.jobId?.title && /python/i.test(app.jobId.title) && app.jobId?.codingAssessment?.enabled !== false)),
             hasInterview: app.jobId?.mockInterview?.enabled !== false
         }));
 
@@ -634,7 +634,7 @@ const Applicants = () => {
                 Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => {
                     const firstApp = jobApplicants[0];
                     const showAssessment = firstApp?.hasAssessment ?? true;
-                    const showCoding = firstApp?.hasCoding ?? true;
+                    const showCoding = Boolean(firstApp?.hasCoding);
                     const showInterview = firstApp?.hasInterview ?? true;
 
                     return (

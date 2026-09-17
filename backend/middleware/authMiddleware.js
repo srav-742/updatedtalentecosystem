@@ -33,10 +33,16 @@ const authMiddleware = async (req, res, next) => {
 
         // Method 2: Fallback to x-user-id (if Firebase Admin is missing or token fails)
         if (userIdHeader) {
+            const trimmed = String(userIdHeader).trim();
             const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
-            const query = OBJECT_ID_REGEX.test(userIdHeader)
-                ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
-                : { uid: userIdHeader };
+            let query;
+            if (trimmed.includes('@')) {
+                query = { $or: [{ email: trimmed.toLowerCase() }, { uid: trimmed }] };
+            } else if (OBJECT_ID_REGEX.test(trimmed)) {
+                query = { $or: [{ uid: trimmed }, { _id: trimmed }] };
+            } else {
+                query = { uid: trimmed };
+            }
             const user = await User.findOne(query);
             if (user) {
                 req.user = user;
@@ -49,10 +55,16 @@ const authMiddleware = async (req, res, next) => {
         // Final fallback: If we have a userId header, try one last time to find the user
         if (userIdHeader) {
             try {
+                const trimmed = String(userIdHeader).trim();
                 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
-                const query = OBJECT_ID_REGEX.test(userIdHeader)
-                    ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
-                    : { uid: userIdHeader };
+                let query;
+                if (trimmed.includes('@')) {
+                    query = { $or: [{ email: trimmed.toLowerCase() }, { uid: trimmed }] };
+                } else if (OBJECT_ID_REGEX.test(trimmed)) {
+                    query = { $or: [{ uid: trimmed }, { _id: trimmed }] };
+                } else {
+                    query = { uid: trimmed };
+                }
                 const user = await User.findOne(query);
                 if (user) { req.user = user; return next(); }
             } catch (e) {}
@@ -74,11 +86,11 @@ const roleCheck = (roles) => {
         const userRole = req.user.role;
         const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
-        if (!allowedRoles.includes(userRole)) {
-            return res.status(403).json({ message: "Forbidden: Access denied" });
+        if (userRole === 'admin' || allowedRoles.includes(userRole)) {
+            return next();
         }
 
-        next();
+        return res.status(403).json({ message: "Forbidden: Access denied" });
     };
 };
 

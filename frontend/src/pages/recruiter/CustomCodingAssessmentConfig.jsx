@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, Plus, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Code, FileText, RefreshCw, ChevronDown, ChevronUp, Save, Edit3, Eye, Clock } from 'lucide-react';
+import { Trash2, Plus, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Code, FileText, RefreshCw, ChevronDown, ChevronUp, Save, Edit3, Eye, Clock, Zap } from 'lucide-react';
 import axios from 'axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 
 const CustomCodingAssessmentConfig = () => {
     const { jobId } = useParams();
@@ -72,8 +72,10 @@ const CustomCodingAssessmentConfig = () => {
             setTimeout(() => setStatusText('Sending specifications to Gemini AI model...'), 2000);
             setTimeout(() => setStatusText('Generating logical code templates & edge cases...'), 4500);
 
+            const headers = await getAuthHeaders();
+            delete headers['Content-Type'];
             const res = await axios.post(`${API_URL}/custom-coding-assessments/generate`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers
             });
 
             if (res.data?.success && Array.isArray(res.data.questions)) {
@@ -168,13 +170,14 @@ const CustomCodingAssessmentConfig = () => {
     const handleSaveAndPublish = async () => {
         setSaving(true);
         try {
+            const headers = await getAuthHeaders();
             const res = await axios.post(`${API_URL}/custom-coding-assessments/save`, {
                 jobId,
                 questions,
                 totalTime,
                 timerType,
                 languages: [language]
-            });
+            }, { headers });
             if (res.data?.success) {
                 setSavedSuccess(true);
                 setTimeout(() => {

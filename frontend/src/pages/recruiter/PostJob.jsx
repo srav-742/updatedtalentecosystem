@@ -4,7 +4,7 @@ import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save,
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import './recruiter-theme.css';
 
 const PostJob = () => {
@@ -119,18 +119,34 @@ const PostJob = () => {
                 try {
                     const res = await axios.get(`${API_URL}/jobs/${editJobId}`);
                     if (res.data) {
+                        const job = res.data;
+                        const mock = job.mockInterview || {};
+                        const qSource = job.questionSource || mock.questionSource || 'AI_GENERATED';
+                        const qCount = Number(job.questionCount || mock.questionCount) || 5;
+                        const sMode = job.selectionMode || mock.selectionMode || 'ORDERED';
+                        const rQuestions = (Array.isArray(job.recruiterQuestions) && job.recruiterQuestions.length > 0)
+                            ? job.recruiterQuestions
+                            : (Array.isArray(mock.recruiterQuestions) ? mock.recruiterQuestions : []);
+
                         setJobData(prev => ({
                             ...prev,
-                            ...res.data,
-                            questionSource: res.data.questionSource || 'AI_GENERATED',
-                            questionCount: res.data.questionCount || 5,
-                            selectionMode: res.data.selectionMode || 'ORDERED',
-                            recruiterQuestions: Array.isArray(res.data.recruiterQuestions) ? res.data.recruiterQuestions : []
+                            ...job,
+                            questionSource: qSource,
+                            questionCount: qCount,
+                            selectionMode: sMode,
+                            recruiterQuestions: rQuestions.map((q, idx) => ({
+                                ...q,
+                                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                                text: q.text || q.question || '',
+                                question: q.question || q.text || '',
+                                order: Number(q.order) || (idx + 1)
+                            }))
                         }));
                     }
 
                     // Fetch existing coding round config
-                    const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${editJobId}`);
+                    const headers = await getAuthHeaders();
+                    const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${editJobId}`, { headers });
                     if (roundRes.data?.success && roundRes.data.codingRound) {
                         const round = roundRes.data.codingRound;
                         if (round.languages && round.languages.length > 0) {
@@ -155,8 +171,11 @@ const PostJob = () => {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            const headers = await getAuthHeaders();
+            // Delete Content-Type so browser/Axios automatically sets multipart/form-data with boundary
+            delete headers['Content-Type'];
             const res = await axios.post(`${API_URL}/jobs/parse-questions`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers
             });
             if (res.data?.success && Array.isArray(res.data.questions)) {
                 setParsedQuestionsPreview(res.data.questions);
@@ -171,7 +190,8 @@ const PostJob = () => {
             }
         } catch (err) {
             console.error('Question parse error:', err);
-            alert(err.response?.data?.message || 'Failed to parse questions file.');
+            const errorMsg = err.response?.data?.message || err.message || 'Failed to parse questions file.';
+            alert(errorMsg);
         } finally {
             setQuestionUploadLoading(false);
             if (e.target) e.target.value = '';
@@ -185,7 +205,8 @@ const PostJob = () => {
         }
         setQuestionUploadLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/jobs/parse-questions`, { rawText: pasteText });
+            const headers = await getAuthHeaders();
+            const res = await axios.post(`${API_URL}/jobs/parse-questions`, { rawText: pasteText }, { headers });
             if (res.data?.success && Array.isArray(res.data.questions)) {
                 setParsedQuestionsPreview(res.data.questions);
                 setPreviewStats({
@@ -200,7 +221,8 @@ const PostJob = () => {
             }
         } catch (err) {
             console.error('Question parse error:', err);
-            alert(err.response?.data?.message || 'Failed to parse pasted questions.');
+            const errorMsg = err.response?.data?.message || err.message || 'Failed to parse pasted questions.';
+            alert(errorMsg);
         } finally {
             setQuestionUploadLoading(false);
         }
@@ -210,6 +232,7 @@ const PostJob = () => {
         const newQuestions = parsedQuestionsPreview.map((q, idx) => ({
             questionId: q.questionId || `q_${Date.now()}_${idx}`,
             text: q.text,
+            question: q.question || q.text,
             category: q.category || 'General',
             difficulty: q.difficulty || 'Medium',
             timeLimit: Number(q.timeLimit) || 120,
@@ -228,8 +251,16 @@ const PostJob = () => {
 
         setJobData(prev => ({
             ...prev,
+            questionSource: 'RECRUITER_PROVIDED',
             recruiterQuestions: combined,
-            questionCount: newCount
+            questionCount: newCount,
+            mockInterview: {
+                ...(prev.mockInterview || {}),
+                enabled: true,
+                questionSource: 'RECRUITER_PROVIDED',
+                questionCount: newCount,
+                recruiterQuestions: combined
+            }
         }));
 
         setShowImportPreviewModal(false);
@@ -247,16 +278,26 @@ const PostJob = () => {
         const newQ = {
             questionId: `q_${Date.now()}`,
             text: newQuestionText.trim(),
+            question: newQuestionText.trim(),
             category: newQuestionCategory || 'General',
             difficulty: newQuestionDifficulty || 'Medium',
             timeLimit: Number(newQuestionTimeLimit) || 120,
             order: currentBank.length + 1
         };
         const updated = [...currentBank, newQ];
+        const newCount = Math.min(Math.max(1, jobData.questionCount || 1), updated.length);
         setJobData(prev => ({
             ...prev,
+            questionSource: 'RECRUITER_PROVIDED',
             recruiterQuestions: updated,
-            questionCount: Math.min(prev.questionCount || 5, updated.length)
+            questionCount: newCount,
+            mockInterview: {
+                ...(prev.mockInterview || {}),
+                enabled: true,
+                questionSource: 'RECRUITER_PROVIDED',
+                questionCount: newCount,
+                recruiterQuestions: updated
+            }
         }));
         setNewQuestionText('');
         setShowAddQuestionForm(false);
@@ -267,10 +308,16 @@ const PostJob = () => {
         const updated = currentBank
             .filter((_, i) => i !== idx)
             .map((q, i) => ({ ...q, order: i + 1 }));
+        const newCount = Math.max(1, Math.min(jobData.questionCount || 1, updated.length || 1));
         setJobData(prev => ({
             ...prev,
             recruiterQuestions: updated,
-            questionCount: Math.max(1, Math.min(prev.questionCount || 5, updated.length || 1))
+            questionCount: newCount,
+            mockInterview: {
+                ...(prev.mockInterview || {}),
+                questionCount: newCount,
+                recruiterQuestions: updated
+            }
         }));
     };
 
@@ -391,22 +438,29 @@ const PostJob = () => {
                 return;
             }
 
+            const formattedQuestions = (jobData.recruiterQuestions || []).map((q, idx) => ({
+                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                text: String(q.text || q.question || '').trim(),
+                question: String(q.text || q.question || '').trim(),
+                category: q.category || 'General',
+                difficulty: q.difficulty || 'Medium',
+                timeLimit: Number(q.timeLimit) || 120,
+                order: idx + 1
+            })).filter(q => q.text.length > 0);
+
+            const qCount = Number(jobData.questionCount || 5);
+            const qSource = jobData.questionSource || 'AI_GENERATED';
+            const sMode = jobData.selectionMode || 'ORDERED';
+
             const dataToSave = {
                 ...jobData,
                 recruiterId: recruiterId,
                 company: jobData.company || user.company?.name || user.company || 'hire1percent Partner',
                 minPercentage: Number(jobData.minPercentage),
-                questionSource: jobData.questionSource || 'AI_GENERATED',
-                questionCount: Number(jobData.questionCount || 5),
-                selectionMode: jobData.selectionMode || 'ORDERED',
-                recruiterQuestions: (jobData.recruiterQuestions || []).map((q, idx) => ({
-                    questionId: q.questionId || `q_${Date.now()}_${idx}`,
-                    text: String(q.text || '').trim(),
-                    category: q.category || 'General',
-                    difficulty: q.difficulty || 'Medium',
-                    timeLimit: Number(q.timeLimit) || 120,
-                    order: idx + 1
-                }))
+                questionSource: qSource,
+                questionCount: qCount,
+                selectionMode: sMode,
+                recruiterQuestions: formattedQuestions
             };
 
             // Ensure nested values are also cast if they exist
@@ -418,6 +472,10 @@ const PostJob = () => {
             }
             if (dataToSave.mockInterview) {
                 dataToSave.mockInterview.passingScore = Number(dataToSave.mockInterview.passingScore);
+                dataToSave.mockInterview.questionSource = qSource;
+                dataToSave.mockInterview.questionCount = qCount;
+                dataToSave.mockInterview.selectionMode = sMode;
+                dataToSave.mockInterview.recruiterQuestions = formattedQuestions;
             }
 
             // Validation for RECRUITER_PROVIDED questions
@@ -434,10 +492,11 @@ const PostJob = () => {
                 }
             }
             let targetJobId = editJobId;
+            const headers = await getAuthHeaders();
             if (editJobId) {
-                await axios.put(`${API_URL}/jobs/${editJobId}`, dataToSave);
+                await axios.put(`${API_URL}/jobs/${editJobId}`, dataToSave, { headers });
             } else {
-                const res = await axios.post(`${API_URL}/jobs`, dataToSave);
+                const res = await axios.post(`${API_URL}/jobs`, dataToSave, { headers });
                 targetJobId = res.data?._id || res.data?.job?._id;
             }
 
@@ -1176,7 +1235,7 @@ const PostJob = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* AI_GENERATED Option */}
                                             <div
-                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED' }))}
+                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED', mockInterview: { ...(prev.mockInterview || {}), questionSource: 'AI_GENERATED' } }))}
                                                 className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
                                                     jobData.questionSource === 'AI_GENERATED'
                                                         ? 'border-purple-600 bg-purple-50/50 shadow-sm ring-2 ring-purple-600/10'
@@ -1201,7 +1260,7 @@ const PostJob = () => {
                                                         type="radio"
                                                         name="questionSource"
                                                         checked={jobData.questionSource === 'AI_GENERATED'}
-                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED' }))}
+                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED', mockInterview: { ...(prev.mockInterview || {}), questionSource: 'AI_GENERATED' } }))}
                                                         className="w-4 h-4 text-purple-600 accent-purple-600 cursor-pointer mt-1"
                                                     />
                                                 </div>
@@ -1212,7 +1271,7 @@ const PostJob = () => {
 
                                             {/* RECRUITER_PROVIDED Option */}
                                             <div
-                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED' }))}
+                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED', mockInterview: { ...(prev.mockInterview || {}), questionSource: 'RECRUITER_PROVIDED' } }))}
                                                 className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
                                                     jobData.questionSource === 'RECRUITER_PROVIDED'
                                                         ? 'border-purple-600 bg-purple-50/50 shadow-sm ring-2 ring-purple-600/10'
@@ -1237,7 +1296,7 @@ const PostJob = () => {
                                                         type="radio"
                                                         name="questionSource"
                                                         checked={jobData.questionSource === 'RECRUITER_PROVIDED'}
-                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED' }))}
+                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED', mockInterview: { ...(prev.mockInterview || {}), questionSource: 'RECRUITER_PROVIDED' } }))}
                                                         className="w-4 h-4 text-purple-600 accent-purple-600 cursor-pointer mt-1"
                                                     />
                                                 </div>
@@ -1266,7 +1325,7 @@ const PostJob = () => {
                                                             onChange={(e) => {
                                                                 const maxAllowed = Math.max(1, jobData.recruiterQuestions.length || 1);
                                                                 const val = Math.max(1, Math.min(Number(e.target.value) || 1, maxAllowed));
-                                                                setJobData(prev => ({ ...prev, questionCount: val }));
+                                                                setJobData(prev => ({ ...prev, questionCount: val, mockInterview: { ...(prev.mockInterview || {}), questionCount: val } }));
                                                             }}
                                                             className="rec-input w-28 px-4 py-2.5 text-sm font-bold text-slate-900"
                                                         />
@@ -1326,10 +1385,10 @@ const PostJob = () => {
                                                         questionUploadLoading ? 'opacity-70 pointer-events-none' : ''
                                                     }`}>
                                                         {questionUploadLoading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
-                                                        <span>Upload File (.txt, .csv, .xlsx, .docx, .pdf)</span>
+                                                        <span>Upload File (.txt, .csv, .xlsx, .docx, .doc, .pdf)</span>
                                                         <input
                                                             type="file"
-                                                            accept=".txt,.csv,.xlsx,.xls,.docx,.pdf"
+                                                            accept=".txt,.csv,.xlsx,.xls,.docx,.doc,.pdf"
                                                             onChange={handleQuestionFileUpload}
                                                             className="hidden"
                                                             disabled={questionUploadLoading}
