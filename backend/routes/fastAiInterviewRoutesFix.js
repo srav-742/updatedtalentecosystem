@@ -392,6 +392,11 @@ async function loadSession(sessionId) {
     const stored = await InterviewSession.findOne({ sessionId }).lean();
     if (!stored) return null;
 
+    const isRecruiterMode = stored.questionSource === 'RECRUITER_PROVIDED';
+    const totalQuestions = isRecruiterMode
+        ? (stored.totalQuestions || stored.selectedQuestions?.length || 5)
+        : Math.min(stored.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS);
+
     const session = {
         sessionId: stored.sessionId,
         userId: stored.userId,
@@ -406,7 +411,10 @@ async function loadSession(sessionId) {
         experienceLevel: stored.experienceLevel || '',
         systemPrompt: stored.systemPrompt,
         interviewerVoice: stored.interviewerVoice,
-        totalQuestions: Math.min(stored.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+        questionSource: stored.questionSource || 'AI_GENERATED',
+        selectedQuestions: stored.selectedQuestions || [],
+        currentQuestionIndex: stored.currentQuestionIndex || 0,
+        totalQuestions,
         history: stored.history || [],
         answerEvaluations: stored.answerEvaluations || []
     };
@@ -435,7 +443,10 @@ async function saveSession(sessionId, session) {
                 experienceLevel: session.experienceLevel,
                 systemPrompt: session.systemPrompt,
                 interviewerVoice: session.interviewerVoice,
-                totalQuestions: Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+                questionSource: session.questionSource || 'AI_GENERATED',
+                selectedQuestions: session.selectedQuestions || [],
+                currentQuestionIndex: session.currentQuestionIndex || 0,
+                totalQuestions: session.totalQuestions,
                 history: session.history || [],
                 answerEvaluations: session.answerEvaluations || []
             }
@@ -727,8 +738,51 @@ Based on the interview flow above, ask the NEXT interview question (Question ${q
 
 function buildAnswerEvaluationPrompt(session, questionText, answerText, questionNumber) {
     const { roleInfo } = session;
-    const { isTech, roleCategory } = roleInfo;
+    const { isTech, roleCategory } = roleInfo || { isTech: false, roleCategory: 'general' };
     const isAiRole = roleCategory === 'ai_engineer';
+    const isRecruiterProvided = session.questionSource === 'RECRUITER_PROVIDED';
+
+    if (isRecruiterProvided) {
+        return `
+You are a senior professional interview evaluator scoring ONE interview answer.
+
+CRITICAL INSTRUCTION:
+This question was explicitly supplied by the recruiter.
+- Evaluate the candidate's answer directly against the recruiter question.
+- Do not rewrite the question.
+- Do not create a follow-up question.
+- Do not add unrelated requirements.
+- Evaluate the candidate's response for correctness, depth, reasoning, relevance, and clarity according to the scoring criteria.
+
+=== JOB CONTEXT ===
+Title: ${session.jobTitle || 'Not specified'}
+Description: ${session.jobDescription || 'Not specified'}
+Required Skills: ${(session.jobSkills || []).join(', ') || 'Not specified'}
+
+=== QUESTION NUMBER ===
+${questionNumber}
+
+=== RECRUITER QUESTION ===
+${questionText || 'Not specified'}
+
+=== CANDIDATE ANSWER ===
+${answerText || 'No answer provided'}
+
+=== SCORE THIS ANSWER ONLY ===
+- Correctness and domain accuracy against the recruiter question
+- Depth of explanation and reasoning
+- Practical problem-solving approach and relevance
+- Communication clarity and structure
+
+=== TASK ===
+Evaluate ONLY this single answer and return ONLY a JSON object:
+{
+  "marks": <number 0-10>,
+  "percentage": <number 0-100>,
+  "feedback": "<one concise sentence providing the exact reason for the assessment score>"
+}
+`;
+    }
 
     return `
 You are a senior ${isAiRole ? 'AI/ML engineering' : isTech ? 'technical' : 'professional'} interview evaluator scoring ONE interview answer.
@@ -893,15 +947,21 @@ async function evaluateAnswerInBackground(session, sessionId, questionText, answ
             }
         }
 
+        const qObj = session.selectedQuestions?.[questionNumber - 1];
+        const qId = qObj?.questionId || null;
+        const qSource = session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI';
+
         // 3. Push evaluation to the session's answerEvaluations array
         session.answerEvaluations.push({
             questionNumber,
+            questionId: qId,
             question: questionText,
             answer: answerText,
             score: evaluation.score,
             marks: evaluation.marks,
             feedback: evaluation.feedback,
-            isAttempted: evaluation.isAttempted !== false
+            isAttempted: evaluation.isAttempted !== false,
+            source: qSource
         });
 
         // 4. Save to InterviewSession (MongoDB)
@@ -917,16 +977,18 @@ async function evaluateAnswerInBackground(session, sessionId, questionText, answ
                 {
                     $push: {
                         interviewAnswers: {
+                            questionId: qId,
                             question: questionText,
                             answer: answerText,
                             score: evaluation.score,
                             marks: evaluation.marks,
-                            feedback: evaluation.feedback
+                            feedback: evaluation.feedback,
+                            source: qSource
                         }
                     }
                 }
             );
-            console.log(`[FIX-BG-EVAL] Saved Q${questionNumber} for user: ${session.userId}`);
+            console.log(`[FIX-BG-EVAL] Saved Q${questionNumber} for user: ${session.userId} (source: ${qSource})`);
         } catch (dbErr) {
             console.error("[FIX-BG-EVAL] Failed to push answer to Application:", dbErr.message);
         }
@@ -959,7 +1021,7 @@ async function finalizeInterview(session, sessionId) {
                 evalPrompt,
                 900,
                 true,
-                `You are a senior ${session.roleInfo.roleCategory === 'ai_engineer' ? 'AI/ML engineering' : session.roleInfo.isTech ? 'technical' : 'professional'} evaluator. Summarize this interview objectively in valid JSON.`
+                `You are a senior ${session.roleInfo?.roleCategory === 'ai_engineer' ? 'AI/ML engineering' : session.roleInfo?.isTech ? 'technical' : 'professional'} evaluator. Summarize this interview objectively in valid JSON.`
             );
             console.log("[FIX-FINAL-EVAL] Raw AI Response:", resText);
             const parsed = parseJsonObject(resText);
@@ -984,24 +1046,31 @@ async function finalizeInterview(session, sessionId) {
 
         // Fetch existing application to avoid overwriting fuller rescued answers
         const existingApp = await Application.findOne({ userId: session.userId, jobId: session.jobId }).lean();
-        const finalAnswers = session.answerEvaluations.slice(0, session.totalQuestions || MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
+        const maxQCount = session.totalQuestions || session.selectedQuestions?.length || MAX_INTERVIEW_QUESTIONS;
+        const finalAnswers = session.answerEvaluations.slice(0, maxQCount).map((entry, idx) => {
             const existing = existingApp?.interviewAnswers?.[idx];
             const useExisting = existing?.answer && existing.answer.trim().length > (entry.answer || "").trim().length + 5;
+            const qObj = session.selectedQuestions?.[idx];
             
             return {
+                questionId: entry.questionId || qObj?.questionId || existing?.questionId || null,
                 question: entry.question || existing?.question || "",
                 answer: useExisting ? existing.answer : (entry.answer || ""),
                 score: useExisting && typeof existing.score === 'number' ? existing.score : (entry.score || 0),
                 marks: useExisting && typeof existing.marks === 'number' ? existing.marks : (entry.marks || 0),
-                feedback: useExisting && existing.feedback ? existing.feedback : (entry.feedback || "")
+                feedback: useExisting && existing.feedback ? existing.feedback : (entry.feedback || ""),
+                source: entry.source || (session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI')
             };
         });
+
+        const qSource = session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
 
         // Update Application document
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
             {
                 interviewScore: computedInterviewScore,
+                interviewQuestionSource: qSource,
                 status: 'APPLIED',
                 resultsVisibleAt: new Date(),
                 metrics: {
@@ -1068,12 +1137,15 @@ async function finalizeInterview(session, sessionId) {
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
+// ─── Concurrency Lock Set ───────────────────────────────────────────────────
+const inFlightRequests = new Set();
+
 /**
  * POST /api/interview/start
  *
  * Fast version of /start endpoint.
- * Initiates the interview session, generates the first question (maxTokens=200 for speed),
- * generates its voice, and returns details.
+ * Initiates the interview session, resolves questions (either from Recruiter Bank or AI generated),
+ * generates voice, and returns details.
  */
 router.post('/start', async (req, res) => {
     try {
@@ -1110,21 +1182,77 @@ router.post('/start', async (req, res) => {
         // Build role-specific system prompt
         const systemPrompt = buildSystemPrompt(roleInfo, job);
 
-        // Build first question prompt (JD-focused)
-        const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
+        // Check question source mode (default to AI_GENERATED for old jobs)
+        const questionSource = job?.mockInterview?.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
+        console.log(`[FIX-INTERVIEW-START] Question Source Mode: ${questionSource} | Job: ${job?.title}`);
 
-        // Requesting 200 tokens (was 1000) for fast startup
-        let firstQuestion = await callInterviewAI(firstQPrompt, 200, false, systemPrompt);
+        let firstQuestion = '';
+        let totalQuestions = 10;
+        let selectedQuestions = [];
 
-        if (!firstQuestion) {
-            // Fallback: role-appropriate generic question
-            if (roleInfo.roleCategory === 'ai_engineer') {
-                firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
-            } else if (roleInfo.isTech) {
-                firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+        if (questionSource === 'RECRUITER_PROVIDED') {
+            const rawBank = (job?.mockInterview?.recruiterQuestions || []).filter(q => q && q.question && String(q.question).trim().length > 0);
+            const configuredCount = Number(job?.mockInterview?.questionCount) || rawBank.length || 5;
+            const targetCount = Math.max(1, Math.min(configuredCount, rawBank.length));
+            const selectionMode = job?.mockInterview?.selectionMode || 'ORDERED';
+
+            let pool = [...rawBank];
+            if (selectionMode === 'RANDOM') {
+                // Fisher-Yates deterministic shuffle
+                for (let i = pool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
+                }
             } else {
-                firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+                // Sort by order or array sequence
+                pool.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             }
+
+            selectedQuestions = pool.slice(0, targetCount).map((q, idx) => ({
+                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                question: String(q.question).trim(),
+                order: idx + 1,
+                category: q.category || 'GENERAL',
+                difficulty: q.difficulty || 'MEDIUM',
+                questionType: q.questionType || 'CONCEPTUAL',
+                source: 'RECRUITER'
+            }));
+
+            if (selectedQuestions.length === 0) {
+                selectedQuestions.push({
+                    questionId: `q_fallback_1`,
+                    question: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    order: 1,
+                    category: 'GENERAL',
+                    difficulty: 'MEDIUM',
+                    questionType: 'CONCEPTUAL',
+                    source: 'RECRUITER'
+                });
+            }
+
+            totalQuestions = selectedQuestions.length;
+            firstQuestion = selectedQuestions[0].question;
+            console.log(`[FIX-INTERVIEW-START] RECRUITER_PROVIDED mode: Selected ${totalQuestions} questions. First Q: "${firstQuestion.substring(0, 60)}..."`);
+        } else {
+            // AI_GENERATED mode: exactly existing prompt and AI question generation
+            const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
+
+            // Requesting 200 tokens (was 1000) for fast startup
+            firstQuestion = await callInterviewAI(firstQPrompt, 200, false, systemPrompt);
+
+            if (!firstQuestion) {
+                // Fallback: role-appropriate generic question
+                if (roleInfo.roleCategory === 'ai_engineer') {
+                    firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
+                } else if (roleInfo.isTech) {
+                    firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+                } else {
+                    firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+                }
+            }
+
+            totalQuestions = getRandomQuestionCount(job);
+            console.log(`[FIX-INTERVIEW-START] Total questions for this AI session: ${totalQuestions}`);
         }
 
         // Voice generation (TTS) — Synchronous / Inline for faster play start
@@ -1147,15 +1275,13 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        const totalQuestions = getRandomQuestionCount(job);
-        console.log(`[FIX-INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
-
         await Application.findOneAndUpdate(
             { userId, jobId },
             {
                 $set: {
                     recordingSessionId,
-                    recordingStatus: 'recording'
+                    recordingStatus: 'recording',
+                    interviewQuestionSource: questionSource
                 }
             },
             { upsert: true }
@@ -1175,6 +1301,9 @@ router.post('/start', async (req, res) => {
             experienceLevel: job?.experienceLevel || '',
             systemPrompt,
             interviewerVoice: roleInfo.roleCategory === 'sales' || roleInfo.roleCategory === 'marketing' ? 'vp_sales' : 'professional_interviewer',
+            questionSource,
+            selectedQuestions,
+            currentQuestionIndex: 1,
             totalQuestions,
             history: [{ role: 'interviewer', content: firstQuestion }],
             answerEvaluations: []
@@ -1187,7 +1316,9 @@ router.post('/start', async (req, res) => {
             question: firstQuestion,
             audio: audioBase64,
             audioMimeType: audioMimeType,
-            totalQuestions
+            totalQuestions,
+            questionSource,
+            currentQuestionNumber: 1
         });
     } catch (error) {
         console.error("Start Error:", error);
@@ -1198,18 +1329,23 @@ router.post('/start', async (req, res) => {
 /**
  * POST /api/interview/next-fast
  *
- * FIXED version of the /next-fast endpoint.
- *
- * FIXED version of the /next-fast endpoint.
- * Changes from original:
- *   1. maxTokens = 1000 (was 200)
- *   2. cleanQuestionResponse() strips transition phrases
- *   3. Shortlisting guard for interviewScore === 0
- *   4. Empty answer detection with retry flag
+ * FIXED version of the /next-fast endpoint with questionSource routing.
+ * In RECRUITER_PROVIDED mode: serves the exact next recruiter question from the frozen list.
+ * In AI_GENERATED mode: uses existing adaptive follow-up prompt.
  */
 router.post('/next-fast', async (req, res) => {
+    const { sessionId, answerText } = req.body;
+    if (!sessionId) return res.status(400).json({ message: "sessionId is required" });
+
+    // ─── Concurrency / Double-Request Protection ────────────────────────────
+    const inFlightKey = `${sessionId}_next`;
+    if (inFlightRequests.has(inFlightKey)) {
+        console.warn(`[FIX-NEXT-FAST] Concurrent request detected for sessionId: ${sessionId}. Returning 429.`);
+        return res.status(429).json({ message: "Request already in progress. Please wait." });
+    }
+    inFlightRequests.add(inFlightKey);
+
     try {
-        const { sessionId, answerText } = req.body;
         const session = await loadSession(sessionId);
         if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -1219,9 +1355,7 @@ router.post('/next-fast', async (req, res) => {
         const currentQuestionNumber = interviewers.length;
         const currentQuestion = interviewers[interviewers.length - 1]?.content || "";
 
-        // ─── FIX 4: Empty Answer Guard ──────────────────────────────────────
-        // If the answer is too short, warn the frontend but still advance
-        // (to avoid blocking the candidate completely if SpeechRecognition fails)
+        // ─── Empty Answer Guard ─────────────────────────────────────────────
         const isEmptyAnswer = normalizedAnswer.length < 5;
         if (isEmptyAnswer) {
             console.warn(`[FIX-NEXT-FAST] Empty/short answer detected for Q${currentQuestionNumber}: "${normalizedAnswer}"`);
@@ -1239,10 +1373,10 @@ router.post('/next-fast', async (req, res) => {
             currentQuestionNumber
         ).catch(err => console.error("[FIX-BG-EVAL-UNCAUGHT]:", err.message));
 
-        // 3. Check if we've reached the maximum number of questions
-        const targetMax = session.totalQuestions || MAX_INTERVIEW_QUESTIONS;
+        // 3. Strict Target Max Check: Check if we've reached the maximum number of questions
+        const targetMax = session.totalQuestions || (session.questionSource === 'RECRUITER_PROVIDED' ? session.selectedQuestions?.length : MAX_INTERVIEW_QUESTIONS);
         if (interviewers.length >= targetMax) {
-            console.log(`[FIX-INTERVIEW-END] Finalizing session for user: ${session.userId} after ${targetMax} questions`);
+            console.log(`[FIX-INTERVIEW-END] Finalizing session for user: ${session.userId} after ${targetMax} questions (Mode: ${session.questionSource})`);
 
             const result = await finalizeInterview(session, sessionId);
 
@@ -1254,32 +1388,54 @@ router.post('/next-fast', async (req, res) => {
             });
         }
 
-        // 4. Generate the next question
-        //    ─── FIX 1: maxTokens = 1000 (was 200) ──────────────────────────
-        const nextQuestionNumber = interviewers.length + 1;
-        const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
+        // 4. Determine Next Question based on questionSource
+        let nextQuestion = "";
 
-        let nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
+        if (session.questionSource === 'RECRUITER_PROVIDED') {
+            // ── RECRUITER_PROVIDED MODE ──
+            // Exactly retrieve the next recruiter question from the frozen selectedQuestions array
+            const nextQObj = session.selectedQuestions?.[interviewers.length];
+            if (!nextQObj || !nextQObj.question) {
+                console.log(`[FIX-NEXT-FAST] Recruiter question bank exhausted for session ${sessionId}`);
+                const result = await finalizeInterview(session, sessionId);
+                return res.json({
+                    hasNext: false,
+                    finalScore: result.finalScore,
+                    ownershipScore: result.ownershipScore,
+                    feedback: result.feedback
+                });
+            }
+            nextQuestion = String(nextQObj.question).trim();
+            console.log(`[FIX-NEXT-FAST] RECRUITER_PROVIDED serving Q${interviewers.length + 1}/${targetMax}: "${nextQuestion.substring(0, 60)}..."`);
+        } else {
+            // ── AI_GENERATED MODE ──
+            // Generate next question via LLM using existing adaptive prompt
+            const nextQuestionNumber = interviewers.length + 1;
+            const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
 
-        // ─── FIX 2: Strip transition phrases ────────────────────────────────
-        if (nextQuestion) {
-            const cleaned = cleanQuestionResponse(nextQuestion);
-            console.log(`[FIX-NEXT-FAST] Original: "${nextQuestion.substring(0, 80)}..." → Cleaned: "${cleaned.substring(0, 80)}..."`);
-            nextQuestion = cleaned;
-        }
+            nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
 
-        if (!nextQuestion) {
-            if (session.roleInfo.roleCategory === 'ai_engineer') {
-                nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
-            } else if (session.roleInfo.isTech) {
-                nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
-            } else {
-                nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+            // Strip transition phrases
+            if (nextQuestion) {
+                const cleaned = cleanQuestionResponse(nextQuestion);
+                console.log(`[FIX-NEXT-FAST] Original: "${nextQuestion.substring(0, 80)}..." → Cleaned: "${cleaned.substring(0, 80)}..."`);
+                nextQuestion = cleaned;
+            }
+
+            if (!nextQuestion) {
+                if (session.roleInfo?.roleCategory === 'ai_engineer') {
+                    nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
+                } else if (session.roleInfo?.isTech) {
+                    nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
+                } else {
+                    nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+                }
             }
         }
 
         // 5. Push the new question to history and persist
         session.history.push({ role: 'interviewer', content: nextQuestion });
+        session.currentQuestionIndex = session.history.filter(h => h.role === 'interviewer').length;
         await saveSession(sessionId, session);
 
         // Voice generation (TTS) — Synchronous / Inline for faster play start
@@ -1307,12 +1463,15 @@ router.post('/next-fast', async (req, res) => {
             audioMimeType: audioMimeType,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
             totalQuestions: session.totalQuestions,
+            questionSource: session.questionSource,
             emptyAnswerWarning: isEmptyAnswer ? "No answer was detected. Please speak clearly into the microphone." : undefined
         });
 
     } catch (error) {
         console.error("[FIX-NEXT-FAST] Error:", error);
         res.status(500).json({ success: false, message: "Error fetching next question" });
+    } finally {
+        inFlightRequests.delete(inFlightKey);
     }
 });
 

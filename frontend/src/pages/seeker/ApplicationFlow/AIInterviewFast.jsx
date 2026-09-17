@@ -1262,7 +1262,7 @@ const AIInterviewFast = ({
                                     {/* Question number badge */}
                                     <div className="flex justify-center mb-3">
                                         <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">
-                                            Question {currentQNum}
+                                            Question {currentQNum} of {totalQuestions || 5}
                                         </span>
                                     </div>
                                     <p className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center whitespace-pre-wrap break-words">

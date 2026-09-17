@@ -26,6 +26,26 @@ const jobSchema = new mongoose.Schema({
     },
     mockInterview: {
         enabled: { type: Boolean, default: true },
+        questionSource: {
+            type: String,
+            enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+            default: 'AI_GENERATED'
+        },
+        questionCount: { type: Number, default: 5 },
+        selectionMode: {
+            type: String,
+            enum: ['ORDERED', 'RANDOM'],
+            default: 'ORDERED'
+        },
+        recruiterQuestions: [{
+            questionId: { type: String, required: true },
+            question: { type: String, required: true },
+            order: { type: Number },
+            category: { type: String, default: 'GENERAL' },
+            difficulty: { type: String, default: 'MEDIUM' },
+            questionType: { type: String, default: 'CONCEPTUAL' },
+            source: { type: String, default: 'RECRUITER' }
+        }],
         passingScore: { type: Number, default: 70 }
     },
     codingAssessment: {

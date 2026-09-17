@@ -59,13 +59,20 @@ const applicationSchema = new mongoose.Schema({
         communicationDelta: { type: Number, default: 0 },
         ownershipMindset: { type: Number, default: 0 }
     },
+    interviewQuestionSource: {
+        type: String,
+        enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+        default: 'AI_GENERATED'
+    },
     interviewAnswers: [
         {
+            questionId: String,
             question: String,
             answer: String,
             score: Number,
             marks: Number,
-            feedback: String
+            feedback: String,
+            source: { type: String, default: 'AI' }
         }
     ],
     videoIntroUrl: String,

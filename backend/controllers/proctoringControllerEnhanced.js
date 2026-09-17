@@ -407,14 +407,17 @@ const getReportByExam = async (req, res) => {
         const { examId } = req.params;
         const report = await ProctoringReport.findOne({ examId }).lean();
         if (!report) {
+            // No report exists — this means no proctoring events were ever recorded.
+            // Return null score so dashboards can distinguish "never analyzed" from "clean".
             return res.status(200).json({
                 status: 'clean',
-                verdict: 'No significant issues detected.',
-                summary: 'The candidate maintained a clean testing environment.',
+                verdict: 'No proctoring data recorded for this session.',
+                summary: 'No proctoring events were captured during this assessment.',
                 totalPenaltyRating: 0,
-                proctoringScore: 100,
+                proctoringScore: null,
                 totalViolations: 0,
-                timeline: []
+                timeline: [],
+                analysisStatus: 'PENDING',
             });
         }
         return res.status(200).json(report);

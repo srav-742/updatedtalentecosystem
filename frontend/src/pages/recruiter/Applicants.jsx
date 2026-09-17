@@ -104,7 +104,9 @@ const Applicants = () => {
             resumeUrl: app.user?.resumeUrl,
             finalScore: app.finalScore,
             integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : 0,
-            proctoringScore: app.proctoringScore !== undefined ? app.proctoringScore : Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)),
+            proctoringScore: app.proctoringScore !== undefined && app.proctoringScore !== null
+                ? app.proctoringScore
+                : (app.integrityPenalty > 0 ? Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)) : null),
             proctoringFlags: app.proctoringFlags || [],
             status: app.status,
             teamFit: app.teamFit,
@@ -840,13 +842,15 @@ const Applicants = () => {
                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
                                                           <div className={`inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl font-extrabold text-sm shadow-sm border ${
-                                                              (app.proctoringScore ?? 100) >= 80 
-                                                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
-                                                                  : (app.proctoringScore ?? 100) >= 50 
-                                                                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                                                                      : "bg-red-500/10 border-red-500/20 text-red-400"
-                                                          }`} title={`Integrity Trust Score: ${app.proctoringScore ?? 100}% | Penalty Points: ${app.integrityPenalty || 0}`}>
-                                                              <span>{app.proctoringScore ?? 100}%</span>
+                                                              app.proctoringScore != null
+                                                                  ? (app.proctoringScore >= 80 
+                                                                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
+                                                                      : app.proctoringScore >= 50 
+                                                                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                                                                          : "bg-red-500/10 border-red-500/20 text-red-400")
+                                                                  : "bg-gray-500/10 border-gray-500/20 text-gray-400"
+                                                          }`} title={app.proctoringScore != null ? `Integrity Trust Score: ${app.proctoringScore}% | Penalty Points: ${app.integrityPenalty || 0}` : 'Proctoring data not available for this session'}>
+                                                              <span>{app.proctoringScore != null ? `${app.proctoringScore}%` : 'N/A'}</span>
                                                               <button
                                                                   onClick={(e) => {
                                                                       e.stopPropagation();

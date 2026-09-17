@@ -470,10 +470,21 @@ const InterviewDetail = ({ applicationId, onClose }) => {
 
                 {/* Questions & Answers */}
                 <div className="p-8">
-                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                        <MessageSquare className="w-5 h-5 text-purple-600" />
-                        Interview Questions & Responses
-                    </h3>
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-purple-600" />
+                            Interview Questions & Responses
+                        </h3>
+                        {interview?.questionSource && (
+                            <span className={`px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                                interview.questionSource === 'RECRUITER_PROVIDED'
+                                    ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                    : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                            }`}>
+                                {interview.questionSource === 'RECRUITER_PROVIDED' ? 'Recruiter-Provided Bank' : 'AI-Generated Questions'}
+                            </span>
+                        )}
+                    </div>
                     <div className="space-y-6">
                         {!hasCompletedInterview && (
                             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-left">
@@ -502,8 +513,19 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                             {q.questionNumber}
                                         </div>
                                         <div>
-                                            <div className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                                                Question {q.questionNumber}
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                                                    Question {q.questionNumber}
+                                                </div>
+                                                {q.source && (
+                                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
+                                                        q.source === 'RECRUITER'
+                                                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                                            : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                                    }`}>
+                                                        {q.source === 'RECRUITER' ? 'Recruiter Question' : 'AI Question'}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

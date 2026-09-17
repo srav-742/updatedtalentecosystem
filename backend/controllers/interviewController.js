@@ -26,7 +26,7 @@ const sanitizeViolationDetail = (type, detail, rating) => {
     return cleanDetail;
 };
 
-const MAX_INTERVIEW_QUESTIONS = 5;
+const MAX_INTERVIEW_QUESTIONS = 50;
 
 const buildRecruiterInterviewPayload = (application, socialUser, questions, overallInterviewScore, overallInterviewMarks, proctoringViolations, proctoringReport) => ({
     application: {
@@ -46,16 +46,20 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
     job: {
         title: application.jobId?.title,
         description: application.jobId?.description,
-        skills: application.jobId?.skills
+        skills: application.jobId?.skills,
+        questionSource: application.jobId?.questionSource || 'AI_GENERATED'
     },
     interview: {
         status: questions.length > 0 ? 'completed' : (application.recordingStatus === 'recording' ? 'in_progress' : 'not_completed'),
+        questionSource: application.interviewQuestionSource || application.jobId?.questionSource || 'AI_GENERATED',
         score: questions.length > 0 ? overallInterviewScore : null,
         marks: questions.length > 0 ? overallInterviewMarks : null,
         totalQuestions: questions.length,
         completedAt: application.resultsVisibleAt || application.appliedAt,
         questions: questions.map((answer, idx) => ({
             questionNumber: idx + 1,
+            questionId: answer.questionId || null,
+            source: answer.source || (application.interviewQuestionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI'),
             question: answer.question,
             answer: answer.answer,
             score: Number(answer.score || 0),

@@ -39,6 +39,8 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/api\/status$/i },
     { method: 'GET', pattern: /^\/api\/tts-debug$/i },
     { method: 'GET', pattern: /^\/api\/jobs(\/.*)?$/i },
+    { method: 'POST', pattern: /^\/api\/jobs\/parse-questions$/i },
+    { method: 'POST', pattern: /^\/api\/jobs\/generate-description$/i },
     { method: 'GET', pattern: /^\/api\/dashboard(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/applications(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },

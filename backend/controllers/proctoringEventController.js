@@ -379,14 +379,14 @@ const getScore = async (req, res) => {
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
-            // No violations logged yet for this session — perfectly clean session
-            // Return 100 score.
+            // No violations logged yet — return null score so the dashboard can
+            // distinguish between "clean session" and "analysis never ran".
             return res.status(200).json({
                 totalPenaltyRating: 0,
-                score: 100,
+                score: null,
                 status: 'clean',
-                verdict: 'No significant issues detected.',
-                analysisStatus: 'COMPLETED',
+                verdict: 'No proctoring data recorded.',
+                analysisStatus: 'NOT_STARTED',
             });
         }
 

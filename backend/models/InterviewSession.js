@@ -15,6 +15,9 @@ const interviewSessionSchema = new mongoose.Schema(
         experienceLevel: String,
         systemPrompt: String,
         interviewerVoice: String,
+        questionSource: { type: String, default: 'AI_GENERATED' },
+        selectedQuestions: [mongoose.Schema.Types.Mixed],
+        currentQuestionIndex: { type: Number, default: 0 },
         totalQuestions: { type: Number, default: 10 },
         history: [
             {

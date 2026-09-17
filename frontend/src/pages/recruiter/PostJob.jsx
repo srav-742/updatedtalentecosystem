@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -50,6 +50,10 @@ const PostJob = () => {
             enabled: false,
             passingScore: 70
         },
+        questionSource: 'AI_GENERATED',
+        questionCount: 5,
+        selectionMode: 'ORDERED',
+        recruiterQuestions: [],
         specialInstructions: ''
     });
 
@@ -95,12 +99,35 @@ const PostJob = () => {
 
     const [currentSkill, setCurrentSkill] = useState('');
 
+    // Recruiter-Provided AI Interview Question Bank states
+    const [questionUploadLoading, setQuestionUploadLoading] = useState(false);
+    const [showPasteModal, setShowPasteModal] = useState(false);
+    const [pasteText, setPasteText] = useState('');
+    const [showImportPreviewModal, setShowImportPreviewModal] = useState(false);
+    const [parsedQuestionsPreview, setParsedQuestionsPreview] = useState([]);
+    const [previewStats, setPreviewStats] = useState(null);
+    const [newQuestionText, setNewQuestionText] = useState('');
+    const [newQuestionCategory, setNewQuestionCategory] = useState('General');
+    const [newQuestionDifficulty, setNewQuestionDifficulty] = useState('Medium');
+    const [newQuestionTimeLimit, setNewQuestionTimeLimit] = useState(120);
+    const [showAddQuestionForm, setShowAddQuestionForm] = useState(false);
+    const [editingQuestionIdx, setEditingQuestionIdx] = useState(null);
+
     useEffect(() => {
         if (editJobId) {
             const fetchJob = async () => {
                 try {
                     const res = await axios.get(`${API_URL}/jobs/${editJobId}`);
-                    if (res.data) setJobData(res.data);
+                    if (res.data) {
+                        setJobData(prev => ({
+                            ...prev,
+                            ...res.data,
+                            questionSource: res.data.questionSource || 'AI_GENERATED',
+                            questionCount: res.data.questionCount || 5,
+                            selectionMode: res.data.selectionMode || 'ORDERED',
+                            recruiterQuestions: Array.isArray(res.data.recruiterQuestions) ? res.data.recruiterQuestions : []
+                        }));
+                    }
 
                     // Fetch existing coding round config
                     const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${editJobId}`);
@@ -119,6 +146,152 @@ const PostJob = () => {
             fetchJob();
         }
     }, [editJobId]);
+
+    // Recruiter Question Bank Handlers
+    const handleQuestionFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setQuestionUploadLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await axios.post(`${API_URL}/jobs/parse-questions`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data?.success && Array.isArray(res.data.questions)) {
+                setParsedQuestionsPreview(res.data.questions);
+                setPreviewStats({
+                    total: res.data.count,
+                    warnings: res.data.warnings || [],
+                    stats: res.data.stats || {}
+                });
+                setShowImportPreviewModal(true);
+            } else {
+                alert(res.data?.message || 'Could not parse questions from file.');
+            }
+        } catch (err) {
+            console.error('Question parse error:', err);
+            alert(err.response?.data?.message || 'Failed to parse questions file.');
+        } finally {
+            setQuestionUploadLoading(false);
+            if (e.target) e.target.value = '';
+        }
+    };
+
+    const handlePasteParse = async () => {
+        if (!pasteText.trim()) {
+            alert('Please paste some questions first.');
+            return;
+        }
+        setQuestionUploadLoading(true);
+        try {
+            const res = await axios.post(`${API_URL}/jobs/parse-questions`, { rawText: pasteText });
+            if (res.data?.success && Array.isArray(res.data.questions)) {
+                setParsedQuestionsPreview(res.data.questions);
+                setPreviewStats({
+                    total: res.data.count,
+                    warnings: res.data.warnings || [],
+                    stats: res.data.stats || {}
+                });
+                setShowPasteModal(false);
+                setShowImportPreviewModal(true);
+            } else {
+                alert(res.data?.message || 'Could not parse questions from pasted text.');
+            }
+        } catch (err) {
+            console.error('Question parse error:', err);
+            alert(err.response?.data?.message || 'Failed to parse pasted questions.');
+        } finally {
+            setQuestionUploadLoading(false);
+        }
+    };
+
+    const confirmImport = (mode = 'replace') => {
+        const newQuestions = parsedQuestionsPreview.map((q, idx) => ({
+            questionId: q.questionId || `q_${Date.now()}_${idx}`,
+            text: q.text,
+            category: q.category || 'General',
+            difficulty: q.difficulty || 'Medium',
+            timeLimit: Number(q.timeLimit) || 120,
+            order: idx + 1
+        }));
+
+        let combined = [];
+        if (mode === 'append') {
+            combined = [...(jobData.recruiterQuestions || []), ...newQuestions];
+        } else {
+            combined = newQuestions;
+        }
+
+        combined = combined.map((q, idx) => ({ ...q, order: idx + 1 }));
+        const newCount = Math.min(Math.max(1, jobData.questionCount || 5), combined.length);
+
+        setJobData(prev => ({
+            ...prev,
+            recruiterQuestions: combined,
+            questionCount: newCount
+        }));
+
+        setShowImportPreviewModal(false);
+        setParsedQuestionsPreview([]);
+        setPreviewStats(null);
+        setPasteText('');
+    };
+
+    const handleAddManualQuestion = () => {
+        if (!newQuestionText.trim()) {
+            alert('Please enter question text.');
+            return;
+        }
+        const currentBank = jobData.recruiterQuestions || [];
+        const newQ = {
+            questionId: `q_${Date.now()}`,
+            text: newQuestionText.trim(),
+            category: newQuestionCategory || 'General',
+            difficulty: newQuestionDifficulty || 'Medium',
+            timeLimit: Number(newQuestionTimeLimit) || 120,
+            order: currentBank.length + 1
+        };
+        const updated = [...currentBank, newQ];
+        setJobData(prev => ({
+            ...prev,
+            recruiterQuestions: updated,
+            questionCount: Math.min(prev.questionCount || 5, updated.length)
+        }));
+        setNewQuestionText('');
+        setShowAddQuestionForm(false);
+    };
+
+    const handleDeleteQuestion = (idx) => {
+        const currentBank = jobData.recruiterQuestions || [];
+        const updated = currentBank
+            .filter((_, i) => i !== idx)
+            .map((q, i) => ({ ...q, order: i + 1 }));
+        setJobData(prev => ({
+            ...prev,
+            recruiterQuestions: updated,
+            questionCount: Math.max(1, Math.min(prev.questionCount || 5, updated.length || 1))
+        }));
+    };
+
+    const handleMoveQuestion = (idx, direction) => {
+        const currentBank = jobData.recruiterQuestions || [];
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (targetIdx < 0 || targetIdx >= currentBank.length) return;
+        const list = [...currentBank];
+        const temp = list[idx];
+        list[idx] = list[targetIdx];
+        list[targetIdx] = temp;
+        const updated = list.map((q, i) => ({ ...q, order: i + 1 }));
+        setJobData(prev => ({ ...prev, recruiterQuestions: updated }));
+    };
+
+    const handleUpdateQuestion = (idx, field, value) => {
+        const currentBank = jobData.recruiterQuestions || [];
+        const list = [...currentBank];
+        list[idx] = { ...list[idx], [field]: value };
+        setJobData(prev => ({ ...prev, recruiterQuestions: list }));
+    };
 
     const handleAddEducation = () => {
         setJobData({
@@ -222,7 +395,18 @@ const PostJob = () => {
                 ...jobData,
                 recruiterId: recruiterId,
                 company: jobData.company || user.company?.name || user.company || 'hire1percent Partner',
-                minPercentage: Number(jobData.minPercentage)
+                minPercentage: Number(jobData.minPercentage),
+                questionSource: jobData.questionSource || 'AI_GENERATED',
+                questionCount: Number(jobData.questionCount || 5),
+                selectionMode: jobData.selectionMode || 'ORDERED',
+                recruiterQuestions: (jobData.recruiterQuestions || []).map((q, idx) => ({
+                    questionId: q.questionId || `q_${Date.now()}_${idx}`,
+                    text: String(q.text || '').trim(),
+                    category: q.category || 'General',
+                    difficulty: q.difficulty || 'Medium',
+                    timeLimit: Number(q.timeLimit) || 120,
+                    order: idx + 1
+                }))
             };
 
             // Ensure nested values are also cast if they exist
@@ -234,6 +418,20 @@ const PostJob = () => {
             }
             if (dataToSave.mockInterview) {
                 dataToSave.mockInterview.passingScore = Number(dataToSave.mockInterview.passingScore);
+            }
+
+            // Validation for RECRUITER_PROVIDED questions
+            if (dataToSave.mockInterview?.enabled && dataToSave.questionSource === 'RECRUITER_PROVIDED') {
+                if (!dataToSave.recruiterQuestions || dataToSave.recruiterQuestions.length === 0) {
+                    alert("Please add at least one question to the recruiter question bank, or switch to AI-Generated mode.");
+                    setLoading(false);
+                    return;
+                }
+                if (dataToSave.questionCount < 1 || dataToSave.questionCount > dataToSave.recruiterQuestions.length) {
+                    alert(`Question Count must be between 1 and ${dataToSave.recruiterQuestions.length} (the total bank size).`);
+                    setLoading(false);
+                    return;
+                }
             }
             let targetJobId = editJobId;
             if (editJobId) {
@@ -936,22 +1134,22 @@ const PostJob = () => {
                                 <button
                                     type="button"
                                     onClick={() => handleToggle('mockInterview.enabled')}
-                                    className={`w-12 h-6 rounded-full transition-all relative ${jobData.mockInterview.enabled ? 'bg-purple-500' : 'bg-gray-700'}`}
+                                    className={`w-12 h-6 rounded-full transition-all relative cursor-pointer ${jobData.mockInterview.enabled ? 'bg-purple-500' : 'bg-gray-700'}`}
                                 >
                                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${jobData.mockInterview.enabled ? 'left-7' : 'left-1'}`} />
                                 </button>
                             </div>
-                            <div className={`transition-all ${jobData.mockInterview.enabled ? 'opacity-100' : 'opacity-30'}`}>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6 pt-6 border-t border-white/5">
+                            <div className={`transition-all ${jobData.mockInterview.enabled ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none'}`}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6 pt-6 border-t border-slate-200">
                                     <div>
-                                        <p className="text-xs text-gray-500 leading-relaxed font-semibold">
+                                        <p className="text-xs text-slate-500 leading-relaxed font-semibold">
                                             Enable our **AI Mock Interviewer** to conduct preliminary video/audio rounds. Candidates will be interviewed by our AI and automatically scored and evaluated.
                                         </p>
                                     </div>
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between mb-2">
-                                            <label className="block text-xs font-medium text-gray-500 uppercase tracking-widest">Interview Score Threshold</label>
-                                            <span className="text-purple-400 font-bold text-xs">{jobData.mockInterview.passingScore}%</span>
+                                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-widest">Interview Score Threshold</label>
+                                            <span className="text-purple-600 font-bold text-xs">{jobData.mockInterview.passingScore}%</span>
                                         </div>
                                         <input
                                             type="range"
@@ -961,12 +1159,420 @@ const PostJob = () => {
                                             step="5"
                                             value={jobData.mockInterview.passingScore || 70}
                                             onChange={handleChange}
-                                            className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
                                         />
-                                        <p className="mt-2 text-[10px] text-purple-400/80 font-medium">
-                                            Job seeker should be {jobData.mockInterview.passingScore}% and above perfectly.
+                                        <p className="mt-2 text-[10px] text-purple-600 font-medium">
+                                            Job seeker should score {jobData.mockInterview.passingScore}% and above to pass.
                                         </p>
                                     </div>
+                                </div>
+
+                                {/* QUESTION SOURCE SELECTION */}
+                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                                            Interview Question Source
+                                        </label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* AI_GENERATED Option */}
+                                            <div
+                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED' }))}
+                                                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                                                    jobData.questionSource === 'AI_GENERATED'
+                                                        ? 'border-purple-600 bg-purple-50/50 shadow-sm ring-2 ring-purple-600/10'
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                                            jobData.questionSource === 'AI_GENERATED'
+                                                                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                                                                : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            <Sparkles size={18} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-900">AI-Generated Questions</h4>
+                                                            <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">Default & Adaptive</span>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="radio"
+                                                        name="questionSource"
+                                                        checked={jobData.questionSource === 'AI_GENERATED'}
+                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'AI_GENERATED' }))}
+                                                        className="w-4 h-4 text-purple-600 accent-purple-600 cursor-pointer mt-1"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-500 leading-relaxed">
+                                                    AI generates dynamic questions tailored to the Job Description and candidate resume, with real-time adaptive follow-ups based on candidate responses.
+                                                </p>
+                                            </div>
+
+                                            {/* RECRUITER_PROVIDED Option */}
+                                            <div
+                                                onClick={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED' }))}
+                                                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                                                    jobData.questionSource === 'RECRUITER_PROVIDED'
+                                                        ? 'border-purple-600 bg-purple-50/50 shadow-sm ring-2 ring-purple-600/10'
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                                            jobData.questionSource === 'RECRUITER_PROVIDED'
+                                                                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                                                                : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            <ClipboardList size={18} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-900">Recruiter Question Bank</h4>
+                                                            <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">Standardized & Verbatim</span>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="radio"
+                                                        name="questionSource"
+                                                        checked={jobData.questionSource === 'RECRUITER_PROVIDED'}
+                                                        onChange={() => setJobData(prev => ({ ...prev, questionSource: 'RECRUITER_PROVIDED' }))}
+                                                        className="w-4 h-4 text-purple-600 accent-purple-600 cursor-pointer mt-1"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-500 leading-relaxed">
+                                                    Supply your own curated question bank. The AI interviewer asks your exact canonical questions without rewording or adding unapproved follow-ups.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* RECRUITER QUESTION BANK CONFIG & LIST */}
+                                    {jobData.questionSource === 'RECRUITER_PROVIDED' && (
+                                        <div className="p-6 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-6">
+                                            {/* Config Bar */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-200">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                                        Questions Asked per Candidate
+                                                    </label>
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max={Math.max(1, jobData.recruiterQuestions.length || 50)}
+                                                            value={jobData.questionCount || 1}
+                                                            onChange={(e) => {
+                                                                const maxAllowed = Math.max(1, jobData.recruiterQuestions.length || 1);
+                                                                const val = Math.max(1, Math.min(Number(e.target.value) || 1, maxAllowed));
+                                                                setJobData(prev => ({ ...prev, questionCount: val }));
+                                                            }}
+                                                            className="rec-input w-28 px-4 py-2.5 text-sm font-bold text-slate-900"
+                                                        />
+                                                        <span className="text-xs text-slate-500">
+                                                            of {jobData.recruiterQuestions.length} in bank
+                                                            {jobData.recruiterQuestions.length === 0 && ' (Add questions to bank below)'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-400 mt-1.5">
+                                                        Each candidate will be asked exactly this many questions before completion.
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                                        Question Selection Mode
+                                                    </label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setJobData(prev => ({ ...prev, selectionMode: 'ORDERED' }))}
+                                                            className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                                                jobData.selectionMode === 'ORDERED'
+                                                                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                            }`}
+                                                        >
+                                                            <ListOrdered size={14} />
+                                                            <span>Sequential Order</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setJobData(prev => ({ ...prev, selectionMode: 'RANDOM' }))}
+                                                            className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                                                jobData.selectionMode === 'RANDOM'
+                                                                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                            }`}
+                                                        >
+                                                            <Shuffle size={14} />
+                                                            <span>Random Selection</span>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-400 mt-1.5">
+                                                        {jobData.selectionMode === 'ORDERED'
+                                                            ? 'Every candidate receives the first N questions in your configured order.'
+                                                            : 'Questions are randomly sampled from your bank per candidate session (deterministic once started).'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div className="flex flex-wrap items-center gap-2.5">
+                                                    {/* File Upload */}
+                                                    <label className={`rec-btn-primary px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer ${
+                                                        questionUploadLoading ? 'opacity-70 pointer-events-none' : ''
+                                                    }`}>
+                                                        {questionUploadLoading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+                                                        <span>Upload File (.txt, .csv, .xlsx, .docx, .pdf)</span>
+                                                        <input
+                                                            type="file"
+                                                            accept=".txt,.csv,.xlsx,.xls,.docx,.pdf"
+                                                            onChange={handleQuestionFileUpload}
+                                                            className="hidden"
+                                                            disabled={questionUploadLoading}
+                                                        />
+                                                    </label>
+
+                                                    {/* Paste Questions */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowPasteModal(true)}
+                                                        className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 transition-all flex items-center gap-2 cursor-pointer"
+                                                    >
+                                                        <FileText size={14} />
+                                                        <span>Paste Text</span>
+                                                    </button>
+
+                                                    {/* Add Manually */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAddQuestionForm(prev => !prev)}
+                                                        className="px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all flex items-center gap-2 cursor-pointer"
+                                                    >
+                                                        <Plus size={14} />
+                                                        <span>+ Add Manually</span>
+                                                    </button>
+                                                </div>
+
+                                                {jobData.recruiterQuestions.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (window.confirm('Are you sure you want to clear all questions in the bank?')) {
+                                                                setJobData(prev => ({ ...prev, recruiterQuestions: [], questionCount: 1 }));
+                                                            }
+                                                        }}
+                                                        className="text-xs text-red-500 hover:text-red-700 font-semibold flex items-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                        <span>Clear Bank</span>
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Add Manually Form */}
+                                            {showAddQuestionForm && (
+                                                <div className="p-4 rounded-xl bg-white border border-purple-200 shadow-sm space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Single Question</h5>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowAddQuestionForm(false)}
+                                                            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <textarea
+                                                        rows={2}
+                                                        placeholder="Enter question text (e.g. Explain how goroutines are scheduled in Go...)"
+                                                        value={newQuestionText}
+                                                        onChange={(e) => setNewQuestionText(e.target.value)}
+                                                        className="rec-input w-full px-3 py-2 text-xs font-medium resize-none"
+                                                    />
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="e.g. Technical, Go, System Design"
+                                                                value={newQuestionCategory}
+                                                                onChange={(e) => setNewQuestionCategory(e.target.value)}
+                                                                className="rec-input w-full px-3 py-1.5 text-xs"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Difficulty</label>
+                                                            <select
+                                                                value={newQuestionDifficulty}
+                                                                onChange={(e) => setNewQuestionDifficulty(e.target.value)}
+                                                                className="rec-select w-full px-3 py-1.5 text-xs"
+                                                            >
+                                                                <option value="Easy">Easy</option>
+                                                                <option value="Medium">Medium</option>
+                                                                <option value="Hard">Hard</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Time Limit (sec)</label>
+                                                            <input
+                                                                type="number"
+                                                                min="30"
+                                                                max="600"
+                                                                value={newQuestionTimeLimit}
+                                                                onChange={(e) => setNewQuestionTimeLimit(Number(e.target.value) || 120)}
+                                                                className="rec-input w-full px-3 py-1.5 text-xs"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowAddQuestionForm(false)}
+                                                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddManualQuestion}
+                                                            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 shadow-sm cursor-pointer"
+                                                        >
+                                                            Add to Bank
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Questions Bank List */}
+                                            <div className="space-y-2.5">
+                                                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 px-1">
+                                                    <span>Bank Questions ({jobData.recruiterQuestions.length})</span>
+                                                    <span>Asking {Math.min(jobData.questionCount || 0, jobData.recruiterQuestions.length)}</span>
+                                                </div>
+
+                                                {jobData.recruiterQuestions.length === 0 ? (
+                                                    <div className="py-12 border-2 border-dashed border-slate-200 rounded-2xl text-center bg-white">
+                                                        <ClipboardList size={36} className="mx-auto text-slate-300 mb-2" />
+                                                        <p className="text-xs font-bold text-slate-700">No questions in bank yet</p>
+                                                        <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                                                            Upload a file (.txt, .csv, .xlsx, .docx, .pdf), paste text, or add questions manually.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                                                        {jobData.recruiterQuestions.map((q, idx) => (
+                                                            <div
+                                                                key={q.questionId || idx}
+                                                                className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex items-start gap-3"
+                                                            >
+                                                                <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                                                    {idx + 1}
+                                                                </span>
+
+                                                                <div className="flex-1 min-w-0">
+                                                                    {editingQuestionIdx === idx ? (
+                                                                        <div className="space-y-2">
+                                                                            <textarea
+                                                                                rows={2}
+                                                                                value={q.text}
+                                                                                onChange={(e) => handleUpdateQuestion(idx, 'text', e.target.value)}
+                                                                                className="rec-input w-full px-2.5 py-1.5 text-xs font-medium"
+                                                                            />
+                                                                            <div className="flex items-center gap-2">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    placeholder="Category"
+                                                                                    value={q.category || ''}
+                                                                                    onChange={(e) => handleUpdateQuestion(idx, 'category', e.target.value)}
+                                                                                    className="rec-input px-2 py-1 text-xs w-32"
+                                                                                />
+                                                                                <select
+                                                                                    value={q.difficulty || 'Medium'}
+                                                                                    onChange={(e) => handleUpdateQuestion(idx, 'difficulty', e.target.value)}
+                                                                                    className="rec-select px-2 py-1 text-xs w-28"
+                                                                                >
+                                                                                    <option value="Easy">Easy</option>
+                                                                                    <option value="Medium">Medium</option>
+                                                                                    <option value="Hard">Hard</option>
+                                                                                </select>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setEditingQuestionIdx(null)}
+                                                                                    className="px-2.5 py-1 rounded text-xs font-bold bg-purple-600 text-white cursor-pointer"
+                                                                                >
+                                                                                    Done
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div>
+                                                                            <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                                                                                {q.text}
+                                                                            </p>
+                                                                            <div className="flex items-center gap-2 mt-1.5">
+                                                                                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium">
+                                                                                    {q.category || 'General'}
+                                                                                </span>
+                                                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                                                                                    q.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-600' :
+                                                                                    q.difficulty === 'Hard' ? 'bg-red-50 text-red-600' :
+                                                                                    'bg-amber-50 text-amber-600'
+                                                                                }`}>
+                                                                                    {q.difficulty || 'Medium'}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Controls */}
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={idx === 0}
+                                                                        onClick={() => handleMoveQuestion(idx, 'up')}
+                                                                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                                                        title="Move Up"
+                                                                    >
+                                                                        <ArrowUp size={13} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={idx === jobData.recruiterQuestions.length - 1}
+                                                                        onClick={() => handleMoveQuestion(idx, 'down')}
+                                                                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                                                        title="Move Down"
+                                                                    >
+                                                                        <ArrowDown size={13} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingQuestionIdx(editingQuestionIdx === idx ? null : idx)}
+                                                                        className="p-1 text-slate-400 hover:text-purple-600 cursor-pointer"
+                                                                        title="Edit"
+                                                                    >
+                                                                        <Edit3 size={13} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDeleteQuestion(idx)}
+                                                                        className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <Trash2 size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -987,6 +1593,135 @@ const PostJob = () => {
                     {loading ? 'Submitting for Review...' : 'Submit for Admin Review'}
                 </button>
             </form >
+
+            {/* Paste Modal */}
+            {showPasteModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <FileText className="text-purple-600" size={20} />
+                                <h3 className="text-base font-bold text-slate-900">Paste Questions</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowPasteModal(false)}
+                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            Paste questions below (one per line, or numbered like "1. What is..."). Our parser will automatically clean prefixes, detect categories and difficulties, and remove duplicates.
+                        </p>
+                        <textarea
+                            rows={10}
+                            placeholder="1. What is the difference between concurrency and parallelism in Go?&#10;2. Explain how goroutines are scheduled by the Go runtime.&#10;3. How do channels work under the hood and when can deadlocks occur?"
+                            value={pasteText}
+                            onChange={(e) => setPasteText(e.target.value)}
+                            className="rec-input w-full p-3 text-xs font-mono resize-none"
+                        />
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowPasteModal(false)}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={questionUploadLoading || !pasteText.trim()}
+                                onClick={handlePasteParse}
+                                className="rec-btn-primary px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                                {questionUploadLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                <span>Parse Questions</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Import Preview Modal */}
+            {showImportPreviewModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <CheckCircle2 className="text-emerald-600" size={20} />
+                                <h3 className="text-base font-bold text-slate-900">
+                                    Parsed {parsedQuestionsPreview.length} Questions
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowImportPreviewModal(false)}
+                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {previewStats?.warnings && previewStats.warnings.length > 0 && (
+                            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs space-y-1">
+                                <div className="font-bold flex items-center gap-1.5">
+                                    <AlertCircle size={14} />
+                                    <span>Parser Notices:</span>
+                                </div>
+                                {previewStats.warnings.map((w, i) => (
+                                    <p key={i} className="text-[11px] pl-5">• {w}</p>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                            {parsedQuestionsPreview.map((q, idx) => (
+                                <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-start gap-2.5">
+                                    <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                                        {idx + 1}
+                                    </span>
+                                    <div className="flex-1">
+                                        <p className="font-medium text-slate-800">{q.text}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] text-slate-500 font-medium">{q.category}</span>
+                                            <span className="text-[10px] text-purple-600 font-bold">• {q.difficulty}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
+                            <button
+                                type="button"
+                                onClick={() => setShowImportPreviewModal(false)}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <div className="flex items-center gap-2">
+                                {jobData.recruiterQuestions.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => confirmImport('append')}
+                                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer"
+                                    >
+                                        Append to Bank ({jobData.recruiterQuestions.length + parsedQuestionsPreview.length})
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => confirmImport('replace')}
+                                    className="rec-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer"
+                                >
+                                    {jobData.recruiterQuestions.length > 0 ? 'Replace Existing Bank' : 'Import to Bank'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

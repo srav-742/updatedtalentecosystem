@@ -4,6 +4,7 @@ import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoringEnhanced } from "../../hooks/useStrictProctoringEnhanced";
 import { useAIProctoring } from "../../hooks/useAIProctoring";
 import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
+import { API_URL } from "../../firebase";
 
 /**
  * SecureExamWrapperEnhanced
@@ -74,6 +75,9 @@ export default function SecureExamWrapperEnhanced({
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const triggerViolationRef = useRef(null);
     const logEnhancedViolationRef = useRef(null);
+    // Track the current video track ID to avoid constantly creating new MediaStreams
+    const currentVideoTrackIdRef = useRef(null);
+    const stableStreamRef = useRef(null);
 
     // ── Screen share ────────────────────────────────────────────────────────
     const handleScreenShareStopped = useCallback(() => {
@@ -161,6 +165,10 @@ export default function SecureExamWrapperEnhanced({
     }, [requireCamera, proctoringIsActive, cameraStream]);
 
     // Pipe stream to video element
+    // CRITICAL FIX: Only create a new MediaStream when the underlying video track
+    // actually changes (by ID). Previously, a new MediaStream was created on every
+    // render cycle causing `srcObject !== stream` to always be true, which made
+    // MediaPipe receive unstable video references.
     useEffect(() => {
         if (videoRef.current && activeStream) {
             const videoTracks = activeStream.getVideoTracks?.() || [];
@@ -170,12 +178,20 @@ export default function SecureExamWrapperEnhanced({
             ) || videoTracks[0];
 
             if (videoTrack) {
-                const stream = new MediaStream([videoTrack]);
-                if (videoRef.current.srcObject !== stream) {
+                // Only reassign if the track actually changed
+                if (currentVideoTrackIdRef.current !== videoTrack.id) {
+                    currentVideoTrackIdRef.current = videoTrack.id;
+                    const stream = new MediaStream([videoTrack]);
+                    stableStreamRef.current = stream;
                     videoRef.current.srcObject = stream;
                     videoRef.current.play().catch(() => {});
                 }
             }
+        } else if (videoRef.current && !activeStream) {
+            // Stream removed — clear
+            currentVideoTrackIdRef.current = null;
+            stableStreamRef.current = null;
+            videoRef.current.srcObject = null;
         }
     }, [activeStream, videoEl]);
 
@@ -189,20 +205,72 @@ export default function SecureExamWrapperEnhanced({
     }, [localCameraStream]);
 
     // ── AI violation handler ────────────────────────────────────────────────
+    // CRITICAL FIX: Send to /api/proctoring-pipeline/event (the authoritative
+    // scoring path) instead of only /api/proctoring-enhanced/violation.
+    // The pipeline endpoint creates the ProctoringViolationEnhanced record,
+    // triggers report compilation, and calculates the proctoring score.
+    // We still call triggerViolation() for the local warning overlay system.
     const handleAIViolation = useCallback(
         (type, detail, meta = {}) => {
+            console.log(`[PROCTORING-EVENT] ✔ AI Violation detected: ${type} — ${detail}`);
+            // Local strict proctoring overlay (counts violations for UI warnings)
             triggerViolation(type, detail);
+
+            // Path 1: Send to the pipeline backend (authoritative scoring path)
+            try {
+                fetch(`${API_URL}/proctoring-pipeline/event`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        examId,
+                        userId,
+                        eventType: type,
+                        detail: detail,
+                        confidence: meta.confidence || null,
+                        durationMs: meta.duration ? Math.round(meta.duration * 1000) : null,
+                        severity: meta.severity || 'medium',
+                        signals: {
+                            model: 'FaceMesh',
+                            direction: meta.direction || null,
+                            headTurnRatio: meta.headTurnRatio || null,
+                            gazeRatio: meta.gazeRatio || null,
+                            faceCount: meta.faceCount || null,
+                            snapshot: meta.snapshot || null,
+                            evidenceFrames: meta.evidenceFrames || [],
+                            duration: meta.duration || 0,
+                        },
+                    }),
+                }).then((resp) => {
+                    if (!resp.ok) console.warn(`[PROCTORING] Pipeline event response: ${resp.status}`);
+                }).catch((err) => {
+                    console.warn('[SecureExamWrapperEnhanced] Pipeline event send failed:', err.message);
+                });
+            } catch (_) {
+                // Fire-and-forget — do not block the detection loop
+            }
+
+            // Path 2: Also send to the enhanced violation endpoint (creates violation record
+            // used by the recruiter's detailed timeline view)
             logEnhancedViolation(type, detail, {
-                isAnswering: meta.isAnswering || false,
                 confidence: meta.confidence || null,
-                metadata: meta,
+                severity: meta.severity || 'medium',
+                direction: meta.direction || null,
+                headTurnRatio: meta.headTurnRatio || null,
+                gazeRatio: meta.gazeRatio || null,
+                faceCount: meta.faceCount || null,
+                duration: meta.duration || 0,
             });
-            // Hiding toasts/flags from the candidate UI (stored in DB only)
         },
-        [triggerViolation, logEnhancedViolation]
+        [triggerViolation, logEnhancedViolation, examId, userId]
     );
 
     // ── AI proctoring engine ────────────────────────────────────────────────
+    const aiIsActive = proctoringIsActive && requireCamera && !!activeStream;
+
+    useEffect(() => {
+        console.log(`[PROCTORING] AI hook activation: active=${aiIsActive}, proctoringIsActive=${proctoringIsActive}, requireCamera=${requireCamera}, hasStream=${!!activeStream}, hasVideoEl=${!!videoEl}`);
+    }, [aiIsActive, proctoringIsActive, requireCamera, activeStream, videoEl]);
     const {
         faceMeshReady,
         objectModelReady,
@@ -214,7 +282,7 @@ export default function SecureExamWrapperEnhanced({
         detections,
     } = useAIProctoring({
         videoElement: videoEl,
-        isActive: proctoringIsActive && requireCamera && !!activeStream,
+        isActive: aiIsActive,
         isAnswering,
         onViolation: handleAIViolation,
         thresholds: aiThresholds,

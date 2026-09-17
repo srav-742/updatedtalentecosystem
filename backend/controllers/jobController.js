@@ -2,6 +2,7 @@ const Job = require('../models/Job');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
 const { callSkillAI } = require('../utils/aiClients');
+const { parseRawQuestionText, parseFileToText, validateQuestionBank } = require('../services/questionParserService');
 
 // In-memory L1 cache (per process) — ultra-fast for repeat hits within same instance
 // node-cache middleware (in app.js) acts as L2 cache across requests
@@ -92,6 +93,17 @@ const updateJob = async (req, res) => {
         jobData.status = 'pending_approval';
         jobData.adminFeedback = { reason: '', reviewedAt: null };
 
+        // Validate recruiter questions if RECRUITER_PROVIDED mode is selected
+        if (jobData.mockInterview?.enabled && jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED') {
+            const rawQuestions = jobData.mockInterview.recruiterQuestions || [];
+            const validation = validateQuestionBank(rawQuestions, jobData.mockInterview.questionCount);
+            if (!validation.isValid) {
+                return res.status(400).json({ success: false, message: validation.error });
+            }
+            jobData.mockInterview.questionCount = validation.normalizedCount;
+            jobData.mockInterview.recruiterQuestions = validation.validQuestions;
+        }
+
         const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true });
         clearJobsCache(); // Clear all job caches
         res.json(updatedJob);
@@ -126,12 +138,44 @@ const createJob = async (req, res) => {
         const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
         const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
         const jobData = { ...req.body, status: initialStatus };
+
+        // Validate recruiter questions if RECRUITER_PROVIDED mode is selected
+        if (jobData.mockInterview?.enabled && jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED') {
+            const rawQuestions = jobData.mockInterview.recruiterQuestions || [];
+            const validation = validateQuestionBank(rawQuestions, jobData.mockInterview.questionCount);
+            if (!validation.isValid) {
+                return res.status(400).json({ success: false, message: validation.error });
+            }
+            jobData.mockInterview.questionCount = validation.normalizedCount;
+            jobData.mockInterview.recruiterQuestions = validation.validQuestions;
+        }
+
         const job = new Job(jobData);
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches
         res.status(201).json({ success: true, job: savedJob });
     } catch (error) {
         console.error("[CREATE-JOB] Failure:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const parseQuestions = async (req, res) => {
+    try {
+        let rawText = req.body?.rawText || '';
+
+        if (req.file) {
+            rawText = await parseFileToText(req.file.buffer, req.file.originalname, req.file.mimetype);
+        }
+
+        if (!rawText || !rawText.trim()) {
+            return res.status(400).json({ success: false, message: "No text or file content found to parse questions from." });
+        }
+
+        const result = parseRawQuestionText(rawText);
+        res.json({ success: true, count: result.questions.length, ...result });
+    } catch (error) {
+        console.error("[PARSE-QUESTIONS] Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -224,4 +268,4 @@ Do NOT include any conversational filler (like "Here is the job description"). O
     }
 };
 
-module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache, generateJobDescription };
+module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache, generateJobDescription, parseQuestions };

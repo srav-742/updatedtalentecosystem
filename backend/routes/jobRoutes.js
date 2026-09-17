@@ -16,6 +16,15 @@ router.get('/recruiter/:recruiterId', recruiterController.getRecruiterJobs);
 router.post("/generate-description", authMiddleware, roleCheck('recruiter', 'admin'), jobController.generateJobDescription);
 
 
+const multer = require('multer');
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// PARSE RECRUITER QUESTIONS (Text or File)
+router.post("/parse-questions", upload.single('file'), jobController.parseQuestions);
+
 // CREATE JOB
 router.post("/create", jobController.createJob);
 router.post("/", jobController.createJob);

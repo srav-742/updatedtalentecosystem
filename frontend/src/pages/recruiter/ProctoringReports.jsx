@@ -223,9 +223,9 @@ export default function ProctoringReports() {
                                     const name = app?.applicantName || "Anonymous Candidate";
                                     const email = app?.applicantEmail || "N/A";
                                     const jobTitle = app?.jobId?.title || "Legacy Assessment";
-                                    const proctoringScore = report.proctoringScore !== undefined
+                                    const proctoringScore = report.proctoringScore !== undefined && report.proctoringScore !== null
                                         ? report.proctoringScore
-                                        : Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5));
+                                        : (report.totalPenaltyRating > 0 ? Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5)) : null);
 
                                     // Verdict Styling
                                     let verdictClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
@@ -272,13 +272,15 @@ export default function ProctoringReports() {
                                             {/* Proctoring Integrity Score */}
                                             <td className="py-5 text-center">
                                                 <span className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-xl border font-black text-sm shadow-sm ${
-                                                    proctoringScore >= 80 
-                                                        ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-500" 
-                                                        : proctoringScore >= 50 
-                                                            ? "bg-amber-500/5 border-amber-500/10 text-amber-500" 
-                                                            : "bg-red-500/5 border-red-500/10 text-red-500"
+                                                    proctoringScore != null
+                                                        ? (proctoringScore >= 80 
+                                                            ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-500" 
+                                                            : proctoringScore >= 50 
+                                                                ? "bg-amber-500/5 border-amber-500/10 text-amber-500" 
+                                                                : "bg-red-500/5 border-red-500/10 text-red-500")
+                                                        : "bg-gray-500/5 border-gray-500/10 text-gray-400"
                                                 }`}>
-                                                    {proctoringScore}%
+                                                    {proctoringScore != null ? `${proctoringScore}%` : 'N/A'}
                                                 </span>
                                             </td>
 

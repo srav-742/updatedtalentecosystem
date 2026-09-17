@@ -188,6 +188,13 @@ const CodingAssessment = ({
         }
     };
 
+    // Auto-request webcam on mount so camera is ready immediately
+    useEffect(() => {
+        if (!sharedStream) {
+            enableMedia();
+        }
+    }, []);
+
     const handleLobbyBack = () => {
         if (sharedStream) {
             sharedStream.getTracks().forEach(t => t.stop());
@@ -447,6 +454,7 @@ const CodingAssessment = ({
             requireScreenShare={true}
             requireCamera={true}
             cameraStream={sharedStream}
+            showWebcamPreview={true}
             isAnswering={started && !securityResetting}
             warningLimit={3}
             resetLimit={4}
