@@ -116,7 +116,11 @@ const Applicants = () => {
             recordingStatus: app.recordingStatus || 'pending',
             hasAssessment: app.jobId?.assessment?.enabled === true,
             hasCoding: Boolean(app.jobId?.codingAssessment?.enabled === true || (app.jobId?.title && /python/i.test(app.jobId.title) && app.jobId?.codingAssessment?.enabled !== false)),
-            hasInterview: app.jobId?.mockInterview?.enabled !== false
+            hasInterview: app.jobId?.mockInterview?.enabled !== false,
+            // Timestamps for "Recent Candidates" sorting
+            appliedAt: app.appliedAt,
+            recordingUploadedAt: app.recordingUploadedAt,
+            assessmentRecordingUploadedAt: app.assessmentRecordingUploadedAt
         }));
 
         if (targetJobId) {
@@ -294,6 +298,20 @@ const Applicants = () => {
                 return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
             })
             .sort((a, b) => {
+                if (sortBy === 'recentActivity') {
+                    const getLatestActivity = (app) => {
+                        const dates = [
+                            app.appliedAt,
+                            app.resultsVisibleAt,
+                            app.recordingUploadedAt,
+                            app.assessmentRecordingUploadedAt
+                        ].filter(Boolean).map(d => new Date(d).getTime());
+                        return dates.length > 0 ? Math.max(...dates) : 0;
+                    };
+                    return sortOrder === 'desc'
+                        ? getLatestActivity(b) - getLatestActivity(a)
+                        : getLatestActivity(a) - getLatestActivity(b);
+                }
                 if (sortBy === 'none') {
                     let valA = a.finalScore;
                     let valB = b.finalScore;
@@ -557,6 +575,7 @@ const Applicants = () => {
                                     <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
                                     <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Trust Score</option>
                                     <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
+                                    <option value="recentActivity" className="bg-[#1a1d24] text-white">Recent Candidates</option>
                                 </select>
                                 {sortBy !== 'none' && (
                                     <button

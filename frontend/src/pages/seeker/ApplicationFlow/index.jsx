@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2 } from 'lucide-react';
 import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '../../../firebase';
 
 // ─── Lazy-load each step component ─────────────────────────────────────────────
@@ -25,6 +26,7 @@ const StepLoader = () => (
 const ApplicationFlow = () => {
     const { jobId } = useParams();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
     const requestedStep = searchParams.get('step') || searchParams.get('retest');
     const [stepIndex, setStepIndex] = useState(0);
@@ -102,12 +104,12 @@ const ApplicationFlow = () => {
                         if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
                         if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
 
-                        // Determine the next pending step based on the new sequence
-                        const resumeDone = !enabledIds.includes('resume') || !!existingApp.resumeMatchPercent;
-                        const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl;
-                        const assessmentDone = !enabledIds.includes('assessment') || !!existingApp.assessmentScore;
+                        // Determine the next pending step based on the sequence
+                        const resumeDone = !enabledIds.includes('resume') || (existingApp.resumeMatchPercent !== null && existingApp.resumeMatchPercent !== undefined);
+                        const interviewDone = !enabledIds.includes('interview') || (existingApp.interviewScore !== null && existingApp.interviewScore !== undefined);
+                        const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl || interviewDone;
+                        const assessmentDone = !enabledIds.includes('assessment') || (existingApp.assessmentScore !== null && existingApp.assessmentScore !== undefined);
                         const codingDone = !enabledIds.includes('coding') || (existingApp.codingScore !== null && existingApp.codingScore !== undefined);
-                        const interviewDone = !enabledIds.includes('interview') || !!existingApp.interviewScore;
 
                         let targetIndex = 0;
                         if (resumeDone && !videoDone && enabledIds.includes('candidate-deck')) {
@@ -119,6 +121,7 @@ const ApplicationFlow = () => {
                         } else if (resumeDone && videoDone && assessmentDone && codingDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
                         } else if (resumeDone && videoDone && assessmentDone && codingDone && interviewDone) {
+                            queryClient.invalidateQueries({ queryKey: ['applications'] });
                             navigate('/candidate/applications');
                             return;
                         }
@@ -167,6 +170,7 @@ const ApplicationFlow = () => {
         if (stepIndex < enabledSteps.length - 1) {
             setStepIndex(stepIndex + 1);
         } else {
+            queryClient.invalidateQueries({ queryKey: ['applications'] });
             navigate('/candidate/applications');
         }
     };
@@ -346,6 +350,7 @@ const ApplicationFlow = () => {
                             onSecurityReset={handleSecurityResetToResume}
                             onComplete={(result) => {
                                 setInterviewResult(result);
+                                queryClient.invalidateQueries({ queryKey: ['applications'] });
                                 navigate('/candidate/applications');
                             }}
                             sharedStream={sharedStream}

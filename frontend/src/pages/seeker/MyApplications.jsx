@@ -109,12 +109,71 @@ const getStatusBadge = (status) => {
     }
 };
 
-const getTimelineSteps = (status) => {
+const getTimelineSteps = (application, job) => {
+    const status = application?.status || 'APPLIED';
     const isShortlisted = ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(status);
     const isSelected = ['ELIGIBLE', 'HIRED'].includes(status);
     const isHired = status === 'HIRED';
     const isRejected = status === 'REJECTED';
     const isSaved = status === 'SAVED';
+
+    const isResumeDone = job?.resumeAnalysis?.enabled === false || (application?.resumeMatchPercent !== null && application?.resumeMatchPercent !== undefined);
+    const isVideoDone = !job?.mockInterview?.enabled || !!application?.videoIntroUrl || (application?.interviewScore !== null && application?.interviewScore !== undefined);
+    const isAssessmentDone = !job?.assessment?.enabled || (application?.assessmentScore !== null && application?.assessmentScore !== undefined);
+    const isCodingDone = !job?.codingAssessment?.enabled || (application?.codingScore !== null && application?.codingScore !== undefined);
+    const isInterviewDone = !job?.mockInterview?.enabled || (application?.interviewScore !== null && application?.interviewScore !== undefined);
+
+    const allTestsDone = isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone;
+
+    // Review & Match stage: completed once resume is parsed, or if candidate reached shortlisted/selected/hired
+    const reviewCompleted = isResumeDone || isShortlisted || isSelected || isHired || (isRejected && allTestsDone);
+    const reviewActive = !reviewCompleted && !isSaved;
+
+    // Assessment stage: completed once all required tests/rounds are done, or if candidate reached shortlisted/selected/hired
+    const assessmentCompleted = allTestsDone || isShortlisted || isSelected || isHired;
+    const assessmentActive = !assessmentCompleted && isResumeDone && !isSaved && !isRejected;
+
+    // Selection stage: completed once final decision is rendered (selected/hired/closed)
+    const selectionCompleted = isSelected || isHired || isRejected;
+    const selectionActive = isSelected || isHired || isShortlisted || (allTestsDone && !isRejected);
+
+    let assessmentLabel = 'Assessment';
+    let assessmentDesc = 'Interview round';
+    if (isRejected) {
+        assessmentLabel = 'Not Shortlisted';
+        assessmentDesc = 'Process concluded';
+    } else if (assessmentCompleted) {
+        assessmentDesc = 'All rounds completed';
+    } else if (assessmentActive) {
+        assessmentDesc = 'Rounds in progress';
+    }
+
+    let selectionLabel = 'Selection';
+    let selectionDesc = 'Final offer stage';
+    if (isRejected) {
+        selectionLabel = 'Closed';
+        selectionDesc = 'Role closed';
+    } else if (isHired) {
+        selectionLabel = 'Hired';
+        selectionDesc = 'Offer accepted';
+    } else if (status === 'ELIGIBLE') {
+        selectionLabel = 'Eligible';
+        selectionDesc = 'Offer stage';
+    } else if (status === 'SHORTLISTED') {
+        selectionLabel = 'Shortlisted';
+        selectionDesc = 'Selected for offer';
+    } else if (allTestsDone) {
+        selectionDesc = 'Pending recruiter review';
+    }
+
+    let reviewDesc = 'AI resume parsing';
+    if (isRejected) {
+        reviewDesc = 'Resume reviewed';
+    } else if (application?.resumeMatchPercent !== null && application?.resumeMatchPercent !== undefined) {
+        reviewDesc = `${application.resumeMatchPercent}% resume match`;
+    } else if (reviewCompleted) {
+        reviewDesc = 'Resume matched';
+    }
 
     return [
         {
@@ -125,21 +184,21 @@ const getTimelineSteps = (status) => {
         },
         {
             label: isRejected ? 'Reviewed' : 'Review & Match',
-            description: 'AI resume parsing',
-            completed: isShortlisted || isSelected || isRejected || isHired,
-            active: status === 'APPLIED'
+            description: reviewDesc,
+            completed: reviewCompleted,
+            active: reviewActive
         },
         {
-            label: isRejected ? 'Not Shortlisted' : 'Assessment',
-            description: isRejected ? 'Process concluded' : 'Interview round',
-            completed: isShortlisted || isSelected || isRejected || isHired,
-            active: status === 'SHORTLISTED'
+            label: assessmentLabel,
+            description: assessmentDesc,
+            completed: assessmentCompleted,
+            active: assessmentActive
         },
         {
-            label: isRejected ? 'Closed' : isHired ? 'Hired' : 'Selection',
-            description: isRejected ? 'Role closed' : 'Final offer stage',
-            completed: isSelected || isRejected || isHired,
-            active: isSelected || isHired
+            label: selectionLabel,
+            description: selectionDesc,
+            completed: selectionCompleted,
+            active: selectionActive
         }
     ];
 };
@@ -170,7 +229,8 @@ const MyApplications = () => {
             return res.data;
         },
         enabled: !!userId,
-        staleTime: 60 * 1000
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 
     const activeApplications = useMemo(
@@ -391,16 +451,17 @@ const MyApplications = () => {
                         const job = application.jobId || {};
                         const { companyName, logoUrl, gradient, initials } = getCompanyMeta(job, index);
                         const statusInfo = getStatusBadge(application.status);
-                        const timeline = getTimelineSteps(application.status);
+                        const timeline = getTimelineSteps(application, job);
                         const isSaved = application.status === 'SAVED';
 
-                        const isComplete = (
-                            (!job.resumeAnalysis?.enabled || !!application.resumeMatchPercent) &&
-                            (!job.mockInterview?.enabled || !!application.videoIntroUrl) &&
-                            (!job.assessment?.enabled || !!application.assessmentScore) &&
-                            (!job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined)) &&
-                            (!job.mockInterview?.enabled || !!application.interviewScore)
-                        );
+                        const isResumeDone = job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
+                        const isVideoDone = !job.mockInterview?.enabled || !!application.videoIntroUrl || (application.interviewScore !== null && application.interviewScore !== undefined);
+                        const isAssessmentDone = !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+                        const isCodingDone = !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
+                        const isInterviewDone = !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+
+                        const allTestsDone = isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone;
+                        const isComplete = allTestsDone || ['SHORTLISTED', 'ELIGIBLE', 'HIRED', 'REJECTED'].includes(application.status);
 
                         return (
                             <motion.article
@@ -459,13 +520,13 @@ const MyApplications = () => {
                                     <div className="rounded-2xl border border-black/[0.06] bg-[#faf7f1] p-4 md:p-5">
                                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                                             {timeline.map((step, idx) => (
-                                                <div key={step.label} className="relative flex flex-col justify-between">
+                                                <div key={step.label} className="flex flex-col justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
                                                             step.completed
-                                                                ? 'bg-black text-white'
+                                                                ? 'bg-black text-white shadow-xs'
                                                                 : step.active
-                                                                ? 'bg-amber-500 text-white ring-4 ring-amber-100'
+                                                                ? 'bg-amber-500 text-white ring-4 ring-amber-100 shadow-xs'
                                                                 : 'border border-gray-300 bg-white text-gray-400'
                                                         }`}>
                                                             {step.completed ? (
@@ -476,11 +537,23 @@ const MyApplications = () => {
                                                                 <Circle size={13} />
                                                             )}
                                                         </div>
-                                                        <span className={`text-xs font-bold leading-tight ${
+                                                        <span className={`text-xs font-bold leading-tight shrink-0 ${
                                                             step.completed || step.active ? 'text-gray-900' : 'text-gray-400'
                                                         }`}>
                                                             {step.label}
                                                         </span>
+                                                        {/* Connector line to next step - placed cleanly AFTER label text */}
+                                                        {idx < timeline.length - 1 && (
+                                                            <div className="hidden sm:block h-[2px] flex-1 ml-2 rounded-full self-center">
+                                                                <div className={`h-full rounded-full transition-all duration-300 ${
+                                                                    step.completed && timeline[idx + 1].completed
+                                                                        ? 'bg-black'
+                                                                        : step.completed && timeline[idx + 1].active
+                                                                        ? 'bg-amber-400'
+                                                                        : 'bg-gray-200'
+                                                                }`} />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <p className="mt-1 text-[11px] text-gray-500 pl-8 leading-tight">
                                                         {step.description}
@@ -548,7 +621,7 @@ const MyApplications = () => {
                                             </div>
 
                                             {/* Badges Grid for All Configured Modules */}
-                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                                                 {/* Resume Analysis */}
                                                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
                                                     <div className="flex items-center gap-2 min-w-0">
@@ -565,6 +638,27 @@ const MyApplications = () => {
                                                             : 'Pending'}
                                                     </span>
                                                 </div>
+
+                                                {/* Candidate Intro (Video Deck) */}
+                                                {(job.mockInterview?.enabled || application.videoIntroUrl) && (
+                                                    <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                                                        application.videoIntroUrl
+                                                            ? 'bg-purple-50/70 border-purple-200/80 text-purple-900'
+                                                            : 'bg-[#faf7f1] border-black/[0.04] text-gray-700'
+                                                    }`}>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Video size={14} className={application.videoIntroUrl ? 'text-purple-600 shrink-0' : 'text-gray-400 shrink-0'} />
+                                                            <span className="text-xs font-semibold truncate">Candidate Intro</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            application.videoIntroUrl
+                                                                ? 'text-purple-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {application.videoIntroUrl ? 'Completed' : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
 
                                                 {/* Skill Assessment (MCQ) */}
                                                 {job.assessment?.enabled && (
