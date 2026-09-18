@@ -94,16 +94,28 @@ axios.interceptors.response.use(
           }
         } catch (refreshErr) {
           console.error('[GLOBAL-AXIOS-INTERCEPTOR] Silent refresh failed:', refreshErr.message);
+          // Protect candidates in active assessments from being booted to login
+          if (window.location.pathname.includes('/candidate/apply')) {
+            localStorage.removeItem('accessToken');
+            console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Suppressed redirect — candidate is in active assessment.');
+          } else {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+        }
+      } else if (errCode === 'SESSION_EXPIRED') {
+        // Protect candidates in active assessments from being booted to login
+        if (window.location.pathname.includes('/candidate/apply')) {
+          localStorage.removeItem('accessToken');
+          console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Suppressed SESSION_EXPIRED redirect — candidate is in active assessment.');
+        } else {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
           window.location.href = '/login';
         }
-      } else if (errCode === 'SESSION_EXPIRED') {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

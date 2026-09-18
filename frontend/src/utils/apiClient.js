@@ -42,6 +42,12 @@ export const setTokens = (accessToken, refreshToken) => {
  * Clear all auth data and redirect to login
  */
 export const clearAuthAndRedirect = () => {
+    // Protect candidates in active assessments from being booted to login
+    if (window.location.pathname.includes('/candidate/apply')) {
+        localStorage.removeItem('accessToken');
+        console.warn('[API-CLIENT] Suppressed redirect — candidate is in active assessment.');
+        return;
+    }
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');

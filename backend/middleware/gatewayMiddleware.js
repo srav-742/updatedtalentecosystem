@@ -64,7 +64,19 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/candidate\/job-readiness(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/candidate-career(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/coding-assessments(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/custom-coding-assessments(\/.*)?$/i }
+    { method: '*', pattern: /^\/api\/custom-coding-assessments(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/upload-video-intro$/i },
+    { method: '*', pattern: /^\/api\/generate-full-assessment$/i },
+    { method: '*', pattern: /^\/api\/submit-assessment$/i },
+    { method: '*', pattern: /^\/api\/assessment-details(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/interview(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/upload-recording-chunk$/i },
+    { method: '*', pattern: /^\/api\/finalize-recording$/i },
+    { method: '*', pattern: /^\/api\/upload-audio$/i },
+    { method: '*', pattern: /^\/api\/agent(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/analyze-resume$/i },
+    { method: '*', pattern: /^\/api\/parse-resume-structured$/i },
+    { method: '*', pattern: /^\/api\/resume-profile(\/.*)?$/i }
 ];
 
 

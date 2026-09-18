@@ -124,14 +124,29 @@ export function useStrictProctoringEnhanced({
             return;
         }
 
+        let debounceTimer = null;
+        let extendedReported = false;
+
         const checkScreenExtended = () => {
             if (typeof window.screen?.isExtended !== "undefined" && window.screen.isExtended) {
+                // Only report once per session to avoid flooding with duplicate violations
+                if (extendedReported) return;
+                extendedReported = true;
                 const detail = "Secondary monitor detected via Window Management API.";
                 triggerViolation("MULTIPLE_DEVICES", detail);
                 logEnhancedViolation("MULTIPLE_DEVICES", detail, {
                     metadata: { screensExtended: true },
                 });
+            } else {
+                // Screen is no longer extended — allow re-reporting if it happens again
+                extendedReported = false;
             }
+        };
+
+        // Debounced version for focus/resize to avoid rapid-fire calls during macOS Space transitions
+        const debouncedCheckScreenExtended = () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(checkScreenExtended, 2000);
         };
 
         // Run initial check
@@ -140,11 +155,15 @@ export function useStrictProctoringEnhanced({
         // Also listen for changes (some browsers fire 'change' on screen)
         const handleScreenChange = () => {
             if (window.screen?.isExtended) {
+                if (extendedReported) return;
+                extendedReported = true;
                 const detail = "Secondary monitor connected during session.";
                 triggerViolation("MULTIPLE_DEVICES", detail);
                 logEnhancedViolation("MULTIPLE_DEVICES", detail, {
                     metadata: { screensExtended: true },
                 });
+            } else {
+                extendedReported = false;
             }
         };
 
@@ -154,18 +173,19 @@ export function useStrictProctoringEnhanced({
             // Not all browsers support this
         }
 
-        // Listen for focus & resize to capture monitor changes or dragging the window to another display
-        window.addEventListener("focus", checkScreenExtended);
-        window.addEventListener("resize", checkScreenExtended);
+        // Listen for focus & resize with debounce to avoid rapid-fire on macOS fullscreen transitions
+        window.addEventListener("focus", debouncedCheckScreenExtended);
+        window.addEventListener("resize", debouncedCheckScreenExtended);
 
         return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
             try {
                 window.screen?.removeEventListener?.("change", handleScreenChange);
             } catch (_) {
                 // silent
             }
-            window.removeEventListener("focus", checkScreenExtended);
-            window.removeEventListener("resize", checkScreenExtended);
+            window.removeEventListener("focus", debouncedCheckScreenExtended);
+            window.removeEventListener("resize", debouncedCheckScreenExtended);
         };
     }, [isActive, triggerViolation, logEnhancedViolation]);
 

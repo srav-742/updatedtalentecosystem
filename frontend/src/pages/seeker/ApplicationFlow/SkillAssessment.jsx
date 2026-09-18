@@ -37,6 +37,7 @@ const SkillAssessment = ({
     sharedChunkIndexRef,
     sharedChunkUploadsRef
 }) => {
+    const currentUserId = user?.uid || user?._id || user?.id;
     const [lobbyStarted, setLobbyStarted] = useState(false);
     const [lobbyError, setLobbyError] = useState(null);
     const [started, setStarted] = useState(false);
@@ -188,7 +189,7 @@ const SkillAssessment = ({
                 try {
                     res = await axios.post(`${API_URL}/generate-full-assessment`, {
                         jobId: job._id,
-                        userId: user.uid
+                        userId: currentUserId
                     });
                     if (Array.isArray(res.data?.questions) && res.data.questions.length > 0) {
                         break;
@@ -213,7 +214,7 @@ const SkillAssessment = ({
                 try {
                     const interviewRes = await axios.post(`${API_URL}/interview/start`, {
                         jobId: job._id,
-                        userId: user.uid
+                        userId: currentUserId
                     });
                     if (interviewRes.data?.success) {
                         interviewData = interviewRes.data;
@@ -227,7 +228,7 @@ const SkillAssessment = ({
             }
 
             // 3. Generate distinct assessmentRecordingSessionId
-            const activeRecId = `assessment_${String(user.uid || user._id || 'user').replace(/[^a-zA-Z0-9_-]/g, '')}_${String(job._id).replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+            const activeRecId = `assessment_${String(currentUserId || 'user').replace(/[^a-zA-Z0-9_-]/g, '')}_${String(job._id).replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             
             localRecordingSessionIdRef.current = activeRecId;
             // 4. Start the assessment recording. Keep the shared interview
@@ -298,7 +299,7 @@ const SkillAssessment = ({
         try {
             const response = await axios.post(`${API_URL}/submit-assessment`, {
                 jobId: job._id,
-                userId: user.uid,
+                userId: currentUserId,
                 sessionId,
                 questions,
                 answers: formattedAnswers
@@ -320,7 +321,7 @@ const SkillAssessment = ({
                         if (activeRecId) {
                             await axios.post(`${API_URL}/finalize-recording`, {
                                 sessionId: activeRecId,
-                                userId: user.uid,
+                                userId: currentUserId,
                                 jobId: job._id,
                                 type: "assessment"
                             });
@@ -364,7 +365,7 @@ const SkillAssessment = ({
                     if (activeRecId) {
                         await axios.post(`${API_URL}/finalize-recording`, {
                             sessionId: activeRecId,
-                            userId: user.uid,
+                            userId: currentUserId,
                             jobId: job._id,
                             type: "assessment"
                         });
@@ -390,7 +391,7 @@ const SkillAssessment = ({
             if (sessionId && questions.length > 0) {
                 await axios.post(`${API_URL}/submit-assessment`, {
                     jobId: job._id,
-                    userId: user.uid,
+                    userId: currentUserId,
                     sessionId,
                     questions,
                     answers: [],
@@ -633,7 +634,7 @@ const SkillAssessment = ({
         return (
             <SecureExamWrapper
                 examId={`assessment:${job._id}:${sessionId || 'pending'}`}
-                userId={user.uid}
+                userId={currentUserId}
                 isActive={started && !securityResetting}
                 requireScreenShare={true}
                 requireCamera={true}
@@ -728,7 +729,7 @@ const SkillAssessment = ({
     return (
         <SecureExamWrapper
             examId={`assessment:${job._id}:${sessionId || 'pending'}`}
-            userId={user.uid}
+            userId={currentUserId}
             isActive={started && !securityResetting}
             requireScreenShare={true}
             requireCamera={true}

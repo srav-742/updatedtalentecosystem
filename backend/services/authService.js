@@ -9,7 +9,7 @@ const User = require('../models/User');
 const JWT_SECRET = process.env.JWT_SECRET || 'hire1percent_jwt_secret_key_2026';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'hire1percent_jwt_refresh_secret_key_2026';
 
-const ACCESS_TOKEN_EXPIRY = '15m';   // 15 minutes
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '24h';   // 24 hours (supports multi-stage assessments)
 const REFRESH_TOKEN_EXPIRY = '7d';   // 7 days
 
 /**
@@ -254,12 +254,12 @@ const matchPath = (requestPath, pattern) => {
  */
 const refreshAccessToken = async (refreshToken) => {
     const decoded = verifyRefreshToken(refreshToken);
-    const user = await User.findOne({
-        $or: [
-            { _id: decoded.userId },
-            { uid: decoded.userId }
-        ]
-    });
+    // Validate ObjectId format before querying _id to prevent CastError for Firebase UIDs
+    const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+    const userQuery = (decoded.userId && OBJECT_ID_REGEX.test(decoded.userId.toString()))
+        ? { $or: [{ _id: decoded.userId }, { uid: decoded.userId }] }
+        : { uid: decoded.userId };
+    const user = await User.findOne(userQuery);
 
     if (!user) {
         const error = new Error('User not found');
