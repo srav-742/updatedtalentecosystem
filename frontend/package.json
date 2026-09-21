@@ -5,8 +5,9 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build",
-        "build:prod": "vite build --mode production",
+        "build": "vite build && node scripts/prerender-seo.mjs",
+        "build:prod": "vite build --mode production && node scripts/prerender-seo.mjs",
+        "prerender": "node scripts/prerender-seo.mjs",
         "analyze": "vite build --mode analyze",
         "lint": "eslint .",
         "preview": "vite preview",

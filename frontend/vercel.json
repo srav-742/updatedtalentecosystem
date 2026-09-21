@@ -1,4 +1,17 @@
 {
+    "redirects": [
+        {
+            "source": "/:path*",
+            "has": [
+                {
+                    "type": "host",
+                    "value": "hire1percent.com"
+                }
+            ],
+            "destination": "https://www.hire1percent.com/:path*",
+            "permanent": true
+        }
+    ],
     "rewrites": [
         {
             "source": "/(.*)",
