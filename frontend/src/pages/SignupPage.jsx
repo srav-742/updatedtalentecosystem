@@ -169,6 +169,8 @@ const SignupPage = () => {
                 userFriendlyMessage = "This email is already registered. Try logging in.";
             } else if (error.code === 'auth/weak-password') {
                 userFriendlyMessage = "Password is too weak. Please use at least 6 characters.";
+            } else if (error.code === 'auth/network-request-failed') {
+                userFriendlyMessage = "Network error: Unable to reach authentication server. Please check your internet connection or disable ad-blockers/shields and try again.";
             }
 
             setMessage({

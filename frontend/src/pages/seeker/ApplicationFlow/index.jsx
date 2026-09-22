@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2 } from 'lucide-react';
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
-import { API_URL } from '../../../firebase';
+import { API_URL, getAuthHeaders } from '../../../firebase';
 
 // ─── Lazy-load each step component ─────────────────────────────────────────────
 // Only the active step's code is downloaded. This saves ~200 KB of assessment,
@@ -120,7 +120,7 @@ const ApplicationFlow = () => {
                             targetIndex = enabledIds.indexOf('coding');
                         } else if (resumeDone && videoDone && assessmentDone && codingDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
-                        } else if (resumeDone && videoDone && assessmentDone && codingDone && interviewDone) {
+                        } else if ((resumeDone && videoDone && assessmentDone && codingDone && interviewDone) || (interviewDone && resumeDone)) {
                             queryClient.invalidateQueries({ queryKey: ['applications'] });
                             navigate('/candidate/applications');
                             return;
@@ -348,8 +348,23 @@ const ApplicationFlow = () => {
                             resumeData={resumeData}
                             assessmentScore={assessmentScore}
                             onSecurityReset={handleSecurityResetToResume}
-                            onComplete={(result) => {
+                            onComplete={async (result) => {
                                 setInterviewResult(result);
+                                try {
+                                    const headers = await getAuthHeaders();
+                                    await axios.post(
+                                        `${API_URL}/applications`,
+                                        {
+                                            jobId: job._id,
+                                            userId: user.uid || user._id || user.id,
+                                            interviewScore: result?.interviewScore ?? 0,
+                                            status: 'APPLIED'
+                                        },
+                                        { headers }
+                                    );
+                                } catch (e) {
+                                    console.error("Could not sync final application status:", e);
+                                }
                                 queryClient.invalidateQueries({ queryKey: ['applications'] });
                                 navigate('/candidate/applications');
                             }}

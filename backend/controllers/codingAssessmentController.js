@@ -378,6 +378,12 @@ const submitCodingAssessment = async (req, res) => {
             application.status = 'APPLIED';
         }
         await application.save();
+        try {
+            const { invalidateCache } = require('../middleware/cacheMiddleware');
+            invalidateCache('/api/applications');
+        } catch (cacheErr) {
+            // ignore
+        }
 
         res.json({
             success: true,

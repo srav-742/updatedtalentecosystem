@@ -364,6 +364,12 @@ Respond ONLY with a JSON object in this exact format:
             application.status = 'APPLIED';
         }
         await application.save();
+        try {
+            const { invalidateCache } = require('../middleware/cacheMiddleware');
+            invalidateCache('/api/applications');
+        } catch (cacheErr) {
+            // ignore
+        }
 
         res.json({
             success: true,

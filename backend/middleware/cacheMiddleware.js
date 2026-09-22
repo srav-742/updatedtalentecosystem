@@ -43,7 +43,7 @@ const cacheMiddleware = (ttlSeconds = 60, options = {}) => {
 
         // Build cache key
         const userId = varyByUser
-            ? (req.headers['x-user-id'] || req.user?.uid || req.user?.id || 'anon')
+            ? (req.headers['x-user-id'] || req.user?.uid || req.user?.id || req.params?.userId || 'anon')
             : '';
         const cacheKey = `${req.originalUrl}__${userId}`;
 

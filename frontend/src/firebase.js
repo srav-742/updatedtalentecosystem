@@ -27,19 +27,38 @@ const withTimeout = (promise, ms = 30000) => {
     ]);
 };
 
+// Retry helper specifically for transient network failures (e.g. brief Wi-Fi or DNS drop)
+const withAuthRetry = async (fn, maxRetries = 2, delayMs = 1200) => {
+    let lastError;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await withTimeout(fn());
+        } catch (error) {
+            lastError = error;
+            if (error?.code === 'auth/network-request-failed' && i < maxRetries - 1) {
+                console.warn(`[FIREBASE-AUTH] Network request failed (attempt ${i + 1}/${maxRetries}). Retrying in ${delayMs}ms...`);
+                await new Promise(res => setTimeout(res, delayMs));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw lastError;
+};
+
 // Auth Helpers
 export const signupWithEmail = async (email, password) => {
-    const res = await withTimeout(createUserWithEmailAndPassword(auth, email, password));
+    const res = await withAuthRetry(() => createUserWithEmailAndPassword(auth, email, password));
     return res;
 };
 
 export const loginWithEmail = async (email, password) => {
-    const res = await withTimeout(signInWithEmailAndPassword(auth, email, password));
+    const res = await withAuthRetry(() => signInWithEmailAndPassword(auth, email, password));
     return res;
 };
 
 export const resetPasswordWithFirebase = async (email) => {
-    const res = await withTimeout(sendPasswordResetEmail(auth, email));
+    const res = await withAuthRetry(() => sendPasswordResetEmail(auth, email));
     return res;
 };
 

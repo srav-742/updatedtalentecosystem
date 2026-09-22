@@ -60,6 +60,13 @@ router.post('/upload-video-intro', upload.single('video'), async (req, res) => {
             { new: true, upsert: true }
         );
 
+        try {
+            const { invalidateCache } = require('../middleware/cacheMiddleware');
+            invalidateCache('/api/applications');
+        } catch (cacheErr) {
+            // ignore
+        }
+
         res.status(200).json({
             success: true,
             videoUrl: uploadResult.secure_url,

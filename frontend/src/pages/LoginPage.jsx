@@ -360,6 +360,8 @@ const LoginPage = () => {
                 userFriendlyMessage = error.response.data.message;
             } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
                 userFriendlyMessage = "Account not found or password incorrect. Since we switched to Firebase, you may need to Create a New Account.";
+            } else if (error.code === 'auth/network-request-failed') {
+                userFriendlyMessage = "Network error: Unable to reach authentication server. Please check your internet connection or disable ad-blockers/shields and try again.";
             } else if (error.message) {
                 userFriendlyMessage = error.message;
             }

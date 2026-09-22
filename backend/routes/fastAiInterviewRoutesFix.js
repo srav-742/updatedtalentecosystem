@@ -1113,6 +1113,12 @@ async function finalizeInterview(session, sessionId) {
             }
 
             await app.save();
+            try {
+                const { invalidateCache } = require('../middleware/cacheMiddleware');
+                invalidateCache('/api/applications');
+            } catch (cacheErr) {
+                // ignore
+            }
             console.log(`[FIX-FINAL-EVAL] Application Updated. Final Score: ${app.finalScore}, Status: ${app.status}`);
         }
 

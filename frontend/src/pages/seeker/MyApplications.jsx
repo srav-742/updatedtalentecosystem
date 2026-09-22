@@ -123,7 +123,11 @@ const getTimelineSteps = (application, job) => {
     const isCodingDone = !job?.codingAssessment?.enabled || (application?.codingScore !== null && application?.codingScore !== undefined);
     const isInterviewDone = !job?.mockInterview?.enabled || (application?.interviewScore !== null && application?.interviewScore !== undefined);
 
-    const allTestsDone = isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone;
+    // Concluded pipeline: all modules done, or candidate concluded the final interview round, or terminal status
+    const hasConcludedInterview = job?.mockInterview?.enabled && (application?.interviewScore !== null && application?.interviewScore !== undefined);
+    const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
+                         (hasConcludedInterview && isResumeDone) ||
+                         isShortlisted || isSelected || isHired;
 
     // Review & Match stage: completed once resume is parsed, or if candidate reached shortlisted/selected/hired
     const reviewCompleted = isResumeDone || isShortlisted || isSelected || isHired || (isRejected && allTestsDone);
@@ -460,8 +464,11 @@ const MyApplications = () => {
                         const isCodingDone = !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
                         const isInterviewDone = !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
 
-                        const allTestsDone = isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone;
-                        const isComplete = allTestsDone || ['SHORTLISTED', 'ELIGIBLE', 'HIRED', 'REJECTED'].includes(application.status);
+                        const hasConcludedInterview = job.mockInterview?.enabled && (application.interviewScore !== null && application.interviewScore !== undefined);
+                        const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
+                                             (hasConcludedInterview && isResumeDone) ||
+                                             ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(application.status);
+                        const isComplete = allTestsDone || ['SHORTLISTED', 'ELIGIBLE', 'HIRED', 'REJECTED'].includes(application.status) || hasConcludedInterview;
 
                         return (
                             <motion.article
@@ -542,15 +549,15 @@ const MyApplications = () => {
                                                         }`}>
                                                             {step.label}
                                                         </span>
-                                                        {/* Connector line to next step - placed cleanly AFTER label text */}
+                                                        {/* Connector line to next step - visible across devices and viewports */}
                                                         {idx < timeline.length - 1 && (
-                                                            <div className="hidden sm:block h-[2px] flex-1 ml-2 rounded-full self-center">
-                                                                <div className={`h-full rounded-full transition-all duration-300 ${
+                                                            <div className="flex-1 min-w-[14px] ml-2 self-center">
+                                                                <div className={`h-[2px] w-full rounded-full transition-all duration-300 ${
                                                                     step.completed && timeline[idx + 1].completed
                                                                         ? 'bg-black'
-                                                                        : step.completed && timeline[idx + 1].active
+                                                                        : (step.completed && timeline[idx + 1].active) || (step.active && timeline[idx + 1].active)
                                                                         ? 'bg-amber-400'
-                                                                        : 'bg-gray-200'
+                                                                        : 'bg-black/15'
                                                                 }`} />
                                                             </div>
                                                         )}
