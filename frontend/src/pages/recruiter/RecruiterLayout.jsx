@@ -164,15 +164,15 @@ const RecruiterLayout = () => {
                     {isMinimized ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </button>
 
-                <div className={`transition-all duration-300 ${isMinimized ? 'p-4 flex justify-center' : 'px-6 py-5'}`}>
+                <div className={`transition-all duration-300 ${isMinimized ? 'p-3 flex justify-center' : 'px-5 py-4'}`}>
                     <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1.25rem] bg-black text-white shadow-lg shadow-black/10" title="Recruiter Portal">
-                            <Zap size={22} />
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white shadow-md shadow-black/10" title="Recruiter Portal">
+                            <Zap size={20} />
                         </div>
                         {!isMinimized && (
                             <div className="min-w-0 transition-opacity duration-300">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400 truncate">Recruiter portal</p>
-                                <h1 className="text-xl font-semibold tracking-tight text-gray-900 truncate">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400 truncate">Recruiter portal</p>
+                                <h1 className="text-lg font-semibold tracking-tight text-gray-900 truncate">
                                     hire1<span className="text-gray-500">percent</span>
                                 </h1>
                             </div>
@@ -180,7 +180,7 @@ const RecruiterLayout = () => {
                     </div>
                 </div>
 
-                <nav className={`flex-1 space-y-1.5 transition-all duration-300 ${isMinimized ? 'px-2' : 'px-4 pb-2'}`}>
+                <nav className={`flex-1 space-y-1 transition-all duration-300 ${isMinimized ? 'px-2' : 'px-3 pb-1'}`}>
                     {activeNavItems.map((item) => {
                         const Icon = item.icon;
 
@@ -194,43 +194,45 @@ const RecruiterLayout = () => {
                                 className={({ isActive }) => `
                                     flex items-center transition
                                     ${isMinimized 
-                                        ? 'h-12 w-12 justify-center mx-auto rounded-2xl border border-transparent' 
-                                        : 'gap-3 px-5 py-3 text-sm font-semibold rounded-2xl border'}
+                                        ? 'h-10 w-10 justify-center mx-auto rounded-xl border border-transparent' 
+                                        : 'gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl border'}
                                     ${isActive
-                                        ? 'border-black bg-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]'
+                                        ? 'border-black bg-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
                                         : 'border-transparent bg-transparent text-gray-500 hover:border-black/5 hover:bg-black/[0.03] hover:text-gray-900'}
                                 `}
                             >
-                                <Icon size={18} className="shrink-0" />
+                                <Icon size={16} className="shrink-0" />
                                 {!isMinimized && <span className="truncate">{item.label}</span>}
                             </NavLink>
                         );
                     })}
                 </nav>
 
-                <div className={`mt-auto shrink-0 border-t border-black/10 transition-all duration-300 ${isMinimized ? 'p-2 flex flex-col items-center gap-3' : 'p-3'}`}>
+                <div className={`mt-auto shrink-0 border-t border-black/10 transition-all duration-300 ${isMinimized ? 'p-2 flex flex-col items-center gap-2' : 'p-2.5'}`}>
                     {/* Wallet Widget */}
                     {!isMinimized ? (
-                        <div className="mx-2 mb-3.5 p-4 bg-black/[0.03] border border-black/5 rounded-2xl shadow-inner">
-                            <div className="flex justify-between items-center mb-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Wallet Balance</span>
-                                <Wallet size={14} className="text-gray-500" />
+                        <div className="mx-1 mb-2 p-2.5 bg-black/[0.03] border border-black/5 rounded-xl shadow-2xs">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Wallet Balance</span>
+                                <Wallet size={12} className="text-gray-500" />
                             </div>
-                            <div className="text-lg font-black text-gray-900">₹{(walletBalance || 0).toFixed(2)}</div>
-                            <button
-                                onClick={() => setIsTopUpOpen(true)}
-                                className="w-full mt-2.5 py-2 px-3 bg-black hover:bg-black/80 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                                <Plus size={10} /> Top Up Wallet
-                            </button>
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="text-base font-black text-gray-900">₹{(walletBalance || 0).toFixed(2)}</div>
+                                <button
+                                    onClick={() => setIsTopUpOpen(true)}
+                                    className="py-1 px-2.5 bg-black hover:bg-black/80 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                                >
+                                    <Plus size={9} /> Top Up
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <button
                             onClick={() => setIsTopUpOpen(true)}
                             title={`Wallet Balance: ₹${(walletBalance || 0).toFixed(2)}`}
-                            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-black/5 bg-black/[0.03] text-gray-700 hover:bg-black/10 hover:text-black transition cursor-pointer mb-2"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/5 bg-black/[0.03] text-gray-700 hover:bg-black/10 hover:text-black transition cursor-pointer mb-1"
                         >
-                            <Wallet size={18} />
+                            <Wallet size={16} />
                         </button>
                     )}
 
@@ -238,26 +240,26 @@ const RecruiterLayout = () => {
                         onClick={handleLogout}
                         title={isMinimized ? "Logout" : undefined}
                         className={`
-                            flex items-center text-sm font-semibold text-gray-500 transition hover:bg-red-50 hover:text-red-500
+                            flex items-center text-xs font-semibold text-gray-500 transition hover:bg-red-50 hover:text-red-500
                             ${isMinimized 
-                                ? 'h-12 w-12 justify-center rounded-2xl border border-transparent' 
-                                : 'mb-3 w-full gap-3 rounded-2xl px-5 py-3'}
+                                ? 'h-10 w-10 justify-center rounded-xl border border-transparent' 
+                                : 'mb-2 w-full gap-2.5 rounded-xl px-3.5 py-1.5'}
                         `}
                     >
-                        <LogOut size={18} className="shrink-0" />
+                        <LogOut size={16} className="shrink-0" />
                         {!isMinimized && <span>Logout</span>}
                     </button>
                     <div 
                         className={`
                             border border-black/10 bg-[#f4efe6] transition-all duration-300
                             ${isMinimized 
-                                ? 'flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white' 
-                                : 'rounded-[1.6rem] p-3 w-full'}
+                                ? 'flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white' 
+                                : 'rounded-xl p-2 w-full'}
                         `}
                         title={isMinimized ? (profile?.name || user.name || 'Recruiter') : undefined}
                     >
                         {isMinimized ? (
-                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1.1rem] bg-white text-base font-semibold text-gray-900">
+                            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-white text-sm font-semibold text-gray-900">
                                 {profile?.profilePic ? (
                                     <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                 ) : (
@@ -265,8 +267,8 @@ const RecruiterLayout = () => {
                                 )}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[1.1rem] border border-black/10 bg-white text-base font-semibold text-gray-900">
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white text-sm font-semibold text-gray-900">
                                     {profile?.profilePic ? (
                                         <img loading="lazy" src={profile.profilePic} alt="Avatar" className="h-full w-full object-cover" />
                                     ) : (
@@ -275,14 +277,14 @@ const RecruiterLayout = () => {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                        <p className="truncate text-sm font-semibold text-gray-900">{profile?.name || user.name || 'Recruiter'}</p>
+                                        <p className="truncate text-xs font-semibold text-gray-900">{profile?.name || user.name || 'Recruiter'}</p>
                                         {(profile?.hiringPattern === "Premium Recruiter" || profile?.isPro === true) && (
-                                            <span className="flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-black shadow-sm">
-                                                <Crown size={8} className="fill-black" /> PRO
+                                            <span className="flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 px-1.5 py-0.2 text-[7px] font-extrabold uppercase tracking-wider text-black shadow-xs">
+                                                <Crown size={7} className="fill-black" /> PRO
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">{profile?.designation || 'Hiring Lead'}</p>
+                                    <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-400">{profile?.designation || 'Hiring Lead'}</p>
                                 </div>
                             </div>
                         )}

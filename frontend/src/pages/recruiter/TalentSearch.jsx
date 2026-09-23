@@ -54,8 +54,7 @@ const TalentSearch = () => {
     const suggestions = [
         "React developers with 3+ years experience",
         "Python backend experts in Fintech",
-        "Fullstack engineers who know AWS",
-        "Mobile developers with React Native skills"
+        "Fullstack engineers who know AWS"
     ];
 
     return (

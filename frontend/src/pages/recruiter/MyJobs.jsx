@@ -391,12 +391,12 @@ const MyJobs = () => {
             </div>
 
             {/* 3. Search, Filter Tabs & Sort Controls Toolbar */}
-            <div className="rec-card p-4 md:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-                {/* Status Segmented Tabs */}
-                <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto pb-1 lg:pb-0">
+            <div className="rec-card px-4 py-3 flex items-center gap-2">
+                {/* Left: Status Segmented Tabs */}
+                <div className="flex items-center gap-1.5 shrink-0">
                     <button
                         onClick={() => setStatusFilter('all')}
-                        className={`myjobs-filter-tab ${statusFilter === 'all' ? 'active' : ''}`}
+                        className={`myjobs-filter-tab myjobs-filter-tab--sm ${statusFilter === 'all' ? 'active' : ''}`}
                     >
                         <span>All Requisitions</span>
                         <span className="myjobs-filter-badge">{metrics.total}</span>
@@ -404,18 +404,18 @@ const MyJobs = () => {
 
                     <button
                         onClick={() => setStatusFilter('approved')}
-                        className={`myjobs-filter-tab ${statusFilter === 'approved' ? 'active' : ''}`}
+                        className={`myjobs-filter-tab myjobs-filter-tab--sm ${statusFilter === 'approved' ? 'active' : ''}`}
                     >
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                        <span>Live & Active</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span>Live &amp; Active</span>
                         <span className="myjobs-filter-badge">{metrics.active}</span>
                     </button>
 
                     <button
                         onClick={() => setStatusFilter('pending')}
-                        className={`myjobs-filter-tab ${statusFilter === 'pending' ? 'active' : ''}`}
+                        className={`myjobs-filter-tab myjobs-filter-tab--sm ${statusFilter === 'pending' ? 'active' : ''}`}
                     >
-                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                         <span>Pending</span>
                         <span className="myjobs-filter-badge">{metrics.pending}</span>
                     </button>
@@ -423,34 +423,37 @@ const MyJobs = () => {
                     {metrics.rejected > 0 && (
                         <button
                             onClick={() => setStatusFilter('rejected')}
-                            className={`myjobs-filter-tab ${statusFilter === 'rejected' ? 'active' : ''}`}
+                            className={`myjobs-filter-tab myjobs-filter-tab--sm ${statusFilter === 'rejected' ? 'active' : ''}`}
                         >
-                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                             <span>Action Needed</span>
                             <span className="myjobs-filter-badge">{metrics.rejected}</span>
                         </button>
                     )}
                 </div>
 
-                {/* Search & Sort Filters */}
-                <div className="flex flex-wrap items-center gap-3">
+                {/* Spacer */}
+                <div className="flex-1" />
+
+                {/* Right: Search + Workplace Type + Sort */}
+                <div className="flex items-center gap-2 shrink-0">
                     {/* Search Field */}
-                    <div className="relative min-w-[240px] flex-1 lg:flex-none">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                    <div className="relative shrink-0" style={{ width: '160px' }}>
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                         <input
                             type="text"
-                            placeholder="Search by title, location, skill..."
+                            placeholder="Search title, skill..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="rec-input pl-9 pr-8 py-2 text-xs w-full"
+                            className="rec-input pl-8 pr-6 py-1.5 text-xs w-full"
                         />
                         {searchTerm && (
                             <button 
                                 onClick={() => setSearchTerm('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
                                 title="Clear search"
                             >
-                                <X size={13} />
+                                <X size={11} />
                             </button>
                         )}
                     </div>
@@ -460,7 +463,8 @@ const MyJobs = () => {
                         <select
                             value={typeFilter}
                             onChange={(e) => setTypeFilter(e.target.value)}
-                            className="rec-select px-3 py-2 text-xs cursor-pointer"
+                            className="rec-select px-2 py-1.5 text-xs cursor-pointer shrink-0"
+                            style={{ minWidth: '145px' }}
                         >
                             <option value="all">All Workplace Types</option>
                             {availableTypes.map(t => (
@@ -470,19 +474,18 @@ const MyJobs = () => {
                     )}
 
                     {/* Sort Dropdown */}
-                    <div className="flex items-center gap-1.5">
-                        <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="rec-select px-3 py-2 text-xs font-semibold cursor-pointer"
-                        >
-                            <option value="newest">Sort: Newest First</option>
-                            <option value="oldest">Sort: Oldest First</option>
-                            <option value="applicants">Sort: Most Applicants</option>
-                            <option value="match">Sort: Highest Match %</option>
-                            <option value="alphabetical">Sort: Title (A-Z)</option>
-                        </select>
-                    </div>
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="rec-select px-2 py-1.5 text-xs font-semibold cursor-pointer shrink-0"
+                        style={{ minWidth: '145px' }}
+                    >
+                        <option value="newest">Sort: Newest First</option>
+                        <option value="oldest">Sort: Oldest First</option>
+                        <option value="applicants">Sort: Most Applicants</option>
+                        <option value="match">Sort: Highest Match %</option>
+                        <option value="alphabetical">Sort: Title (A-Z)</option>
+                    </select>
                 </div>
             </div>
 

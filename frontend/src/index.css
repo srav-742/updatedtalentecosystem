@@ -296,3 +296,44 @@ body {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* ─── Recruiter Sidebar Fixes ───────────────────────────────────────────────
+   1. Font: Force Inter on the sidebar so it renders correctly even before
+      the async Google Fonts stylesheet has finished loading.
+   2. Toggle button: The aside uses overflow-y:auto which clips the collapse
+      button that is positioned at -right-3.5 (half outside). Fix by setting
+      overflow:visible on the aside itself and letting only the inner nav
+      scroll via flex layout (flex:1 + min-height:0 = scrollable flex child).
+────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Sidebar font */
+.recruiter-light-theme aside,
+.recruiter-light-theme aside * {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* 2. Toggle button visibility — remove overflow clip from aside,
+      make the nav flex child scrollable instead */
+.recruiter-light-theme aside {
+  overflow: visible !important;
+}
+
+.recruiter-light-theme aside > nav {
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.1) transparent;
+}
+
+.recruiter-light-theme aside > nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.recruiter-light-theme aside > nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.recruiter-light-theme aside > nav::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
