@@ -122,41 +122,41 @@ export default function BlogPosts() {
     return (
         <div className="space-y-8" style={{ fontFamily: "'Inter', sans-serif" }}>
             
-            {/* Header section with Stats & CTA */}
-            <div className="overflow-hidden rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            {/* Header section with Stats & CTA (Compact) */}
+            <div className="overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-6 py-5 md:px-7 md:py-5.5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Content Management</p>
-                        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">Blog Posts</h1>
-                        <p className="mt-4 max-w-3xl text-base leading-8 text-gray-500">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Content Management</p>
+                        <h1 className="mt-1 text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900">Blog Posts</h1>
+                        <p className="mt-1 max-w-2xl text-xs md:text-sm text-gray-500 font-normal line-clamp-1 md:line-clamp-none">
                             Create, review, schedule, and publish professional publishing articles directly to the Hire1Percent engineering and AI hiring blog.
                         </p>
                     </div>
                     <button
                         onClick={() => navigate('/recruiter/blog/new')}
-                        className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-black text-white hover:bg-gray-800 transition-all font-semibold text-sm active:scale-95 shadow-lg shadow-black/10 cursor-pointer self-start md:self-auto"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white hover:bg-gray-800 transition-all font-bold text-xs active:scale-95 shadow-md shadow-black/10 cursor-pointer self-start md:self-auto"
                     >
-                        <Plus size={16} /> Write Article
+                        <Plus size={15} /> Write Article
                     </button>
                 </div>
 
                 {/* mini stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-6 border-t border-black/5">
-                    <div className="p-4 bg-white/40 rounded-2xl border border-black/5">
-                        <span className="text-xs text-gray-400 font-semibold block uppercase tracking-wider">Total Articles</span>
-                        <span className="text-2xl font-bold text-gray-900 mt-1 block">{posts.length}</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-4 border-t border-black/5">
+                    <div className="p-3 bg-white/50 rounded-xl border border-black/5">
+                        <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Total Articles</span>
+                        <span className="text-xl font-bold text-gray-900 mt-0.5 block">{posts.length}</span>
                     </div>
-                    <div className="p-4 bg-white/40 rounded-2xl border border-black/5">
-                        <span className="text-xs text-gray-400 font-semibold block uppercase tracking-wider">Published</span>
-                        <span className="text-2xl font-bold text-teal-600 mt-1 block">{posts.filter(p => p.status === 'published').length}</span>
+                    <div className="p-3 bg-white/50 rounded-xl border border-black/5">
+                        <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Published</span>
+                        <span className="text-xl font-bold text-teal-600 mt-0.5 block">{posts.filter(p => p.status === 'published').length}</span>
                     </div>
-                    <div className="p-4 bg-white/40 rounded-2xl border border-black/5">
-                        <span className="text-xs text-gray-400 font-semibold block uppercase tracking-wider">Drafts</span>
-                        <span className="text-2xl font-bold text-amber-500 mt-1 block">{posts.filter(p => p.status === 'draft' || !p.status).length}</span>
+                    <div className="p-3 bg-white/50 rounded-xl border border-black/5">
+                        <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Drafts</span>
+                        <span className="text-xl font-bold text-amber-500 mt-0.5 block">{posts.filter(p => p.status === 'draft' || !p.status).length}</span>
                     </div>
-                    <div className="p-4 bg-white/40 rounded-2xl border border-black/5">
-                        <span className="text-xs text-gray-400 font-semibold block uppercase tracking-wider">Scheduled</span>
-                        <span className="text-2xl font-bold text-blue-500 mt-1 block">{posts.filter(p => p.status === 'scheduled').length}</span>
+                    <div className="p-3 bg-white/50 rounded-xl border border-black/5">
+                        <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-wider">Scheduled</span>
+                        <span className="text-xl font-bold text-blue-500 mt-0.5 block">{posts.filter(p => p.status === 'scheduled').length}</span>
                     </div>
                 </div>
             </div>

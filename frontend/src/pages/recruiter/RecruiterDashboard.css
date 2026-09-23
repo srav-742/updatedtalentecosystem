@@ -24,11 +24,11 @@
     box-shadow: var(--rd-shadow-lg);
 }
 
-/* Hero card with rich subtle ambient gradient */
+/* Hero card with rich subtle ambient gradient (Compact & Sleek) */
 #recruiter-dashboard-root .rd-hero-banner {
     background: linear-gradient(135deg, #ffffff 0%, #faf8f5 50%, #f4efe6 100%) !important;
     border: 1px solid rgba(15, 23, 42, 0.09) !important;
-    box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.06) !important;
+    box-shadow: 0 14px 35px -10px rgba(15, 23, 42, 0.05) !important;
     position: relative;
     overflow: hidden;
 }
@@ -38,8 +38,8 @@
     position: absolute;
     top: -50%;
     right: -10%;
-    width: 420px;
-    height: 420px;
+    width: 320px;
+    height: 320px;
     background: radial-gradient(circle, rgba(59, 130, 246, 0.07) 0%, rgba(20, 184, 166, 0.04) 50%, transparent 70%) !important;
     pointer-events: none;
     border-radius: 50%;
@@ -103,13 +103,13 @@
     transform: translateY(-1px);
 }
 
-/* Stat card interactive style */
+/* Stat card interactive style (Compact & Sleek) */
 #recruiter-dashboard-root .rd-stat-card {
     background-color: #ffffff !important;
     border: 1px solid rgba(15, 23, 42, 0.08) !important;
     position: relative;
-    border-radius: 1.75rem;
-    padding: 1.75rem;
+    border-radius: 1.25rem;
+    padding: 1.15rem 1.25rem;
     box-shadow: 0 10px 30px -6px rgba(15, 23, 42, 0.04);
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -196,4 +196,41 @@
 
 #recruiter-dashboard-root .rd-table-container::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+}
+
+/* Distinct Recruiter Toolkit Command Dock */
+#recruiter-dashboard-root .rd-toolkit-card {
+    background: linear-gradient(145deg, #ffffff 0%, #fbf9f5 60%, #f5efe4 100%) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    box-shadow: 0 12px 36px -6px rgba(15, 23, 42, 0.05);
+}
+
+#recruiter-dashboard-root .rd-toolkit-tile {
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#recruiter-dashboard-root .rd-toolkit-tile:hover {
+    background: #ffffff;
+    transform: translateY(-2px);
+    border-color: rgba(15, 23, 42, 0.18);
+    box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.08);
+}
+
+/* Distinct Pipeline Funnel Card & Stage Tiles */
+#recruiter-dashboard-root .rd-pipeline-card {
+    background: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.09) !important;
+    box-shadow: 0 12px 36px -6px rgba(15, 23, 42, 0.05);
+}
+
+#recruiter-dashboard-root .rd-funnel-stage {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+#recruiter-dashboard-root .rd-funnel-stage:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px -4px rgba(15, 23, 42, 0.06);
 }

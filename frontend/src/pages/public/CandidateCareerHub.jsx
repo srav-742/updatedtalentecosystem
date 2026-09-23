@@ -947,8 +947,8 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         onClick={() => setCheckedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
                                         className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                                             isChecked
-                                                ? 'bg-blue-500/10 border-blue-500/40 text-blue-300'
-                                                : 'bg-black/2 dark:bg-white/2 border-black/5 dark:border-white/5 text-slate-400 hover:border-black/10 dark:hover:border-white/10'
+                                                ? 'bg-gray-900 border-blue-500 text-white shadow-md'
+                                                : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                                         }`}
                                     >
                                         <div className={`mt-0.5 h-5 w-5 rounded-lg flex items-center justify-center shrink-0 border ${
@@ -960,14 +960,14 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <p className={`text-xs font-bold truncate ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                <p className={`text-xs font-bold truncate ${isChecked ? 'text-white' : 'text-gray-900'}`}>
                                                     {item.label}
                                                 </p>
                                                 <span className="text-[10px] font-extrabold text-blue-400 shrink-0">
                                                     +{item.weight} pts
                                                 </span>
                                             </div>
-                                            <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                                            <p className={`text-[11px] mt-0.5 leading-tight ${isChecked ? 'text-slate-300' : 'text-gray-500'}`}>
                                                 {item.hint}
                                             </p>
                                         </div>
@@ -1029,7 +1029,7 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                                             isSelected
                                                 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                                                : 'ch-card text-slate-400 hover:text-slate-200'
+                                                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-900 hover:text-white'
                                         }`}
                                     >
                                         <RoleIcon size={14} />
@@ -1055,8 +1055,8 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                                 {currentRoleData.demand}
                                             </span>
                                         </div>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            Seniority Scope: <span className="font-semibold text-slate-300">{currentRoleData.level}</span> &bull; Typical Comp: <span className="font-semibold text-emerald-400">{currentRoleData.avgSalary}</span>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Seniority Scope: <span className="font-semibold px-2.5 py-0.5 rounded-md bg-gray-900 text-white">{currentRoleData.level}</span> &bull; Typical Comp: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{currentRoleData.avgSalary}</span>
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1101,21 +1101,21 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Seniority Expectations (Junior to Staff)</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="p-3.5 rounded-xl bg-black/2 dark:bg-white/2 border border-black/5 dark:border-white/5">
+                                        <div className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 text-white shadow-xs">
                                             <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wide block mb-1">Junior (L1)</span>
-                                            <p className="text-xs text-slate-400">{currentRoleData.seniorityLadder?.junior}</p>
+                                            <p className="text-xs text-slate-300">{currentRoleData.seniorityLadder?.junior}</p>
                                         </div>
-                                        <div className="p-3.5 rounded-xl bg-black/2 dark:bg-white/2 border border-black/5 dark:border-white/5">
+                                        <div className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 text-white shadow-xs">
                                             <span className="text-[11px] font-bold text-teal-400 uppercase tracking-wide block mb-1">Mid-Level (L2)</span>
-                                            <p className="text-xs text-slate-400">{currentRoleData.seniorityLadder?.mid}</p>
+                                            <p className="text-xs text-slate-300">{currentRoleData.seniorityLadder?.mid}</p>
                                         </div>
-                                        <div className="p-3.5 rounded-xl bg-black/2 dark:bg-white/2 border border-black/5 dark:border-white/5">
+                                        <div className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 text-white shadow-xs">
                                             <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wide block mb-1">Senior (L3)</span>
-                                            <p className="text-xs text-slate-400">{currentRoleData.seniorityLadder?.senior}</p>
+                                            <p className="text-xs text-slate-300">{currentRoleData.seniorityLadder?.senior}</p>
                                         </div>
-                                        <div className="p-3.5 rounded-xl bg-black/2 dark:bg-white/2 border border-black/5 dark:border-white/5">
+                                        <div className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 text-white shadow-xs">
                                             <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wide block mb-1">Staff / Principal (L4)</span>
-                                            <p className="text-xs text-slate-400">{currentRoleData.seniorityLadder?.staff}</p>
+                                            <p className="text-xs text-slate-300">{currentRoleData.seniorityLadder?.staff}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1155,7 +1155,7 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         <p className="text-xs text-slate-400 mb-3">{cat.description}</p>
                                         <div className="flex flex-wrap gap-1.5">
                                             {cat.skills.map((s, i) => (
-                                                <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 text-slate-300 font-medium">
+                                                <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-900 text-white font-medium border border-gray-800 shadow-xs">
                                                     {s}
                                                 </span>
                                             ))}
@@ -1166,15 +1166,15 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                         </div>
 
                         {/* Hire1Percent Rubric Callout */}
-                        <div className="ch-card rounded-2xl p-6 bg-gradient-to-r from-teal-950/20 to-blue-950/20 border border-teal-500/20">
+                        <div className="ch-card rounded-2xl p-6 bg-gray-900 border border-teal-500/30 text-white shadow-md">
                             <h3 className="text-sm font-bold text-teal-300 uppercase tracking-wider mb-3">
                                 Hire1Percent Candidate Competency Rubric (How assessments are scored)
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                                 {DEFAULT_PILLARS.find(p => p.id === 'skills')?.rubric?.map((r, i) => (
-                                    <div key={i} className="p-3 rounded-xl bg-black/10 dark:bg-white/5 border border-black/5 dark:border-white/5">
-                                        <p className="font-bold text-slate-200 mb-1">{r.level}</p>
-                                        <p className="text-slate-400 text-[11px] leading-relaxed">{r.criteria}</p>
+                                    <div key={i} className="p-3.5 rounded-xl bg-gray-950/80 border border-gray-800 text-white">
+                                        <p className="font-bold text-white mb-1">{r.level}</p>
+                                        <p className="text-slate-300 text-[11px] leading-relaxed">{r.criteria}</p>
                                     </div>
                                 ))}
                             </div>
@@ -1221,8 +1221,8 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         </p>
 
                                         {/* Architecture flow tag */}
-                                        <div className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-[11px] font-mono text-slate-300 mb-4">
-                                            <span className="text-slate-500 font-bold block mb-1">ARCHITECTURE FLOW:</span>
+                                        <div className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 text-[11px] font-mono text-slate-200 mb-4 shadow-xs">
+                                            <span className="text-teal-400 font-bold block mb-1">ARCHITECTURE FLOW:</span>
                                             {blueprint.architecture}
                                         </div>
 
@@ -1230,7 +1230,7 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                         <div className="space-y-1.5 mb-4">
                                             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Key Engineering Features</span>
                                             {blueprint.keyFeatures.slice(0, 3).map((feat, i) => (
-                                                <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                <div key={i} className="flex items-start gap-2 text-xs text-gray-800 dark:text-slate-200">
                                                     <CheckCircle2 size={13} className="text-teal-400 shrink-0 mt-0.5" />
                                                     <span>{feat}</span>
                                                 </div>
@@ -1288,18 +1288,18 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                 <p className="text-xs text-slate-400">
                                     The 10-20-40-20 rule for managing a 60-90 minute proctored coding test:
                                 </p>
-                                <div className="space-y-2.5 text-xs text-slate-300">
-                                    <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
-                                        <strong className="text-amber-300">10m Clarify & Edge Cases:</strong> Identify empty arrays, nulls, negative numbers.
+                                <div className="space-y-2.5 text-xs text-slate-200">
+                                    <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-slate-200 shadow-xs">
+                                        <strong className="text-amber-400 font-semibold block sm:inline mr-1">10m Clarify & Edge Cases:</strong> Identify empty arrays, nulls, negative numbers.
                                     </div>
-                                    <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
-                                        <strong className="text-amber-300">20m Pseudocode:</strong> Outline logic in comments before writing real code.
+                                    <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-slate-200 shadow-xs">
+                                        <strong className="text-amber-400 font-semibold block sm:inline mr-1">20m Pseudocode:</strong> Outline logic in comments before writing real code.
                                     </div>
-                                    <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
-                                        <strong className="text-amber-300">40m Implementation:</strong> Modular functions, clean variable names, zero dead code.
+                                    <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-slate-200 shadow-xs">
+                                        <strong className="text-amber-400 font-semibold block sm:inline mr-1">40m Implementation:</strong> Modular functions, clean variable names, zero dead code.
                                     </div>
-                                    <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
-                                        <strong className="text-amber-300">20m Verification:</strong> Step through with sample inputs in test runner.
+                                    <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-slate-200 shadow-xs">
+                                        <strong className="text-amber-400 font-semibold block sm:inline mr-1">20m Verification:</strong> Step through with sample inputs in test runner.
                                     </div>
                                 </div>
                             </div>
@@ -1313,12 +1313,12 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                 <p className="text-xs text-slate-400">
                                     The 5-step roadmap tested in mid and senior architectural interviews:
                                 </p>
-                                <div className="space-y-2 text-xs text-slate-300">
-                                    <p><strong>1. Scope:</strong> Functional requirements vs Non-functional (QPS, SLA, DAU).</p>
-                                    <p><strong>2. Estimations:</strong> Read vs write throughput and storage projections.</p>
-                                    <p><strong>3. Architecture:</strong> Client &rarr; CDN &rarr; LB &rarr; Web Service &rarr; DB/Cache.</p>
-                                    <p><strong>4. Data Model:</strong> Relational schema, primary keys, and composite indexes.</p>
-                                    <p><strong>5. Deep Dive:</strong> Caching invalidation, sharding, and fault tolerance.</p>
+                                <div className="space-y-2.5 text-xs text-slate-200 p-4 rounded-2xl bg-gray-900 border border-gray-800 shadow-xs">
+                                    <p><strong className="text-blue-400 font-semibold">1. Scope:</strong> Functional requirements vs Non-functional (QPS, SLA, DAU).</p>
+                                    <p><strong className="text-blue-400 font-semibold">2. Estimations:</strong> Read vs write throughput and storage projections.</p>
+                                    <p><strong className="text-blue-400 font-semibold">3. Architecture:</strong> Client &rarr; CDN &rarr; LB &rarr; Web Service &rarr; DB/Cache.</p>
+                                    <p><strong className="text-blue-400 font-semibold">4. Data Model:</strong> Relational schema, primary keys, and composite indexes.</p>
+                                    <p><strong className="text-blue-400 font-semibold">5. Deep Dive:</strong> Caching invalidation, sharding, and fault tolerance.</p>
                                 </div>
                             </div>
 
@@ -1331,11 +1331,11 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                 <p className="text-xs text-slate-400">
                                     How Hire1Percent evaluates candidate speech & integrity:
                                 </p>
-                                <div className="space-y-2 text-xs text-slate-300">
-                                    <p><strong>STAR Adherence:</strong> Situation, Task, Action, and quantifiable Result.</p>
-                                    <p><strong>Vocal Cadence:</strong> Measured 120-140 WPM pace with concrete technical terms.</p>
-                                    <p><strong>Anti-Cheat Safeguards:</strong> Window focus tracking and typing cadence analysis.</p>
-                                    <p><strong>Documentation:</strong> Use approved in-browser documentation to avoid tab-switch flags.</p>
+                                <div className="space-y-2.5 text-xs text-slate-200 p-4 rounded-2xl bg-gray-900 border border-gray-800 shadow-xs">
+                                    <p><strong className="text-teal-400 font-semibold">STAR Adherence:</strong> Situation, Task, Action, and quantifiable Result.</p>
+                                    <p><strong className="text-teal-400 font-semibold">Vocal Cadence:</strong> Measured 120-140 WPM pace with concrete technical terms.</p>
+                                    <p><strong className="text-teal-400 font-semibold">Anti-Cheat Safeguards:</strong> Window focus tracking and typing cadence analysis.</p>
+                                    <p><strong className="text-teal-400 font-semibold">Documentation:</strong> Use approved in-browser documentation to avoid tab-switch flags.</p>
                                 </div>
                                 <Link
                                     to="/candidate/mock-interview"
@@ -1381,15 +1381,15 @@ export default function CandidateCareerHub({ isCandidatePortal = false }) {
                                             </div>
                                             <ChevronDown size={18} className="text-slate-400 transition-transform duration-200 group-open:rotate-180 shrink-0" />
                                         </summary>
-                                        <div className="px-5 sm:px-6 pb-6 pt-2 text-xs sm:text-sm leading-relaxed border-t border-black/5 dark:border-white/5 text-slate-300">
-                                            <p className="mb-4">{faq.a}</p>
-                                            <div className="flex items-center justify-between pt-2">
+                                        <div className="px-5 sm:px-6 pb-6 pt-4 text-xs sm:text-sm leading-relaxed bg-gray-900 text-slate-200 rounded-b-2xl border-t border-gray-800">
+                                            <p className="mb-4 text-slate-100">{faq.a}</p>
+                                            <div className="flex items-center justify-between pt-3 border-t border-gray-800">
                                                 <span className="text-[11px] text-slate-400 font-semibold">
                                                     Topic: <span className="text-blue-400">{pillar.title.split('&')[0]}</span>
                                                 </span>
                                                 <button
                                                     onClick={() => handleCopy(faq.a, globalIdx)}
-                                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-400 transition-colors"
+                                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
                                                 >
                                                     {copiedIndex === globalIdx ? (
                                                         <>

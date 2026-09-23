@@ -528,26 +528,26 @@ const RecruiterKnowledgeHub = () => {
 
     return (
         <div id="recruiter-knowledge-hub-root" className="space-y-8 pb-14 max-w-7xl mx-auto">
-            {/* 1. Hero Banner */}
-            <div className="rec-hero p-7 md:p-9 relative">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
-                    <div className="space-y-3 max-w-3xl">
-                        <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-900 text-white shadow-xs">
-                                <Sparkles size={12} className="text-amber-400" />
+            {/* 1. Hero Banner (Compact) */}
+            <div className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7 relative">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 md:gap-6 relative z-10">
+                    <div className="space-y-1.5 max-w-3xl">
+                        <div className="flex items-center gap-2.5">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-white shadow-xs">
+                                <Sparkles size={11} className="text-amber-400" />
                                 <span>Recruiter Knowledge Hub</span>
                             </span>
                             <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                <BookOpen size={13} className="text-slate-400" />
+                                <BookOpen size={12} className="text-slate-400" />
                                 5 Core Hiring Pillars & Recruiter Assistant
                             </span>
                         </div>
 
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
                             Recruiter <span className="rec-text-gradient">Intelligence & Knowledge Hub</span>
                         </h1>
 
-                        <p className="text-sm md:text-base text-slate-600 leading-relaxed font-normal">
+                        <p className="text-xs md:text-sm text-slate-600 font-normal line-clamp-1 md:line-clamp-none">
                             Get instant answers, authoritative benchmarks, and actionable playbooks on 
                             <strong> Job Creation</strong>, <strong>Skill-Based Hiring</strong>, <strong>Assessments</strong>, 
                             <strong> Structured Interviews</strong>, and <strong>Candidate Evaluation</strong>.

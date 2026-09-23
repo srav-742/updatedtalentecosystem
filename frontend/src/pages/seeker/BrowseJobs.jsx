@@ -188,27 +188,27 @@ const BrowseJobs = () => {
 
     return (
         <div className="space-y-6">
-            <header className="rounded-3xl border border-black/10 bg-white px-7 py-6 shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
+            <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-4 px-6 md:py-4.5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Browse jobs</p>
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Browse jobs</p>
                         </div>
-                        <h1 className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight text-gray-900">Discover roles built for your next move</h1>
-                        <p className="mt-1 text-xs md:text-sm text-gray-500">
+                        <h1 className="mt-1 text-xl md:text-2xl font-bold tracking-tight text-gray-900">Discover roles built for your next move</h1>
+                        <p className="mt-0.5 text-xs md:text-sm text-gray-500 font-normal">
                             Explore active opportunities, compare minimum match requirements, and fast-track your applications.
                         </p>
                     </div>
 
-                    <div className="relative min-w-full lg:min-w-[340px]">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
+                    <div className="relative min-w-full lg:min-w-[320px]">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
                         <input
                             type="text"
                             placeholder="Search by role or company..."
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
-                            className="w-full rounded-2xl border border-black/10 bg-[#faf7f1] py-3.5 pl-11 pr-4 text-sm text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
+                            className="w-full rounded-xl border border-black/10 bg-[#faf7f1] py-2.5 pl-10 pr-4 text-xs text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
                         />
                     </div>
                 </div>

@@ -197,92 +197,92 @@ const SeekerDashboard = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header Hero Banner */}
-            <header className="overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] px-7 py-7 shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
-                <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr] xl:items-center">
+            {/* Header Hero Banner (Compact & Sleek) */}
+            <header className="overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] py-4.5 px-6 md:py-5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr] xl:items-center">
                     <div>
-                        <div className="flex flex-wrap items-center gap-2.5">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-black/5 bg-[#f4efe6] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 Candidate Dashboard
                             </div>
                             {jobReadiness && (
                                 <button
                                     onClick={() => setIsReadinessModalOpen(true)}
-                                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/90 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/90 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
                                 >
-                                    <Award size={13} className="text-indigo-600" />
+                                    <Award size={12} className="text-indigo-600" />
                                     <span>Readiness: <strong className="font-bold text-indigo-900">{jobReadiness.overallScore}%</strong></span>
-                                    <span className="text-[10px] bg-indigo-200/60 px-1.5 py-0.5 rounded-full font-medium">{jobReadiness.tier?.split(' - ')[0]}</span>
+                                    <span className="text-[10px] bg-indigo-200/60 px-1.5 py-0.2 rounded-full font-medium">{jobReadiness.tier?.split(' - ')[0]}</span>
                                 </button>
                             )}
                         </div>
-                        <h1 className="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
-                            Welcome back, {user.name || 'Candidate'}
+                        <h1 className="mt-2 text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900 leading-tight">
+                            Welcome back, {user.name || 'Candidate'} 👋
                         </h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">{headline}</p>
+                        <p className="mt-1 max-w-2xl text-xs md:text-sm text-gray-600 font-normal line-clamp-1 md:line-clamp-none">{headline}</p>
 
-                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
                             <Link
                                 to="/candidate/jobs"
-                                className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-gray-800 active:scale-[0.99]"
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-black px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-gray-800 active:scale-[0.99]"
                             >
                                 <span>Browse Roles</span>
-                                <ArrowRight size={15} />
+                                <ArrowRight size={13} />
                             </Link>
                             <Link
                                 to="/candidate/applications"
-                                className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white/80 px-5 py-3 text-xs font-semibold text-gray-700 transition hover:bg-white active:scale-[0.99]"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white/80 px-3.5 py-2 text-xs font-semibold text-gray-700 transition hover:bg-white active:scale-[0.99]"
                             >
                                 <span>Track Applications</span>
                             </Link>
                             <Link
                                 to="/candidate/mock-interview"
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/70 px-4 py-3 text-xs font-semibold text-purple-700 transition hover:bg-purple-100"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/70 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-100"
                             >
-                                <Zap size={14} className="text-purple-600" />
+                                <Zap size={13} className="text-purple-600" />
                                 <span>Practice AI Interview</span>
                             </Link>
                             <button
                                 onClick={() => setIsReadinessModalOpen(true)}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 cursor-pointer shadow-xs"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 cursor-pointer shadow-xs"
                             >
-                                <Award size={14} className="text-indigo-600" />
-                                <span>Readiness Score ({jobReadiness ? jobReadiness.overallScore : 0}%)</span>
+                                <Award size={13} className="text-indigo-600" />
+                                <span>Readiness ({jobReadiness ? jobReadiness.overallScore : 0}%)</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* AI Copilot Status Card */}
-                    <div className="rounded-2xl border border-black/10 bg-white/85 p-5 backdrop-blur-sm shadow-xs">
-                        <div className="flex items-center justify-between border-b border-black/5 pb-3">
-                            <div className="flex items-center gap-2.5">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-white shadow-xs">
-                                    <Zap size={18} />
+                    {/* AI Copilot Status Card (Compact) */}
+                    <div className="rounded-xl border border-black/10 bg-white/90 p-3.5 backdrop-blur-sm shadow-xs">
+                        <div className="flex items-center justify-between border-b border-black/5 pb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black text-white shadow-xs">
+                                    <Zap size={14} />
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-900">Hiring Momentum</p>
-                                    <p className="text-[10px] uppercase tracking-wider text-gray-400">AI Screening Pipeline</p>
+                                    <p className="text-xs font-bold text-gray-900 leading-tight">Hiring Momentum</p>
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-400">AI Screening Pipeline</p>
                                 </div>
                             </div>
-                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60">
+                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200/60">
                                 Active
                             </span>
                         </div>
 
-                        <div className="mt-3.5 space-y-2.5">
+                        <div className="mt-2 space-y-1.5">
                             {[
                                 { title: 'Resume Parsing', desc: 'Auto-extract skills & experience' },
                                 { title: 'Skill Match & Assessment', desc: 'Instant qualification benchmark' },
                                 { title: 'AI Mock Interview', desc: 'Live practice with instant feedback' }
                             ].map((step, idx) => (
-                                <div key={step.title} className="flex items-start gap-2.5">
-                                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-black text-white text-[9px] font-bold">
+                                <div key={step.title} className="flex items-start gap-2">
+                                    <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-black text-white text-[8px] font-bold">
                                         {idx + 1}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-gray-900 leading-tight">{step.title}</p>
-                                        <p className="text-[11px] text-gray-500 leading-tight">{step.desc}</p>
+                                        <p className="text-xs font-semibold text-gray-900 leading-none">{step.title}</p>
+                                        <p className="text-[10px] text-gray-500 leading-tight truncate">{step.desc}</p>
                                     </div>
                                 </div>
                             ))}

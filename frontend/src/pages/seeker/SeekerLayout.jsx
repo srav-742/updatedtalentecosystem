@@ -236,7 +236,7 @@ const SeekerLayout = () => {
                 <div className="pointer-events-none fixed right-[-5%] top-[-10%] -z-10 h-[600px] w-[600px] rounded-full bg-[#ded7cb] blur-[150px]" />
                 <div className="pointer-events-none fixed bottom-[-10%] left-[-5%] -z-10 h-[600px] w-[600px] rounded-full bg-[#ebe5db] blur-[150px]" />
 
-                <div className="mx-auto max-w-[1440px] p-4 md:p-10">
+                <div className="mx-auto max-w-[1440px] p-4 md:px-8 md:py-6">
                     <Outlet />
                 </div>
             </main>

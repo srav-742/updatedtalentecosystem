@@ -344,29 +344,29 @@ const MyApplications = () => {
     return (
         <div className="space-y-6">
             {/* Header Banner */}
-            <header className="overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] px-7 py-7 shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <header className="overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] py-4.5 px-6 md:py-5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Application Tracker
                         </div>
-                        <h1 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">
+                        <h1 className="mt-1.5 text-xl md:text-2xl font-bold tracking-tight text-gray-900">
                             Track your applications & pipeline
                         </h1>
-                        <p className="mt-1.5 max-w-2xl text-xs md:text-sm text-gray-500">
+                        <p className="mt-1 max-w-2xl text-xs md:text-[13px] text-gray-500">
                             Follow each submitted application through resume screening, skill assessments, and recruiter decisions in real time.
                         </p>
                     </div>
 
-                    <div className="relative min-w-full lg:min-w-[320px]">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <div className="relative min-w-full lg:min-w-[300px]">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
                         <input
                             type="text"
                             placeholder="Filter by role or company..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full rounded-2xl border border-black/10 bg-[#faf7f1] py-3 pl-11 pr-4 text-xs md:text-sm text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
+                            className="w-full rounded-xl border border-black/10 bg-[#faf7f1] py-2.5 pl-10 pr-4 text-xs text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
                         />
                     </div>
                 </div>

@@ -298,7 +298,7 @@ const RecruiterLayout = () => {
             )}
 
             <main className="recruiter-content relative flex-1 overflow-y-auto bg-[#f7f4ee] pt-20 text-gray-900 md:pt-0">
-                <div className="mx-auto w-full max-w-none p-4 md:p-10">
+                <div className="mx-auto w-full max-w-none p-4 md:px-8 md:py-6">
                     <Outlet />
                 </div>
             </main>

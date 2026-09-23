@@ -35,7 +35,7 @@ export default function SEO({
       {robots && <meta name="robots" content={robots} />}
 
       {/* Modern Web App Manifest & RSS Feeds */}
-      <link rel="manifest" href="/manifest.webmanifest" />
+      <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       <link rel="alternate" type="application/rss+xml" title="Hire1Percent Recruitment Blog" href="/rss.xml" />
 
       {/* Multi-Language & Region Hreflang Canonical Annotations */}

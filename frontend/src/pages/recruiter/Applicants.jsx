@@ -443,57 +443,57 @@ const Applicants = () => {
 
     return (
         <div className="space-y-8 min-h-[80vh]" onClick={() => setActiveMenuId(null)}>
-            <header className="rec-hero p-8 md:p-9">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <span className="rec-badge-dark px-3 py-0.5 text-[10px] uppercase tracking-wider">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
                                 Talent Review
                             </span>
                             <span className="text-xs text-slate-500 font-medium">
                                 {filteredApplicants.length} Candidates Found
                             </span>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
                             Candidate <span className="rec-text-gradient">Applications</span>
                         </h1>
-                        <p className="text-xs md:text-sm text-slate-600 max-w-xl">
+                        <p className="text-xs md:text-sm text-slate-600 max-w-xl font-normal line-clamp-1 md:line-clamp-none">
                             Review AI-screened candidate matches, proctored coding performance, and interview evaluations.
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                         {/* Search Input */}
-                        <div className="relative min-w-[200px]">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                        <div className="relative min-w-[190px] md:min-w-[210px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                             <input
                                 type="text"
                                 placeholder="Search by name, email..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="rec-input pl-9 pr-4 py-2.5 text-xs w-full"
+                                className="rec-input pl-8.5 pr-3 py-2 text-xs w-full rounded-xl"
                             />
                         </div>
 
                         {targetJobId && (
                             <button
                                 onClick={() => setUploadModalOpen(true)}
-                                className="rec-btn-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                className="rec-btn-primary px-3.5 py-2 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded-xl shadow-xs cursor-pointer"
                             >
-                                <UploadCloud size={15} />
+                                <UploadCloud size={14} />
                                 <span>Bulk Upload</span>
                             </button>
                         )}
 
                         {/* Wallet balance display pill */}
-                        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-                            <Wallet size={15} className="text-slate-500" />
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                            <Wallet size={14} className="text-slate-500" />
                             <div className="text-xs font-semibold text-slate-700">
                                 ₹<span className="font-bold text-slate-900">{walletBalance.toFixed(2)}</span>
                             </div>
                             <button 
                                 onClick={() => setIsTopUpOpen(true)}
-                                className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                                className="w-4.5 h-4.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer"
                                 title="Top Up Wallet"
                             >
                                 +
@@ -503,13 +503,13 @@ const Applicants = () => {
                         {/* Filter Toggle Button */}
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                                 showFilters 
                                     ? 'bg-slate-900 border-slate-900 text-white shadow-xs' 
                                     : 'bg-white border-slate-200/80 hover:bg-slate-50 text-slate-700'
                             }`}
                         >
-                            <Filter size={15} />
+                            <Filter size={14} />
                             <span>Filters</span>
                             {(minResumeScore > 0 || minAssessmentScore > 0 || filterStatus !== 'All' || filterVideo !== 'All' || sortBy !== 'none') && (
                                 <span className="w-2 h-2 rounded-full bg-indigo-500" />

@@ -439,37 +439,37 @@ const SeekerProfile = () => {
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             {/* Elevated Header Banner */}
-            <header className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/60 to-indigo-50/30 p-6 md:p-8 shadow-[0_10px_30px_rgba(15,23,42,0.03)]">
+            <header className="relative overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/60 to-indigo-50/30 py-4.5 px-6 md:py-5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.03)]">
                 <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-indigo-400/10 blur-3xl" />
                 <div className="pointer-events-none absolute right-48 -bottom-16 h-48 w-48 rounded-full bg-purple-400/10 blur-3xl" />
 
                 <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-indigo-50/80 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-indigo-700 shadow-2xs">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-indigo-50/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-700 shadow-2xs">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                             </span>
                             Candidate Profile
                         </div>
-                        <h1 className="mt-2.5 text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="mt-1.5 text-xl md:text-2xl font-extrabold tracking-tight text-slate-900">
                             Keep your profile application-ready
                         </h1>
-                        <p className="mt-1 max-w-2xl text-xs md:text-sm text-slate-500 leading-relaxed">
+                        <p className="mt-0.5 max-w-2xl text-xs md:text-[13px] text-slate-500 leading-relaxed">
                             Update your credentials, portfolio links, and parsed resumes to maximize automated match scores with top recruiters.
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2.5 shrink-0">
                         <AnimatePresence>
                             {saved && (
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.9 }}
-                                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-emerald-700 shadow-xs"
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 shadow-xs"
                                 >
-                                    <CheckCircle2 size={16} />
+                                    <CheckCircle2 size={15} />
                                     Profile Saved
                                 </motion.div>
                             )}
@@ -477,11 +477,11 @@ const SeekerProfile = () => {
                         <button
                             type="submit"
                             disabled={saving}
-                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-xs md:text-sm font-bold transition-all shadow-sm active:scale-95 ${
+                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-xs active:scale-95 ${
                                 saving ? 'cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md'
                             }`}
                         >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                             {saving ? 'Saving...' : 'Save Profile'}
                         </button>
                     </div>

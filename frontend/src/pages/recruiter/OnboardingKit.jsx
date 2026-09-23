@@ -132,19 +132,19 @@ const OnboardingKit = () => {
 
     return (
         <div className="space-y-8 min-h-screen pb-20">
-            {/* Header */}
-            <header className="rec-hero p-8 md:p-9 relative">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                    <div className="space-y-2">
+            {/* Header (Compact) */}
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7 relative">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
+                    <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <span className="rec-badge-dark px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
                                 Legal & Onboarding Hub
                             </span>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
                             Zero-Admin <span className="rec-text-gradient-blue">Onboarding Kit</span>
                         </h1>
-                        <p className="text-sm text-slate-600 max-w-2xl">
+                        <p className="text-xs md:text-sm text-slate-600 max-w-2xl font-normal line-clamp-1 md:line-clamp-none">
                             Auto-generate executive-grade offer letters, non-disclosure agreements, and employee onboarding documents in seconds.
                         </p>
                     </div>
@@ -152,9 +152,9 @@ const OnboardingKit = () => {
                     <div className="shrink-0">
                         <button 
                             onClick={handlePrint}
-                            className="rec-btn-primary px-5 py-3 text-xs font-bold uppercase tracking-wider gap-2 shadow-sm cursor-pointer"
+                            className="rec-btn-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider gap-2 rounded-xl shadow-sm cursor-pointer"
                         >
-                            <Printer size={15} /> Print / Export PDF
+                            <Printer size={14} /> Print / Export PDF
                         </button>
                     </div>
                 </div>

@@ -59,17 +59,17 @@ const TalentSearch = () => {
     ];
 
     return (
-        <div className="space-y-10 pb-20">
-            {/* Hero Section */}
-            <header className="rec-hero p-8 md:p-12 text-center max-w-4xl mx-auto space-y-4">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 text-white text-xs font-bold uppercase tracking-wider shadow-sm">
-                    <Sparkles size={14} className="text-amber-400" />
+        <div className="space-y-6 pb-20">
+            {/* Hero Section (Compact) */}
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-5 px-6 md:py-6 md:px-8 text-center max-w-4xl mx-auto space-y-2.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider shadow-xs">
+                    <Sparkles size={13} className="text-amber-400" />
                     <span>Semantic Talent Discovery</span>
                 </div>
-                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 leading-tight">
                     Find Top 1% Engineers in <span className="rec-text-gradient-blue">Plain English</span>
                 </h1>
-                <p className="text-sm md:text-base text-slate-600 font-normal max-w-2xl mx-auto leading-relaxed">
+                <p className="text-xs md:text-sm text-slate-600 font-normal max-w-2xl mx-auto leading-relaxed">
                     Skip tedious keyword matching. Describe your ideal hire, specific stack requirements, or domain expertise, and our AI pipeline will surface the best matches.
                 </p>
             </header>

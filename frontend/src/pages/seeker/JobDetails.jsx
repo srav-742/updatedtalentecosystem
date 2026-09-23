@@ -225,29 +225,29 @@ const JobDetails = () => {
                 </div>
             </div>
 
-            <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#f4efe6] text-gray-700">
-                            <Building2 size={36} />
+            <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-5 px-6 md:py-6 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+                <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
+                            <Building2 size={26} />
                         </div>
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Job overview</p>
-                            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
-                            <p className="mt-2 text-base text-gray-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Job overview</p>
+                            <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">{job.title}</h1>
+                            <p className="mt-1 text-sm text-gray-500">
                                 {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
                             </p>
-                            <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-500">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <MapPin size={14} />
+                            <div className="mt-3.5 flex flex-wrap gap-2 text-xs text-gray-500">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <MapPin size={12} />
                                     {job.location || 'Remote'}
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <Clock3 size={14} />
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <Clock3 size={12} />
                                     {job.experienceLevel || `${job.minExperience || 0}+ years`}
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <GraduationCap size={14} />
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <GraduationCap size={12} />
                                     {job.qualification || 'Any qualification'}
                                 </span>
                             </div>
@@ -255,43 +255,43 @@ const JobDetails = () => {
                     </div>
 
                     {application && application.status !== 'SAVED' ? (
-                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Application status</p>
-                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Already Applied</h2>
-                            <p className="mt-3 text-sm leading-7 text-gray-600">
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Application status</p>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Already Applied</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
                                 You have an active application for this role. Current status: <span className="font-bold text-gray-900 uppercase">{application.status}</span>.
                             </p>
-                            <div className="mt-6">
+                            <div className="mt-4">
                                 <Link
                                     to="/candidate/applications"
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
                                 >
                                     Track your application
                                 </Link>
                             </div>
                         </div>
                     ) : (
-                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
-                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
-                            <p className="mt-3 text-sm leading-7 text-gray-600">
-                                Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Start application</p>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Ready to apply?</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                Upload your resume to begin the AI-led application process and unlock assessment stages.
                             </p>
 
-                            <div className="mt-6 space-y-3">
+                            <div className="mt-4 space-y-2.5">
                                 {!showApplyOptions ? (
-                                    <div className="flex flex-col gap-3">
+                                    <div className="flex flex-col gap-2">
                                         <button
                                             onClick={() => setShowApplyOptions(true)}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800 shadow-sm"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
                                         >
-                                            <Sparkles size={18} />
+                                            <Sparkles size={14} />
                                             Apply
                                         </button>
                                         <button
                                             onClick={handleToggleSaveJob}
                                             disabled={isSaving}
-                                            className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-5 py-4 text-sm font-semibold transition shadow-sm ${
+                                            className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition shadow-xs ${
                                                 application?.status === 'SAVED'
                                                     ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100/75'
                                                     : 'border-black/10 bg-white text-gray-700 hover:bg-[#faf7f1]'
@@ -304,16 +304,16 @@ const JobDetails = () => {
                                     <>
                                         <Link
                                             to={`/candidate/apply/${job._id}`}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
                                         >
-                                            <FileUp size={18} />
+                                            <FileUp size={14} />
                                             Upload and analyze resume
                                         </Link>
                                         <Link
                                             to={`/candidate/apply/${job._id}?method=create`}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                                         >
-                                            <Wand2 size={18} />
+                                            <Wand2 size={14} />
                                             Create resume
                                         </Link>
                                     </>

@@ -174,3 +174,31 @@
 .ch-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(100, 116, 139, 0.4);
 }
+
+/* ==========================================================================
+   Candidate Portal Mode Overrides:
+   Ensure white text has high-contrast dark backgrounds and crisp readability
+   ========================================================================== */
+.career-hub-container.ch-portal-mode .bg-gray-900 {
+    background-color: #0f172a !important;
+}
+
+.career-hub-container.ch-portal-mode .bg-gray-950\/80 {
+    background-color: #090d16 !important;
+}
+
+.career-hub-container.ch-portal-mode .border-gray-800 {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.career-hub-container.ch-portal-mode .text-slate-300 {
+    color: #cbd5e1 !important;
+}
+
+.career-hub-container.ch-portal-mode .text-slate-200 {
+    color: #e2e8f0 !important;
+}
+
+.career-hub-container.ch-portal-mode .text-slate-100 {
+    color: #f8fafc !important;
+}

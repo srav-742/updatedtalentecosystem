@@ -114,19 +114,19 @@ const RecruiterProfile = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-16">
-            {/* Header Banner */}
-            <header className="rec-hero p-8 md:p-9">
+            {/* Header Banner (Compact) */}
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <span className="rec-badge-dark px-3 py-0.5 text-[10px] uppercase tracking-wider">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
                                 Identity & Settings
                             </span>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
                             Recruiter <span className="rec-text-gradient">Profile</span>
                         </h1>
-                        <p className="text-xs md:text-sm text-slate-600">
+                        <p className="text-xs md:text-sm text-slate-600 font-normal line-clamp-1 md:line-clamp-none">
                             Manage your personal credentials, organizational branding, and company specifications.
                         </p>
                     </div>
@@ -135,9 +135,9 @@ const RecruiterProfile = () => {
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="rec-badge-emerald px-4 py-2 flex items-center gap-2 text-xs font-bold shadow-xs self-start md:self-auto"
+                            className="rec-badge-emerald px-3.5 py-1.5 flex items-center gap-2 text-xs font-bold shadow-xs self-start md:self-auto rounded-xl"
                         >
-                            <CheckCircle2 size={16} /> Changes Saved Successfully
+                            <CheckCircle2 size={15} /> Changes Saved Successfully
                         </motion.div>
                     )}
                 </div>

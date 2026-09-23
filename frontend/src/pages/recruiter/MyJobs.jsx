@@ -246,8 +246,8 @@ const MyJobs = () => {
     if (loading) {
         return (
             <div className="space-y-8 pb-12">
-                <header className="rec-hero p-8 md:p-10">
-                    <div className="space-y-2">
+                <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
+                    <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                             <span className="rec-badge-dark px-3 py-0.5 text-[10px] uppercase tracking-wider">
                                 Requisition Management
@@ -273,22 +273,22 @@ const MyJobs = () => {
 
     return (
         <div className="space-y-8 pb-16">
-            {/* 1. Executive Hero Header */}
-            <header className="rec-hero p-8 md:p-10">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                            <span className="rec-badge-dark px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+            {/* 1. Executive Hero Header (Compact) */}
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6 relative z-10">
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
                                 Requisition Hub
                             </span>
                             <span className="text-xs text-slate-500 font-medium">
                                 Real-time applicant screening & assessment configuration
                             </span>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
                             My Job <span className="rec-text-gradient">Postings</span>
                         </h1>
-                        <p className="text-xs md:text-sm text-slate-600 max-w-2xl leading-relaxed">
+                        <p className="text-xs md:text-sm text-slate-600 max-w-2xl font-normal line-clamp-1 md:line-clamp-none">
                             Oversee active job requisitions, track candidate flow across automated AI screening stages, configure proctored rounds, and distribute public application links.
                         </p>
                     </div>
@@ -296,9 +296,9 @@ const MyJobs = () => {
                     <div className="flex items-center gap-3 shrink-0">
                         <Link 
                             to="/recruiter/post-job" 
-                            className="rec-btn-primary px-6 py-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2.5 shadow-md cursor-pointer group"
+                            className="rec-btn-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-2 rounded-xl shadow-sm cursor-pointer group"
                         >
-                            <Plus size={16} className="transition-transform group-hover:rotate-90 duration-200" />
+                            <Plus size={15} className="transition-transform group-hover:rotate-90 duration-200" />
                             <span>Post New Job</span>
                         </Link>
                     </div>

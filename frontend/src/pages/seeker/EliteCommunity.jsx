@@ -37,12 +37,12 @@ const EliteCommunity = () => {
 
     if (loading) {
         return (
-            <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-20 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#f4efe6] text-gray-700">
-                    <Zap size={34} className="animate-pulse" />
+            <div className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-6 py-10 text-center shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
+                    <Zap size={24} className="animate-pulse" />
                 </div>
-                <h2 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Checking community access</h2>
-                <p className="mt-3 text-sm leading-7 text-gray-500">Reviewing your application status and unlocking the right candidate experience.</p>
+                <h2 className="mt-4 text-2xl font-bold tracking-tight text-gray-900">Checking community access</h2>
+                <p className="mt-2 text-xs md:text-sm text-gray-500">Reviewing your application status and unlocking the right candidate experience.</p>
             </div>
         );
     }
@@ -52,15 +52,15 @@ const EliteCommunity = () => {
     }
 
     return (
-        <div className="space-y-8">
-            <header className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-6">
+            <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] py-5 px-6 md:py-6 md:px-8 shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+                <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
                     <div>
-                        <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-emerald-700">
+                        <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
                             Access unlocked
                         </div>
-                        <h1 className="mt-5 text-4xl font-semibold tracking-tight text-gray-900">Welcome to the Elite Talent Community</h1>
-                        <p className="mt-4 max-w-3xl text-base leading-8 text-gray-500">
+                        <h1 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">Welcome to the Elite Talent Community</h1>
+                        <p className="mt-2 max-w-2xl text-xs md:text-sm leading-relaxed text-gray-600">
                             You have cleared the candidate screening bar for at least one role, so community-only opportunities and conversations are now open to you.
                         </p>
 
@@ -68,35 +68,35 @@ const EliteCommunity = () => {
                             href={community?.invitationLink || '#'}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black px-4.5 py-2.5 text-xs md:text-sm font-semibold text-white transition hover:bg-gray-800"
                         >
                             Join {community?.platform || 'Community'}
-                            <ExternalLink size={18} />
+                            <ExternalLink size={16} />
                         </a>
                     </div>
 
-                    <div className="rounded-[2rem] border border-black/10 bg-[#f8f4ed] p-6">
+                    <div className="rounded-2xl border border-black/10 bg-[#f8f4ed] p-5">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white">
-                                <Star size={22} />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                                <Star size={18} />
                             </div>
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Community benefits</p>
-                                <p className="text-lg font-semibold text-gray-900">Reserved for vetted candidates</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Community benefits</p>
+                                <p className="text-sm md:text-base font-semibold text-gray-900">Reserved for vetted candidates</p>
                             </div>
                         </div>
 
-                        <div className="mt-6 space-y-4">
+                        <div className="mt-4 space-y-2.5">
                             {[
                                 'Access peer discussions with other screened candidates.',
                                 'Discover hidden projects, talent programs, and curated roles.',
                                 'Stay closer to recruiters and community-led events.'
                             ].map((item) => (
-                                <div key={item} className="flex items-start gap-3">
-                                    <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-black text-white">
-                                        <CheckCircle2 size={14} />
+                                <div key={item} className="flex items-start gap-2.5">
+                                    <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                        <CheckCircle2 size={12} />
                                     </div>
-                                    <p className="text-sm leading-6 text-gray-600">{item}</p>
+                                    <p className="text-xs text-gray-600 leading-normal">{item}</p>
                                 </div>
                             ))}
                         </div>
@@ -158,34 +158,34 @@ const EliteCommunity = () => {
 };
 
 const LockedState = () => (
-    <div className="rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-14 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[2rem] bg-[#f8f4ed] text-gray-700">
-            <Lock size={36} />
+    <div className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-6 py-9 text-center shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f8f4ed] text-gray-700">
+            <Lock size={26} />
         </div>
-        <h2 className="mt-6 text-4xl font-semibold tracking-tight text-gray-900">Elite Community is locked</h2>
-        <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-gray-500">
+        <h2 className="mt-4 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">Elite Community is locked</h2>
+        <p className="mx-auto mt-2 max-w-2xl text-xs md:text-sm leading-relaxed text-gray-500">
             This space opens after you clear the candidate screening stages for at least one job. Complete your application flow to unlock it.
         </p>
 
-        <div className="mx-auto mt-8 grid max-w-3xl gap-4 md:grid-cols-2">
-            <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Requirement 1</p>
-                <p className="mt-3 text-lg font-semibold text-gray-900">Complete the candidate workflow</p>
-                <p className="mt-2 text-sm leading-6 text-gray-500">Resume analysis, assessment, and interview should be finished for an application.</p>
+        <div className="mx-auto mt-6 grid max-w-2xl gap-3.5 md:grid-cols-2">
+            <div className="rounded-xl border border-black/10 bg-[#fbf8f3] p-4 text-left">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Requirement 1</p>
+                <p className="mt-1.5 text-sm md:text-base font-bold text-gray-900">Complete candidate workflow</p>
+                <p className="mt-1 text-xs text-gray-500 leading-relaxed">Resume analysis, assessment, and interview should be finished for an application.</p>
             </div>
-            <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Requirement 2</p>
-                <p className="mt-3 text-lg font-semibold text-gray-900">Reach a shortlisted or eligible status</p>
-                <p className="mt-2 text-sm leading-6 text-gray-500">Access unlocks automatically once the application status qualifies.</p>
+            <div className="rounded-xl border border-black/10 bg-[#fbf8f3] p-4 text-left">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Requirement 2</p>
+                <p className="mt-1.5 text-sm md:text-base font-bold text-gray-900">Reach shortlisted status</p>
+                <p className="mt-1 text-xs text-gray-500 leading-relaxed">Access unlocks automatically once your application score qualifies.</p>
             </div>
         </div>
 
         <button
             onClick={() => window.location.assign('/candidate/jobs')}
-            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-black px-5 py-2.5 text-xs md:text-sm font-semibold text-white transition hover:bg-gray-800"
         >
             Apply for a job
-            <ArrowRight size={18} />
+            <ArrowRight size={15} />
         </button>
     </div>
 );
