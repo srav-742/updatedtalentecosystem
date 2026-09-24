@@ -201,7 +201,8 @@ app.use('/api', voiceRoutes);
 
 // Applications: cache 30s per user (user-specific so varyByUser = true, but do NOT let browser cache it locally)
 app.use('/api', cacheMiddleware(30, { httpMaxAge: 0, staleWhileRevalidate: 0, varyByUser: true }), applicationRoutes);
-app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX Overlay first (overrides /start and /next-fast)
+app.use('/api/interview', require('./routes/keyPointInterceptor'));      // ─── Key-Point Interceptor (overrides /next-fast for AI_GENERATED with key-point follow-up logic)
+app.use('/api/interview', require('./routes/fastAiInterviewRoutesFix'));  // ─── FIX Overlay (overrides /start and /next-fast for RECRUITER_PROVIDED)
 app.use('/api/interview', aiInterviewRoutes);
 app.use('/api/interview', require('./routes/fastAiInterviewRoutes'));
 app.use('/api', aiInterviewUploadRoutes);

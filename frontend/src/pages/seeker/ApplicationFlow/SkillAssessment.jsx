@@ -17,6 +17,8 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { useNoiseDetector } from '../../../hooks/useNoiseDetector';
+import NoiseWarningOverlay from '../../../components/NoiseWarningOverlay';
 
 const SkillAssessment = ({
     job,
@@ -55,6 +57,13 @@ const SkillAssessment = ({
     const localRecordingSessionIdRef = useRef(null);
     const localRecorderRef = useRef(null);
     const latestStreamRef = useRef(sharedStream);
+
+    // ── Noise / disturbance detection ────────────────────────────────────────
+    // Reuses the already-open sharedStream — no new getUserMedia call.
+    const noiseDetector = useNoiseDetector(
+        started ? sharedStream : null,
+        { enabled: started && !submitting }
+    );
 
     // Keep the ref in sync with the latest sharedStream state so async
     // functions (startAssessment) never close over a stale null value.
@@ -858,6 +867,9 @@ const SkillAssessment = ({
                     </div>
                 </div>
             </motion.div>
+
+            {/* ── Noise Disturbance Overlay ── */}
+            <NoiseWarningOverlay {...noiseDetector} />
         </SecureExamWrapper>
     );
 };

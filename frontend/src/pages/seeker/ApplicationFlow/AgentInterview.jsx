@@ -341,9 +341,16 @@ export default function AgentInterview() {
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {
-      let full = "";
-      for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
-      setTranscript(full);
+      let finalText = "";
+      let interimText = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          finalText += e.results[i][0].transcript;
+        } else {
+          interimText += e.results[i][0].transcript;
+        }
+      }
+      setTranscript(finalText + interimText);
     };
     rec.onend = () => setRecording(false);
     recognitionRef.current = rec;
@@ -760,11 +767,14 @@ export default function AgentInterview() {
           </button>
 
           <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={recording ? transcript : input}
+            onChange={(e) => {
+              if (!recording) setInput(e.target.value);
+            }}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder={recording ? "Listening to your voice..." : "Type your answer or use microphone..."}
+            placeholder={recording ? "Listening... speak now" : "Type your answer or use microphone..."}
             className="flex-1 bg-transparent px-2 text-xs md:text-sm text-gray-800 outline-none placeholder:text-gray-400"
+            readOnly={recording}
           />
 
           <button

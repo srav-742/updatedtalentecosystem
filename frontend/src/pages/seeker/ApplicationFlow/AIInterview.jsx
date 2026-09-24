@@ -1,10 +1,75 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
+import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { useNoiseDetector } from '../../../hooks/useNoiseDetector';
+import NoiseWarningOverlay from '../../../components/NoiseWarningOverlay';
+
+// ── Voice Wave Visualizer Component ──────────────────────────────────────────
+const VoiceVisualizer = ({ isRecording }) => {
+    // 24 animated wave bars with varying harmonic heights and speeds
+    const bars = [
+        { duration: 0.6, delay: 0.05, h: ['20%', '85%', '35%', '95%', '20%'] },
+        { duration: 0.75, delay: 0.15, h: ['30%', '65%', '90%', '45%', '30%'] },
+        { duration: 0.55, delay: 0.1, h: ['25%', '95%', '40%', '80%', '25%'] },
+        { duration: 0.7, delay: 0.2, h: ['35%', '100%', '55%', '90%', '35%'] },
+        { duration: 0.8, delay: 0.08, h: ['20%', '70%', '100%', '50%', '20%'] },
+        { duration: 0.5, delay: 0.25, h: ['40%', '85%', '60%', '100%', '40%'] },
+        { duration: 0.85, delay: 0.12, h: ['25%', '90%', '35%', '75%', '25%'] },
+        { duration: 0.6, delay: 0.3, h: ['45%', '100%', '65%', '95%', '45%'] },
+        { duration: 0.7, delay: 0.05, h: ['30%', '80%', '45%', '100%', '30%'] },
+        { duration: 0.55, delay: 0.18, h: ['35%', '95%', '55%', '85%', '35%'] },
+        { duration: 0.65, delay: 0.22, h: ['25%', '75%', '100%', '60%', '25%'] },
+        { duration: 0.75, delay: 0.14, h: ['35%', '90%', '45%', '100%', '35%'] },
+        { duration: 0.5, delay: 0.07, h: ['20%', '85%', '60%', '90%', '20%'] },
+        { duration: 0.6, delay: 0.26, h: ['40%', '100%', '50%', '80%', '40%'] },
+        { duration: 0.7, delay: 0.11, h: ['25%', '70%', '95%', '45%', '25%'] },
+        { duration: 0.8, delay: 0.19, h: ['35%', '90%', '60%', '100%', '35%'] },
+        { duration: 0.55, delay: 0.09, h: ['20%', '80%', '40%', '95%', '20%'] },
+        { duration: 0.65, delay: 0.23, h: ['30%', '95%', '70%', '85%', '30%'] },
+        { duration: 0.75, delay: 0.16, h: ['20%', '65%', '90%', '40%', '20%'] },
+        { duration: 0.6, delay: 0.28, h: ['30%', '85%', '50%', '100%', '30%'] },
+        { duration: 0.7, delay: 0.13, h: ['25%', '75%', '90%', '45%', '25%'] },
+        { duration: 0.55, delay: 0.21, h: ['35%', '95%', '60%', '85%', '35%'] },
+        { duration: 0.8, delay: 0.06, h: ['20%', '80%', '45%', '100%', '20%'] },
+        { duration: 0.65, delay: 0.17, h: ['30%', '90%', '55%', '75%', '30%'] }
+    ];
+
+    return (
+        <div className="flex items-center justify-center gap-1 h-10 px-2">
+            {bars.map((bar, i) => (
+                <motion.div
+                    key={i}
+                    animate={
+                        isRecording
+                            ? { height: bar.h, opacity: 1 }
+                            : { height: '4px', opacity: 0.35 }
+                    }
+                    transition={
+                        isRecording
+                            ? {
+                                  repeat: Infinity,
+                                  repeatType: 'reverse',
+                                  duration: bar.duration,
+                                  delay: bar.delay,
+                                  ease: 'easeInOut'
+                              }
+                            : { duration: 0.3 }
+                    }
+                    className={`w-1 min-w-[3px] rounded-full flex-shrink-0 transition-colors duration-300 ${
+                        isRecording
+                            ? 'bg-gradient-to-t from-red-600 via-rose-500 to-amber-400'
+                            : 'bg-gray-300'
+                    }`}
+                    style={{ minHeight: isRecording ? '8px' : '4px', maxHeight: '36px' }}
+                />
+            ))}
+        </div>
+    );
+};
 
 const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const [step, setStep] = useState('ready');
@@ -15,6 +80,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     const [recording, setRecording] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [answerSubmitted, setAnswerSubmitted] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState(null);
     const [finalScore, setFinalScore] = useState(null);
@@ -53,6 +119,14 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
     const latestTranscriptRef = useRef('');
+
+    // ── Noise / disturbance detection ────────────────────────────────────────
+    // Runs only while the candidate is listening/idle (not while AI is speaking)
+    // Uses the already-open fullSessionStreamRef — no new getUserMedia call.
+    const noiseDetector = useNoiseDetector(
+        step === 'interview' ? fullSessionStreamRef.current : null,
+        { enabled: step === 'interview' && coreState !== 'speaking' }
+    );
     // Accumulates ALL finalized speech segments across SpeechRecognition restarts
     // so the full answer is never lost when the API auto-restarts
     const confirmedTranscriptRef = useRef('');
@@ -423,10 +497,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 setTranscript('');
                 setError(null);
                 setDisplayText('');
+                setAnswerSubmitted(false);
                 playAudio(nextRes.data.audio, nextQuestion, nextRes.data.audioMimeType);
             }
         } catch (err) {
             setError(err.message || "Response processing error.");
+            setAnswerSubmitted(false);
             setCoreState('idle');
         } finally {
             setProcessing(false);
@@ -457,6 +533,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             }
 
             setRecording(false);
+            setAnswerSubmitted(true);
             setCoreState('processing');
             // Remove setProcessing(true) here as it causes a race condition inside submitUserAnswer
             return;
@@ -464,6 +541,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
         try {
             isRecordingRef.current = true;
+            setAnswerSubmitted(false);
             setTranscript('');
             latestTranscriptRef.current = '';
             // Reset confirmed transcript for this new answer
@@ -584,40 +662,42 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     rec.lang = 'en-US';
                     rec.continuous = true;
                     rec.interimResults = true;
+                    rec.maxAlternatives = 1;
+
+                    // Track finalized words within this recognition session separately
+                    let sessionFinalText = '';
 
                     rec.onresult = (e) => {
-                        // Process only new results from e.resultIndex to avoid
-                        // reprocessing old results after a recognition restart
-                        let newFinalText = '';
+                        // Walk only from e.resultIndex to pick up the new/changed result
                         let interimText = '';
                         for (let i = e.resultIndex; i < e.results.length; i++) {
-                            const r = e.results[i];
-                            if (r.isFinal) {
-                                newFinalText += r[0].transcript;
+                            const resultText = e.results[i][0].transcript;
+                            if (e.results[i].isFinal) {
+                                sessionFinalText += resultText + ' ';
                             } else {
-                                interimText += r[0].transcript;
+                                interimText = resultText;
                             }
                         }
-                        // Append finalized text to cross-restart accumulator
-                        if (newFinalText) {
-                            confirmedTranscriptRef.current = (confirmedTranscriptRef.current + ' ' + newFinalText).trim();
-                        }
-                        // Full display = all confirmed text + current interim
-                        const full = (confirmedTranscriptRef.current + ' ' + interimText).trim();
+                        // Combine: previous sessions' confirmed text + this session's finals + current interim
+                        const prevText = confirmedTranscriptRef.current ? confirmedTranscriptRef.current + ' ' : '';
+                        const full = (prevText + sessionFinalText + interimText).trim();
                         setTranscript(full);
                         latestTranscriptRef.current = full;
                     };
 
                     rec.onerror = (ev) => {
+                        console.warn("[SpeechRec] Error:", ev.error);
                         if (ev.error === 'aborted') return;
-                        if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 300);
-                        }
                     };
 
                     rec.onend = () => {
+                        // Save this session's full text as confirmed before restarting
+                        if (latestTranscriptRef.current) {
+                            confirmedTranscriptRef.current = latestTranscriptRef.current;
+                        }
                         if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 150);
+                            if (recognitionTimeoutRef.current) clearTimeout(recognitionTimeoutRef.current);
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 100);
                         }
                     };
 
@@ -1079,35 +1159,112 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
                     {/* Interaction Section */}
                     <div className="flex flex-col items-center gap-6">
-                        <div className="flex items-center gap-8">
+                        <div className="flex flex-wrap items-center justify-center gap-6 p-4 rounded-3xl bg-white border border-gray-100 shadow-sm">
+                            {/* Mic Button */}
                             <motion.button
-                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                whileHover={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 1.05 }}
+                                whileTap={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 0.95 }}
                                 onClick={toggleRecording}
-                                disabled={processing || !displayText}
-                                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
-                                    ? 'bg-red-500 text-white shadow-red-500/30'
-                                    : !displayText ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-white text-indigo-600 border border-gray-200 hover:bg-indigo-50'
+                                disabled={processing || !displayText || coreState === 'speaking' || answerSubmitted}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 flex-shrink-0 ${
+                                    answerSubmitted
+                                        ? 'bg-emerald-500 text-white shadow-emerald-500/30 ring-4 ring-emerald-100'
+                                        : recording
+                                        ? 'bg-red-600 text-white shadow-red-600/40 ring-4 ring-red-200'
+                                        : (!displayText || coreState === 'speaking')
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none border border-gray-200'
+                                        : 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-red-100/50'
                                     }`}
                             >
-                                {recording ? <StopCircle size={32} /> : <Mic size={32} />}
+                                {answerSubmitted ? (
+                                    <Check size={32} className="text-white stroke-[2.5]" />
+                                ) : recording ? (
+                                    <StopCircle size={32} className="text-white animate-pulse" />
+                                ) : (
+                                    <Mic size={32} className={(!displayText || coreState === 'speaking') ? 'text-gray-400' : 'text-red-600'} />
+                                )}
                             </motion.button>
 
-                            <div className="flex flex-col">
+                            {/* Voice Wave (BESIDE the button: zero at initial state, up-and-down when speaking) */}
+                            <div className="flex flex-col justify-center px-4 py-2 border-l border-r border-gray-100 min-w-[200px]">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 flex items-center gap-1.5">
+                                    {recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            <span className="text-red-600">Voice Wave • Active</span>
+                                        </>
+                                    ) : answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            <span className="text-emerald-600">Voice Wave • Captured</span>
+                                        </>
+                                    ) : (
+                                        <span>Voice Wave • Idle</span>
+                                    )}
+                                </span>
+                                <VoiceVisualizer isRecording={recording} />
+                            </div>
+
+                            {/* Current State */}
+                            <div className="flex flex-col pr-2 min-w-[170px]">
                                 <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Current State</span>
-                                <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
-                                    {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
+                                <span className={`text-sm font-medium flex items-center gap-2 ${
+                                    answerSubmitted
+                                        ? 'text-emerald-600'
+                                        : recording
+                                        ? 'text-red-600'
+                                        : 'text-gray-900'
+                                }`}>
+                                    {answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            Answer Submitted • Analyzing Response
+                                        </>
+                                    ) : recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            Recording Answer • Touch to Finish
+                                        </>
+                                    ) : processing ? (
+                                        'Analyzing response...'
+                                    ) : (
+                                        'Touch mic to speak'
+                                    )}
                                 </span>
                             </div>
                         </div>
 
                         {/* Transcript Preview */}
                         <AnimatePresence>
-                            {transcript && (
+                            {(recording || transcript || answerSubmitted || processing) && (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                    className="w-full max-w-2xl p-6 bg-gray-50 rounded-2xl border border-gray-200 italic font-light text-gray-700 text-center"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden"
                                 >
-                                    "{transcript}"
+                                    <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 flex items-center gap-2">
+                                        {recording ? (
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                        ) : answerSubmitted ? (
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        ) : null}
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
+                                            {recording ? 'Live Transcription' : 'Your Answer'}
+                                        </span>
+                                    </div>
+                                    <div className="p-4 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                        {transcript ? (
+                                            <p className="text-sm text-gray-700 font-light leading-relaxed text-left whitespace-pre-wrap break-words">
+                                                {transcript}
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-gray-400 italic text-center">
+                                                Listening... Start speaking and your words will appear here.
+                                            </p>
+                                        )}
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -1119,6 +1276,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         </div>
                     )}
                 </div>
+
+                {/* ── Noise Disturbance Overlay ── */}
+                <NoiseWarningOverlay {...noiseDetector} />
             </SecureExamWrapper>
         );
     }
