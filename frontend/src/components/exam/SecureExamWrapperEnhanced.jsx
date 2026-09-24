@@ -50,11 +50,17 @@ export default function SecureExamWrapperEnhanced({
     cameraStream = null,
     showWebcamPreview = true,
     isAnswering = false,
+    questionIndex = null,
+    questionId = null,
     warningLimit = 3,
     resetLimit = 4,
     onSecurityReset,
     aiThresholds = {},
+    enableSnapshots = true,
 }) {
+    const isCodingExam = typeof examId === 'string' && examId.startsWith('coding');
+    const allowSnapshots = enableSnapshots !== false && !isCodingExam;
+
     const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
     const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
     const [resetting, setResetting] = useState(false);
@@ -72,22 +78,59 @@ export default function SecureExamWrapperEnhanced({
         setVideoEl(el);
     }, []);
 
+    const isAnsweringRef = useRef(isAnswering);
+    useEffect(() => {
+        isAnsweringRef.current = isAnswering;
+    }, [isAnswering]);
+
+    const questionIndexRef = useRef(questionIndex);
+    useEffect(() => {
+        questionIndexRef.current = questionIndex;
+    }, [questionIndex]);
+
+    const questionIdRef = useRef(questionId);
+    useEffect(() => {
+        questionIdRef.current = questionId;
+    }, [questionId]);
+
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const triggerViolationRef = useRef(null);
     const logEnhancedViolationRef = useRef(null);
     // Track the current video track ID to avoid constantly creating new MediaStreams
     const currentVideoTrackIdRef = useRef(null);
     const stableStreamRef = useRef(null);
+    const objectModelTypeRef = useRef('COCO-SSD');
 
     // ── Screen share ────────────────────────────────────────────────────────
     const handleScreenShareStopped = useCallback(() => {
         setScreenShareInterrupted(true);
         triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)");
         logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)", {
-            isAnswering: isAnswering,
+            isAnswering: isAnsweringRef.current,
+            questionIndex: questionIndexRef.current,
+            questionId: questionIdRef.current,
             metadata: { stopped: true }
         });
-    }, [isAnswering]);
+
+        // Also notify the pipeline backend directly
+        try {
+            fetch(`${API_URL}/proctoring-pipeline/event`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    examId,
+                    userId,
+                    eventType: "SCREEN_SHARE_STOPPED",
+                    detail: "Screen sharing was stopped. (Ranking: 1)",
+                    severity: "critical",
+                    isAnswering: isAnsweringRef.current,
+                    questionIndex: questionIndexRef.current,
+                    questionId: questionIdRef.current,
+                }),
+            }).catch(() => {});
+        } catch (_) {}
+    }, [examId, userId]);
 
     const {
         isSharing,
@@ -216,6 +259,28 @@ export default function SecureExamWrapperEnhanced({
             // Local strict proctoring overlay (counts violations for UI warnings)
             triggerViolation(type, detail);
 
+            // Trigger non-blocking visual toast notification
+            const toastId = Date.now() + Math.random();
+            setToasts((prev) => [
+                ...prev.slice(-2),
+                { id: toastId, type, detail }
+            ]);
+            setTimeout(() => {
+                setToasts((prev) => prev.filter((t) => t.id !== toastId));
+            }, 4000);
+
+            const effectiveIsAnswering = meta.isAnswering !== undefined ? meta.isAnswering : isAnsweringRef.current;
+            const effectiveQuestionIndex = meta.questionIndex !== undefined ? meta.questionIndex : questionIndexRef.current;
+            const effectiveQuestionId = meta.questionId !== undefined ? meta.questionId : questionIdRef.current;
+            const effectiveEvidence = allowSnapshots
+                ? (meta.evidenceFrames || (meta.snapshot ? [meta.snapshot] : []))
+                : [];
+            const effectiveSnapshot = allowSnapshots
+                ? (meta.snapshot || (effectiveEvidence[0] || null))
+                : null;
+            const effectiveModel = meta.model || (type.includes('PHONE') || type.includes('OBJECT') ? (objectModelTypeRef.current || 'COCO-SSD') : 'FaceMesh');
+            const effectiveSeverity = meta.severity || (type.includes('PHONE') || type === 'MULTIPLE_PEOPLE' ? 'critical' : 'medium');
+
             // Path 1: Send to the pipeline backend (authoritative scoring path)
             try {
                 fetch(`${API_URL}/proctoring-pipeline/event`, {
@@ -229,16 +294,22 @@ export default function SecureExamWrapperEnhanced({
                         detail: detail,
                         confidence: meta.confidence || null,
                         durationMs: meta.duration ? Math.round(meta.duration * 1000) : null,
-                        severity: meta.severity || 'medium',
+                        severity: effectiveSeverity,
+                        isAnswering: effectiveIsAnswering,
+                        questionIndex: effectiveQuestionIndex,
+                        questionId: effectiveQuestionId,
                         signals: {
-                            model: 'FaceMesh',
+                            model: effectiveModel,
                             direction: meta.direction || null,
                             headTurnRatio: meta.headTurnRatio || null,
                             gazeRatio: meta.gazeRatio || null,
                             faceCount: meta.faceCount || null,
-                            snapshot: meta.snapshot || null,
-                            evidenceFrames: meta.evidenceFrames || [],
+                            snapshot: effectiveSnapshot,
+                            evidenceFrames: effectiveEvidence,
                             duration: meta.duration || 0,
+                            isAnswering: effectiveIsAnswering,
+                            questionIndex: effectiveQuestionIndex,
+                            questionId: effectiveQuestionId,
                         },
                     }),
                 }).then((resp) => {
@@ -254,15 +325,21 @@ export default function SecureExamWrapperEnhanced({
             // used by the recruiter's detailed timeline view)
             logEnhancedViolation(type, detail, {
                 confidence: meta.confidence || null,
-                severity: meta.severity || 'medium',
+                severity: effectiveSeverity,
                 direction: meta.direction || null,
                 headTurnRatio: meta.headTurnRatio || null,
                 gazeRatio: meta.gazeRatio || null,
                 faceCount: meta.faceCount || null,
                 duration: meta.duration || 0,
+                isAnswering: effectiveIsAnswering,
+                questionIndex: effectiveQuestionIndex,
+                questionId: effectiveQuestionId,
+                model: effectiveModel,
+                snapshot: effectiveSnapshot,
+                evidenceFrames: effectiveEvidence,
             });
         },
-        [triggerViolation, logEnhancedViolation, examId, userId]
+        [triggerViolation, logEnhancedViolation, examId, userId, allowSnapshots]
     );
 
     // ── AI proctoring engine ────────────────────────────────────────────────
@@ -286,7 +363,14 @@ export default function SecureExamWrapperEnhanced({
         isAnswering,
         onViolation: handleAIViolation,
         thresholds: aiThresholds,
+        enableSnapshots: allowSnapshots,
     });
+
+    useEffect(() => {
+        if (objectModelType) {
+            objectModelTypeRef.current = objectModelType;
+        }
+    }, [objectModelType]);
 
     // ── Show toasts for tab switch / window blur / fullscreen exit ──────────
     const prevViolationsLengthRef = useRef(0);
@@ -501,7 +585,7 @@ export default function SecureExamWrapperEnhanced({
             )}
 
             {/* ── Real-time Non-blocking Toasts (bottom left) ───────────────── */}
-            {import.meta.env.MODE !== "production" && (
+            {toasts.length > 0 && (
                 <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
                 {toasts.map((toast) => {
                     const getToastIcon = () => {

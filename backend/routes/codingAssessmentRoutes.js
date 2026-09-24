@@ -3,9 +3,25 @@ const router = express.Router();
 const codingAssessmentController = require('../controllers/codingAssessmentController');
 const { authMiddleware, roleCheck } = require('../middleware/authMiddleware');
 
+// ─── Optional Auth Helper for Candidate Flow ─────────────────
+const optionalAuth = (req, res, next) => {
+    if (!req.headers.authorization && !req.headers['x-user-id']) {
+        return next();
+    }
+    try {
+        const dummyRes = {
+            status: () => dummyRes,
+            json: () => next()
+        };
+        authMiddleware(req, dummyRes, next).catch?.(() => next());
+    } catch (e) {
+        next();
+    }
+};
+
 // ─── Coding Round ────────────────────────────────────────
 router.post('/round', authMiddleware, roleCheck('recruiter'), codingAssessmentController.createOrUpdateCodingRound);
-router.get('/round/:jobId', codingAssessmentController.getCodingRoundByJobId);
+router.get('/round/:jobId', optionalAuth, codingAssessmentController.getCodingRoundByJobId);
 router.delete('/round/:jobId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.deleteCodingRound);
 
 // ─── Coding Questions ────────────────────────────────────

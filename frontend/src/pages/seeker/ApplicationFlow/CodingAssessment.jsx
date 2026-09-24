@@ -59,8 +59,16 @@ const CodingAssessment = ({
         setLoading(true);
         setError(null);
         try {
-            const headers = await getAuthHeaders();
-            const res = await axios.get(`${API_URL}/coding-assessments/round/${job._id}`, { headers });
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            const targetJobId = job?._id || job?.id;
+            if (!targetJobId) {
+                setError('Job reference is missing. Please refresh the page.');
+                return;
+            }
+            const res = await axios.get(`${API_URL}/coding-assessments/round/${targetJobId}`, { headers });
             if (res.data?.success && res.data.codingRound) {
                 const round = res.data.codingRound;
                 if (!round.questions || round.questions.length === 0) {
@@ -114,10 +122,10 @@ const CodingAssessment = ({
     };
 
     useEffect(() => {
-        if (job._id) {
+        if (job?._id || job?.id) {
             fetchCodingRound();
         }
-    }, [job._id]);
+    }, [job?._id, job?.id]);
 
     // Timer Countdown
     useEffect(() => {
@@ -246,10 +254,13 @@ const CodingAssessment = ({
                 language: answers[q._id]?.language || 'python'
             }));
 
-            const headers = await getAuthHeaders();
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
             const res = await axios.post(`${API_URL}/coding-assessments/submit`, {
-                jobId: job._id,
-                userId: user.uid || user._id || user.id,
+                jobId: job?._id || job?.id,
+                userId: user?.uid || user?._id || user?.id || '',
                 answers: solutions
             }, { headers });
 
@@ -270,10 +281,13 @@ const CodingAssessment = ({
         if (timerRef.current) clearInterval(timerRef.current);
 
         try {
-            const headers = await getAuthHeaders();
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
             await axios.post(`${API_URL}/applications/proctoring-reset`, {
-                jobId: job._id,
-                userId: user.uid || user._id || user.id,
+                jobId: job?._id || job?.id,
+                userId: user?.uid || user?._id || user?.id || '',
                 stage: 'coding',
                 reason: 'Security policy violation detected during Coding Assessment.',
                 violation
@@ -348,9 +362,9 @@ const CodingAssessment = ({
         return (
             <div className="mx-auto max-w-xl p-8 rounded-[2.5rem] border border-black/10 bg-white shadow-2xl text-center">
                 <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Assessment Unavailable</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Assessment Notice</h3>
                 <p className="text-gray-500 mb-6">{error}</p>
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center justify-center flex-wrap gap-3">
                     <button
                         onClick={fetchCodingRound}
                         className="px-6 py-3 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition font-bold"
@@ -363,6 +377,14 @@ const CodingAssessment = ({
                     >
                         Go Back
                     </button>
+                    {onComplete && (
+                        <button
+                            onClick={() => onComplete(0)}
+                            className="px-6 py-3 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-bold"
+                        >
+                            Skip to Next Stage
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -376,10 +398,10 @@ const CodingAssessment = ({
                     <Code2 size={200} />
                 </div>
                 <div className="relative z-10">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-teal-600">Step 4 of 5</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-teal-600">Coding Assessment</p>
                     <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-gray-900">Coding Assessment</h1>
                     <p className="mt-4 text-base text-gray-500 leading-relaxed">
-                        Welcome to the coding assessment round for <strong>{job.title}</strong>. You will be evaluated on your programming logic, time complexity, and clean code principles.
+                        Welcome to the coding assessment round for <strong>{job?.title || 'this position'}</strong>. You will be evaluated on your programming logic, time complexity, and clean code principles.
                     </p>
 
                     <div className="my-8 space-y-4 rounded-2xl bg-[#faf8f5] p-6 border border-black/5">
@@ -448,17 +470,20 @@ const CodingAssessment = ({
     // Active Coding Test Screen
     return (
         <SecureExamWrapper
-            examId={`coding:${job._id}`}
-            userId={user.uid || user._id || user.id}
+            examId={`coding:${job?._id || job?.id || ''}`}
+            userId={user?.uid || user?._id || user?.id || ''}
             isActive={started && !securityResetting}
             requireScreenShare={true}
             requireCamera={true}
             cameraStream={sharedStream}
             showWebcamPreview={true}
             isAnswering={started && !securityResetting}
+            questionIndex={currentQIndex}
+            questionId={questions[currentQIndex]?._id || null}
             warningLimit={3}
             resetLimit={4}
             onSecurityReset={handleCodingSecurityReset}
+            enableSnapshots={false}
         >
             <div className="fixed inset-0 z-[100] w-screen h-screen bg-[#0d1117] text-gray-100 flex flex-col overflow-hidden select-none font-sans">
                 {/* ── Top Exam Navigation Header ────────────────────────────── */}
@@ -470,7 +495,7 @@ const CodingAssessment = ({
                                 <Terminal size={18} />
                             </div>
                             <div className="hidden sm:block">
-                                <h1 className="text-sm font-extrabold text-white tracking-tight leading-tight">{job.title}</h1>
+                                <h1 className="text-sm font-extrabold text-white tracking-tight leading-tight">{job?.title || 'Coding Assessment'}</h1>
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-400">Coding Assessment</p>
                             </div>
                         </div>

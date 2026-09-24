@@ -76,7 +76,8 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/agent(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/analyze-resume$/i },
     { method: '*', pattern: /^\/api\/parse-resume-structured$/i },
-    { method: '*', pattern: /^\/api\/resume-profile(\/.*)?$/i }
+    { method: '*', pattern: /^\/api\/resume-profile(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/transcripts(\/.*)?$/i }
 ];
 
 
@@ -93,7 +94,7 @@ const gatewayMiddleware = async (req, res, next) => {
         const fullPath = req.baseUrl + req.path;
 
         // ─── Admin Bypass Check ──────────────────────────────────────────
-        const adminEmails = ['sravyaadmin@gmail.com'];
+        const adminEmails = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
         let isAdminRequest = false;
         let adminUser = null;
 
@@ -105,23 +106,29 @@ const gatewayMiddleware = async (req, res, next) => {
         // 2. Check by x-user-id header matching an admin
         const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'];
         if (xUserId) {
-            const query = { role: 'admin' };
-            if (OBJECT_ID_REGEX.test(xUserId)) {
-                query.$or = [{ uid: xUserId }, { _id: xUserId }];
+            let query;
+            const trimmed = String(xUserId).trim();
+            if (trimmed.includes('@')) {
+                query = { $or: [{ email: trimmed.toLowerCase() }, { uid: trimmed }] };
+            } else if (OBJECT_ID_REGEX.test(trimmed)) {
+                query = { $or: [{ uid: trimmed }, { _id: trimmed }] };
             } else {
-                query.uid = xUserId;
+                query = { uid: trimmed };
             }
-            adminUser = await User.findOne(query);
-            
-            // Safe Fallback: Only allow fallback to default admin if the request definitively comes from the Admin Dashboard.
-            // This prevents regular users on the main web app from being mistakenly elevated to the admin profile.
-            const isOriginAdmin = req.headers.origin && req.headers.origin.includes('hire1admindashboard');
-            if (!adminUser && (req.headers['x-client-id'] === 'hire1admindashboard' || isOriginAdmin)) {
-                adminUser = await User.findOne({ uid: 'SQKunisKWhb49NUPKuk9R38iwQN2' });
-            }
-
-            if (adminUser) {
+            const foundUser = await User.findOne(query);
+            if (foundUser && (foundUser.role === 'admin' || (foundUser.email && adminEmails.includes(foundUser.email.toLowerCase().trim())))) {
+                adminUser = foundUser;
                 isAdminRequest = true;
+            } else {
+                // Safe Fallback: allow fallback to default admin if the request definitively comes from the Admin Dashboard or admin client.
+                const isOriginAdmin = req.headers.origin && (req.headers.origin.includes('hire1admindashboard') || req.headers.origin.includes('localhost:5173') || req.headers.origin.includes('localhost:5174'));
+                const isClientAdmin = req.headers['x-client-id'] === 'hire1admindashboard' || req.headers['x-client-id'] === 'hire1percent_web_client';
+                if (isClientAdmin || isOriginAdmin) {
+                    adminUser = foundUser || await User.findOne({ uid: 'SQKunisKWhb49NUPKuk9R38iwQN2' });
+                    if (adminUser) {
+                        isAdminRequest = true;
+                    }
+                }
             }
         }
 

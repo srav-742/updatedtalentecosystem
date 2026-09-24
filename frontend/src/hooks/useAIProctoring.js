@@ -40,52 +40,56 @@ function debugLog(category, ...args) {
 
 // ── Thresholds ───────────────────────────────────────────────────────────────
 const DEFAULT_THRESHOLDS = {
-    // Head turn detection (tuned so natural 15°-20° turns trigger immediately)
-    headTurnRatioHigh: 1.14,       // Nose-to-cheek ratio > this → looking right
-    headTurnRatioLow: 0.88,        // Nose-to-cheek ratio < this → looking left
-    noseEyeOffsetHigh: 0.045,      // Nose-to-eye center normalized offset
-    noseEyeOffsetLow: -0.045,
+    // Head turn detection (relative to calibrated baseline)
+    headTurnRatioHigh: 1.85,       // Relative ratio > this → looking right (calibrated for full display reading)
+    headTurnRatioLow: 0.52,        // Relative ratio < this → looking left (calibrated for full display reading)
+    noseEyeOffsetHigh: 0.14,       // Nose-to-eye center normalized offset
+    noseEyeOffsetLow: -0.14,
     // Hysteresis: return-to-normal thresholds
-    headTurnReturnHigh: 1.08,      // Must drop below this to return to center from "right"
-    headTurnReturnLow: 0.92,       // Must rise above this to return to center from "left"
-    noseEyeOffsetReturnHigh: 0.025,
-    noseEyeOffsetReturnLow: -0.025,
-    // Vertical head pitch
-    pitchDownRatio: 1.30,          // Forehead-to-nose vs nose-to-chin ratio > this → looking down
-    pitchUpRatio: 0.76,            // Ratio < this → looking up
-    pitchDownReturn: 1.20,
-    pitchUpReturn: 0.84,
+    headTurnReturnHigh: 1.55,      // Must drop below this to return to center from "right"
+    headTurnReturnLow: 0.65,       // Must rise above this to return to center from "left"
+    noseEyeOffsetReturnHigh: 0.08,
+    noseEyeOffsetReturnLow: -0.08,
+    // Vertical head pitch (calibrated relative pitch is primary, raw is fallback)
+    pitchDownRatio: 2.20,          // Forehead-to-nose vs nose-to-chin ratio > this → looking down (relaxed for screen reading)
+    pitchUpRatio: 0.45,            // Ratio < this → looking up
+    pitchDownReturn: 1.80,
+    pitchUpReturn: 0.60,
+    // Head turn & look-away duration required before flagging violation (3.5s continuous)
+    headTurnMinDurationMs: 3500,   // Continuous turn for at least 3.5s before violation
+    lookAwayDurationMs: 3500,      // Continuous gaze away for at least 3.5s before violation
     // Gaze sweeps
     gazeSwipeCount: 3,             // Consecutive left-right sweeps to trigger
     gazeSwipeWindowMs: 4000,       // Sliding window for sweep detection
-    // Presence
-    noPersonTimeoutMs: 4000,       // 4.0 seconds no face before NO_PEOPLE (1.0-4.0s is HEAD_TURNED)
-    // Object detection
-    phoneConfidenceThreshold: 0.35,
-    objectConfidenceThreshold: 0.35,
-    phoneRequiredFrames: 1,        // Fast confirmation on phone detection
+    // Presence (fast confirmation when face not visible / candidate moved away)
+    noPersonTimeoutMs: 1500,       // 1.5 seconds no face before NO_PEOPLE
+    // Object detection (sensitive to phones and secondary objects)
+    phoneConfidenceThreshold: 0.20,
+    objectConfidenceThreshold: 0.22,
+    phoneRequiredFrames: 1,        // Immediate 1-frame confirmation on phone detection
     objectRequiredFrames: 2,
-    // Gaze thresholds (calibrated to physiological lateral eye movement in stationary face)
-    sideGazeRatioLow: 0.44,       // Gaze horizontal ratio < this → looking left
-    sideGazeRatioHigh: 0.56,      // Gaze horizontal ratio > this → looking right
+    // Gaze thresholds (relative to calibrated resting eye position)
+    sideGazeDelta: 0.24,           // Deviation from baseline > 0.24 → looking away (permits edge-of-screen reading)
+    sideGazeRatioLow: 0.18,        // Absolute fallback low (< 0.18 = iris pinned to inner corner)
+    sideGazeRatioHigh: 0.82,       // Absolute fallback high (> 0.82 = iris pinned to outer corner)
     // Gaze hysteresis
-    sideGazeReturnLow: 0.47,      // Must rise above this to return from "left gaze"
-    sideGazeReturnHigh: 0.53,     // Must drop below this to return from "right gaze"
+    sideGazeReturnLow: 0.26,
+    sideGazeReturnHigh: 0.74,
     // Vertical gaze
-    vertGazeRatioLow: 0.30,       // Looking up with eyes
-    vertGazeRatioHigh: 0.70,      // Looking down with eyes
-    vertGazeReturnLow: 0.36,
-    vertGazeReturnHigh: 0.64,
+    vertGazeRatioLow: 0.18,        // Looking up with eyes
+    vertGazeRatioHigh: 0.82,       // Looking down with eyes
+    vertGazeReturnLow: 0.25,
+    vertGazeReturnHigh: 0.75,
     // Timing
-    detectionIntervalMs: 200,     // 5 frames per second for immediate 1.0s responsiveness
-    objectDetectionIntervalMs: 1000,
+    detectionIntervalMs: 200,      // 5 frames per second
+    objectDetectionIntervalMs: 500, // 2 FPS on WebGL for immediate object detection response
     onnxLoadTimeoutMs: 8000,
     // EAR (Eye Aspect Ratio) for blink detection
-    earBlinkThreshold: 0.16,      // EAR below this = eyes closed (blink)
+    earBlinkThreshold: 0.13,       // EAR below this = true closed-eye blink
     // Calibration
-    calibrationDurationMs: 1000,  // 1.0 second baseline capture
+    calibrationDurationMs: 1500,   // 1.5 second baseline capture
     // Temporal smoothing
-    gazeSmoothingWindow: 3,       // 3-frame moving average for gaze ratio
+    gazeSmoothingWindow: 3,        // 3-frame moving average for gaze ratio
 };
 
 const MEDIAPIPE_CDN_URLS = [
@@ -104,36 +108,54 @@ const COCO_SSD_CDN_URLS = [
     "https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js",
 ];
 
-// Strictly restricted to actual cheating objects: phones, cheat notes/books, and audio eavesdropping devices.
-// Ordinary room items (monitors, laptops, keyboards, mice, TVs, cups, bottles) are excluded to prevent false positives.
+// Configured suspicious objects for violation generation (cell phones and objects used by candidate)
 const SUSPICIOUS_OBJECTS = {
-    // ── COCO-80 Classes (CDN YOLO model + COCO-SSD fallback) ──
     "cell phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
-    "book": { type: "OBJECT_DETECTED", label: "Book/notes", ranking: 2 },
-
-    // ── Open Images V7 Classes (local YOLO OIV7 model) ──
+    "remote": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "Mobile phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
-    "Telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
-    "Corded phone": { type: "PHONE_DETECTED", label: "Phone detected", ranking: 2 },
-    "Ipod": { type: "PHONE_DETECTED", label: "Mobile device", ranking: 2 },
-    "Tablet computer": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
-    "Tablet": { type: "OBJECT_DETECTED", label: "Tablet device", ranking: 2 },
-    "Book": { type: "OBJECT_DETECTED", label: "Book/notes", ranking: 2 },
-    "Ring binder": { type: "OBJECT_DETECTED", label: "Binder/notebook", ranking: 2 },
-    "Headphones": { type: "OBJECT_DETECTED", label: "Earphones/Headphones", ranking: 2 },
-    "headphones": { type: "OBJECT_DETECTED", label: "Earphones/Headphones", ranking: 2 },
+    "book": { type: "OBJECT_DETECTED", label: "Object used (Book/notes)", ranking: 2 },
+    "Book": { type: "OBJECT_DETECTED", label: "Object used (Book/notes)", ranking: 2 },
+    "tablet": { type: "OBJECT_DETECTED", label: "Object used (Tablet)", ranking: 2 },
+    "Tablet": { type: "OBJECT_DETECTED", label: "Object used (Tablet)", ranking: 2 },
+    "Tablet computer": { type: "OBJECT_DETECTED", label: "Object used (Tablet)", ranking: 2 },
+    "tablet computer": { type: "OBJECT_DETECTED", label: "Object used (Tablet)", ranking: 2 },
+    "object used": { type: "OBJECT_DETECTED", label: "Object used", ranking: 2 },
+    "Object used": { type: "OBJECT_DETECTED", label: "Object used", ranking: 2 },
 };
 
 // Case-insensitive lookup for detected object classes
 function getSuspiciousObjectConfig(className) {
     if (!className) return null;
+    const lower = className.toLowerCase().trim();
+
+    // Do NOT identify or flag any background fixtures, furniture, or ambient room items
+    if (
+        lower === 'chair' || lower === 'couch' || lower === 'sofa' || lower === 'bed' ||
+        lower === 'tv' || lower === 'television' || lower === 'monitor' || lower.includes('monitor') ||
+        lower === 'bottle' || lower === 'cup' || lower === 'mug' || lower.includes('cup') ||
+        lower === 'backpack' || lower === 'handbag' || lower === 'suitcase' || lower === 'briefcase' ||
+        lower === 'keyboard' || lower === 'mouse' || lower === 'clock' || lower === 'vase' ||
+        lower === 'potted plant' || lower === 'scissors' || lower === 'table' || lower === 'desk' ||
+        lower === 'dining table'
+    ) {
+        return null;
+    }
+
     const direct = SUSPICIOUS_OBJECTS[className];
     if (direct) return direct;
-    const lower = className.toLowerCase().trim();
     for (const [k, v] of Object.entries(SUSPICIOUS_OBJECTS)) {
         if (k.toLowerCase().trim() === lower) {
             return v;
         }
+    }
+    // Substring fallback for all phone variants
+    if (lower.includes("phone") || lower === "telephone") {
+        return { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 };
+    }
+    // Substring fallback for object used / tablet / book
+    if (lower.includes("object used") || lower.includes("tablet") || lower.includes("book")) {
+        return { type: "OBJECT_DETECTED", label: "Object used", ranking: 2 };
     }
     return null;
 }
@@ -142,6 +164,21 @@ function euclidean(a, b) {
     const dx = a.x - b.x;
     const dy = a.y - b.y;
     return Math.sqrt(dx * dx + dy * dy);
+}
+
+function computeIoU(box1, box2) {
+    if (!box1 || !box2) return 0;
+    const x1 = Math.max(box1.x, box2.x);
+    const y1 = Math.max(box1.y, box2.y);
+    const x2 = Math.min(box1.x + box1.width, box2.x + box2.width);
+    const y2 = Math.min(box1.y + box1.height, box2.y + box2.height);
+    const w = Math.max(0, x2 - x1);
+    const h = Math.max(0, y2 - y1);
+    const inter = w * h;
+    const area1 = (box1.width || 0) * (box1.height || 0);
+    const area2 = (box2.width || 0) * (box2.height || 0);
+    const union = area1 + area2 - inter;
+    return union > 0 ? inter / union : 0;
 }
 
 /**
@@ -270,12 +307,98 @@ const initTfAndModel = async (modelUrl) => {
     return tfInitPromise;
 };
 
+let faceMeshInstance = null;
+let faceMeshInitPromise = null;
+
+async function getOrInitFaceMesh() {
+    if (faceMeshInstance) return faceMeshInstance;
+    if (faceMeshInitPromise) return faceMeshInitPromise;
+
+    faceMeshInitPromise = (async () => {
+        const cdns = [
+            "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619",
+            "https://unpkg.com/@mediapipe/face_mesh@0.4.1633559619",
+            "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh",
+        ];
+
+        let FaceMeshClass = typeof window !== 'undefined' ? window.FaceMesh : null;
+        let activeCdn = cdns[0];
+
+        if (!FaceMeshClass) {
+            for (const cdn of cdns) {
+                try {
+                    console.log(`[PROCTORING] Fetching MediaPipe FaceMesh from ${cdn}...`);
+                    await new Promise((resolve, reject) => {
+                        if (typeof window !== 'undefined' && window.FaceMesh) {
+                            resolve();
+                            return;
+                        }
+                        const scriptUrl = `${cdn}/face_mesh.js`;
+                        const existing = document.querySelector(`script[src="${scriptUrl}"]`);
+                        if (existing) {
+                            if (window.FaceMesh) return resolve();
+                            existing.remove();
+                        }
+                        const script = document.createElement("script");
+                        script.src = scriptUrl;
+                        script.crossOrigin = "anonymous";
+                        script.async = true;
+                        script.onload = () => resolve();
+                        script.onerror = (e) => reject(new Error(`Failed to load ${scriptUrl}`));
+                        document.head.appendChild(script);
+                    });
+
+                    const start = Date.now();
+                    while (!window.FaceMesh && (Date.now() - start < 3000)) {
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+
+                    if (window.FaceMesh) {
+                        FaceMeshClass = window.FaceMesh;
+                        activeCdn = cdn;
+                        break;
+                    }
+                } catch (err) {
+                    console.warn(`[PROCTORING] Failed loading script from ${cdn}:`, err.message);
+                }
+            }
+        }
+
+        if (!FaceMeshClass) {
+            throw new Error("FaceMesh global class not found after script injection");
+        }
+
+        console.log(`[PROCTORING] Initializing FaceMesh instance via ${activeCdn}...`);
+        const mesh = new FaceMeshClass({
+            locateFile: (file) => `${activeCdn}/${file}`,
+        });
+
+        mesh.setOptions({
+            maxNumFaces: 3,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.40,
+            minTrackingConfidence: 0.40,
+        });
+
+        await mesh.initialize();
+        faceMeshInstance = mesh;
+        console.log("[PROCTORING] ✓ MediaPipe FaceMesh initialized successfully");
+        return mesh;
+    })().catch(err => {
+        faceMeshInitPromise = null;
+        throw err;
+    });
+
+    return faceMeshInitPromise;
+}
+
 export function useAIProctoring({
     videoElement = null,
     isActive = false,
     isAnswering = false,
     onViolation = () => {},
     thresholds: userThresholds = {},
+    enableSnapshots = true,
 }) {
     const T = useMemo(() => ({ ...DEFAULT_THRESHOLDS, ...userThresholds }), [userThresholds]);
 
@@ -289,9 +412,10 @@ export function useAIProctoring({
     const [detections, setDetections] = useState([]);
 
     const faceMeshRef = useRef(null);
+    const landmarksRef = useRef(null);
     const detectionCanvasRef = useRef(null);
 
-    const { modelReady: yoloModelReady, engineType, detectFrame } = useYOLODetector({
+    const { modelReady: yoloModelReady, yoloReady, cocoReady, engineType, detectFrame } = useYOLODetector({
         isActive,
         videoElement,
     });
@@ -306,6 +430,8 @@ export function useAIProctoring({
     const isAnsweringRef = useRef(isAnswering);
     const videoRef = useRef(videoElement);
     const onViolationRef = useRef(onViolation);
+    const enableSnapshotsRef = useRef(enableSnapshots);
+    useEffect(() => { enableSnapshotsRef.current = enableSnapshots; }, [enableSnapshots]);
     const processFaceMeshResultsRef = useRef(null);
 
     const lastViolationTimeRef = useRef({});
@@ -317,13 +443,16 @@ export function useAIProctoring({
     const noPersonViolationEmittedRef = useRef(false);
     const lastNoPersonEmitTimeRef = useRef(0);
 
-    // Dedicated Head Turn tracking (strictly 1.0s)
+    const multipleFacesViolationEmittedRef = useRef(false);
+    const lastMultipleFacesEmitTimeRef = useRef(0);
+
+    // Dedicated Head Turn tracking (2.5s continuous duration)
     const headTurnStartRef = useRef(null);
     const headTurnViolationEmittedRef = useRef(false);
     const lastHeadTurnEmitTimeRef = useRef(0);
     const headTurnCenterFramesRef = useRef(0);
 
-    // Dedicated Eye Gaze tracking (strictly 1.0s)
+    // Dedicated Eye Gaze tracking (2.5s continuous duration)
     const eyeGazeStartRef = useRef(null);
     const eyeGazeViolationEmittedRef = useRef(false);
     const lastEyeGazeEmitTimeRef = useRef(0);
@@ -342,6 +471,7 @@ export function useAIProctoring({
 
     const gazeHistoryRef = useRef([]);
     const multipleFacesStreakRef = useRef(0);
+    const yoloZeroPeopleStreakRef = useRef(0);
     const objectHistoryRef = useRef({});
 
     // Offscreen canvas and concurrency control for FaceMesh
@@ -350,9 +480,9 @@ export function useAIProctoring({
 
     // ── Calibration state ────────────────────────────────────────────────────
     const calibrationStartRef = useRef(null);
-    const calibrationSamplesRef = useRef({ headRatios: [], gazeRatios: [] });
+    const calibrationSamplesRef = useRef({ headRatios: [], noseOffsets: [], gazeRatios: [], pitchRatios: [] });
     const calibrationDoneRef = useRef(false);
-    const calibrationBaselineRef = useRef({ headRatio: 1.0, gazeRatio: 0.5 });
+    const calibrationBaselineRef = useRef({ headRatio: 1.0, noseOffset: 0.0, gazeRatio: 0.5, pitchRatio: 1.15 });
 
     // ── Temporal smoothing buffer ────────────────────────────────────────────
     const gazeSmoothingBufferRef = useRef([]);
@@ -379,8 +509,35 @@ export function useAIProctoring({
 
         debugLog("EVENT", `CONFIRMED: ${type} — ${detail}`);
 
+        // Capture offscreen evidence frame for audit trail without candidate visual disruption
+        let snapshot = null;
+        if (enableSnapshotsRef.current) {
+            snapshot = meta.snapshot || null;
+            if (!snapshot && videoRef.current && videoRef.current.videoWidth > 0) {
+                try {
+                    if (!detectionCanvasRef.current) {
+                        detectionCanvasRef.current = document.createElement("canvas");
+                    }
+                    const snapCanvas = detectionCanvasRef.current;
+                    snapCanvas.width = 320;
+                    snapCanvas.height = 240;
+                    const snapCtx = snapCanvas.getContext("2d");
+                    snapCtx.drawImage(videoRef.current, 0, 0, 320, 240);
+                    snapshot = snapCanvas.toDataURL("image/jpeg", 0.6);
+                } catch (_) {
+                    // silent offscreen capture fallback
+                }
+            }
+        }
+
+        const evidenceFrames = enableSnapshotsRef.current && meta.evidenceFrames && meta.evidenceFrames.length > 0
+            ? meta.evidenceFrames
+            : (snapshot ? [snapshot] : []);
+
         onViolationRef.current(type, detail, {
             ...meta,
+            snapshot,
+            evidenceFrames,
             timestamp: new Date().toISOString(),
             isAnswering: isAnsweringRef.current,
         });
@@ -392,114 +549,64 @@ export function useAIProctoring({
 
         let cancelled = false;
 
-        const initFaceMesh = async () => {
-            try {
-                debugLog("INIT", "Loading MediaPipe FaceMesh script...");
-                console.log('[PROCTORING] Loading MediaPipe FaceMesh...');
-                logDiag("AI-Proctoring", "Loading MediaPipe FaceMesh script...");
-                await loadScriptWithFailover(MEDIAPIPE_CDN_URLS.map(u => `${u}/face_mesh.js`));
-
+        getOrInitFaceMesh()
+            .then((mesh) => {
                 if (cancelled) return;
-
-                const FaceMesh = window.FaceMesh;
-                if (!FaceMesh) {
-                    console.error('[PROCTORING] CRITICAL: FaceMesh class not found after script load. AI detection will NOT work.');
-                    debugLog("INIT", "ERROR: FaceMesh class not found on window after script load");
-                    logDiag("AI-Proctoring", "FaceMesh class not found on window after script load");
-                    return;
-                }
-
-                debugLog("INIT", "Initializing FaceMesh engine...");
-                logDiag("AI-Proctoring", "Initializing FaceMesh engine...");
-                const mesh = new FaceMesh({
-                    locateFile: (file) => `${MEDIAPIPE_CDN_URLS[0]}/${file}`,
-                });
-
-                mesh.setOptions({
-                    maxNumFaces: 3,
-                    refineLandmarks: true,
-                    minDetectionConfidence: 0.40,
-                    minTrackingConfidence: 0.40,
-                });
-
                 mesh.onResults((results) => {
                     if (!isActiveRef.current) return;
                     processFaceMeshResultsRef.current?.(results);
                 });
-
-                await mesh.initialize();
-
-                if (cancelled) return;
-
                 faceMeshRef.current = mesh;
                 setFaceMeshReady(true);
-                console.log('[PROCTORING] ✓ MediaPipe FaceMesh initialized successfully');
                 debugLog("INIT", "MediaPipe FaceMesh initialized successfully ✓");
                 logDiag("AI-Proctoring", "MediaPipe FaceMesh initialized successfully");
-            } catch (err) {
+            })
+            .catch((err) => {
                 console.error('[PROCTORING] CRITICAL: FaceMesh initialization FAILED:', err.message);
-                debugLog("INIT", "ERROR: FaceMesh initialization failed:", err.message);
-                recordError("facemesh-init", err);
-            }
-        };
-
-        initFaceMesh();
+                debugLog("INIT", "ERROR: FaceMesh initialization failed: " + err.message);
+                logDiag("AI-Proctoring", "FaceMesh initialization failed: " + err.message);
+            });
 
         return () => {
             cancelled = true;
         };
     }, [isActive]);
 
-    // COCO-SSD initialization removed (handled by useYOLODetector)
-
-    // ── Apply temporal smoothing to gaze ratio ───────────────────────────────
+    // ── Gaze Smoothing ───────────────────────────────────────────────────────
     const smoothGazeRatio = useCallback((rawRatio) => {
         const buffer = gazeSmoothingBufferRef.current;
         buffer.push(rawRatio);
-        if (buffer.length > T.gazeSmoothingWindow) {
-            buffer.shift();
-        }
-        const sum = buffer.reduce((a, b) => a + b, 0);
-        return sum / buffer.length;
-    }, [T.gazeSmoothingWindow]);
+        if (buffer.length > 5) buffer.shift();
+        return buffer.reduce((a, b) => a + b, 0) / buffer.length;
+    }, []);
 
-    // ── Process FaceMesh results ────────────────────────────────────────────
+    // ── FaceMesh Results Processing ──────────────────────────────────────────
     const processFaceMeshResults = useCallback((results) => {
-        const now = Date.now();
-        const faces = results.multiFaceLandmarks || [];
+        try {
+            const now = Date.now();
+            const faces = results.multiFaceLandmarks || [];
 
-        frameCountRef.current += 1;
+            frameCountRef.current += 1;
 
-        // ── Start calibration timer on FIRST face results (not only on iris) ──
-        // This ensures calibration completes even if iris landmarks aren't available.
-        if (!calibrationDoneRef.current) {
-            if (!calibrationStartRef.current) {
-                calibrationStartRef.current = now;
-                console.log('[PROCTORING] Calibration started (1.5-second baseline capture)');
-                debugLog("CALIBRATION", "Starting 1.5-second calibration baseline...");
-            }
-            if (now - calibrationStartRef.current >= T.calibrationDurationMs) {
-                calibrationDoneRef.current = true;
-                console.log('[PROCTORING] ✓ Calibration complete — detection is now active');
-                debugLog("CALIBRATION", "Calibration complete — violations will now be emitted");
-            }
-        }
-
-        const validFaces = faces.filter(face => {
-            if (!face || face.length < 10) return false;
-            let minX = 1, maxX = 0, minY = 1, maxY = 0;
-            for (let i = 0; i < face.length; i++) {
-                const pt = face[i];
-                if (pt.x < minX) minX = pt.x;
-                if (pt.x > maxX) maxX = pt.x;
-                if (pt.y < minY) minY = pt.y;
-                if (pt.y > maxY) maxY = pt.y;
-            }
-            const width = maxX - minX;
-            const height = maxY - minY;
-            // 0.03 allows background faces (such as people standing nearby) to be detected
-            return width > 0.03 && height > 0.03;
-        });
+            const validFaces = faces.filter(face => {
+                if (!face || face.length < 10) return false;
+                let minX = 1, maxX = 0, minY = 1, maxY = 0;
+                for (let i = 0; i < face.length; i++) {
+                    const pt = face[i];
+                    if (pt.x < minX) minX = pt.x;
+                    if (pt.x > maxX) maxX = pt.x;
+                    if (pt.y < minY) minY = pt.y;
+                    if (pt.y > maxY) maxY = pt.y;
+                }
+                const width = maxX - minX;
+                const height = maxY - minY;
+                // Filter out tiny noise patches, camera reflections, and pattern artifacts:
+                // A genuine human face in the proctoring frame must be at least 0.065 (42px wide)
+                if (width < 0.065 || height < 0.065) return false;
+                if (face.length < 468) return false;
+                if (face[33] && face[263] && Math.abs(face[33].x - face[263].x) < 0.020) return false;
+                return true;
+            });
 
         // Sort by area so the closest candidate in front is always index 0
         validFaces.sort((a, b) => {
@@ -527,36 +634,41 @@ export function useAIProctoring({
             debugLog("FACE", `faces=${count}, frame=#${frameCountRef.current}`);
         }
 
+        // ── Case 1: No Face Detected in Frame (Absence or Profile Drop) ──────
         if (count === 0) {
             multipleFacesStreakRef.current = 0;
-            const timeSinceLastFace = now - lastSeenFaceTimeRef.current;
             if (!faceLostStartRef.current) {
                 faceLostStartRef.current = now;
             }
             const elapsed = now - faceLostStartRef.current;
 
-            // If candidate was present recently (< 10s), 0 faces for >= 1.0s means they turned head away completely (>35°)
-            if (timeSinceLastFace < 10000 && elapsed >= 1000 && elapsed < (T.noPersonTimeoutMs || 4000)) {
-                const canEmit = !faceLostViolationEmittedRef.current || (now - lastHeadTurnEmitTimeRef.current >= 2500);
-                if (canEmit && isActiveRef.current) {
-                    const direction = headTurnDirectionRef.current || "away";
-                    const violationType = isAnsweringRef.current ? "HEAD_TURNED_WHILE_ANSWERING" : "HEAD_TURNED";
-                    console.log(`[PROCTORING] ✔ Head turned completely away (${direction}) for ${(elapsed / 1000).toFixed(1)}s`);
-                    emitViolation(
-                        violationType,
-                        `Candidate turned head ${direction} away from screen for over ${(elapsed / 1000).toFixed(1)} seconds. (Ranking: 1)`,
-                        { duration: elapsed / 1000, direction }
-                    );
-                    faceLostViolationEmittedRef.current = true;
-                    lastHeadTurnEmitTimeRef.current = now;
+            // Profile turn memory: if the candidate was already in a turned state (yaw > 25°),
+            // the face loss is due to cheek occlusion during an extreme head turn away.
+            if (headTurnedStateRef.current && headTurnDirectionRef.current) {
+                const dir = headTurnDirectionRef.current;
+                const minTurnDuration = T.headTurnMinDurationMs || 3500;
+                if (elapsed >= minTurnDuration) {
+                    const canEmit = !faceLostViolationEmittedRef.current || (now - lastHeadTurnEmitTimeRef.current >= 3000);
+                    if (canEmit && isActiveRef.current) {
+                        const violationType = isAnsweringRef.current ? "HEAD_TURNED_WHILE_ANSWERING" : "HEAD_TURNED";
+                        console.log(`[PROCTORING] ✔ Head turned completely away (${dir}) for ${(elapsed / 1000).toFixed(1)}s`);
+                        emitViolation(
+                            violationType,
+                            `Candidate turned head ${dir} away from screen for over ${(elapsed / 1000).toFixed(1)} seconds. (Ranking: 1)`,
+                            { duration: elapsed / 1000, direction: dir }
+                        );
+                        faceLostViolationEmittedRef.current = true;
+                        lastHeadTurnEmitTimeRef.current = now;
+                    }
                 }
-            } else if (elapsed >= (T.noPersonTimeoutMs || 4000)) {
-                // Prolonged absence (> 4.0 seconds) flags NO_PEOPLE
+            } else if (elapsed >= (T.noPersonTimeoutMs || 1500)) {
+                // Candidate moved away, stepped out, or camera was blocked/obscured
                 const canEmit = !noPersonViolationEmittedRef.current || (now - lastNoPersonEmitTimeRef.current >= 3000);
                 if (canEmit && isActiveRef.current) {
+                    console.log(`[PROCTORING] ✔ No face detected for ${(elapsed / 1000).toFixed(1)}s`);
                     emitViolation(
                         "NO_PEOPLE",
-                        `No face detected in camera frame for ${(elapsed / 1000).toFixed(1)} seconds (candidate moved away). (Ranking: 1)`,
+                        `No face detected in camera frame for ${(elapsed / 1000).toFixed(1)} seconds (face not visible or candidate moved away). (Ranking: 1)`,
                         { faceCount: 0, duration: elapsed / 1000 }
                     );
                     noPersonViolationEmittedRef.current = true;
@@ -564,6 +676,7 @@ export function useAIProctoring({
                 }
             }
             setLandmarks(null);
+            landmarksRef.current = null;
             return;
         }
 
@@ -574,23 +687,30 @@ export function useAIProctoring({
         noPersonStartRef.current = null;
         noPersonViolationEmittedRef.current = false;
 
+        // ── Multiple Faces Detection via FaceMesh ───────────────────────────
         if (count > 1) {
             multipleFacesStreakRef.current += 1;
-            // 2 frames at 200ms = 400ms confirmation of multiple faces
-            if (multipleFacesStreakRef.current >= 2) {
-                emitViolation(
-                    "MULTIPLE_PEOPLE",
-                    `${count} faces detected in camera frame. (Ranking: 2)`,
-                    { faceCount: count }
-                );
-                multipleFacesStreakRef.current = 0;
+            // 5 frames at 200ms = 1.0 second continuous confirmation of multiple genuine faces
+            if (multipleFacesStreakRef.current >= 5) {
+                const canEmit = !multipleFacesViolationEmittedRef.current || (now - lastMultipleFacesEmitTimeRef.current >= 4000);
+                if (canEmit && isActiveRef.current) {
+                    emitViolation(
+                        "MULTIPLE_PEOPLE",
+                        `${count} faces detected in camera frame. (Ranking: 2)`,
+                        { faceCount: count }
+                    );
+                    multipleFacesViolationEmittedRef.current = true;
+                    lastMultipleFacesEmitTimeRef.current = now;
+                }
             }
         } else {
             multipleFacesStreakRef.current = 0;
+            multipleFacesViolationEmittedRef.current = false;
         }
 
         const face = validFaces[0];
         setLandmarks(face);
+        landmarksRef.current = face;
 
         const nose = face[1];
         const leftCheek = face[234];
@@ -601,6 +721,7 @@ export function useAIProctoring({
         let isHeadTurnedNow = false;
         let headTurnDirection = null;
         let currentHeadTurnRatio = 1.0;
+        let noseEyeOffset = 0;
 
         if (nose && leftCheek && rightCheek) {
             const distLeft = euclidean(nose, leftCheek);
@@ -608,43 +729,110 @@ export function useAIProctoring({
             currentHeadTurnRatio = distRight > 0.001 ? distLeft / distRight : 1.0;
             setHeadTurnRatio(currentHeadTurnRatio);
 
-            let noseEyeOffset = 0;
             if (leftEyeOuter && rightEyeOuter) {
                 const eyeMidX = (leftEyeOuter.x + rightEyeOuter.x) / 2;
                 const eyeWidth = euclidean(leftEyeOuter, rightEyeOuter);
                 noseEyeOffset = eyeWidth > 0.001 ? (nose.x - eyeMidX) / eyeWidth : 0;
             }
 
-            // ── Horizontal Head Turn Hysteresis ─────────────────────────────
+            // ── Baseline Calibration: sample during first 1.5s ───────────────
+            if (!calibrationDoneRef.current) {
+                if (!calibrationStartRef.current) {
+                    calibrationStartRef.current = now;
+                    console.log('[PROCTORING] Calibration started (1.5-second baseline capture)');
+                    debugLog("CALIBRATION", "Starting 1.5-second calibration baseline...");
+                }
+                calibrationSamplesRef.current.headRatios.push(currentHeadTurnRatio);
+                if (!calibrationSamplesRef.current.noseOffsets) calibrationSamplesRef.current.noseOffsets = [];
+                calibrationSamplesRef.current.noseOffsets.push(noseEyeOffset);
+
+                // Sample pitch ratio during calibration
+                if (face[10] && face[152] && nose) {
+                    const distForehead = euclidean(face[10], nose);
+                    const distChin = euclidean(nose, face[152]);
+                    const calibPitch = distChin > 0.001 ? distForehead / distChin : 1.15;
+                    if (!calibrationSamplesRef.current.pitchRatios) calibrationSamplesRef.current.pitchRatios = [];
+                    calibrationSamplesRef.current.pitchRatios.push(calibPitch);
+                }
+
+                if (now - calibrationStartRef.current >= T.calibrationDurationMs) {
+                    const samples = calibrationSamplesRef.current;
+                    const avgHead = samples.headRatios.length > 0
+                        ? samples.headRatios.reduce((a, b) => a + b, 0) / samples.headRatios.length
+                        : 1.0;
+                    const avgNoseOffset = samples.noseOffsets.length > 0
+                        ? samples.noseOffsets.reduce((a, b) => a + b, 0) / samples.noseOffsets.length
+                        : 0.0;
+                    const avgGaze = samples.gazeRatios.length > 0
+                        ? samples.gazeRatios.reduce((a, b) => a + b, 0) / samples.gazeRatios.length
+                        : 0.5;
+                    const avgPitch = samples.pitchRatios && samples.pitchRatios.length > 0
+                        ? samples.pitchRatios.reduce((a, b) => a + b, 0) / samples.pitchRatios.length
+                        : 1.15;
+
+                    // Clamp calibration baseline to realistic human anatomical ranges
+                    const clampedHead = Math.max(0.85, Math.min(1.25, avgHead));
+                    const clampedPitch = Math.max(0.95, Math.min(1.30, avgPitch));
+                    const clampedGaze = Math.max(0.46, Math.min(0.54, avgGaze));
+                    const clampedNoseOffset = Math.max(-0.04, Math.min(0.04, avgNoseOffset));
+
+                    calibrationBaselineRef.current = {
+                        headRatio: clampedHead,
+                        noseOffset: clampedNoseOffset,
+                        gazeRatio: clampedGaze,
+                        pitchRatio: clampedPitch,
+                    };
+                    calibrationDoneRef.current = true;
+                    console.log(`[PROCTORING] ✓ Calibration complete: baselineHeadRatio=${clampedHead.toFixed(2)}, baselinePitch=${clampedPitch.toFixed(2)}, baselineNoseOffset=${clampedNoseOffset.toFixed(3)}, baselineGazeRatio=${clampedGaze.toFixed(2)}`);
+                    debugLog("CALIBRATION", "Calibration complete", calibrationBaselineRef.current);
+                }
+            }
+
+            const baselineRatio = calibrationBaselineRef.current.headRatio || 1.0;
+            const baselineNose = calibrationBaselineRef.current.noseOffset || 0.0;
+            const relRatio = currentHeadTurnRatio / baselineRatio;
+            const relNoseOffset = noseEyeOffset - baselineNose;
+
+            // Auto-recovery: If current head turn ratio and nose offset are well within normal human forward-facing limits,
+            // candidate is definitely looking at the display. Force clear any sticky turned state.
+            const isFacingDisplay = (currentHeadTurnRatio >= 0.55 && currentHeadTurnRatio <= 1.80) &&
+                                    (Math.abs(relNoseOffset) <= 0.12);
+
+            // ── Horizontal Head Turn Hysteresis with Baseline Compensation ──
             if (!headTurnedStateRef.current) {
-                if (currentHeadTurnRatio > (T.headTurnRatioHigh || 1.14) || noseEyeOffset > (T.noseEyeOffsetHigh || 0.045)) {
+                if (relRatio > (T.headTurnRatioHigh || 1.85) || relNoseOffset > (T.noseEyeOffsetHigh || 0.14)) {
                     isHeadTurnedNow = true;
                     headTurnDirection = "right";
                     headTurnedStateRef.current = true;
                     headTurnDirectionRef.current = "right";
-                } else if (currentHeadTurnRatio < (T.headTurnRatioLow || 0.88) || noseEyeOffset < (T.noseEyeOffsetLow || -0.045)) {
+                } else if (relRatio < (T.headTurnRatioLow || 0.52) || relNoseOffset < (T.noseEyeOffsetLow || -0.14)) {
                     isHeadTurnedNow = true;
                     headTurnDirection = "left";
                     headTurnedStateRef.current = true;
                     headTurnDirectionRef.current = "left";
                 }
             } else {
-                const prevDir = headTurnDirectionRef.current;
-                if (prevDir === "right") {
-                    if (currentHeadTurnRatio < (T.headTurnReturnHigh || 1.08) && noseEyeOffset < (T.noseEyeOffsetReturnHigh || 0.025)) {
-                        headTurnedStateRef.current = false;
-                        headTurnDirectionRef.current = null;
-                    } else {
-                        isHeadTurnedNow = true;
-                        headTurnDirection = "right";
-                    }
-                } else if (prevDir === "left") {
-                    if (currentHeadTurnRatio > (T.headTurnReturnLow || 0.92) && noseEyeOffset > (T.noseEyeOffsetReturnLow || -0.025)) {
-                        headTurnedStateRef.current = false;
-                        headTurnDirectionRef.current = null;
-                    } else {
-                        isHeadTurnedNow = true;
-                        headTurnDirection = "left";
+                if (isFacingDisplay) {
+                    headTurnedStateRef.current = false;
+                    headTurnDirectionRef.current = null;
+                } else {
+                    const prevDir = headTurnDirectionRef.current;
+                    if (prevDir === "right") {
+                        if (relRatio < (T.headTurnReturnHigh || 1.55) && relNoseOffset < (T.noseEyeOffsetReturnHigh || 0.08)) {
+                            headTurnedStateRef.current = false;
+                            headTurnDirectionRef.current = null;
+                        } else {
+                            isHeadTurnedNow = true;
+                            headTurnDirection = "right";
+                        }
+                    } else if (prevDir === "left") {
+                        if (relRatio > (T.headTurnReturnLow || 0.65) && relNoseOffset > (T.noseEyeOffsetReturnLow || -0.08)) {
+                            headTurnedStateRef.current = false;
+                            headTurnDirectionRef.current = null;
+                        } else {
+                            isHeadTurnedNow = true;
+                            headTurnDirection = "left";
+                        }
                     }
                 }
             }
@@ -655,22 +843,34 @@ export function useAIProctoring({
             const distForehead = euclidean(face[10], nose);
             const distChin = euclidean(nose, face[152]);
             const pitchRatio = distChin > 0.001 ? distForehead / distChin : 1.0;
+            const baselinePitch = calibrationBaselineRef.current.pitchRatio || 1.15;
+            const relPitch = pitchRatio / baselinePitch;
 
+            // Pitch within normal range for reading screen content from top to bottom
+            const isPitchFacingDisplay = (pitchRatio >= 0.50 && pitchRatio <= 2.10) && (relPitch >= 0.55 && relPitch <= 1.50);
+
+            // Only flag if relative pitch tilts drastically (> 55% downward tilt or < 50% upward tilt)
+            // or if raw pitch ratio exceeds absolute bounds. This avoids false positives during normal screen reading.
             if (!headTurnedStateRef.current || headTurnDirectionRef.current === "down" || headTurnDirectionRef.current === "up") {
-                if (pitchRatio > (T.pitchDownRatio || 1.30)) {
+                if (relPitch > 1.55 || pitchRatio > (T.pitchDownRatio || 2.20)) {
                     isHeadTurnedNow = true;
                     headTurnDirection = "down";
                     headTurnedStateRef.current = true;
                     headTurnDirectionRef.current = "down";
-                } else if (pitchRatio < (T.pitchUpRatio || 0.76)) {
+                } else if (relPitch < 0.50 || pitchRatio < (T.pitchUpRatio || 0.45)) {
                     isHeadTurnedNow = true;
                     headTurnDirection = "up";
                     headTurnedStateRef.current = true;
                     headTurnDirectionRef.current = "up";
-                } else if (headTurnDirectionRef.current === "down" && pitchRatio < (T.pitchDownReturn || 1.20)) {
+                } else if (isPitchFacingDisplay) {
+                    if (headTurnDirectionRef.current === "down" || headTurnDirectionRef.current === "up") {
+                        headTurnedStateRef.current = false;
+                        headTurnDirectionRef.current = null;
+                    }
+                } else if (headTurnDirectionRef.current === "down" && (relPitch < 1.35 || pitchRatio < (T.pitchDownReturn || 1.80))) {
                     headTurnedStateRef.current = false;
                     headTurnDirectionRef.current = null;
-                } else if (headTurnDirectionRef.current === "up" && pitchRatio > (T.pitchUpReturn || 0.84)) {
+                } else if (headTurnDirectionRef.current === "up" && (relPitch > 0.65 || pitchRatio > (T.pitchUpReturn || 0.60))) {
                     headTurnedStateRef.current = false;
                     headTurnDirectionRef.current = null;
                 } else if (headTurnDirectionRef.current === "down" || headTurnDirectionRef.current === "up") {
@@ -696,41 +896,41 @@ export function useAIProctoring({
                 ];
                 const rightEAR = calculateEAR(rightEyeLandmarks);
                 const avgEAR = (leftEAR + rightEAR) / 2;
-                isBlinking = avgEAR < (T.earBlinkThreshold || 0.16);
+                isBlinking = avgEAR < (T.earBlinkThreshold || 0.13);
             } else {
-                isBlinking = leftEAR < (T.earBlinkThreshold || 0.16);
+                isBlinking = leftEAR < (T.earBlinkThreshold || 0.13);
             }
         }
 
         let isGazeAway = false;
         let avgGaze = 0.5;
 
-        // ── Gaze detection: ONLY if not blinking and iris landmarks available ──
-        if (!isBlinking && face.length > 473) {
-            const leftIris = face[468];
-            const rightIris = face[473];
+        // ── Gaze Detection: Iris (preferred) or Eye-Contour Fallback ──────────
+        if (face.length >= 468) {
+            let lRatio = 0.5;
+            let rRatio = 0.5;
+            let isVerticalGazeAway = false;
 
-            if (leftIris && rightIris && leftIris.x !== undefined && rightIris.x !== undefined &&
-                face[33] && face[133] && face[362] && face[263]) {
+            const hasIris = face.length > 473 && face[468] && face[473] &&
+                            face[468].x !== undefined && face[473].x !== undefined;
+
+            if (hasIris && face[33] && face[133] && face[362] && face[263]) {
+                const leftIris = face[468];
+                const rightIris = face[473];
 
                 // Left eye horizontal span
                 const lMinX = Math.min(face[33].x, face[133].x);
                 const lMaxX = Math.max(face[33].x, face[133].x);
                 const lWidth = lMaxX - lMinX;
-                const lRatio = lWidth > 0.002 ? (leftIris.x - lMinX) / lWidth : 0.5;
+                lRatio = lWidth > 0.002 ? (leftIris.x - lMinX) / lWidth : 0.5;
 
                 // Right eye horizontal span
                 const rMinX = Math.min(face[362].x, face[263].x);
                 const rMaxX = Math.max(face[362].x, face[263].x);
                 const rWidth = rMaxX - rMinX;
-                const rRatio = rWidth > 0.002 ? (rightIris.x - rMinX) / rWidth : 0.5;
-
-                const rawGaze = (lRatio + rRatio) / 2;
-                avgGaze = smoothGazeRatio(rawGaze);
-                setGazeRatio(avgGaze);
+                rRatio = rWidth > 0.002 ? (rightIris.x - rMinX) / rWidth : 0.5;
 
                 // Vertical gaze check (looking up/down with eyes)
-                let isVerticalGazeAway = false;
                 if (face[159] && face[145] && face[386] && face[374]) {
                     const lTop = Math.min(face[159].y, face[145].y);
                     const lBottom = Math.max(face[159].y, face[145].y);
@@ -743,58 +943,62 @@ export function useAIProctoring({
                     const rVert = rH > 0.002 ? (rightIris.y - rTop) / rH : 0.5;
 
                     const avgVert = (lVert + rVert) / 2;
-                    if (avgVert < (T.vertGazeRatioLow || 0.30) || avgVert > (T.vertGazeRatioHigh || 0.70)) {
+                    if (avgVert < (T.vertGazeRatioLow || 0.18) || avgVert > (T.vertGazeRatioHigh || 0.82)) {
                         isVerticalGazeAway = true;
                     }
                 }
+            } else if (face[33] && face[133] && face[263] && face[362]) {
+                // Fallback using eye contour centers if iris landmarks are not rendered
+                const lEyeCenter = (face[159].x + face[145].x) / 2;
+                const lMinX = Math.min(face[33].x, face[133].x);
+                const lMaxX = Math.max(face[33].x, face[133].x);
+                const lW = lMaxX - lMinX;
+                lRatio = lW > 0.002 ? (lEyeCenter - lMinX) / lW : 0.5;
 
-                // Gaze hysteresis
-                if (!gazeAwayStateRef.current) {
-                    if (avgGaze < (T.sideGazeRatioLow || 0.44) || avgGaze > (T.sideGazeRatioHigh || 0.56) || isVerticalGazeAway) {
-                        isGazeAway = true;
-                        gazeAwayStateRef.current = true;
-                    }
+                const rEyeCenter = (face[386].x + face[374].x) / 2;
+                const rMinX = Math.min(face[362].x, face[263].x);
+                const rMaxX = Math.max(face[362].x, face[263].x);
+                const rW = rMaxX - rMinX;
+                rRatio = rW > 0.002 ? (rEyeCenter - rMinX) / rW : 0.5;
+            }
+
+            const rawGaze = (lRatio + rRatio) / 2;
+            avgGaze = smoothGazeRatio(rawGaze);
+            setGazeRatio(avgGaze);
+
+            if (!calibrationDoneRef.current && calibrationSamplesRef.current) {
+                calibrationSamplesRef.current.gazeRatios.push(avgGaze);
+            }
+
+            const baselineGaze = calibrationBaselineRef.current.gazeRatio || 0.5;
+            const gazeDelta = avgGaze - baselineGaze;
+            const deltaThreshold = T.sideGazeDelta || 0.24;
+
+            // Gaze hysteresis (relative to calibrated baseline)
+            if (!gazeAwayStateRef.current) {
+                if (Math.abs(gazeDelta) > deltaThreshold || isVerticalGazeAway ||
+                    avgGaze < (T.sideGazeRatioLow || 0.18) || avgGaze > (T.sideGazeRatioHigh || 0.82)) {
+                    isGazeAway = true;
+                    gazeAwayStateRef.current = true;
+                }
+            } else {
+                if (Math.abs(gazeDelta) <= (deltaThreshold - 0.04) && !isVerticalGazeAway &&
+                    avgGaze >= (T.sideGazeReturnLow || 0.26) && avgGaze <= (T.sideGazeReturnHigh || 0.74)) {
+                    gazeAwayStateRef.current = false;
                 } else {
-                    if (avgGaze >= (T.sideGazeReturnLow || 0.47) && avgGaze <= (T.sideGazeReturnHigh || 0.53) && !isVerticalGazeAway) {
-                        gazeAwayStateRef.current = false;
-                    } else {
-                        isGazeAway = true;
-                    }
+                    isGazeAway = true;
                 }
+            }
 
-                // Gaze sweep detection (rhythmic reading pattern)
-                const gazeHistory = gazeHistoryRef.current;
-                gazeHistory.push({ ratio: avgGaze, ts: now });
-                while (gazeHistory.length > 0 && now - gazeHistory[0].ts > T.gazeSwipeWindowMs) {
-                    gazeHistory.shift();
-                }
-
-                if (gazeHistory.length >= 3) {
-                    let directionChanges = 0;
-                    for (let i = 2; i < gazeHistory.length; i++) {
-                        const prev = gazeHistory[i - 1].ratio - gazeHistory[i - 2].ratio;
-                        const curr = gazeHistory[i].ratio - gazeHistory[i - 1].ratio;
-                        if ((prev > 0.02 && curr < -0.02) || (prev < -0.02 && curr > 0.02)) {
-                            directionChanges++;
-                        }
-                    }
-
-                    if (directionChanges >= T.gazeSwipeCount) {
-                        const violationType = isAnsweringRef.current
-                            ? "EYE_LOOKING_AWAY_WHILE_ANSWERING"
-                            : "EYE_LOOKING_AWAY";
-                        emitViolation(
-                            violationType,
-                            "Rhythmic horizontal eye movement detected (possible reading pattern). (Ranking: 1)",
-                            { directionChanges, gazeRatio: avgGaze }
-                        );
-                        gazeHistoryRef.current = [];
-                    }
-                }
+            // Gaze tracking history (for analytics only - normal reading sweeps are NOT penalized as violations)
+            const gazeHistory = gazeHistoryRef.current;
+            gazeHistory.push({ ratio: avgGaze, ts: now });
+            while (gazeHistory.length > 0 && now - gazeHistory[0].ts > (T.gazeSwipeWindowMs || 4000)) {
+                gazeHistory.shift();
             }
         }
 
-        // ── 1. HEAD TURN TEMPORAL RULE (Strictly 1.0s) ──────────────────────
+        // ── 1. HEAD TURN TEMPORAL RULE (3.5s continuous) ────────────────────
         if (isHeadTurnedNow) {
             headTurnCenterFramesRef.current = 0;
             if (!headTurnStartRef.current) {
@@ -803,8 +1007,9 @@ export function useAIProctoring({
                 debugLog("HEAD", `Head turn started (${headTurnDirection})`);
             } else {
                 const elapsed = now - headTurnStartRef.current;
-                if (elapsed >= 1000) {
-                    const canEmit = !headTurnViolationEmittedRef.current || (now - lastHeadTurnEmitTimeRef.current >= 2500);
+                const minDuration = T.headTurnMinDurationMs || 3500;
+                if (elapsed >= minDuration) {
+                    const canEmit = !headTurnViolationEmittedRef.current || (now - lastHeadTurnEmitTimeRef.current >= 3000);
                     if (canEmit && isActiveRef.current) {
                         const dir = headTurnDirection || "away";
                         const violationType = isAnsweringRef.current ? "HEAD_TURNED_WHILE_ANSWERING" : "HEAD_TURNED";
@@ -825,19 +1030,17 @@ export function useAIProctoring({
                 }
             }
         } else {
-            // Grace period: require 2 consecutive center frames (300-400ms) before resetting timer
-            headTurnCenterFramesRef.current = (headTurnCenterFramesRef.current || 0) + 1;
-            if (headTurnCenterFramesRef.current >= 2) {
-                headTurnStartRef.current = null;
-                headTurnViolationEmittedRef.current = false;
-                headTurnedStateRef.current = false;
-                headTurnDirectionRef.current = null;
-            }
+            // Clean immediate reset when candidate is facing screen: prevents stuck accumulated timers
+            headTurnStartRef.current = null;
+            headTurnViolationEmittedRef.current = false;
+            headTurnedStateRef.current = false;
+            headTurnDirectionRef.current = null;
+            headTurnCenterFramesRef.current = 0;
         }
 
-        // ── 2. EYE GAZE LOOK-AWAY TEMPORAL RULE (Strictly 1.0s) ─────────────
-        // Only track gaze look-away if head is centered (prevent double counting)
-        if (isGazeAway && !isHeadTurnedNow && !isBlinking) {
+        // ── 2. EYE GAZE LOOK-AWAY TEMPORAL RULE (3.5s continuous) ───────────
+        // Allow gaze look-away tracking whenever eyes are diverted and candidate is not mid-blink
+        if (isGazeAway && !isBlinking) {
             eyeGazeCenterFramesRef.current = 0;
             if (!eyeGazeStartRef.current) {
                 eyeGazeStartRef.current = now;
@@ -845,8 +1048,9 @@ export function useAIProctoring({
                 debugLog("GAZE", `Gaze look-away started`);
             } else {
                 const elapsed = now - eyeGazeStartRef.current;
-                if (elapsed >= 1000) {
-                    const canEmit = !eyeGazeViolationEmittedRef.current || (now - lastEyeGazeEmitTimeRef.current >= 2500);
+                const minGazeDuration = T.lookAwayDurationMs || 3500;
+                if (elapsed >= minGazeDuration) {
+                    const canEmit = !eyeGazeViolationEmittedRef.current || (now - lastEyeGazeEmitTimeRef.current >= 3000);
                     if (canEmit && isActiveRef.current) {
                         const violationType = isAnsweringRef.current ? "EYE_LOOKING_AWAY_WHILE_ANSWERING" : "EYE_LOOKING_AWAY";
                         console.log(`[PROCTORING] ✔ CONFIRMED: ${violationType} for ${(elapsed / 1000).toFixed(1)}s (ratio=${avgGaze.toFixed(3)})`);
@@ -864,18 +1068,20 @@ export function useAIProctoring({
                 }
             }
         } else if (!isBlinking) {
-            // Grace period: require 2 consecutive center gaze frames before resetting timer
-            eyeGazeCenterFramesRef.current = (eyeGazeCenterFramesRef.current || 0) + 1;
-            if (eyeGazeCenterFramesRef.current >= 2) {
-                eyeGazeStartRef.current = null;
-                eyeGazeViolationEmittedRef.current = false;
-                gazeAwayStateRef.current = false;
-            }
+            // Clean immediate reset when eyes return to screen
+            eyeGazeStartRef.current = null;
+            eyeGazeViolationEmittedRef.current = false;
+            gazeAwayStateRef.current = false;
+            eyeGazeCenterFramesRef.current = 0;
         }
 
         if (frameCountRef.current % 20 === 0) {
             debugLog("HEAD", `ratio=${currentHeadTurnRatio.toFixed(3)}, turned=${isHeadTurnedNow}, dir=${headTurnDirection || 'center'}`);
             debugLog("GAZE", `ratio=${avgGaze.toFixed(3)}, away=${isGazeAway}, blinking=${isBlinking}`);
+        }
+        } catch (err) {
+            console.error("[PROCTORING] Error in processFaceMeshResults:", err);
+            recordError("facemesh-process", err);
         }
     }, [T, emitViolation, smoothGazeRatio]);
 
@@ -958,111 +1164,174 @@ export function useAIProctoring({
         };
     }, [isActive, faceMeshReady, videoElement, T.detectionIntervalMs]);
 
-    // ── Object detection loop (YOLO via useYOLODetector) ───────────
+    // ── Real-time Object Detection Loop (Hardware-Accelerated WebGL) ───────────
     useEffect(() => {
         if (!isActive || !objectModelReady || !videoElement) return;
 
-        const intervalId = setInterval(async () => {
-            if (!isActiveRef.current) return;
+        let active = true;
+        let isProcessing = false;
+        let timeoutId = null;
 
-            try {
-                const predictions = await detectFrame();
-                if (!predictions || !Array.isArray(predictions)) return;
+        const runDetection = async () => {
+            if (!active) return;
 
-                setDetections(predictions);
+            const video = videoRef.current;
+            if (!isProcessing && isActiveRef.current && video && video.readyState >= 2) {
+                isProcessing = true;
+                try {
+                    const predictions = await detectFrame(landmarksRef.current);
+                    if (predictions && Array.isArray(predictions) && active) {
+                        setDetections(predictions);
 
-                // ── Detect Multiple People via YOLO/COCO-SSD ────────────────
-                // MediaPipe FaceMesh can miss people standing in background or at an angle.
-                // YOLO/COCO-SSD detects whole bodies and faces reliably across the room.
-                const peopleInFrame = predictions.filter(p => {
-                    const cls = (p.class || '').toLowerCase().trim();
-                    return (
-                        cls === 'person' ||
-                        cls === 'man' ||
-                        cls === 'woman' ||
-                        cls === 'boy' ||
-                        cls === 'girl' ||
-                        cls === 'human face' ||
-                        cls === 'human head'
-                    ) && p.score >= 0.35;
-                });
+                        // ── Detect Multiple People with IoU Deduplication ───────────
+                        // COCO-SSD often outputs multiple overlapping person boxes for the same candidate.
+                        // We deduplicate them so the same person is NEVER counted twice.
+                        const rawPeople = predictions.filter(p => {
+                            const cls = (p.class || '').toLowerCase().trim();
+                            return (
+                                cls === 'person' ||
+                                cls === 'man' ||
+                                cls === 'woman' ||
+                                cls === 'boy' ||
+                                cls === 'girl'
+                            ) && p.score >= 0.35;
+                        });
 
-                if (peopleInFrame.length > 1) {
-                    multipleFacesStreakRef.current += 1;
-                    if (multipleFacesStreakRef.current >= 2) {
-                        emitViolation(
-                            "MULTIPLE_PEOPLE",
-                            `${peopleInFrame.length} people detected in camera frame. (Ranking: 2)`,
-                            { faceCount: peopleInFrame.length }
-                        );
-                        multipleFacesStreakRef.current = 0;
-                    }
-                }
-
-                const activeObjects = new Map();
-                predictions.forEach(p => {
-                    const objConfig = getSuspiciousObjectConfig(p.class);
-                    if (objConfig) {
-                        const isPhone = objConfig.type === "PHONE_DETECTED";
-                        const threshold = isPhone
-                            ? (T.phoneConfidenceThreshold || 0.35)
-                            : (T.objectConfidenceThreshold || 0.35);
-                        if (p.score >= threshold) {
-                            activeObjects.set(p.class, { config: objConfig, score: p.score });
+                        const distinctPeople = [];
+                        for (const p of rawPeople) {
+                            let isDup = false;
+                            for (const existing of distinctPeople) {
+                                const iou = computeIoU(p.bbox, existing.bbox);
+                                const pcx = p.bbox.x + p.bbox.width / 2;
+                                const pcy = p.bbox.y + p.bbox.height / 2;
+                                const insideExisting = pcx >= existing.bbox.x && pcx <= (existing.bbox.x + existing.bbox.width) &&
+                                                       pcy >= existing.bbox.y && pcy <= (existing.bbox.y + existing.bbox.height);
+                                if (iou > 0.20 || insideExisting) {
+                                    isDup = true;
+                                    break;
+                                }
+                            }
+                            if (!isDup) distinctPeople.push(p);
                         }
+
+                        if (distinctPeople.length > 1) {
+                            multipleFacesStreakRef.current += 1;
+                            if (multipleFacesStreakRef.current >= 4) {
+                                const now = Date.now();
+                                const canEmit = !multipleFacesViolationEmittedRef.current || (now - lastMultipleFacesEmitTimeRef.current >= 4000);
+                                if (canEmit && isActiveRef.current) {
+                                    emitViolation(
+                                        "MULTIPLE_PEOPLE",
+                                        `${distinctPeople.length} people detected in camera frame. (Ranking: 2)`,
+                                        { faceCount: distinctPeople.length }
+                                    );
+                                    multipleFacesViolationEmittedRef.current = true;
+                                    lastMultipleFacesEmitTimeRef.current = now;
+                                }
+                            }
+                        } else if (distinctPeople.length === 0) {
+                            yoloZeroPeopleStreakRef.current = (yoloZeroPeopleStreakRef.current || 0) + 1;
+                            if (yoloZeroPeopleStreakRef.current >= 3) {
+                                const canEmit = !noPersonViolationEmittedRef.current || (Date.now() - lastNoPersonEmitTimeRef.current >= 3000);
+                                if (canEmit && isActiveRef.current) {
+                                    emitViolation(
+                                        "NO_PEOPLE",
+                                        "No face or person detected in camera frame (candidate moved away). (Ranking: 1)",
+                                        { faceCount: 0, source: "yolo" }
+                                    );
+                                    noPersonViolationEmittedRef.current = true;
+                                    lastNoPersonEmitTimeRef.current = Date.now();
+                                }
+                            }
+                        } else {
+                            yoloZeroPeopleStreakRef.current = 0;
+                        }
+
+                        // Track detected suspicious types (PHONE_DETECTED and OBJECT_DETECTED)
+                        const activeTypes = new Map();
+                        predictions.forEach(p => {
+                            const objConfig = getSuspiciousObjectConfig(p.class);
+                            if (objConfig) {
+                                const isPhone = objConfig.type === "PHONE_DETECTED";
+                                const threshold = isPhone
+                                    ? (T.phoneConfidenceThreshold || 0.20)
+                                    : (T.objectConfidenceThreshold || 0.22);
+                                if (p.score >= threshold) {
+                                    const existing = activeTypes.get(objConfig.type);
+                                    if (!existing || p.score > existing.score) {
+                                        activeTypes.set(objConfig.type, { config: objConfig, score: p.score, class: p.class });
+                                    }
+                                }
+                            }
+                        });
+
+                        const WINDOW_SIZE = 2;
+                        ["PHONE_DETECTED", "OBJECT_DETECTED"].forEach(vType => {
+                            const history = objectHistoryRef.current[vType] || [];
+                            const detectedObj = activeTypes.get(vType);
+                            const isDetectedThisFrame = !!detectedObj;
+                            const score = detectedObj ? detectedObj.score : 0;
+
+                            history.push({ detected: isDetectedThisFrame, score, obj: detectedObj });
+                            if (history.length > WINDOW_SIZE) {
+                                history.shift();
+                            }
+                            objectHistoryRef.current[vType] = history;
+
+                            const detectedFramesCount = history.filter(h => h.detected).length;
+                            const averageConfidence = detectedFramesCount > 0 
+                                ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
+                                : 0;
+
+                            const isPhone = vType === "PHONE_DETECTED";
+                            const requiredFrames = isPhone ? 1 : 2;
+                            const threshold = isPhone ? (T.phoneConfidenceThreshold || 0.20) : (T.objectConfidenceThreshold || 0.22);
+                            const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
+
+                            if (isConfirmed && detectedObj) {
+                                emitViolation(
+                                    vType,
+                                    `${detectedObj.config.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${detectedObj.config.ranking})`,
+                                    {
+                                        confidence: averageConfidence,
+                                        label: detectedObj.config.label,
+                                        class: detectedObj.class,
+                                        model: objectModelType || 'COCO-SSD',
+                                        severity: isPhone ? 'critical' : 'medium',
+                                    }
+                                );
+                            }
+                        });
                     }
-                });
-
-                const WINDOW_SIZE = 2;
-                Object.keys(SUSPICIOUS_OBJECTS).forEach(objType => {
-                    const history = objectHistoryRef.current[objType] || [];
-                    const isDetectedThisFrame = activeObjects.has(objType);
-                    
-                    const objConfig = getSuspiciousObjectConfig(objType);
-                    if (!objConfig) return;
-
-                    const isPhone = objConfig.type === "PHONE_DETECTED";
-                    const threshold = isPhone ? (T.phoneConfidenceThreshold || 0.35) : (T.objectConfidenceThreshold || 0.35);
-                    const match = predictions.find(p => (p.class || '').toLowerCase() === objType.toLowerCase() && p.score >= threshold);
-                    const score = match ? match.score : 0;
-
-                    history.push({ detected: isDetectedThisFrame, score });
-                    if (history.length > WINDOW_SIZE) {
-                        history.shift();
-                    }
-                    objectHistoryRef.current[objType] = history;
-
-                    const detectedFramesCount = history.filter(h => h.detected).length;
-                    const averageConfidence = detectedFramesCount > 0 
-                        ? history.filter(h => h.detected).reduce((sum, h) => sum + h.score, 0) / detectedFramesCount 
-                        : 0;
-
-                    const requiredFrames = isPhone ? 1 : 2;
-                    const isConfirmed = detectedFramesCount >= requiredFrames && averageConfidence >= threshold;
-
-                    if (isConfirmed) {
-                        emitViolation(
-                            objConfig.type,
-                            `${objConfig.label} detected in camera frame (Temporal confirmation: ${detectedFramesCount}/${WINDOW_SIZE} frames, avg conf: ${(averageConfidence * 100).toFixed(0)}%). (Ranking: ${objConfig.ranking})`,
-                            { confidence: averageConfidence, label: objConfig.label }
-                        );
-                    }
-                });
-            } catch (err) {
-                recordError("yolo-frame-detect", err);
+                } catch (err) {
+                    recordError("yolo-frame-detect", err);
+                } finally {
+                    isProcessing = false;
+                }
             }
-        }, T.objectDetectionIntervalMs);
 
-        return () => clearInterval(intervalId);
+            if (active) {
+                // Run at 100ms interval (10 FPS) for smooth real-time tracking
+                timeoutId = setTimeout(runDetection, 100);
+            }
+        };
+
+        // Trigger immediately on model readiness — no initial delay!
+        runDetection();
+
+        return () => {
+            active = false;
+            if (timeoutId) clearTimeout(timeoutId);
+        };
     }, [isActive, objectModelReady, videoElement, T, emitViolation, detectFrame]);
 
     // Reset calibration state when session ends
     useEffect(() => {
         if (!isActive) {
             calibrationStartRef.current = null;
-            calibrationSamplesRef.current = { headRatios: [], gazeRatios: [] };
+            calibrationSamplesRef.current = { headRatios: [], noseOffsets: [], gazeRatios: [], pitchRatios: [] };
             calibrationDoneRef.current = false;
-            calibrationBaselineRef.current = { headRatio: 1.0, gazeRatio: 0.5 };
+            calibrationBaselineRef.current = { headRatio: 1.0, noseOffset: 0.0, gazeRatio: 0.5, pitchRatio: 1.15 };
             gazeSmoothingBufferRef.current = [];
             frameCountRef.current = 0;
             loopStartedRef.current = false;
@@ -1083,6 +1352,8 @@ export function useAIProctoring({
         faceMeshReady,
         objectModelReady,
         objectModelType,
+        yoloReady,
+        cocoReady,
         faceCount,
         headTurnRatio,
         gazeRatio,

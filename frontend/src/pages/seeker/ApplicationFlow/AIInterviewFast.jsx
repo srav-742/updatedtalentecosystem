@@ -346,8 +346,8 @@ const AIInterviewFast = ({
         }
 
         const formData = new FormData();
-        formData.append('userId', user.uid);
-        formData.append('jobId', job._id);
+        formData.append('userId', user?.uid || user?._id || user?.id || '');
+        formData.append('jobId', job?._id || job?.id || '');
         formData.append('recordingSessionId', activeRecordingSessionId || '');
         formData.append(
             'recording',
@@ -378,8 +378,8 @@ const AIInterviewFast = ({
                     // The actual merge+upload happens in the background on the server.
                     const response = await axios.post(`${API_URL}/finalize-recording`, {
                         sessionId: recordingSessionId || sessionId,
-                        userId: user.uid,
-                        jobId: job._id
+                        userId: user?.uid || user?._id || user?.id || '',
+                        jobId: job?._id || job?.id || ''
                     });
                     resolve(response.data);
                 } catch (err) {
@@ -417,8 +417,8 @@ const AIInterviewFast = ({
 
             // ── Uses the EXISTING /interview/start endpoint (no change needed) ──
             const res = await axios.post(`${API_URL}/interview/start`, {
-                jobId: job._id,
-                userId: user.uid
+                jobId: job?._id || job?.id || '',
+                userId: user?.uid || user?._id || user?.id || ''
             });
             const firstQuestion = normalizeQuestionText(res.data.question);
             const activeSessionId = res.data.sessionId;
@@ -894,8 +894,8 @@ const AIInterviewFast = ({
                     if (activeRecId) {
                         await axios.post(`${API_URL}/finalize-recording`, {
                             sessionId: activeRecId,
-                            userId: user.uid,
-                            jobId: job._id
+                            userId: user?.uid || user?._id || user?.id || '',
+                            jobId: job?._id || job?.id || ''
                         });
                     }
                 } catch (err) {
@@ -1193,14 +1193,16 @@ const AIInterviewFast = ({
     if (step === 'interview') {
         return (
             <SecureExamWrapper
-                examId={`interview:${job._id}:${recordingSessionId || sessionId || 'pending'}`}
-                userId={user.uid}
+                examId={`interview:${job?._id || job?.id || 'job'}:${recordingSessionId || sessionId || 'pending'}`}
+                userId={user?.uid || user?._id || user?.id || ''}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
                 requireCamera={true}
                 cameraStream={cameraStreamState}
                 showWebcamPreview={false}
                 isAnswering={coreState === 'listening'}
+                questionIndex={currentQNum - 1}
+                questionId={currentQuestion ? String(currentQuestion).slice(0, 50) : `q_${currentQNum}`}
                 warningLimit={3}
                 resetLimit={4}
                 onSecurityReset={handleInterviewSecurityReset}
@@ -1372,8 +1374,8 @@ const AIInterviewFast = ({
                 feedback={feedback}
                 totalQuestions={totalQuestions}
                 attemptedQuestions={currentQNum}
-                userId={user.uid}
-                jobId={job._id}
+                userId={user?.uid || user?._id || user?.id || ''}
+                jobId={job?._id || job?.id || ''}
                 interviewId={sessionId}
                 recordingNotice={recordingNotice}
                 onDone={() => onComplete({ interviewScore: finalScore })}
@@ -1381,7 +1383,12 @@ const AIInterviewFast = ({
         );
     }
 
-    return null;
+    return (
+        <div className="py-24 text-center">
+            <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 font-light tracking-wide italic">Preparing your interview session...</p>
+        </div>
+    );
 };
 
 export default AIInterviewFast;

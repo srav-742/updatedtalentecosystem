@@ -42,12 +42,39 @@ export default function ProctoringReports() {
         fetchReports();
     }, []);
 
+    // Helper to get normalized risk level and integrity score
+    const getReportRiskLevel = (report) => {
+        if (report.riskLevel) return report.riskLevel;
+        if (report.status === 'critical') return 'HIGH RISK';
+        if (report.status === 'suspicious') return 'REVIEW REQUIRED';
+        return 'LOW RISK';
+    };
+
+    const getReportIntegrityScore = (report) => {
+        if (typeof report.integrityScore === 'number') return report.integrityScore;
+        if (typeof report.proctoringScore === 'number') return report.proctoringScore;
+        if (report.totalPenaltyRating > 0) return Math.max(0, 100 - Math.round(report.totalPenaltyRating * 2.5));
+        return 100;
+    };
+
     // Filter and search logic
     useEffect(() => {
         let result = reports;
 
         if (statusFilter !== "all") {
-            result = result.filter(r => r.status === statusFilter);
+            result = result.filter(r => {
+                const rLevel = getReportRiskLevel(r);
+                if (statusFilter === 'HIGH RISK' || statusFilter === 'critical') {
+                    return rLevel === 'HIGH RISK';
+                }
+                if (statusFilter === 'REVIEW REQUIRED' || statusFilter === 'suspicious') {
+                    return rLevel === 'REVIEW REQUIRED';
+                }
+                if (statusFilter === 'LOW RISK' || statusFilter === 'low_risk' || statusFilter === 'clean') {
+                    return rLevel === 'LOW RISK';
+                }
+                return true;
+            });
         }
 
         if (searchQuery.trim() !== "") {
@@ -72,9 +99,9 @@ export default function ProctoringReports() {
 
     // Aggregate statistics
     const totalReports = reports.length;
-    const criticalCount = reports.filter(r => r.status === "critical").length;
-    const suspiciousCount = reports.filter(r => r.status === "suspicious").length;
-    const cleanCount = reports.filter(r => r.status === "clean" || r.status === "low_risk").length;
+    const highRiskCount = reports.filter(r => getReportRiskLevel(r) === 'HIGH RISK').length;
+    const reviewRequiredCount = reports.filter(r => getReportRiskLevel(r) === 'REVIEW REQUIRED').length;
+    const lowRiskCount = reports.filter(r => getReportRiskLevel(r) === 'LOW RISK').length;
 
     const handleViewDetail = (applicationId) => {
         if (!applicationId) {
@@ -92,7 +119,7 @@ export default function ProctoringReports() {
                 <div>
                     <h1 className="text-3xl font-black tracking-tight text-gray-900">Proctoring Integrity Hub</h1>
                     <p className="text-sm font-medium text-gray-500 mt-1">
-                        Monitor live assessment safety, tab activities, and AI visual alerts across all candidate sessions.
+                        Monitor live assessment integrity, risk classifications, and evidence audit trails across candidate sessions.
                     </p>
                 </div>
                 <button
@@ -111,39 +138,39 @@ export default function ProctoringReports() {
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total Tracked</span>
                     <div className="mt-4 flex items-baseline gap-2">
                         <span className="text-4xl font-black tracking-tight text-gray-900">{totalReports}</span>
-                        <span className="text-xs font-semibold text-gray-400">Candidates</span>
+                        <span className="text-xs font-semibold text-gray-400">Sessions</span>
                     </div>
                 </div>
 
                 <div className="rounded-[2rem] border border-red-100 bg-red-50/30 p-6 shadow-sm flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">Critical Alerts</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">HIGH RISK</span>
                         <ShieldAlert size={18} className="text-red-500" />
                     </div>
                     <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-4xl font-black tracking-tight text-red-600">{criticalCount}</span>
-                        <span className="text-xs font-semibold text-red-400">Immediate Action</span>
+                        <span className="text-4xl font-black tracking-tight text-red-600">{highRiskCount}</span>
+                        <span className="text-xs font-semibold text-red-400">Urgent Review</span>
                     </div>
                 </div>
 
                 <div className="rounded-[2rem] border border-amber-100 bg-amber-50/30 p-6 shadow-sm flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Review Required</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">REVIEW REQUIRED</span>
                         <AlertTriangle size={18} className="text-amber-500" />
                     </div>
                     <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-4xl font-black tracking-tight text-amber-600">{suspiciousCount}</span>
-                        <span className="text-xs font-semibold text-gray-400">Suspicious</span>
+                        <span className="text-4xl font-black tracking-tight text-amber-600">{reviewRequiredCount}</span>
+                        <span className="text-xs font-semibold text-gray-400">Attention Needed</span>
                     </div>
                 </div>
 
                 <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50/30 p-6 shadow-sm flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Clean / Low Risk</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">LOW RISK</span>
                         <ShieldCheck size={18} className="text-emerald-500" />
                     </div>
                     <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-4xl font-black tracking-tight text-emerald-600">{cleanCount}</span>
+                        <span className="text-4xl font-black tracking-tight text-emerald-600">{lowRiskCount}</span>
                         <span className="text-xs font-semibold text-gray-400">Verified Safe</span>
                     </div>
                 </div>
@@ -170,11 +197,10 @@ export default function ProctoringReports() {
                         onChange={(e) => setStatusFilter(e.target.value)}
                         className="rounded-2xl border-none bg-gray-50 px-5 py-3.5 text-xs font-black uppercase tracking-wider text-gray-700 outline-none ring-1 ring-black/5 focus:bg-white focus:ring-black/20 transition-all cursor-pointer"
                     >
-                        <option value="all">All Verdicts</option>
-                        <option value="critical">Critical</option>
-                        <option value="suspicious">Suspicious</option>
-                        <option value="low_risk">Low Risk</option>
-                        <option value="clean">Clean</option>
+                        <option value="all">All Risk Levels</option>
+                        <option value="HIGH RISK">High Risk</option>
+                        <option value="REVIEW REQUIRED">Review Required</option>
+                        <option value="LOW RISK">Low Risk</option>
                     </select>
                 </div>
             </div>
@@ -211,9 +237,10 @@ export default function ProctoringReports() {
                                 <tr className="border-b border-black/5 bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400">
                                     <th className="py-5 pl-8">Candidate Info</th>
                                     <th className="py-5">Target Assessment / Job</th>
-                                    <th className="py-5 text-center">Verdict Badge</th>
-                                    <th className="py-5 text-center">Violations</th>
-                                    <th className="py-5 text-center">Proctoring Score</th>
+                                    <th className="py-5 text-center">Risk Classification</th>
+                                    <th className="py-5 text-center">Incidents</th>
+                                    <th className="py-5 text-center">Evidence</th>
+                                    <th className="py-5 text-center">Integrity Score</th>
                                     <th className="py-5 text-right pr-8">Timeline Report</th>
                                 </tr>
                             </thead>
@@ -222,16 +249,20 @@ export default function ProctoringReports() {
                                     const app = report.applicationId || report.resolvedApplication;
                                     const name = app?.applicantName || "Anonymous Candidate";
                                     const email = app?.applicantEmail || "N/A";
-                                    const jobTitle = app?.jobId?.title || "Legacy Assessment";
-                                    const proctoringScore = report.proctoringScore !== undefined && report.proctoringScore !== null
-                                        ? report.proctoringScore
-                                        : (report.totalPenaltyRating > 0 ? Math.max(0, 100 - Math.round((report.totalPenaltyRating || 0) * 2.5)) : null);
+                                    const jobTitle = app?.jobId?.title || "Assessment Session";
+                                    const integrityScore = getReportIntegrityScore(report);
+                                    const riskLevel = getReportRiskLevel(report);
 
-                                    // Verdict Styling
-                                    let verdictClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-                                    if (report.status === "critical") verdictClass = "bg-red-500/10 text-red-600 border-red-500/20";
-                                    else if (report.status === "suspicious") verdictClass = "bg-amber-500/10 text-amber-600 border-amber-500/20";
-                                    else if (report.status === "low_risk") verdictClass = "bg-blue-500/10 text-blue-600 border-blue-500/20";
+                                    // Risk Classification Badge Styling
+                                    let riskBadgeClass = "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+                                    if (riskLevel === "HIGH RISK") riskBadgeClass = "bg-red-500/10 text-red-600 border-red-500/20";
+                                    else if (riskLevel === "REVIEW REQUIRED") riskBadgeClass = "bg-amber-500/10 text-amber-700 border-amber-500/20";
+
+                                    const criticalIncidents = report.criticalIncidents || 0;
+                                    const standardIncidents = report.standardIncidents || (report.totalViolations || 0);
+
+                                    // Check evidence availability
+                                    const hasEvidence = report.timeline?.some(t => t.evidenceFrames?.length > 0) || (report.evidenceFramesCount > 0);
 
                                     return (
                                         <tr key={report._id} className="group hover:bg-black/[0.01] transition-all">
@@ -252,35 +283,51 @@ export default function ProctoringReports() {
                                                 </div>
                                             </td>
 
-                                            {/* Verdict Status */}
+                                            {/* Risk Level Badge */}
                                             <td className="py-5 text-center">
-                                                <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest ${verdictClass}`}>
-                                                    {report.status === "critical" && <ShieldAlert size={10} />}
-                                                    {report.status === "suspicious" && <AlertTriangle size={10} />}
-                                                    {(report.status === "clean" || report.status === "low_risk") && <ShieldCheck size={10} />}
-                                                    {report.verdict || "Flagged"}
+                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider ${riskBadgeClass}`}>
+                                                    {riskLevel === "HIGH RISK" && <ShieldAlert size={12} className="text-red-600" />}
+                                                    {riskLevel === "REVIEW REQUIRED" && <AlertTriangle size={12} className="text-amber-600" />}
+                                                    {riskLevel === "LOW RISK" && <ShieldCheck size={12} className="text-emerald-600" />}
+                                                    {riskLevel}
                                                 </span>
                                             </td>
 
-                                            {/* Violations Count */}
-                                            <td className="py-5 text-center font-extrabold text-gray-900">
-                                                <span className={report.totalViolations > 0 ? "text-red-500" : "text-gray-400"}>
-                                                    {report.totalViolations}
-                                                </span>
+                                            {/* Incidents Count */}
+                                            <td className="py-5 text-center text-xs">
+                                                <div className="inline-flex flex-col items-center">
+                                                    {criticalIncidents > 0 ? (
+                                                        <span className="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-200 text-[10px]">
+                                                            {criticalIncidents} Critical
+                                                        </span>
+                                                    ) : null}
+                                                    <span className="text-gray-500 font-medium text-[11px] mt-0.5">
+                                                        {standardIncidents} Standard
+                                                    </span>
+                                                </div>
+                                            </td>
+
+                                            {/* Evidence Available */}
+                                            <td className="py-5 text-center">
+                                                {hasEvidence ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold">
+                                                        Frames Available
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 text-[10px] font-medium">—</span>
+                                                )}
                                             </td>
 
                                             {/* Proctoring Integrity Score */}
                                             <td className="py-5 text-center">
                                                 <span className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-xl border font-black text-sm shadow-sm ${
-                                                    proctoringScore != null
-                                                        ? (proctoringScore >= 80 
-                                                            ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-500" 
-                                                            : proctoringScore >= 50 
-                                                                ? "bg-amber-500/5 border-amber-500/10 text-amber-500" 
-                                                                : "bg-red-500/5 border-red-500/10 text-red-500")
-                                                        : "bg-gray-500/5 border-gray-500/10 text-gray-400"
+                                                    integrityScore >= 80 
+                                                        ? "bg-emerald-500/5 border-emerald-500/15 text-emerald-600" 
+                                                        : integrityScore >= 60 
+                                                            ? "bg-amber-500/5 border-amber-500/15 text-amber-600" 
+                                                            : "bg-red-500/5 border-red-500/15 text-red-600"
                                                 }`}>
-                                                    {proctoringScore != null ? `${proctoringScore}%` : 'N/A'}
+                                                    {integrityScore} / 100
                                                 </span>
                                             </td>
 
@@ -292,7 +339,7 @@ export default function ProctoringReports() {
                                                     className="inline-flex items-center gap-1.5 rounded-xl bg-black px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-gray-800 active:scale-95 shadow-md shadow-black/10 cursor-pointer"
                                                 >
                                                     <Eye size={12} />
-                                                    View Timeline
+                                                    Audit Trail
                                                     <ChevronRight size={10} />
                                                 </button>
                                             </td>

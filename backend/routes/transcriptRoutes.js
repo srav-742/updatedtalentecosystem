@@ -10,7 +10,11 @@ router.get('/job/:jobId', (req, res, next) => {
 });
 
 // GET /api/transcripts/:applicationId/recommendation
-router.get('/:applicationId/recommendation', getRecommendationSummary);
+router.get('/:applicationId/recommendation', (req, res, next) => {
+    delete require.cache[require.resolve('../controllers/recommendationController')];
+    const { getRecommendationSummary } = require('../controllers/recommendationController');
+    return getRecommendationSummary(req, res, next);
+});
 
 // GET /api/transcripts/:applicationId
 router.get('/:applicationId', (req, res, next) => {

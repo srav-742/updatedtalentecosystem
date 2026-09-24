@@ -4,25 +4,14 @@ import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import * as ort from 'onnxruntime-web';
 
-// ─── ONNX Runtime WASM backend configuration ──────────────────────────────
-// Use CDN-hosted WASM files to avoid Vercel deployment size limits
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
+// ─── ONNX Runtime WASM backend configuration (COMMENTED OUT - USING COCO-SSD) ──
+// ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
+// const YOLO_MODEL_PATH = '/models/yolov8n-oiv7.onnx';
+// const YOLO_CDN_URLS = [
+//     'https://raw.githubusercontent.com/srav-742/updatedtalentecosystem/main/frontend/public/models/yolov8n-oiv7.onnx'
+// ];
 
-// ─── Model Configuration ──────────────────────────────────────────────────
-const CONFIDENCE_THRESHOLD = 0.35;
-
-// Local path (for dev / self-hosted)
-const YOLO_MODEL_PATH = '/models/yolov8n-oiv7.onnx';
-
-// CDN fallback (GitHub release / jsDelivr / any public URL)
-// CDN fallback URLs for the ONNX model (if local file is not served)
-// To add a CDN source: upload yolov8n-oiv7.onnx to any CORS-enabled CDN and add the URL here
-const YOLO_CDN_URLS = [
-    // Reliable raw GitHub content URL for the exact model committed to this repo
-    'https://raw.githubusercontent.com/srav-742/updatedtalentecosystem/main/frontend/public/models/yolov8n-oiv7.onnx'
-];
-
-// If using the CDN model (standard COCO 80-class YOLOv8n), we need COCO classes
+// Standard COCO 80-class list (used for COCO-SSD object labels)
 const COCO_80_CLASSES = [
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
     "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
@@ -36,8 +25,8 @@ const COCO_80_CLASSES = [
     "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
 ];
 
-// 601 Classes for Open Images V7 (used when local OIV7 model loads)
-const OIV7_CLASSES = ["Accordion","Adhesive tape","Aircraft","Airplane","Alarm clock","Alpaca","Ambulance","Animal","Ant","Antelope","Apple","Armadillo","Artichoke","Auto part","Axe","Backpack","Bagel","Baked goods","Balance beam","Ball","Balloon","Banana","Band-aid","Banjo","Barge","Barrel","Baseball bat","Baseball glove","Bat (Animal)","Bathroom accessory","Bathroom cabinet","Bathtub","Beaker","Bear","Bed","Bee","Beehive","Beer","Beetle","Bell pepper","Belt","Bench","Bicycle","Bicycle helmet","Bicycle wheel","Bidet","Billboard","Billiard table","Binoculars","Bird","Blender","Blue jay","Boat","Bomb","Book","Bookcase","Boot","Bottle","Bottle opener","Bow and arrow","Bowl","Bowling equipment","Box","Boy","Brassiere","Bread","Briefcase","Broccoli","Bronze sculpture","Brown bear","Building","Bull","Burrito","Bus","Bust","Butterfly","Cabbage","Cabinetry","Cake","Cake stand","Calculator","Camel","Camera","Can opener","Canary","Candle","Candy","Cannon","Canoe","Cantaloupe","Car","Carnivore","Carrot","Cart","Cassette deck","Castle","Cat","Cat furniture","Caterpillar","Cattle","Ceiling fan","Cello","Centipede","Chainsaw","Chair","Cheese","Cheetah","Chest of drawers","Chicken","Chime","Chisel","Chopsticks","Christmas tree","Clock","Closet","Clothing","Coat","Cocktail","Cocktail shaker","Coconut","Coffee","Coffee cup","Coffee table","Coffeemaker","Coin","Common fig","Common sunflower","Computer keyboard","Computer monitor","Computer mouse","Container","Convenience store","Cookie","Cooking spray","Corded phone","Cosmetics","Couch","Countertop","Cowboy hat","Crab","Cream","Cricket ball","Crocodile","Croissant","Crown","Crutch","Cucumber","Cupboard","Curtain","Cutting board","Dagger","Dairy Product","Deer","Desk","Dessert","Diaper","Dice","Digital clock","Dinosaur","Dishwasher","Dog","Dog bed","Doll","Dolphin","Door","Door handle","Donut","Dragonfly","Drawer","Dress","Drill (Tool)","Drink","Drinking straw","Drum","Duck","Dumbbell","Eagle","Earrings","Egg (Food)","Elephant","Envelope","Eraser","Face powder","Facial tissue holder","Falcon","Fashion accessory","Fast food","Fax","Fedora","Filing cabinet","Fire hydrant","Fireplace","Fish","Flag","Flashlight","Flower","Flowerpot","Flute","Flying disc","Food","Food processor","Football","Football helmet","Footwear","Fork","Fountain","Fox","French fries","French horn","Frog","Fruit","Frying pan","Furniture","Garden Asparagus","Gas stove","Giraffe","Girl","Glasses","Glove","Goat","Goggles","Goldfish","Golf ball","Golf cart","Gondola","Goose","Grape","Grapefruit","Grinder","Guacamole","Guitar","Hair dryer","Hair spray","Hamburger","Hammer","Hamster","Hand dryer","Handbag","Handgun","Harbor seal","Harmonica","Harp","Harpsichord","Hat","Headphones","Heater","Hedgehog","Helicopter","Helmet","High heels","Hiking equipment","Hippopotamus","Home appliance","Honeycomb","Horizontal bar","Horse","Hot dog","House","Houseplant","Human arm","Human beard","Human body","Human ear","Human eye","Human face","Human foot","Human hair","Human hand","Human head","Human leg","Human mouth","Human nose","Humidifier","Ice cream","Indoor rower","Infant bed","Insect","Invertebrate","Ipod","Isopod","Jacket","Jacuzzi","Jaguar (Animal)","Jeans","Jellyfish","Jet ski","Jug","Juice","Kangaroo","Kettle","Kitchen & dining room table","Kitchen appliance","Kitchen knife","Kitchen utensil","Kitchenware","Kite","Knife","Koala","Ladder","Ladle","Ladybug","Lamp","Land vehicle","Lantern","Laptop","Lavender (Plant)","Lemon","Leopard","Light bulb","Light switch","Lighthouse","Lily","Limousine","Lion","Lipstick","Lizard","Lobster","Loveseat","Luggage and bags","Lynx","Magpie","Mammal","Man","Mango","Maple","Maracas","Marine invertebrates","Marine mammal","Measuring cup","Mechanical fan","Medical equipment","Microphone","Microwave oven","Milk","Miniskirt","Mirror","Missile","Mixer","Mixing bowl","Mobile phone","Monkey","Moths and butterflies","Motorcycle","Mouse","Muffin","Mug","Mule","Mushroom","Musical instrument","Musical keyboard","Nail (Construction)","Necklace","Nightstand","Oboe","Office building","Office supplies","Orange","Organ (Musical Instrument)","Ostrich","Otter","Oven","Owl","Oyster","Paddle","Palm tree","Pancake","Panda","Paper cutter","Paper towel","Parachute","Parking meter","Parrot","Pasta","Pastry","Peach","Pear","Pen","Pencil case","Pencil sharpener","Penguin","Perfume","Person","Personal care","Personal flotation device","Piano","Picnic basket","Picture frame","Pig","Pillow","Pineapple","Pitcher (Container)","Pizza","Pizza cutter","Plant","Plastic bag","Plate","Platter","Plumbing fixture","Polar bear","Pomegranate","Popcorn","Porch","Porcupine","Poster","Potato","Power plugs and sockets","Pressure cooker","Pretzel","Printer","Pumpkin","Punching bag","Rabbit","Raccoon","Racket","Radish","Ratchet (Device)","Raven","Rays and skates","Red panda","Refrigerator","Remote control","Reptile","Rhinoceros","Rifle","Ring binder","Rocket","Roller skates","Rose","Rugby ball","Ruler","Salad","Salt and pepper shakers","Sandal","Sandwich","Saucer","Saxophone","Scale","Scarf","Scissors","Scoreboard","Scorpion","Screwdriver","Sculpture","Sea lion","Sea turtle","Seafood","Seahorse","Seat belt","Segway","Serving tray","Sewing machine","Shark","Sheep","Shelf","Shellfish","Shirt","Shorts","Shotgun","Shower","Shrimp","Sink","Skateboard","Ski","Skirt","Skull","Skunk","Skyscraper","Slow cooker","Snack","Snail","Snake","Snowboard","Snowman","Snowmobile","Snowplow","Soap dispenser","Sock","Sofa bed","Sombrero","Sparrow","Spatula","Spice rack","Spider","Spoon","Sports equipment","Sports uniform","Squash (Plant)","Squid","Squirrel","Stairs","Stapler","Starfish","Stationary bicycle","Stethoscope","Stool","Stop sign","Strawberry","Street light","Stretcher","Studio couch","Submarine","Submarine sandwich","Suit","Suitcase","Sun hat","Sunglasses","Surfboard","Sushi","Swan","Swim cap","Swimming pool","Swimwear","Sword","Syringe","Table","Table tennis racket","Tablet computer","Tableware","Taco","Tank","Tap","Tart","Taxi","Tea","Teapot","Teddy bear","Telephone","Television","Tennis ball","Tennis racket","Tent","Tiara","Tick","Tie","Tiger","Tin can","Tire","Toaster","Toilet","Toilet paper","Tomato","Tool","Toothbrush","Torch","Tortoise","Towel","Tower","Toy","Traffic light","Traffic sign","Train","Training bench","Treadmill","Tree","Tree house","Tripod","Trombone","Trousers","Truck","Trumpet","Turkey","Turtle","Umbrella","Unicycle","Van","Vase","Vegetable","Vehicle","Vehicle registration plate","Violin","Volleyball (Ball)","Waffle","Waffle iron","Wall clock","Wardrobe","Washing machine","Waste container","Watch","Watercraft","Watermelon","Weapon","Whale","Wheel","Wheelchair","Whisk","Whiteboard","Willow","Window","Window blind","Wine","Wine glass","Wine rack","Winter melon","Wok","Woman","Wood-burning stove","Woodpecker","Worm","Wrench","Zebra","Zucchini"];
+// OIV7 601 classes (commented out while using COCO-SSD)
+// const OIV7_CLASSES = [...];
 
 // ─── COCO-SSD Worker for fallback ──────────────────────────────────────────
 function createProctoringWorker() {
@@ -210,9 +199,17 @@ const initMainThreadModel = async () => {
             logDiag("YOLO Detector", "TF.js CPU backend ready for COCO-SSD fallback");
         }
 
-        // Always load from the default CDN (Google's tfhub) — most reliable
-        const model = await cocoSsd.load();
-        logDiag("YOLO Detector", "COCO-SSD loaded from default CDN (main thread fallback)");
+        let model = null;
+        try {
+            const base = import.meta.env.BASE_URL || "/";
+            const localModelUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + 'models/coco-ssd/model.json';
+            model = await cocoSsd.load({ modelUrl: localModelUrl });
+            logDiag("YOLO Detector", "COCO-SSD loaded from local bundle (/models/coco-ssd/model.json)");
+        } catch (localErr) {
+            logDiag("YOLO Detector", `Local COCO-SSD load failed (${localErr.message}), loading from CDN...`);
+            model = await cocoSsd.load();
+            logDiag("YOLO Detector", "COCO-SSD loaded from default CDN");
+        }
 
         // Warm up with a tiny canvas to pre-compile WebGL shaders
         try {
@@ -248,13 +245,65 @@ function computeIoU(box1, box2) {
     return inter / (area1 + area2 - inter);
 }
 
+// Helper: check if two labels represent the same class or equivalent alias
+function isSameOrAliasClass(c1, c2) {
+    if (!c1 || !c2) return false;
+    const s1 = c1.toLowerCase().trim();
+    const s2 = c2.toLowerCase().trim();
+    if (s1 === s2) return true;
+
+    // Phone aliases (e.g. "cell phone" in COCO vs "Mobile phone" in OIV7)
+    const isPhone1 = s1.includes('phone') || s1 === 'telephone' || s1 === 'ipod' || s1.includes('tablet');
+    const isPhone2 = s2.includes('phone') || s2 === 'telephone' || s2 === 'ipod' || s2.includes('tablet');
+    if (isPhone1 && isPhone2) return true;
+
+    // Person aliases
+    const isPerson1 = s1 === 'person' || s1 === 'man' || s1 === 'woman' || s1 === 'boy' || s1 === 'girl';
+    const isPerson2 = s2 === 'person' || s2 === 'man' || s2 === 'woman' || s2 === 'boy' || s2 === 'girl';
+    if (isPerson1 && isPerson2) return true;
+
+    // Face / head aliases
+    const isFace1 = s1 === 'human face' || s1 === 'human head';
+    const isFace2 = s2 === 'human face' || s2 === 'human head';
+    if (isFace1 && isFace2) return true;
+
+    // Screen / monitor / tv aliases
+    const isScreen1 = s1 === 'tv' || s1 === 'television' || s1.includes('monitor') || s1 === 'screen';
+    const isScreen2 = s2 === 'tv' || s2 === 'television' || s2.includes('monitor') || s2 === 'screen';
+    if (isScreen1 && isScreen2) return true;
+
+    // Chair / couch aliases
+    const isSeat1 = s1 === 'chair' || s1 === 'couch' || s1 === 'sofa bed' || s1 === 'studio couch';
+    const isSeat2 = s2 === 'chair' || s2 === 'couch' || s2 === 'sofa bed' || s2 === 'studio couch';
+    if (isSeat1 && isSeat2) return true;
+
+    // Desk / table aliases
+    const isTable1 = s1.includes('table') || s1 === 'desk';
+    const isTable2 = s2.includes('table') || s2 === 'desk';
+    if (isTable1 && isTable2) return true;
+
+    // Keyboard aliases
+    const isKb1 = s1.includes('keyboard');
+    const isKb2 = s2.includes('keyboard');
+    if (isKb1 && isKb2) return true;
+
+    // Mouse aliases
+    const isMouse1 = s1.includes('mouse');
+    const isMouse2 = s2.includes('mouse');
+    if (isMouse1 && isMouse2) return true;
+
+    return false;
+}
+
 function nonMaxSuppression(boxes, iouThreshold) {
     boxes.sort((a, b) => b.score - a.score);
     const selected = [];
     for (const box of boxes) {
         let shouldSelect = true;
         for (const selBox of selected) {
-            if (computeIoU(box.bbox, selBox.bbox) > iouThreshold) {
+            // ONLY suppress if both boxes represent the SAME class or alias!
+            // This prevents a candidate's 'person' box from suppressing their chair, phone, or laptop.
+            if (isSameOrAliasClass(box.class, selBox.class) && computeIoU(box.bbox, selBox.bbox) > iouThreshold) {
                 shouldSelect = false;
                 break;
             }
@@ -293,15 +342,23 @@ async function fetchAndValidateModel(url) {
 }
 
 // ─── Proctoring Relevant Classes Filter ────────────────────────────────────
-// Scanning all 601 Open Images classes for 8,400 boxes = 5,048,400 loop iterations
-// on the main thread, causing severe UI freezes. By pre-filtering to the ~35 classes
-// that actually matter for exam security (phones, computers, books, people, audio),
-// we reduce loop iterations by ~96% (to ~250,000 iterations / 2-3ms).
+// Pre-filter target classes to keep inference ultra-fast while covering all
+// cheating objects (phones, laptops, screens, audio) and environment items (chairs, tables).
 const PROCTORING_RELEVANT_CLASSES = new Set([
+    // People & faces
     "person", "boy", "girl", "man", "woman", "human face", "human head", "human body",
+    // Phones & mobile devices
     "cell phone", "mobile phone", "telephone", "corded phone", "ipod", "tablet computer", "tablet",
+    // Books & notes
     "book", "ring binder",
-    "headphones", "earphones", "headset"
+    // Audio devices
+    "headphones", "earphones", "headset",
+    // Screens & electronics
+    "tv", "television", "computer monitor", "laptop", "computer keyboard", "keyboard", "computer mouse", "mouse", "remote control", "remote",
+    // Room furniture & background items
+    "chair", "couch", "sofa bed", "studio couch", "desk", "table", "dining table", "coffee table",
+    // Containers & accessories
+    "bottle", "cup", "coffee cup", "mug", "backpack", "handbag", "suitcase", "briefcase", "luggage and bags", "camera"
 ]);
 
 function getRelevantClassIndices(classList) {
@@ -320,292 +377,242 @@ function getRelevantClassIndices(classList) {
 // ███  Main Hook  ███
 // ═══════════════════════════════════════════════════════════════════════════
 export function useYOLODetector({ isActive = false, videoElement = null }) {
+    const [cocoReady, setCocoReady] = useState(false);
     const [modelReady, setModelReady] = useState(false);
-    const [engineType, setEngineType] = useState(null); 
+    const [engineType, setEngineType] = useState('coco-ssd'); 
     const [detections, setDetections] = useState([]);
 
-    const workerRef = useRef(null);
     const cocoModelRef = useRef(null);
-    const onnxSessionRef = useRef(null);
-    const onnxClassListRef = useRef(null); // Which class list to use
-    const onnxNumClassesRef = useRef(0);
-    const onnxTargetIndicesRef = useRef(null);
     const canvasRef = useRef(null);
-    const pendingDetectionsRef = useRef({});
+
+    // Kept as boolean for full backward-compatibility with UI badges
+    const yoloReady = false;
+
+    useEffect(() => {
+        setModelReady(cocoReady);
+    }, [cocoReady]);
 
     useEffect(() => {
         if (!isActive) return;
 
         let cancelled = false;
 
-        // ── STEP 1: Try loading ONNX model ─────────────────────────────────
-        const initONNX = async () => {
+        // ── STEP 1: Load COCO-SSD (WebGL accelerated) ────────────────────────
+        const initCOCO = async () => {
+            logDiag("YOLO Detector", "Initializing COCO-SSD model (WebGL accelerated)...");
             try {
-                // Try local model first (works in dev + self-hosted)
-                const base = import.meta.env.BASE_URL || "/";
-                const localUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + YOLO_MODEL_PATH.replace(/^\//, '');
-
-                logDiag("YOLO Detector", `Attempting local ONNX model: ${localUrl}`);
-
-                let modelBuffer = null;
-                let usingOIV7 = true; // local model is OIV7
-
-                try {
-                    modelBuffer = await fetchAndValidateModel(localUrl);
-                    logDiag("YOLO Detector", `Local ONNX model fetched (${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
-                } catch (localErr) {
-                    logDiag("YOLO Detector", `Local ONNX failed: ${localErr.message}`);
-
-                    // Try CDN fallback URLs
-                    for (const cdnUrl of YOLO_CDN_URLS) {
-                        try {
-                            logDiag("YOLO Detector", `Trying CDN: ${cdnUrl}`);
-                            modelBuffer = await fetchAndValidateModel(cdnUrl);
-                            usingOIV7 = false; // CDN model is standard COCO 80-class
-                            logDiag("YOLO Detector", `CDN ONNX model fetched (${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
-                            break;
-                        } catch (cdnErr) {
-                            logDiag("YOLO Detector", `CDN failed: ${cdnErr.message}`);
-                        }
-                    }
-                }
-
-                if (!modelBuffer) {
-                    throw new Error("All ONNX model sources failed");
-                }
-
-                if (cancelled) return;
-
-                // Create ONNX session from the fetched ArrayBuffer
-                const session = await ort.InferenceSession.create(modelBuffer, {
-                    executionProviders: ['wasm'],
-                });
-
-                if (cancelled) return;
-
-                onnxSessionRef.current = session;
-
-                // Set class list based on which model loaded
-                if (usingOIV7) {
-                    onnxClassListRef.current = OIV7_CLASSES;
-                    onnxNumClassesRef.current = 601;
-                } else {
-                    onnxClassListRef.current = COCO_80_CLASSES;
-                    onnxNumClassesRef.current = 80;
-                }
-                onnxTargetIndicesRef.current = getRelevantClassIndices(onnxClassListRef.current);
-
-                setEngineType('yolo-onnx');
-                setModelReady(true);
-                logDiag("YOLO Detector", `✅ YOLO ONNX model loaded successfully (${usingOIV7 ? 'OIV7-601' : 'COCO-80'} classes, filtered to ${onnxTargetIndicesRef.current.length} proctoring targets, ${(modelBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
-
-            } catch (err) {
-                console.warn("[YOLO Detector] ONNX init failed completely, falling back to COCO-SSD:", err.message);
-                logDiag("YOLO Detector", `ONNX init failed: ${err.message}. Falling back to COCO-SSD...`);
-                if (cancelled) return;
-                initCOCOFallback();
-            }
-        };
-
-        // ── STEP 2: COCO-SSD Fallback Chain ────────────────────────────────
-        const initCOCOFallback = async () => {
-            logDiag("YOLO Detector", "Starting COCO-SSD fallback initialization...");
-
-            // Set up worker message listener for detection results
-            activeWorkerListener = (e) => {
-                if (cancelled) return;
-                const { type, id, predictions } = e.data;
-                if (type === 'detect-res') {
-                    const resolver = pendingDetectionsRef.current[id];
-                    if (resolver) {
-                        delete pendingDetectionsRef.current[id];
-                        const filtered = (predictions || [])
-                            .filter(p => p.score >= 0.35)
-                            .map(p => ({
-                                class: p.class,
-                                score: p.score,
-                                bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
-                            }));
-                        setDetections(filtered);
-                        recordInferenceTime(0, filtered);
-                        resolver(filtered);
-                    }
-                }
-            };
-
-            // Try 1: Worker-based COCO-SSD (offloads to background thread)
-            try {
-                logDiag("YOLO Detector", "Trying COCO-SSD worker...");
-                const worker = await initWorkerSession(null);
-                if (cancelled) return;
-
-                workerRef.current = worker;
-                setEngineType('coco-ssd-worker');
-                setModelReady(true);
-                logDiag("YOLO Detector", "✅ COCO-SSD fallback loaded (Worker thread)");
-                return;
-            } catch (workerErr) {
-                logDiag("YOLO Detector", `Worker COCO-SSD failed: ${workerErr.message}`);
-            }
-
-            // Try 2: Main thread COCO-SSD using bundled npm package
-            try {
-                logDiag("YOLO Detector", "Trying COCO-SSD main thread (npm bundled)...");
                 const model = await initMainThreadModel();
                 if (cancelled) return;
 
                 cocoModelRef.current = model;
-                setEngineType('coco-ssd-main');
+                setCocoReady(true);
                 setModelReady(true);
-                logDiag("YOLO Detector", "✅ COCO-SSD fallback loaded (Main thread)");
-                return;
+                setEngineType('coco-ssd');
+                logDiag("YOLO Detector", "✅ COCO-SSD loaded successfully (WebGL hardware-accelerated)");
             } catch (mainErr) {
                 logDiag("YOLO Detector", `Main thread COCO-SSD failed: ${mainErr.message}`);
-                recordError("detector-all-fallbacks-failed", mainErr);
-                console.error("[YOLO Detector] ❌ ALL detection engines failed. Object detection will not work.", mainErr);
+                console.warn("[YOLO Detector] COCO-SSD concurrent init failed:", mainErr.message);
             }
         };
 
-        initONNX();
+        initCOCO();
 
         return () => {
             cancelled = true;
-            activeWorkerListener = null;
-            Object.values(pendingDetectionsRef.current).forEach(resolve => resolve([]));
-            pendingDetectionsRef.current = {};
         };
     }, [isActive]);
 
-    // ── ONNX Inference (YOLO post-processing) ──────────────────────────────
-    const runONNXInference = useCallback(async (canvas, originalWidth, originalHeight) => {
-        if (!onnxSessionRef.current) return [];
-        
-        const start = Date.now();
-        
-        // Resize to 640x640
-        const resizeCanvas = document.createElement("canvas");
-        resizeCanvas.width = 640;
-        resizeCanvas.height = 640;
-        const resizeCtx = resizeCanvas.getContext("2d");
-        resizeCtx.drawImage(canvas, 0, 0, 640, 640);
-        
-        const imgData = resizeCtx.getImageData(0, 0, 640, 640).data;
-        const float32Data = new Float32Array(3 * 640 * 640);
-        for (let i = 0; i < 640 * 640; i++) {
-            float32Data[i] = imgData[i * 4] / 255.0; // R
-            float32Data[640 * 640 + i] = imgData[i * 4 + 1] / 255.0; // G
-            float32Data[2 * 640 * 640 + i] = imgData[i * 4 + 2] / 255.0; // B
-        }
-        
-        const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, 640, 640]);
-        
-        // Yield to main thread to prevent video stuttering during heavy WASM inference
-        await new Promise(resolve => setTimeout(resolve, 0));
-        
-        try {
-            const results = await onnxSessionRef.current.run({ images: inputTensor });
-            
-            // Yield to main thread after inference before heavy post-processing
-            await new Promise(resolve => setTimeout(resolve, 0));
-            
-            const outputTensor = results[Object.keys(results)[0]];
-            
-            const data = outputTensor.data;
-            const numClasses = onnxNumClassesRef.current;
-            const classList = onnxClassListRef.current;
-            const targetIndices = onnxTargetIndicesRef.current;
-            const useTargetFilter = targetIndices && targetIndices.length > 0;
-            const indicesCount = useTargetFilter ? targetIndices.length : numClasses;
-            const boxes = [];
-            
-            // Output shape is [1, (4 + numClasses), 8400]
-            // 4 = bbox (cx, cy, w, h) + numClasses class scores
-            // Filter to proctoring target classes: cuts loop from 5M to ~200k iterations (2-3ms)
-            for (let i = 0; i < 8400; i++) {
-                let maxScore = 0;
-                let classId = -1;
-                
-                if (useTargetFilter) {
-                    for (let k = 0; k < indicesCount; k++) {
-                        const c = targetIndices[k];
-                        const score = data[(4 + c) * 8400 + i];
-                        if (score > maxScore) {
-                            maxScore = score;
-                            classId = c;
-                        }
-                    }
-                } else {
-                    for (let c = 0; c < numClasses; c++) {
-                        const score = data[(4 + c) * 8400 + i];
-                        if (score > maxScore) {
-                            maxScore = score;
-                            classId = c;
-                        }
-                    }
-                }
-                
-                if (maxScore >= CONFIDENCE_THRESHOLD) {
-                    const cx = data[0 * 8400 + i];
-                    const cy = data[1 * 8400 + i];
-                    const w = data[2 * 8400 + i];
-                    const h = data[3 * 8400 + i];
-                    
-                    const scaleX = originalWidth / 640;
-                    const scaleY = originalHeight / 640;
-                    
-                    const x = (cx - w / 2) * scaleX;
-                    const y = (cy - h / 2) * scaleY;
-                    const width = w * scaleX;
-                    const height = h * scaleY;
-                    
-                    boxes.push({
-                        class: classList[classId] || `class_${classId}`,
-                        score: maxScore,
-                        bbox: { x, y, width, height }
-                    });
-                }
-            }
-            
-            const nmsBoxes = nonMaxSuppression(boxes, 0.5);
-            setDetections(nmsBoxes);
-            recordInferenceTime(Date.now() - start, nmsBoxes);
-            return nmsBoxes;
-        } catch (err) {
-            console.error("[YOLO Detector] ONNX inference error:", err);
-            return [];
-        }
-    }, []);
-
-    // ── Main-thread COCO-SSD detection ──────────────────────────────────────
-    const runLocalDetect = useCallback(async (canvas) => {
+    // ── Main-thread COCO-SSD detection with smart phone detection & face-mesh filtering ────
+    const runLocalDetect = useCallback(async (canvas, faceLandmarks = null) => {
         if (!cocoModelRef.current) return [];
         const start = Date.now();
         
-        // Yield to main thread to prevent video stuttering during COCO-SSD inference
-        await new Promise(resolve => setTimeout(resolve, 0));
-        
         try {
-            const preds = await cocoModelRef.current.detect(canvas);
+            // Pass maxNumBoxes=35, minScore=0.15 to capture any phone or suspicious object immediately
+            const preds = await cocoModelRef.current.detect(canvas, 35, 0.15);
             const duration = Date.now() - start;
-            const filtered = preds
-                .filter(p => p.score >= 0.35)
-                .map(p => ({
-                    class: p.class,
-                    score: p.score,
-                    bbox: { x: p.bbox[0], y: p.bbox[1], width: p.bbox[2], height: p.bbox[3] }
-                }));
-            setDetections(filtered);
-            recordInferenceTime(duration, filtered);
-            return filtered;
+
+            const cWidth = canvas.width || 640;
+            const cHeight = canvas.height || 480;
+
+            // Extract person bounding boxes to evaluate candidate's reach/usage area
+            let personBoxes = [];
+            for (const p of preds) {
+                const c = (p.class || '').toLowerCase().trim();
+                if (c === 'person' || c === 'man' || c === 'woman') {
+                    const [px, py, pw, ph] = p.bbox;
+                    personBoxes.push({ x: px, y: py, width: pw, height: ph, score: p.score });
+                }
+            }
+            const primaryPerson = personBoxes.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0] || null;
+
+            // 1. Reclassify & filter raw predictions
+            // Strictly output: Person, Cell phone, and objects used/held by candidate.
+            // Completely suppress all ambient background fixtures, furniture, bottles, cups, bags, screens.
+            let mappedPreds = [];
+            for (const p of preds) {
+                let className = (p.class || '').toLowerCase().trim();
+                const [bx, by, bw, bh] = p.bbox;
+
+                // 1. Person: always detect person (for single/multiple people counting)
+                if (className === 'person' || className === 'man' || className === 'woman') {
+                    mappedPreds.push({
+                        class: 'person',
+                        score: p.score,
+                        bbox: { x: bx, y: by, width: bw, height: bh }
+                    });
+                    continue;
+                }
+
+                // 2. Cell phone (and phone aliases): always detect cell phone
+                if (
+                    className === 'cell phone' ||
+                    className === 'mobile phone' ||
+                    className === 'telephone' ||
+                    className === 'remote' ||
+                    className === 'ipod'
+                ) {
+                    mappedPreds.push({
+                        class: 'cell phone',
+                        score: p.score,
+                        bbox: { x: bx, y: by, width: bw, height: bh }
+                    });
+                    continue;
+                }
+
+                // 3. Ignore all ambient background fixtures, furniture, room accessories, and desk items
+                // (chairs, couches, beds, tables, tvs, monitors, cups, bottles, bags, mice, keyboards, etc.)
+                const isBackgroundItem =
+                    className === 'chair' || className === 'couch' || className === 'sofa' || className === 'bed' ||
+                    className === 'dining table' || className === 'table' || className === 'desk' ||
+                    className === 'tv' || className === 'television' || className === 'monitor' || className.includes('monitor') ||
+                    className === 'bottle' || className === 'cup' || className === 'wine glass' || className === 'bowl' ||
+                    className === 'mug' || className.includes('cup') ||
+                    className === 'backpack' || className === 'handbag' || className === 'suitcase' || className === 'briefcase' ||
+                    className === 'keyboard' || className === 'mouse' || className === 'clock' || className === 'vase' ||
+                    className === 'potted plant' || className === 'scissors';
+
+                if (isBackgroundItem) {
+                    continue; // Skip background objects completely
+                }
+
+                // 4. Any other candidate-used objects (book/notes, tablet, held items)
+                // ONLY detect if the object is being held or used by the user!
+                const isUsableObject = className === 'book' || className.includes('tablet') || className === 'laptop';
+                if (isUsableObject) {
+                    let isHeldOrUsed = false;
+                    if (primaryPerson) {
+                        const xOverlap = Math.max(0, Math.min(bx + bw, primaryPerson.x + primaryPerson.width) - Math.max(bx, primaryPerson.x));
+                        const yOverlap = Math.max(0, Math.min(by + bh, primaryPerson.y + primaryPerson.height) - Math.max(by, primaryPerson.y));
+                        const overlapArea = xOverlap * yOverlap;
+                        const objArea = bw * bh;
+                        if (objArea > 0 && (overlapArea / objArea) > 0.20) {
+                            isHeldOrUsed = true;
+                        }
+                    } else if (faceLandmarks && faceLandmarks.length >= 468) {
+                        const nose = faceLandmarks[1];
+                        if (nose) {
+                            const noseY = (nose.y ?? 0.5) * cHeight;
+                            if (by > noseY - 20) {
+                                isHeldOrUsed = true;
+                            }
+                        }
+                    }
+
+                    if (isHeldOrUsed) {
+                        mappedPreds.push({
+                            class: 'Object used',
+                            score: p.score,
+                            bbox: { x: bx, y: by, width: bw, height: bh }
+                        });
+                    }
+                }
+            }
+
+            // 2. Suppress false-positive "cell phone" ONLY if a box literally masks the full face
+            // A real phone held in hand, in front of the chest/collar, near the ear, or below the nose
+            // must NEVER be filtered out.
+            if (faceLandmarks && Array.isArray(faceLandmarks) && faceLandmarks.length >= 468) {
+                let fMinX = 1, fMaxX = 0, fMinY = 1, fMaxY = 0;
+                for (let i = 0; i < faceLandmarks.length; i++) {
+                    const pt = faceLandmarks[i];
+                    if (!pt) continue;
+                    if (pt.x < fMinX) fMinX = pt.x;
+                    if (pt.x > fMaxX) fMaxX = pt.x;
+                    if (pt.y < fMinY) fMinY = pt.y;
+                    if (pt.y > fMaxY) fMaxY = pt.y;
+                }
+
+                const faceBoxX = fMinX * cWidth;
+                const faceBoxY = fMinY * cHeight;
+                const faceBoxW = (fMaxX - fMinX) * cWidth;
+                const faceBoxH = (fMaxY - fMinY) * cHeight;
+                const nose = faceLandmarks[1];
+                const noseX = (nose?.x ?? 0.5) * cWidth;
+                const noseY = (nose?.y ?? 0.5) * cHeight;
+
+                mappedPreds = mappedPreds.filter(det => {
+                    const lower = (det.class || '').toLowerCase().trim();
+                    if (lower !== 'cell phone') return true;
+
+                    const { x, y, width: bw, height: bh } = det.bbox;
+                    const cx = x + bw / 2;
+
+                    // If the top of the box is below the nose tip, it's held in front of chest/chin/lap: NEVER filter!
+                    if (y > noseY - 10) return true;
+
+                    // If the box center is outside the nose midline: NEVER filter!
+                    if (Math.abs(cx - noseX) > faceBoxW * 0.22) return true;
+
+                    // Only filter if the box literally covers forehead, eyes, and nose simultaneously (full-face beard mask)
+                    const coversForeheadAndEyes = y < (faceBoxY + faceBoxH * 0.35);
+                    const coversMouthAndChin = (y + bh) > (faceBoxY + faceBoxH * 0.85);
+                    const spansCheeks = bw > (faceBoxW * 0.65);
+
+                    if (coversForeheadAndEyes && coversMouthAndChin && spansCheeks) {
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
+            // 3. Multi-label conflict resolution (Priority: cell phone > tv/remote)
+            // If both 'cell phone' and 'tv' overlap significantly on the same physical object,
+            // keep 'cell phone' and suppress the lower-priority duplicate.
+            const finalDets = [];
+            mappedPreds.sort((a, b) => {
+                const aIsPhone = (a.class || '').toLowerCase().includes('phone');
+                const bIsPhone = (b.class || '').toLowerCase().includes('phone');
+                if (aIsPhone && !bIsPhone) return -1;
+                if (!aIsPhone && bIsPhone) return 1;
+                return b.score - a.score;
+            });
+
+            for (const det of mappedPreds) {
+                let keep = true;
+                for (const existing of finalDets) {
+                    const iou = computeIoU(det.bbox, existing.bbox);
+                    if (iou > 0.35) {
+                        keep = false;
+                        break;
+                    }
+                }
+                if (keep) {
+                    finalDets.push(det);
+                }
+            }
+
+            recordInferenceTime(duration, finalDets);
+            return finalDets;
         } catch (err) {
             recordError("local-detect", err);
             return [];
         }
     }, []);
 
-    // ── detectFrame: Route to the active engine ─────────────────────────────
-    const detectFrame = useCallback(async () => {
-        if (!modelReady || !videoElement || videoElement.readyState < 2) return [];
+    // ── detectFrame: Execute COCO-SSD on the current video frame ────────────
+    const detectFrame = useCallback(async (faceLandmarks = null) => {
+        if (!cocoReady || !videoElement || videoElement.readyState < 2) return [];
 
         const vWidth = videoElement.videoWidth || 640;
         const vHeight = videoElement.videoHeight || 480;
@@ -626,32 +633,131 @@ export function useYOLODetector({ isActive = false, videoElement = null }) {
             return [];
         }
 
-        if (engineType === 'yolo-onnx') {
-            return runONNXInference(canvas, vWidth, vHeight);
-        } else if (engineType === 'coco-ssd-worker' && workerRef.current) {
-            return new Promise((resolve) => {
-                const frameId = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                pendingDetectionsRef.current[frameId] = resolve;
-
-                createImageBitmap(canvas).then((imageBitmap) => {
-                    workerRef.current.postMessage(
-                        { type: 'detect', data: { imageBitmap, id: frameId } },
-                        [imageBitmap]
-                    );
-                }).catch((err) => {
-                    delete pendingDetectionsRef.current[frameId];
-                    runLocalDetect(canvas).then(resolve);
-                });
-            });
-        } else {
-            return runLocalDetect(canvas);
-        }
-    }, [modelReady, engineType, videoElement, runONNXInference, runLocalDetect]);
+        const cocoDets = await runLocalDetect(canvas, faceLandmarks);
+        setDetections(cocoDets);
+        return cocoDets;
+    }, [cocoReady, videoElement, runLocalDetect]);
 
     return {
         modelReady,
+        yoloReady,
+        cocoReady,
         engineType,
         detections,
         detectFrame,
     };
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ███  YOLO ONNX IMPLEMENTATION (COMMENTED OUT AS REQUESTED)  ███
+ * Note: Preserved below for future restoration if needed.
+ * ═══════════════════════════════════════════════════════════════════════════
+
+const initONNX = async (cancelled, onnxSessionRef, onnxClassListRef, onnxNumClassesRef, onnxTargetIndicesRef, setYoloReady) => {
+    try {
+        const base = import.meta.env.BASE_URL || "/";
+        const localUrl = window.location.origin + (base.endsWith('/') ? base : base + '/') + YOLO_MODEL_PATH.replace(/^\//, '');
+        let modelBuffer = null;
+        let usingOIV7 = true;
+
+        try {
+            modelBuffer = await fetchAndValidateModel(localUrl);
+        } catch (localErr) {
+            for (const cdnUrl of YOLO_CDN_URLS) {
+                try {
+                    modelBuffer = await fetchAndValidateModel(cdnUrl);
+                    usingOIV7 = false;
+                    break;
+                } catch (cdnErr) {}
+            }
+        }
+
+        if (!modelBuffer || cancelled) return;
+
+        const session = await ort.InferenceSession.create(modelBuffer, {
+            executionProviders: ['wasm'],
+        });
+
+        if (cancelled) return;
+        onnxSessionRef.current = session;
+        onnxClassListRef.current = usingOIV7 ? OIV7_CLASSES : COCO_80_CLASSES;
+        onnxNumClassesRef.current = usingOIV7 ? 601 : 80;
+        onnxTargetIndicesRef.current = getRelevantClassIndices(onnxClassListRef.current);
+        setYoloReady(true);
+    } catch (err) {
+        console.warn("[YOLO Detector] ONNX init failed:", err.message);
+    }
+};
+
+const runONNXInference = async (onnxSessionRef, onnxNumClassesRef, onnxClassListRef, onnxTargetIndicesRef, canvas, originalWidth, originalHeight) => {
+    if (!onnxSessionRef.current) return [];
+    const start = Date.now();
+
+    const resizeCanvas = document.createElement("canvas");
+    resizeCanvas.width = 640;
+    resizeCanvas.height = 640;
+    const resizeCtx = resizeCanvas.getContext("2d");
+    resizeCtx.drawImage(canvas, 0, 0, 640, 640);
+
+    const imgData = resizeCtx.getImageData(0, 0, 640, 640).data;
+    const float32Data = new Float32Array(3 * 640 * 640);
+    for (let i = 0; i < 640 * 640; i++) {
+        float32Data[i] = imgData[i * 4] / 255.0;
+        float32Data[640 * 640 + i] = imgData[i * 4 + 1] / 255.0;
+        float32Data[2 * 640 * 640 + i] = imgData[i * 4 + 2] / 255.0;
+    }
+
+    const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, 640, 640]);
+    try {
+        const results = await onnxSessionRef.current.run({ images: inputTensor });
+        const outputTensor = results[Object.keys(results)[0]];
+        const data = outputTensor.data;
+        const numClasses = onnxNumClassesRef.current;
+        const classList = onnxClassListRef.current;
+        const targetIndices = onnxTargetIndicesRef.current;
+        const useTargetFilter = targetIndices && targetIndices.length > 0;
+        const indicesCount = useTargetFilter ? targetIndices.length : numClasses;
+        const boxes = [];
+
+        for (let i = 0; i < 8400; i++) {
+            let maxScore = 0;
+            let classId = -1;
+            if (useTargetFilter) {
+                for (let k = 0; k < indicesCount; k++) {
+                    const c = targetIndices[k];
+                    const score = data[(4 + c) * 8400 + i];
+                    if (score > maxScore) {
+                        maxScore = score;
+                        classId = c;
+                    }
+                }
+            } else {
+                for (let c = 0; c < numClasses; c++) {
+                    const score = data[(4 + c) * 8400 + i];
+                    if (score > maxScore) {
+                        maxScore = score;
+                        classId = c;
+                    }
+                }
+            }
+
+            if (maxScore >= 0.25) {
+                const cx = data[0 * 8400 + i];
+                const cy = data[1 * 8400 + i];
+                const w = data[2 * 8400 + i];
+                const h = data[3 * 8400 + i];
+                const scaleX = originalWidth / 640;
+                const scaleY = originalHeight / 640;
+                boxes.push({
+                    class: classList[classId] || `class_${classId}`,
+                    score: maxScore,
+                    bbox: { x: (cx - w / 2) * scaleX, y: (cy - h / 2) * scaleY, width: w * scaleX, height: h * scaleY }
+                });
+            }
+        }
+        return nonMaxSuppression(boxes, 0.45);
+    } catch (err) {
+        return [];
+    }
+};
+═══════════════════════════════════════════════════════════════════════════ */

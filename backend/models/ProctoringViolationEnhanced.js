@@ -118,6 +118,39 @@ const proctoringViolationEnhancedSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    canonicalEventType: {
+        type: String,
+        default: null,
+    },
+    category: {
+        type: String,
+        default: 'UNKNOWN',
+    },
+    questionId: {
+        type: String,
+        default: null,
+    },
+    answerId: {
+        type: String,
+        default: null,
+    },
+    reviewStatus: {
+        type: String,
+        enum: ['UNREVIEWED', 'CONFIRMED_CONCERN', 'DISMISSED', 'REVIEWED'],
+        default: 'UNREVIEWED',
+    },
+    reviewedBy: {
+        type: String,
+        default: null,
+    },
+    reviewedAt: {
+        type: Date,
+        default: null,
+    },
+    reviewReason: {
+        type: String,
+        default: null,
+    },
     timestamp: {
         type: Date,
         default: Date.now,

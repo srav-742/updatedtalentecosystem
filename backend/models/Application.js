@@ -51,6 +51,8 @@ const applicationSchema = new mongoose.Schema({
     },
     integrityPenalty: { type: Number, default: 0 },
     proctoringScore: { type: Number, default: 100 },
+    integrityScore: { type: Number, default: 100 },
+    riskLevel: { type: String, enum: ['LOW_RISK', 'REVIEW_REQUIRED', 'HIGH_RISK', 'LOW RISK', 'REVIEW REQUIRED', 'HIGH RISK'], default: 'LOW_RISK' },
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },

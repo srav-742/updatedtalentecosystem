@@ -39,7 +39,12 @@ const getRecommendationSummary = async (req, res) => {
         );
 
         if (hasExisting && !isForce && !isStaleCodingSummary) {
-            return res.json(application.recommendationSummary);
+            const rec = application.recommendationSummary?.toObject ? application.recommendationSummary.toObject() : (application.recommendationSummary || {});
+            const proctoringScore = application.integrityPenalty || 0;
+            return res.json({
+                ...rec,
+                proctoringScore
+            });
         }
 
         // 3. Gather data to build the AI prompt context
@@ -127,6 +132,11 @@ Evaluator Feedback: ${ca.feedback ? ca.feedback.slice(0, 600) : 'N/A'}`;
         const thinkingLatency = application.metrics?.thinkingLatency !== undefined ? application.metrics.thinkingLatency : 'N/A';
         const ownershipScore = application.metrics?.ownershipMindset !== undefined ? application.metrics.ownershipMindset : 'N/A';
 
+        // Proctoring details
+        const proctoringScore = (application.proctoringScore !== undefined && application.proctoringScore !== null)
+            ? application.proctoringScore
+            : (application.integrityPenalty || 0);
+
         // 5. Build prompt
         const prompt = `
 You are an expert executive talent assessor and technical recruiter. Your task is to analyze a candidate's complete application profile and generate a comprehensive, highly refined evaluation summary and hire recommendation.
@@ -155,15 +165,19 @@ Communication Delta Score: ${commDelta}
 Thinking Latency Score: ${thinkingLatency}
 Ownership Mindset Score: ${ownershipScore}
 
+=== PROCTORING AUDIT ===
+Total Proctoring Score: ${proctoringScore} (sum of all flag points)
+
 === TASK ===
-Analyze the candidate's complete performance: resume match, practical coding assessment performance (problem-solving velocity, test case pass rate, code quality, algorithms, and correctness), skill assessment, and interview transcripts. Write an objective, rigorous, and professional assessment.
+Analyze the candidate's complete performance: resume match, practical coding assessment performance (problem-solving velocity, test case pass rate, code quality, algorithms, and correctness), skill assessment, and interview transcripts.
+
 Provide the output ONLY as a JSON object with the following structure:
 {
   "keyStrengths": ["Strength 1 (specific to their answers, coding skills, or experience)", "Strength 2...", "Strength 3..."],
-  "weaknesses": ["Weakness 1 (specific technical gaps, failed test cases, or shortcomings)", "Weakness 2..."],
+  "weaknesses": ["Weakness 1 (specific technical gaps, failed test cases, or proctoring alerts)", "Weakness 2..."],
   "areasToImprove": ["Area 1 (specific guidance on where they can upskill in coding/domain)", "Area 2..."],
   "communication": "Provide a concise assessment of candidate communication style, or note if the role evaluation was primarily code-based.",
-  "overallSummary": "A highly refined, professional 3-4 sentence overall summary synthesizing the candidate's background, coding test results, and hiring suitability for this role."
+  "overallSummary": "A highly refined, professional 3-4 sentence overall summary synthesizing the candidate's background, test results, integrity status, and hiring suitability for this role."
 }
 `;
 
@@ -317,18 +331,25 @@ Provide the output ONLY as a JSON object with the following structure:
 
         // Validate and clean up arrays
         const cleanArray = (arr) => Array.isArray(arr) ? arr.map(s => String(s).trim()).filter(Boolean) : [];
+        const weaknesses = cleanArray(parsed.weaknesses);
+
         const summaryObj = {
             keyStrengths: cleanArray(parsed.keyStrengths),
-            weaknesses: cleanArray(parsed.weaknesses),
+            weaknesses,
             areasToImprove: cleanArray(parsed.areasToImprove),
             communication: String(parsed.communication || '').trim(),
             overallSummary: String(parsed.overallSummary || '').trim(),
+            proctoringScore,
             calculatedAt: new Date()
         };
 
         // 7. Save to application
         application.recommendationSummary = summaryObj;
-        await application.save();
+        await Application.findByIdAndUpdate(
+            applicationId,
+            { $set: { recommendationSummary: summaryObj } },
+            { runValidators: false }
+        );
 
         console.log(`[RECOMMENDATION] Successfully generated and stored recommendation summary for application: ${applicationId}`);
         return res.json(summaryObj);

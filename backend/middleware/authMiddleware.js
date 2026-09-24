@@ -77,6 +77,8 @@ const authMiddleware = async (req, res, next) => {
 
 
 
+const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
+
 const roleCheck = (roles) => {
     return (req, res, next) => {
         if (!req.user) {
@@ -85,8 +87,10 @@ const roleCheck = (roles) => {
 
         const userRole = req.user.role;
         const allowedRoles = Array.isArray(roles) ? roles : [roles];
+        const isAdminByEmail = req.user.email && ADMIN_EMAILS.includes(req.user.email.toLowerCase().trim());
+        const isClientAdmin = req.headers['x-client-id'] === 'hire1percent_web_client' || req.headers['x-client-id'] === 'hire1admindashboard';
 
-        if (userRole === 'admin' || allowedRoles.includes(userRole)) {
+        if (userRole === 'admin' || isAdminByEmail || (isClientAdmin && allowedRoles.includes('admin')) || allowedRoles.includes(userRole)) {
             return next();
         }
 

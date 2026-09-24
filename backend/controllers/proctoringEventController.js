@@ -9,6 +9,10 @@ const {
     getViolationRating,
     getStatusAndVerdict,
     calculateProctoringScore,
+    evaluateIntegrity,
+    normalizeIncident,
+    CANONICAL_EVENT_MAP,
+    CANONICAL_CATEGORY_MAP,
 } = require('../utils/proctoringScoring');
 
 /**
@@ -162,6 +166,8 @@ const logEvent = async (req, res) => {
                 examId: targetExamId,
                 userId: targetUserId,
                 type: mapped.type,
+                canonicalEventType: CANONICAL_EVENT_MAP[mapped.type] || mapped.type,
+                category: CANONICAL_CATEGORY_MAP[CANONICAL_EVENT_MAP[mapped.type] || mapped.type] || 'UNKNOWN',
                 detail: detail || mapped.detail,
                 count: 1,
                 severity: severity || 'medium',
@@ -173,6 +179,9 @@ const logEvent = async (req, res) => {
                 duration: durationSec,
                 evidenceFrames: evidence,
                 model: signals?.model || 'FaceMesh',
+                isAnswering: !!req.body.isAnswering || !!signals?.isAnswering,
+                questionId: req.body.questionId || signals?.questionId || null,
+                answerId: req.body.answerId || signals?.answerId || null,
                 // NOTE: proctoringScore per-violation is informational only.
                 // The authoritative score lives in ProctoringReport, calculated from all events.
                 proctoringScore: proctoringScore || null,
@@ -191,15 +200,22 @@ const logEvent = async (req, res) => {
             const timelineEntry = {
                 _id: violation._id,
                 type: violation.type,
+                canonicalEventType: violation.canonicalEventType || CANONICAL_EVENT_MAP[violation.type] || violation.type,
+                category: violation.category || CANONICAL_CATEGORY_MAP[CANONICAL_EVENT_MAP[violation.type] || violation.type] || 'UNKNOWN',
                 detail: violation.detail,
                 timestamp: violation.updatedAt,
                 rating: violation.rating,
                 startTime: violation.startTime,
                 endTime: violation.endTime,
                 duration: violation.duration,
+                confidence: violation.confidence,
                 maxConfidence: violation.maxConfidence,
                 evidenceFrames: violation.evidenceFrames,
-                model: violation.model
+                model: violation.model,
+                isAnswering: violation.isAnswering,
+                questionId: violation.questionId,
+                answerId: violation.answerId,
+                reviewStatus: violation.reviewStatus || 'UNREVIEWED',
             };
 
             if (index !== -1) {
@@ -208,13 +224,21 @@ const logEvent = async (req, res) => {
                 cachedReport.timeline.push(timelineEntry);
             }
 
-            cachedReport.totalViolations = cachedReport.timeline.length;
-            cachedReport.totalPenaltyRating = cachedReport.timeline.reduce((sum, item) => sum + (item.rating || 0), 0);
-
-            const { status, verdict, summary } = getStatusAndVerdict(cachedReport.totalPenaltyRating);
-            cachedReport.status = status;
-            cachedReport.verdict = verdict;
-            cachedReport.summary = summary;
+            const evalResult = evaluateIntegrity(cachedReport.timeline);
+            cachedReport.totalViolations = evalResult.totalIncidents;
+            cachedReport.totalIncidents = evalResult.totalIncidents;
+            cachedReport.standardIncidents = evalResult.standardIncidents;
+            cachedReport.criticalIncidents = evalResult.criticalIncidents;
+            cachedReport.totalPenaltyRating = evalResult.totalPenaltyRating;
+            cachedReport.proctoringScore = evalResult.integrityScore;
+            cachedReport.integrityScore = evalResult.integrityScore;
+            cachedReport.riskLevel = evalResult.riskLevel;
+            cachedReport.scoreVersion = evalResult.scoreVersion;
+            cachedReport.scoreFactors = evalResult.scoreFactors;
+            cachedReport.eventSummary = evalResult.eventSummary;
+            cachedReport.status = evalResult.status;
+            cachedReport.verdict = evalResult.verdict;
+            cachedReport.summary = evalResult.summary;
 
             await redisService.set(cacheKey, cachedReport, 600);
         }
@@ -225,15 +249,20 @@ const logEvent = async (req, res) => {
 
         // Use centralized formula. If cache not yet populated, the score will be
         // recalculated after the background job compiles the ProctoringReport.
-        const calculatedScore = cachedReport
-            ? calculateProctoringScore(cachedReport.totalPenaltyRating)
-            : null; // null = analysis in progress (not a fake 100)
+        const calculatedScore = cachedReport ? cachedReport.integrityScore : null;
 
         return res.status(200).json({
             recorded: true,
             examId: targetExamId,
             score: calculatedScore,
+            integrityScore: calculatedScore,
+            riskLevel: cachedReport ? cachedReport.riskLevel : 'LOW_RISK',
+            scoreVersion: 'v2',
+            totalIncidents: cachedReport ? cachedReport.totalIncidents : 1,
+            criticalIncidents: cachedReport ? cachedReport.criticalIncidents : (rating === 2 ? 1 : 0),
+            standardIncidents: cachedReport ? cachedReport.standardIncidents : (rating === 1 ? 1 : 0),
             status: cachedReport ? cachedReport.status : 'clean',
+            verdict: cachedReport ? cachedReport.verdict : 'Seriousness Verified',
         });
     } catch (error) {
         console.error('[PROCTORING REPORT LOG EVENT ERROR]', error);
@@ -266,6 +295,8 @@ const logBatchEvents = async (req, res) => {
                 examId: targetExamId,
                 userId: targetUserId,
                 type: mapped.type,
+                canonicalEventType: CANONICAL_EVENT_MAP[mapped.type] || mapped.type,
+                category: CANONICAL_CATEGORY_MAP[CANONICAL_EVENT_MAP[mapped.type] || mapped.type] || 'UNKNOWN',
                 detail: evt.detail || mapped.detail,
                 count: 1,
                 severity: evt.severity || 'medium',
@@ -277,6 +308,9 @@ const logBatchEvents = async (req, res) => {
                 duration: evt.duration || 0,
                 evidenceFrames: evt.evidenceFrames || [],
                 model: evt.model || 'Unknown',
+                isAnswering: !!evt.isAnswering,
+                questionId: evt.questionId || null,
+                answerId: evt.answerId || null,
                 timestamp: evt.timestamp ? new Date(evt.timestamp) : new Date()
             });
         }
@@ -364,12 +398,20 @@ const getScore = async (req, res) => {
         const cacheKey = `proctoring:report:${examId}`;
         const cached = await redisService.get(cacheKey);
         if (cached) {
-            const score = cached.proctoringScore !== undefined
-                ? cached.proctoringScore
-                : calculateProctoringScore(cached.totalPenaltyRating);
+            const score = cached.integrityScore !== undefined
+                ? cached.integrityScore
+                : (cached.proctoringScore !== undefined ? cached.proctoringScore : calculateProctoringScore(cached.totalPenaltyRating));
             return res.status(200).json({
                 totalPenaltyRating: cached.totalPenaltyRating,
                 score,
+                integrityScore: score,
+                riskLevel: cached.riskLevel || 'LOW_RISK',
+                scoreVersion: cached.scoreVersion || 'v2',
+                totalIncidents: cached.totalIncidents || cached.totalViolations || 0,
+                standardIncidents: cached.standardIncidents || 0,
+                criticalIncidents: cached.criticalIncidents || 0,
+                eventSummary: cached.eventSummary || {},
+                scoreFactors: cached.scoreFactors || [],
                 status: cached.status,
                 verdict: cached.verdict,
                 analysisStatus: 'COMPLETED',
@@ -379,11 +421,18 @@ const getScore = async (req, res) => {
         const report = await ProctoringReport.findOne({ examId }).lean();
 
         if (!report) {
-            // No violations logged yet — return null score so the dashboard can
-            // distinguish between "clean session" and "analysis never ran".
+            // No violations logged yet — return null score so dashboard can distinguish
             return res.status(200).json({
                 totalPenaltyRating: 0,
                 score: null,
+                integrityScore: null,
+                riskLevel: 'LOW_RISK',
+                scoreVersion: 'v2',
+                totalIncidents: 0,
+                standardIncidents: 0,
+                criticalIncidents: 0,
+                eventSummary: {},
+                scoreFactors: ['No proctoring data recorded.'],
                 status: 'clean',
                 verdict: 'No proctoring data recorded.',
                 analysisStatus: 'NOT_STARTED',
@@ -393,13 +442,21 @@ const getScore = async (req, res) => {
         // Cache report
         await redisService.set(cacheKey, report, 600);
 
-        const score = report.proctoringScore !== undefined
-            ? report.proctoringScore
-            : calculateProctoringScore(report.totalPenaltyRating);
+        const score = report.integrityScore !== undefined
+            ? report.integrityScore
+            : (report.proctoringScore !== undefined ? report.proctoringScore : calculateProctoringScore(report.totalPenaltyRating));
 
         return res.status(200).json({
             totalPenaltyRating: report.totalPenaltyRating,
             score,
+            integrityScore: score,
+            riskLevel: report.riskLevel || 'LOW_RISK',
+            scoreVersion: report.scoreVersion || 'v2',
+            totalIncidents: report.totalIncidents || report.totalViolations || 0,
+            standardIncidents: report.standardIncidents || 0,
+            criticalIncidents: report.criticalIncidents || 0,
+            eventSummary: report.eventSummary || {},
+            scoreFactors: report.scoreFactors || [],
             status: report.status,
             verdict: report.verdict,
             analysisStatus: 'COMPLETED',
@@ -407,6 +464,116 @@ const getScore = async (req, res) => {
     } catch (error) {
         console.error('[GET REPORT SCORE ERROR]', error);
         return res.status(500).json({ message: 'Failed to fetch proctoring report score', error: error.message });
+    }
+};
+
+/**
+ * Get detailed score breakdown (Requirement 44)
+ * GET /api/proctoring-pipeline/score-breakdown/:examId
+ */
+const getScoreBreakdown = async (req, res) => {
+    try {
+        const { examId } = req.params;
+        const report = await ProctoringReport.findOne({ examId }).lean();
+        if (!report) {
+            return res.status(200).json({
+                integrityScore: 100,
+                proctoringScore: 100,
+                riskLevel: 'LOW_RISK',
+                scoreVersion: 'v2',
+                totalIncidents: 0,
+                standardIncidents: 0,
+                criticalIncidents: 0,
+                eventSummary: {},
+                criticalEvents: [],
+                scoreFactors: ['No proctoring violations recorded for this session.'],
+            });
+        }
+
+        const criticalEvents = (report.timeline || [])
+            .filter(t => t.severity === 'CRITICAL' || t.rating === 2)
+            .map(t => ({
+                type: t.canonicalEventType || t.type,
+                confidence: t.confidence || t.maxConfidence || null,
+                duration: t.duration || 0,
+                evidenceAvailable: !!(t.evidenceFrames && t.evidenceFrames.length > 0),
+                timestamp: t.timestamp,
+                detail: t.detail,
+            }));
+
+        return res.status(200).json({
+            integrityScore: report.integrityScore !== undefined ? report.integrityScore : report.proctoringScore,
+            proctoringScore: report.proctoringScore,
+            riskLevel: report.riskLevel || 'LOW_RISK',
+            scoreVersion: report.scoreVersion || 'v2',
+            totalIncidents: report.totalIncidents || report.totalViolations || 0,
+            standardIncidents: report.standardIncidents || 0,
+            criticalIncidents: report.criticalIncidents || 0,
+            eventSummary: report.eventSummary || {},
+            criticalEvents,
+            scoreFactors: report.scoreFactors || [],
+            reviewStatus: report.reviewStatus || 'UNREVIEWED',
+        });
+    } catch (error) {
+        console.error('[GET SCORE BREAKDOWN ERROR]', error);
+        return res.status(500).json({ message: 'Failed to fetch score breakdown', error: error.message });
+    }
+};
+
+/**
+ * Submit human review decision for an incident or whole exam (Requirement 34)
+ * POST /api/proctoring-pipeline/review/:examId
+ */
+const submitHumanReview = async (req, res) => {
+    try {
+        const { examId } = req.params;
+        const { reviewStatus, reviewReason, violationId } = req.body;
+        const reviewerId = req.headers ? (req.headers['x-user-id'] || req.headers['x-h1p-user-id']) : 'recruiter';
+
+        if (!['UNREVIEWED', 'CONFIRMED_CONCERN', 'DISMISSED', 'REVIEWED'].includes(reviewStatus)) {
+            return res.status(400).json({ message: 'Invalid reviewStatus value' });
+        }
+
+        const now = new Date();
+
+        if (violationId) {
+            await ProctoringViolationEnhanced.findByIdAndUpdate(violationId, {
+                reviewStatus,
+                reviewReason: reviewReason || '',
+                reviewedBy: reviewerId,
+                reviewedAt: now,
+            });
+        }
+
+        const updatedReport = await ProctoringReport.findOneAndUpdate(
+            { examId },
+            {
+                reviewStatus,
+                reviewReason: reviewReason || '',
+                reviewedBy: reviewerId,
+                reviewedAt: now,
+                ...(violationId ? { 'timeline.$[elem].reviewStatus': reviewStatus, 'timeline.$[elem].reviewReason': reviewReason || '' } : {})
+            },
+            {
+                new: true,
+                arrayFilters: violationId ? [{ 'elem._id': violationId }] : undefined
+            }
+        );
+
+        // Invalidate Redis cache
+        const cacheKey = `proctoring:report:${examId}`;
+        await redisService.del(cacheKey);
+
+        return res.status(200).json({
+            success: true,
+            reviewStatus,
+            reviewReason,
+            reviewedAt: now,
+            report: updatedReport,
+        });
+    } catch (error) {
+        console.error('[SUBMIT HUMAN REVIEW ERROR]', error);
+        return res.status(500).json({ message: 'Failed to submit human review', error: error.message });
     }
 };
 
@@ -490,6 +657,8 @@ module.exports = {
     getEventsByExam,
     getSession,
     getScore,
+    getScoreBreakdown,
+    submitHumanReview,
     logWarning,
     environmentCheck,
     getPipelineSummary,

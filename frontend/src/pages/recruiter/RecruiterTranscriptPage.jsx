@@ -71,6 +71,7 @@ const CandidateTranscriptPage = () => {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -536,6 +537,30 @@ const CandidateTranscriptPage = () => {
                     <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Question</p><p className='text-sm font-bold text-gray-900 p-3 rounded-xl bg-gray-50 border border-black/5'>{q.question}</p></div>
                     {q.isAttempted ? <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Candidate Answer</p><p className='text-sm text-gray-800 p-3 rounded-xl bg-indigo-50 border border-indigo-100 leading-relaxed'>{q.answer}</p></div> : <p className='text-xs text-red-500 font-bold italic'>Not attempted</p>}
                     {q.feedback && <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Reason for Assessment</p><p className='text-xs text-gray-700 p-3 rounded-xl bg-emerald-50 border border-emerald-100 leading-relaxed'>{q.feedback}</p></div>}
+                    
+                    {/* Inline Proctoring Events linked to this question/answer */}
+                    {q.proctoringEvents && q.proctoringEvents.length > 0 && (
+                      <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200">
+                        <div className="flex items-center gap-2 text-amber-800 font-black text-[11px] uppercase tracking-wider mb-2">
+                          <AlertTriangle size={14} className="text-amber-600" />
+                          <span>Proctoring Flag Detected During Answer ({q.proctoringEvents.length})</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {q.proctoringEvents.map((evt, evtIdx) => (
+                            <div key={evtIdx} className="flex items-center justify-between text-xs text-gray-700 bg-white p-2.5 rounded-lg border border-amber-100 shadow-2xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-gray-900">{evt.canonicalEventType || evt.type}:</span>
+                                <span>{evt.detail}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500">
+                                {evt.duration > 0 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">{evt.duration}s</span>}
+                                {evt.confidence && <span>{Math.round(evt.confidence > 1 ? evt.confidence : evt.confidence * 100)}% conf</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -545,96 +570,180 @@ const CandidateTranscriptPage = () => {
 
         {interview && (
           <Sec title="Security & Proctoring Audit" icon={<ShieldAlert size={16} />} grad="from-red-500 to-orange-500">
-            {(!interview.proctoringViolations || interview.proctoringViolations.length === 0) ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
-                <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
-                <div>
-                  <h4 className="font-bold text-sm">Clean Session</h4>
-                  <p className="text-xs text-emerald-700/90 mt-0.5">No proctoring violations or tab-switching events were detected during this interview session.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(() => {
-                  const violations = Array.isArray(interview?.proctoringViolations) ? interview.proctoringViolations : [];
-                  const totalPenalty = violations.reduce((sum, v) => sum + (v.rating || 0), 0);
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex items-center gap-3 text-amber-800">
-                        <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
-                        <div>
-                          <h4 className="font-bold text-sm">Integrity Alerts Logged ({interview.proctoringViolations.length})</h4>
-                          <p className="text-xs text-amber-700/90 mt-0.5">
-                            The system detected activities that triggered proctoring alerts. Please review the details below.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 flex items-center gap-4 text-red-800">
-                        <div className="h-12 w-12 rounded-xl bg-red-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
-                          {totalPenalty}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-sm">Total Integrity Penalty Rating</h4>
-                          <p className="text-xs text-red-700/95 mt-0.5">
-                            Aggregated suspicion rating across all flagged behaviors during the session.
-                          </p>
-                        </div>
+            {(() => {
+              const summary = interview.proctoringSummary || {};
+              const report = interview.proctoringReport || {};
+              const integrityScore = summary.integrityScore ?? (report.integrityScore ?? (application.integrityScore ?? 100));
+              const riskLevel = summary.riskLevel ?? (report.riskLevel ?? (application.riskLevel || (integrityScore < 50 ? 'HIGH RISK' : (integrityScore < 60 ? 'REVIEW REQUIRED' : (integrityScore < 70 ? 'RECOMMENDED' : 'LOW RISK')))));
+              const criticalCount = summary.criticalIncidents ?? (report.criticalIncidents ?? (interview.proctoringViolations || []).filter(v => v.severity === 'critical').length);
+              const standardCount = summary.standardIncidents ?? (report.standardIncidents ?? (interview.proctoringViolations || []).filter(v => v.severity !== 'critical').length);
+              const scoreFactors = summary.scoreFactors || report.scoreFactors || [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Integrity Score</span>
+                      <div className="mt-3 flex items-baseline gap-1.5">
+                        <span className="text-3xl font-black text-gray-900">{integrityScore}</span>
+                        <span className="text-xs text-gray-400 font-semibold">/ 100</span>
                       </div>
                     </div>
-                  );
-                })()}
 
-                <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-                        <th className="py-3 px-4">Event Type</th>
-                        <th className="py-3 px-4">Details</th>
-                        <th className="py-3 px-4 text-center">Rating</th>
-                        <th className="py-3 px-4 text-center">Severity</th>
-                        <th className="py-3 px-4 text-right">Time Detected</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-xs">
-                      {(Array.isArray(interview?.proctoringViolations) ? interview.proctoringViolations : []).map((v) => {
-                        let severityClass = "bg-gray-100 text-gray-700";
-                        if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
-                        else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
-                        else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
-                        else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Risk Classification</span>
+                      <div className="mt-3">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider border ${
+                          riskLevel === 'HIGH RISK' ? 'bg-red-50 text-red-700 border-red-200' :
+                          riskLevel === 'REVIEW REQUIRED' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          riskLevel === 'RECOMMENDED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {riskLevel === 'HIGH RISK' && <ShieldAlert size={12} className="text-red-600" />}
+                          {riskLevel === 'REVIEW REQUIRED' && <AlertTriangle size={12} className="text-orange-600" />}
+                          {riskLevel === 'RECOMMENDED' && <AlertTriangle size={12} className="text-amber-600" />}
+                          {riskLevel === 'LOW RISK' && <ShieldCheck size={12} className="text-emerald-600" />}
+                          {riskLevel === 'LOW RISK' ? 'HIGH TRUST' : riskLevel}
+                        </span>
+                      </div>
+                    </div>
 
-                        const typeLabel = String(v.type).replace(/_/g, ' ');
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Incidents Logged</span>
+                      <div className="mt-3 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-red-600">{criticalCount} Crit</span>
+                        <span className="text-xs text-gray-400 font-bold">/ {standardCount} Std</span>
+                      </div>
+                    </div>
 
-                        return (
-                          <tr key={v.id || v.timestamp} className="hover:bg-gray-50/50">
-                            <td className="py-3 px-4 font-bold text-gray-800 uppercase tracking-tight">
-                              {typeLabel}
-                            </td>
-                            <td className="py-3 px-4 text-gray-600 leading-normal">
-                              {v.detail}
-                            </td>
-                            <td className="py-3 px-4 text-center font-bold text-red-600 bg-red-50/10">
-                              +{v.rating || 0}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${severityClass}`}>
-                                {v.severity || 'medium'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right text-gray-400 font-medium whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <Clock size={12} />
-                                {new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                              </div>
-                            </td>
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Engine Protocol</span>
+                      <div className="mt-3">
+                        <span className="text-xs font-mono font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg border border-gray-200">
+                          {report.scoreVersion || 'v2 Authoritative'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Score Factors Breakdown if available */}
+                  {scoreFactors.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-black/5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Score Analysis Factors</p>
+                      <div className="flex flex-wrap gap-2">
+                        {scoreFactors.map((factor, fIdx) => (
+                          <span key={fIdx} className="text-xs font-medium px-3 py-1 rounded-lg bg-white border border-black/10 text-gray-700 shadow-2xs">
+                            • {factor}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Violations List or Clean state */}
+                  {(!interview.proctoringViolations || interview.proctoringViolations.length === 0) ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
+                      <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                      <div>
+                        <h4 className="font-bold text-sm">Clean Session</h4>
+                        <p className="text-xs text-emerald-700/90 mt-0.5">No proctoring violations or tab-switching events were detected during this interview session.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th className="py-3.5 px-4">Event Type & Category</th>
+                            <th className="py-3.5 px-4">Details & Evidence</th>
+                            <th className="py-3.5 px-4 text-center">Rating</th>
+                            <th className="py-3.5 px-4 text-center">Severity</th>
+                            <th className="py-3.5 px-4 text-right">Time Detected</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                          {(Array.isArray(interview?.proctoringViolations) ? interview.proctoringViolations : []).map((v, vIdx) => {
+                            let severityClass = "bg-gray-100 text-gray-700";
+                            if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
+                            else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
+                            else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
+                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+
+                            const typeLabel = String(v.canonicalEventType || v.type).replace(/_/g, ' ');
+                            const category = v.category || 'ENVIRONMENT';
+
+                            return (
+                              <tr key={v.id || v.timestamp || vIdx} className="hover:bg-gray-50/50">
+                                <td className="py-3.5 px-4 font-bold text-gray-800 uppercase tracking-tight">
+                                  <div>{typeLabel}</div>
+                                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200">
+                                    {category}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600 leading-normal">
+                                  <div className="font-semibold text-gray-800 flex items-center gap-2">
+                                    <span>{v.detail}</span>
+                                    {v.isAnswering && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-extrabold uppercase">
+                                        While Answering
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Metadata specs */}
+                                  <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
+                                    {v.model && <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Detector: {v.model}</span>}
+                                    {v.duration > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">Duration: {v.duration}s</span>}
+                                    {(v.confidence > 0 || v.maxConfidence > 0) && (
+                                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                        Confidence: {Math.round(((v.confidence || v.maxConfidence) > 1 ? (v.confidence || v.maxConfidence) : (v.confidence || v.maxConfidence) * 100))}%
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Evidence Frames Thumbnails */}
+                                  {v.evidenceFrames && v.evidenceFrames.length > 0 && (
+                                    <div className="mt-2.5 flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-gray-400 uppercase">Frames:</span>
+                                      <div className="flex gap-2 overflow-x-auto">
+                                        {v.evidenceFrames.map((frame, fIdx) => (
+                                          <img
+                                            key={fIdx}
+                                            src={frame}
+                                            alt={`Evidence frame ${fIdx + 1}`}
+                                            onClick={() => setSelectedImage(frame)}
+                                            className="h-10 w-14 rounded-lg object-cover border border-gray-200 cursor-zoom-in hover:scale-105 transition-transform shadow-2xs"
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center font-bold text-red-600 bg-red-50/10">
+                                  +{v.rating || 0}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${severityClass}`}>
+                                    {v.severity || 'medium'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right text-gray-400 font-medium whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Clock size={12} />
+                                    {new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </Sec>
         )}
 
@@ -819,7 +928,23 @@ const CandidateTranscriptPage = () => {
         </Sec>
       </div>
 
-
+      {/* Fullscreen Evidence Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="max-w-4xl max-h-[85vh] relative bg-white/5 p-2 rounded-3xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedImage} alt="Proctoring Evidence" className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl" />
+            <button
+              className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-2.5 hover:bg-black/80 transition-colors shadow-lg border border-white/10 cursor-pointer"
+              onClick={() => setSelectedImage(null)}
+            >
+              <XCircle size={20} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

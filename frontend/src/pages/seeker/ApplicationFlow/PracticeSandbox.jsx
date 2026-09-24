@@ -11,6 +11,7 @@ const PracticeSandbox = ({ onComplete }) => {
     const recognitionRef = useRef(null);
 
     const [stream, setStream] = useState(null);
+    const streamRef = useRef(null);
     const [hasPermissions, setHasPermissions] = useState(false);
     const [permissionError, setPermissionError] = useState(null);
     const [volume, setVolume] = useState(0);
@@ -24,6 +25,7 @@ const PracticeSandbox = ({ onComplete }) => {
         const initMedia = async () => {
             try {
                 const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                streamRef.current = mediaStream;
                 setStream(mediaStream);
                 setHasPermissions(true);
                 
@@ -72,8 +74,16 @@ const PracticeSandbox = ({ onComplete }) => {
         initMedia();
 
         return () => {
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => {
+                    try { track.stop(); } catch (_) {}
+                });
+                streamRef.current = null;
+            }
             if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(track => {
+                    try { track.stop(); } catch (_) {}
+                });
             }
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
@@ -82,7 +92,7 @@ const PracticeSandbox = ({ onComplete }) => {
                 audioContextRef.current.close();
             }
             if (recognitionRef.current) {
-                recognitionRef.current.stop();
+                try { recognitionRef.current.stop(); } catch (_) {}
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,8 +267,16 @@ const PracticeSandbox = ({ onComplete }) => {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
                         // Stop tracks immediately before proceeding
+                        if (streamRef.current) {
+                            streamRef.current.getTracks().forEach(track => {
+                                try { track.stop(); } catch (_) {}
+                            });
+                            streamRef.current = null;
+                        }
                         if (stream) {
-                            stream.getTracks().forEach(track => track.stop());
+                            stream.getTracks().forEach(track => {
+                                try { track.stop(); } catch (_) {}
+                            });
                         }
                         onComplete();
                     }}

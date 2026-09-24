@@ -38,6 +38,7 @@ const SkillAssessment = ({
     sharedChunkUploadsRef
 }) => {
     const currentUserId = user?.uid || user?._id || user?.id;
+    const currentJobId = job?._id || job?.id || '';
     const [lobbyStarted, setLobbyStarted] = useState(false);
     const [lobbyError, setLobbyError] = useState(null);
     const [started, setStarted] = useState(false);
@@ -61,8 +62,8 @@ const SkillAssessment = ({
         latestStreamRef.current = sharedStream;
     }, [sharedStream]);
 
-    const assessmentType = (job.assessment?.type || 'mcq').toUpperCase();
-    const totalQuestions = questions.length || job.assessment?.totalQuestions || 5;
+    const assessmentType = (job?.assessment?.type || 'mcq').toUpperCase();
+    const totalQuestions = questions.length || job?.assessment?.totalQuestions || 5;
     const estimatedMinutes = Math.max(totalQuestions * 8, 20);
 
     // Auto-navigate to next step when completed
@@ -182,13 +183,16 @@ const SkillAssessment = ({
         setError(null);
 
         try {
+            const currentUserId = user?.uid || user?._id || user?.id || '';
+            const currentJobId = job?._id || job?.id || '';
+
             // 1. Generate full assessment questions with retries
             let res;
             let lastErr;
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     res = await axios.post(`${API_URL}/generate-full-assessment`, {
-                        jobId: job._id,
+                        jobId: currentJobId || job?._id || job?.id,
                         userId: currentUserId
                     });
                     if (Array.isArray(res.data?.questions) && res.data.questions.length > 0) {
@@ -210,10 +214,10 @@ const SkillAssessment = ({
 
             // 2. Pre-start interview session if enabled to get recordingSessionId
             let interviewData = null;
-            if (job.mockInterview?.enabled) {
+            if (job?.mockInterview?.enabled) {
                 try {
                     const interviewRes = await axios.post(`${API_URL}/interview/start`, {
-                        jobId: job._id,
+                        jobId: currentJobId || job?._id || job?.id,
                         userId: currentUserId
                     });
                     if (interviewRes.data?.success) {
@@ -228,7 +232,7 @@ const SkillAssessment = ({
             }
 
             // 3. Generate distinct assessmentRecordingSessionId
-            const activeRecId = `assessment_${String(currentUserId || 'user').replace(/[^a-zA-Z0-9_-]/g, '')}_${String(job._id).replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+            const activeRecId = `assessment_${String(currentUserId || 'user').replace(/[^a-zA-Z0-9_-]/g, '')}_${String(currentJobId || job?._id || 'job').replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
             
             localRecordingSessionIdRef.current = activeRecId;
             // 4. Start the assessment recording. Keep the shared interview
@@ -297,8 +301,11 @@ const SkillAssessment = ({
         const finalScore = Math.round((correct / questions.length) * 20);
 
         try {
+            const currentUserId = user?.uid || user?._id || user?.id || '';
+            const currentJobId = job?._id || job?.id || '';
+
             const response = await axios.post(`${API_URL}/submit-assessment`, {
-                jobId: job._id,
+                jobId: currentJobId || job?._id || job?.id,
                 userId: currentUserId,
                 sessionId,
                 questions,
@@ -322,7 +329,7 @@ const SkillAssessment = ({
                             await axios.post(`${API_URL}/finalize-recording`, {
                                 sessionId: activeRecId,
                                 userId: currentUserId,
-                                jobId: job._id,
+                                jobId: currentJobId || job?._id || job?.id,
                                 type: "assessment"
                             });
                         }
@@ -365,8 +372,8 @@ const SkillAssessment = ({
                     if (activeRecId) {
                         await axios.post(`${API_URL}/finalize-recording`, {
                             sessionId: activeRecId,
-                            userId: currentUserId,
-                            jobId: job._id,
+                            userId: currentUserId || user?.uid || user?._id || user?.id || '',
+                            jobId: currentJobId || job?._id || job?.id,
                             type: "assessment"
                         });
                     }
@@ -390,8 +397,8 @@ const SkillAssessment = ({
         try {
             if (sessionId && questions.length > 0) {
                 await axios.post(`${API_URL}/submit-assessment`, {
-                    jobId: job._id,
-                    userId: currentUserId,
+                    jobId: currentJobId || job?._id || job?.id,
+                    userId: currentUserId || user?.uid || user?._id || user?.id || '',
                     sessionId,
                     questions,
                     answers: [],
@@ -418,7 +425,7 @@ const SkillAssessment = ({
                 </div>
                 <h2 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Preparing your assessment</h2>
                 <p className="mt-3 text-sm leading-7 text-gray-500">
-                    We are generating role-specific questions based on the recruiter requirements for {job.title}.
+                    We are generating role-specific questions based on the recruiter requirements for {job?.title || 'this role'}.
                 </p>
             </div>
         );
@@ -633,8 +640,8 @@ const SkillAssessment = ({
     if (score !== null) {
         return (
             <SecureExamWrapper
-                examId={`assessment:${job._id}:${sessionId || 'pending'}`}
-                userId={currentUserId}
+                examId={`assessment:${job?._id || job?.id || 'job'}:${sessionId || 'pending'}`}
+                userId={currentUserId || user?.uid || user?._id || user?.id || ''}
                 isActive={started && !securityResetting}
                 requireScreenShare={true}
                 requireCamera={true}
@@ -728,13 +735,15 @@ const SkillAssessment = ({
 
     return (
         <SecureExamWrapper
-            examId={`assessment:${job._id}:${sessionId || 'pending'}`}
-            userId={currentUserId}
+            examId={`assessment:${job?._id || job?.id || 'job'}:${sessionId || 'pending'}`}
+            userId={currentUserId || user?.uid || user?._id || user?.id || ''}
             isActive={started && !securityResetting}
             requireScreenShare={true}
             requireCamera={true}
             cameraStream={sharedStream}
             isAnswering={started && !securityResetting}
+            questionIndex={currentQIndex}
+            questionId={question?._id || question?.id || null}
             warningLimit={3}
             resetLimit={4}
             onSecurityReset={handleAssessmentSecurityReset}
@@ -749,7 +758,7 @@ const SkillAssessment = ({
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Assessment in progress</p>
-                            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
+                            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">{job?.title || 'Assessment'}</h1>
                         </div>
                         <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
                             Question {currentQIndex + 1} of {questions.length}

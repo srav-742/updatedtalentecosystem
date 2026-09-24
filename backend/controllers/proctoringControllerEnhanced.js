@@ -7,6 +7,10 @@ const {
     sanitizeViolationDetail,
     getStatusAndVerdict,
     calculateProctoringScore,
+    evaluateIntegrity,
+    normalizeIncident,
+    CANONICAL_EVENT_MAP,
+    CANONICAL_CATEGORY_MAP,
 } = require('../utils/proctoringScoring');
 const mongoose = require('mongoose');
 
@@ -88,9 +92,12 @@ const updateProctoringReport = async (examId, userId) => {
                 startTime: v.timestamp,
                 endTime: v.timestamp,
                 duration: 0,
+                confidence: null,
                 maxConfidence: null,
                 evidenceFrames: [],
-                model: 'RuleEngine'
+                model: 'RuleEngine',
+                isAnswering: false,
+                reviewStatus: 'UNREVIEWED',
             })),
             ...enhancedViolations.map(v => ({
                 _id: v._id,
@@ -102,38 +109,43 @@ const updateProctoringReport = async (examId, userId) => {
                 startTime: v.startTime || v.timestamp,
                 endTime: v.endTime || v.timestamp,
                 duration: v.duration || 0,
+                confidence: v.confidence !== undefined ? v.confidence : null,
                 maxConfidence: v.maxConfidence || v.confidence || null,
                 evidenceFrames: v.evidenceFrames || [],
-                model: v.model || 'Unknown'
+                model: v.model || 'Unknown',
+                isAnswering: v.isAnswering || false,
+                questionId: v.questionId || null,
+                answerId: v.answerId || null,
+                reviewStatus: v.reviewStatus || 'UNREVIEWED',
+                reviewReason: v.reviewReason || null,
             }))
         ];
 
-        // Filter out false camera device violations (standard multi-camera hardware is not a violation)
-        const allViolations = rawViolations.filter(v => {
-            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
-                return false;
-            }
-            return true;
-        });
-        
-        allViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        const totalViolations = allViolations.length;
-        const totalPenaltyRating = allViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
-        
-        const { status, verdict, summary } = getStatusAndVerdict(totalPenaltyRating);
+        // Evaluate integrity using authoritative scoring engine v2
+        const integrityEvaluation = evaluateIntegrity(rawViolations);
+        const {
+            integrityScore,
+            totalPenaltyRating,
+            riskLevel,
+            scoreVersion,
+            totalIncidents,
+            standardIncidents,
+            criticalIncidents,
+            eventSummary,
+            scoreFactors,
+            status,
+            verdict,
+            summary,
+            incidents,
+        } = integrityEvaluation;
 
-        
-        const countsMap = {};
-        allViolations.forEach(v => {
-            if (!countsMap[v.type]) {
-                countsMap[v.type] = { type: v.type, count: 0, rating: 0 };
-            }
-            countsMap[v.type].count += 1;
-            countsMap[v.type].rating += v.rating || 0;
-        });
-        const violationSummaryList = Object.values(countsMap);
-        
+        // Build violationSummaryList for backward compatibility
+        const violationSummaryList = Object.entries(eventSummary).map(([type, count]) => ({
+            type,
+            count,
+            rating: count * getViolationRating(type),
+        }));
+
         let applicationId = null;
         const parts = examId.split(':');
         const jobId = parts.length >= 2 ? parts[1] : null;
@@ -141,29 +153,20 @@ const updateProctoringReport = async (examId, userId) => {
         if (parts.length >= 3) {
             const sessionId = parts[2];
             let app = null;
-            
-            // 1. Try to find by recordingSessionId first
             if (sessionId && sessionId !== 'pending') {
                 app = await Application.findOne({ recordingSessionId: sessionId }).select('_id').lean();
             }
-            // 2. Fallback to userId + jobId
             if (!app && jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
-            if (app) {
-                applicationId = app._id;
-            }
+            if (app) applicationId = app._id;
         } else {
             let app = null;
             if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
-            if (app) {
-                applicationId = app._id;
-            }
+            if (app) applicationId = app._id;
         }
-        
-        const proctoringScore = calculateProctoringScore(totalPenaltyRating);
 
         const report = await ProctoringReport.findOneAndUpdate(
             { examId },
@@ -171,23 +174,52 @@ const updateProctoringReport = async (examId, userId) => {
                 examId,
                 userId,
                 applicationId,
-                totalViolations,
+                totalViolations: totalIncidents,
                 totalPenaltyRating,
-                proctoringScore,
+                proctoringScore: integrityScore,
+                integrityScore,
+                riskLevel,
+                scoreVersion,
+                totalIncidents,
+                standardIncidents,
+                criticalIncidents,
+                eventSummary,
+                scoreFactors,
                 status,
                 verdict,
                 summary,
                 violationSummaryList,
-                timeline: allViolations
+                timeline: incidents.map(inc => ({
+                    _id: inc.incidentId,
+                    type: inc.eventType,
+                    canonicalEventType: inc.canonicalEventType,
+                    category: inc.category,
+                    detail: inc.detail,
+                    timestamp: inc.timestamp,
+                    rating: inc.basePenalty,
+                    severity: inc.severity,
+                    confidence: inc.confidence,
+                    maxConfidence: inc.maxConfidence,
+                    startTime: inc.startTime,
+                    endTime: inc.endTime,
+                    duration: inc.duration,
+                    evidenceFrames: inc.evidenceFrames,
+                    model: inc.source,
+                    isAnswering: inc.isAnswering,
+                    questionId: inc.questionId,
+                    answerId: inc.answerId,
+                    reviewStatus: inc.status,
+                })),
             },
             { upsert: true, new: true }
         );
-        
-        // Update application integrity state with accurate proctoring score
+
         if (applicationId) {
             await Application.findByIdAndUpdate(applicationId, {
                 integrityPenalty: totalPenaltyRating,
-                proctoringScore: proctoringScore,
+                proctoringScore: integrityScore,
+                integrityScore,
+                riskLevel,
             });
         }
 
@@ -195,12 +227,12 @@ const updateProctoringReport = async (examId, userId) => {
         try {
             const redisService = require('../services/redisService');
             const cacheKey = `proctoring:report:${examId}`;
-            await redisService.set(cacheKey, report, 600); // 10 minutes cache
+            await redisService.set(cacheKey, report, 600);
         } catch (cacheErr) {
             console.warn('[PROCTORING REPORT CACHE ERROR]', cacheErr.message);
         }
-        
-        console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, status: ${status}, rating: ${totalPenaltyRating}`);
+
+        console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, risk: ${riskLevel}, score: ${integrityScore}, rating: ${totalPenaltyRating}`);
         return report;
     } catch (err) {
         console.error('[PROCTORING REPORT UPDATE ERROR]', err);
@@ -235,17 +267,27 @@ const logViolation = async (req, res) => {
         }
 
         const rating = getViolationRating(type, metadata);
+        const canonicalEventType = CANONICAL_EVENT_MAP[type] || type;
+        const category = CANONICAL_CATEGORY_MAP[canonicalEventType] || 'UNKNOWN';
 
         const violation = await ProctoringViolationEnhanced.create({
             examId,
             userId,
             type,
+            canonicalEventType,
+            category,
             detail,
             count: count || 1,
             severity: SEVERITY_MAP[type] || 'medium',
             rating,
             isAnswering: isAnswering || false,
             confidence: confidence || null,
+            maxConfidence: confidence || null,
+            duration: req.body.duration || 0,
+            evidenceFrames: Array.isArray(req.body.evidenceFrames) ? req.body.evidenceFrames : [],
+            model: req.body.model || 'Unknown',
+            questionId: req.body.questionId || null,
+            answerId: req.body.answerId || null,
             metadata: metadata || null,
             timestamp: timestamp ? new Date(timestamp) : new Date(),
         });
@@ -415,7 +457,14 @@ const getReportByExam = async (req, res) => {
                 summary: 'No proctoring events were captured during this assessment.',
                 totalPenaltyRating: 0,
                 proctoringScore: null,
+                integrityScore: null,
+                riskLevel: 'LOW_RISK',
+                scoreVersion: 'v2',
                 totalViolations: 0,
+                totalIncidents: 0,
+                standardIncidents: 0,
+                criticalIncidents: 0,
+                scoreFactors: ['No proctoring events were captured during this assessment.'],
                 timeline: [],
                 analysisStatus: 'PENDING',
             });

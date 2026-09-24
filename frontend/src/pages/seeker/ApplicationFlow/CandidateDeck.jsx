@@ -46,14 +46,24 @@ const CandidateDeck = ({ job, user, onComplete }) => {
         }
     };
 
-    // Stop recording when component unmounts & listen for device changes
+    // Stop recording and release camera streams when component unmounts & listen for device changes
     useEffect(() => {
         getDevices();
         navigator.mediaDevices?.addEventListener?.('devicechange', getDevices);
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
+                try { mediaRecorderRef.current.stop(); } catch (e) {}
+            }
+            if (webcamRef.current?.stream) {
+                try {
+                    webcamRef.current.stream.getTracks().forEach(t => t.stop());
+                } catch (e) {}
+            }
+            if (webcamRef.current?.video?.srcObject) {
+                try {
+                    webcamRef.current.video.srcObject.getTracks().forEach(t => t.stop());
+                } catch (e) {}
             }
             navigator.mediaDevices?.removeEventListener?.('devicechange', getDevices);
         };
@@ -165,8 +175,8 @@ const CandidateDeck = ({ job, user, onComplete }) => {
 
         const formData = new FormData();
         formData.append('video', videoBlob, 'intro.webm');
-        formData.append('userId', user.uid || user.id || user._id);
-        formData.append('jobId', job._id);
+        formData.append('userId', user?.uid || user?.id || user?._id || '');
+        formData.append('jobId', job?._id || job?.id || '');
 
         try {
             const response = await axios.post(`${API_URL}/upload-video-intro`, formData);
@@ -194,7 +204,7 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                     </div>
                     <h2 className="text-2xl font-black text-gray-900 mb-2">Video Candidate Deck</h2>
                     <p className="text-gray-500 text-sm font-medium max-w-md mx-auto">
-                        Introduce yourself in 60 seconds. Share your passion, experience, and why you're a great fit for {job.title}.
+                        Introduce yourself in 60 seconds. Share your passion, experience, and why you're a great fit for {job?.title || 'this role'}.
                     </p>
                 </div>
 
