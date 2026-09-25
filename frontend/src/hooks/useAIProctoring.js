@@ -348,9 +348,10 @@ async function getOrInitFaceMesh() {
                         document.head.appendChild(script);
                     });
 
+                    // Non-blocking poll: yield generously to keep the main thread responsive
                     const start = Date.now();
-                    while (!window.FaceMesh && (Date.now() - start < 3000)) {
-                        await new Promise(r => setTimeout(r, 50));
+                    while (!window.FaceMesh && (Date.now() - start < 5000)) {
+                        await new Promise(r => setTimeout(r, 250));
                     }
 
                     if (window.FaceMesh) {
@@ -415,8 +416,11 @@ export function useAIProctoring({
     const landmarksRef = useRef(null);
     const detectionCanvasRef = useRef(null);
 
+    // Stagger: only start COCO-SSD loading AFTER FaceMesh has fully initialized.
+    // This prevents both heavy ML models from competing for the GPU/main-thread simultaneously,
+    // which was causing "Page not responding" browser freezes.
     const { modelReady: yoloModelReady, yoloReady, cocoReady, engineType, detectFrame } = useYOLODetector({
-        isActive,
+        isActive: isActive && faceMeshReady,
         videoElement,
     });
 
@@ -1090,72 +1094,86 @@ export function useAIProctoring({
     }, [processFaceMeshResults]);
 
     // ── FaceMesh frame loop with Offscreen Canvas & Concurrency Lock ─────────
+    // Warmup delay: give the browser 2 seconds to breathe after model loading
+    // before starting the detection loop. This prevents the immediate GPU contention
+    // that was causing the "Page not responding" freeze.
     useEffect(() => {
         if (!isActive || !faceMeshReady || !videoElement) return;
 
+        let cancelled = false;
         let lastFrameTime = 0;
         let videoReadyLogged = false;
 
-        const tick = async (timestamp) => {
-            if (!isActiveRef.current) return;
+        const startLoop = () => {
+            if (cancelled) return;
 
-            const video = videoRef.current;
+            const tick = async (timestamp) => {
+                if (!isActiveRef.current || cancelled) return;
 
-            // Video readiness gate: ensure video is playing with positive dimensions
-            if (!video || video.readyState < 2 || video.videoWidth === 0) {
-                if (!videoReadyLogged) {
-                    console.log(`[PROCTORING] Waiting for video... readyState=${video?.readyState}, width=${video?.videoWidth}, srcObject=${!!video?.srcObject}`);
-                    debugLog("VIDEO", `Waiting for video... readyState=${video?.readyState}, width=${video?.videoWidth}`);
+                const video = videoRef.current;
+
+                // Video readiness gate: ensure video is playing with positive dimensions
+                if (!video || video.readyState < 2 || video.videoWidth === 0) {
+                    if (!videoReadyLogged) {
+                        console.log(`[PROCTORING] Waiting for video... readyState=${video?.readyState}, width=${video?.videoWidth}, srcObject=${!!video?.srcObject}`);
+                        debugLog("VIDEO", `Waiting for video... readyState=${video?.readyState}, width=${video?.videoWidth}`);
+                        videoReadyLogged = true;
+                    }
+                    rafIdRef.current = requestAnimationFrame(tick);
+                    return;
+                }
+
+                if (!loopStartedRef.current) {
+                    console.log(`[PROCTORING] ✓ Video ready (${video.videoWidth}x${video.videoHeight}) — Frame analysis loop STARTED (200ms sampling)`);
+                    debugLog("VIDEO", `Video element ready ✓ readyState=${video.readyState}, width=${video.videoWidth}, height=${video.videoHeight}`);
+                    debugLog("LOOP", "PROCTORING_LOOP_STARTED — frame analysis is now active");
+                    loopStartedRef.current = true;
                     videoReadyLogged = true;
                 }
-                rafIdRef.current = requestAnimationFrame(tick);
-                return;
-            }
 
-            if (!loopStartedRef.current) {
-                console.log(`[PROCTORING] ✓ Video ready (${video.videoWidth}x${video.videoHeight}) — Frame analysis loop STARTED (200ms sampling)`);
-                debugLog("VIDEO", `Video element ready ✓ readyState=${video.readyState}, width=${video.videoWidth}, height=${video.videoHeight}`);
-                debugLog("LOOP", "PROCTORING_LOOP_STARTED — frame analysis is now active");
-                loopStartedRef.current = true;
-                videoReadyLogged = true;
-            }
+                if (timestamp - lastFrameTime >= T.detectionIntervalMs) {
+                    lastFrameTime = timestamp;
 
-            if (timestamp - lastFrameTime >= T.detectionIntervalMs) {
-                lastFrameTime = timestamp;
+                    if (faceMeshRef.current && !isProcessingFrameRef.current) {
+                        isProcessingFrameRef.current = true;
+                        try {
+                            // Use offscreen 2D canvas to guarantee uncorrupted, unmirrored pixel buffer
+                            if (!faceCanvasRef.current) {
+                                faceCanvasRef.current = document.createElement("canvas");
+                            }
+                            const canvas = faceCanvasRef.current;
+                            const w = video.videoWidth || 640;
+                            const h = video.videoHeight || 480;
+                            if (canvas.width !== w || canvas.height !== h) {
+                                canvas.width = w;
+                                canvas.height = h;
+                            }
+                            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                            ctx.drawImage(video, 0, 0, w, h);
 
-                if (faceMeshRef.current && !isProcessingFrameRef.current) {
-                    isProcessingFrameRef.current = true;
-                    try {
-                        // Use offscreen 2D canvas to guarantee uncorrupted, unmirrored pixel buffer
-                        if (!faceCanvasRef.current) {
-                            faceCanvasRef.current = document.createElement("canvas");
+                            await faceMeshRef.current.send({ image: canvas });
+                        } catch (err) {
+                            debugLog("FRAME", `FaceMesh send error: ${err.message}`);
+                        } finally {
+                            isProcessingFrameRef.current = false;
                         }
-                        const canvas = faceCanvasRef.current;
-                        const w = video.videoWidth || 640;
-                        const h = video.videoHeight || 480;
-                        if (canvas.width !== w || canvas.height !== h) {
-                            canvas.width = w;
-                            canvas.height = h;
-                        }
-                        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-                        ctx.drawImage(video, 0, 0, w, h);
-
-                        await faceMeshRef.current.send({ image: canvas });
-                    } catch (err) {
-                        debugLog("FRAME", `FaceMesh send error: ${err.message}`);
-                    } finally {
-                        isProcessingFrameRef.current = false;
                     }
                 }
-            }
+
+                rafIdRef.current = requestAnimationFrame(tick);
+            };
 
             rafIdRef.current = requestAnimationFrame(tick);
+            debugLog("LOOP", "FaceMesh frame loop registered (200ms interval)");
         };
 
-        rafIdRef.current = requestAnimationFrame(tick);
-        debugLog("LOOP", "FaceMesh frame loop registered (200ms interval)");
+        // Warmup delay: let the browser settle after FaceMesh WASM compilation
+        console.log('[PROCTORING] FaceMesh ready — waiting 2s warmup before starting detection loop...');
+        const warmupTimer = setTimeout(startLoop, 2000);
 
         return () => {
+            cancelled = true;
+            clearTimeout(warmupTimer);
             if (rafIdRef.current) {
                 cancelAnimationFrame(rafIdRef.current);
                 rafIdRef.current = null;
@@ -1311,16 +1329,19 @@ export function useAIProctoring({
             }
 
             if (active) {
-                // Run at 100ms interval (10 FPS) for smooth real-time tracking
-                timeoutId = setTimeout(runDetection, 100);
+                // Run at 500ms interval (2 FPS) — sufficient for phone/object detection
+                // while keeping the main thread responsive (was 100ms / 10 FPS which
+                // caused excessive GPU contention with FaceMesh)
+                timeoutId = setTimeout(runDetection, 500);
             }
         };
 
-        // Trigger immediately on model readiness — no initial delay!
-        runDetection();
+        // Small initial delay (1s) to let FaceMesh loop stabilize first
+        const initDelay = setTimeout(runDetection, 1000);
 
         return () => {
             active = false;
+            clearTimeout(initDelay);
             if (timeoutId) clearTimeout(timeoutId);
         };
     }, [isActive, objectModelReady, videoElement, T, emitViolation, detectFrame]);
