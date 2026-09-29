@@ -323,7 +323,7 @@ export default function SecureExamWrapperMultiLayer({
                               }
                             : {
                                   right: "24px",
-                                  bottom: "24px",
+                                  bottom: "90px",
                               }),
                     }}
                     onMouseDown={handleDragStart}

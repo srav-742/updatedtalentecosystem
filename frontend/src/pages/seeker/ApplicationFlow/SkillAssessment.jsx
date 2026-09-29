@@ -445,15 +445,15 @@ const SkillAssessment = ({
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-2xl mx-auto py-12 px-8 bg-white border border-black/10 rounded-[2.5rem] shadow-xl"
+                className="skill-assessment-lobby-card max-w-2xl mx-auto my-4 py-6 px-8 bg-white border border-black/10 rounded-[2.5rem] shadow-xl"
             >
-                <h2 className="text-3xl font-black text-gray-900 mb-6 tracking-tight text-center">Assessment Setup</h2>
-                <p className="text-gray-500 mb-8 font-medium leading-relaxed max-w-md mx-auto text-sm text-center">
+                <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-2 tracking-tight text-center">Assessment Setup</h2>
+                <p className="text-gray-500 mb-4 font-medium leading-relaxed max-w-md mx-auto text-xs md:text-sm text-center">
                     To ensure the integrity of the skill assessment and the subsequent AI interview, please enable your camera and microphone.
                 </p>
 
-                <div className="flex flex-col items-center gap-6 mb-8">
-                    <div className="w-full aspect-video bg-gray-900 rounded-3xl overflow-hidden relative border-2 border-gray-100 shadow-inner">
+                <div className="flex flex-col items-center gap-4 mb-5">
+                    <div className="skill-assessment-lobby-video w-full aspect-video bg-gray-900 rounded-3xl overflow-hidden relative border-2 border-gray-100 shadow-inner">
                         {sharedStream ? (
                             <video 
                                 autoPlay 
@@ -478,12 +478,12 @@ const SkillAssessment = ({
                     {!sharedStream ? (
                         <button 
                             onClick={enableMedia}
-                            className="px-6 py-3 bg-black text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-all shadow-md"
+                            className="px-6 py-2.5 bg-gray-600 hover:bg-gray-800 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-md cursor-pointer hover:shadow-lg"
                         >
                             Enable Camera & Mic
                         </button>
                     ) : (
-                        <div className="flex items-center gap-2 text-green-600 font-semibold text-sm">
+                        <div className="flex items-center gap-2 text-green-600 font-semibold text-xs md:text-sm">
                             <CheckCircle2 size={18} />
                             <span>Camera and Microphone Active</span>
                         </div>
@@ -491,27 +491,27 @@ const SkillAssessment = ({
                 </div>
 
                 {lobbyError && (
-                    <p className="text-red-500 text-center mb-6 text-sm font-bold uppercase tracking-wider">{lobbyError}</p>
+                    <p className="text-red-500 text-center mb-4 text-xs font-bold uppercase tracking-wider">{lobbyError}</p>
                 )}
 
-                <div className="flex justify-between gap-4 border-t border-black/10 pt-6">
+                <div className="flex justify-between gap-4 border-t border-black/10 pt-4">
                     <button
                         onClick={handleLobbyBack}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                     >
-                        <ArrowLeft size={18} />
+                        <ArrowLeft size={16} />
                         Back
                     </button>
 
                     <button
                         disabled={!sharedStream}
                         onClick={startAssessment}
-                        className={`inline-flex items-center justify-center gap-3 rounded-[2rem] px-10 py-5 text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
+                        className={`inline-flex items-center justify-center gap-2.5 rounded-[2rem] px-8 py-3.5 text-xs md:text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
                             sharedStream ? 'bg-black text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                     >
                         Begin Assessment
-                        <Play size={18} />
+                        <Play size={16} />
                     </button>
                 </div>
             </motion.div>
@@ -523,66 +523,68 @@ const SkillAssessment = ({
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-8"
+                className="skill-assessment-landing max-w-5xl mx-auto space-y-4"
             >
-                <header className="rounded-[2.25rem] border border-black/10 bg-white px-8 py-7 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Skill assessment</p>
-                    <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <header className="rounded-2xl border border-black/10 bg-white px-6 py-4 shadow-sm">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Skill assessment</p>
+                    <div className="mt-1 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Assessment Center</h1>
-                            <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
+                            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-900">Assessment Center</h1>
+                            <p className="mt-0.5 max-w-2xl text-xs md:text-sm text-gray-500">
                                 Complete the next stage of your application through a secure, proctored challenge tailored to the job requirements.
                             </p>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
+                        <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-3.5 py-1.5 text-xs font-semibold text-gray-700 shrink-0 self-start md:self-auto">
                             Stage 3 of 4
                         </div>
                     </div>
                 </header>
 
-                <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-                        <div className="rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-8">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-black text-white">
-                                <Brain size={28} />
+                <div className="rounded-3xl border border-black/10 bg-white p-5 md:p-6 shadow-sm">
+                    <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                        <div className="rounded-2xl border border-black/10 bg-[#fbf8f3] p-5 flex flex-col justify-between">
+                            <div>
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
+                                    <Brain size={22} />
+                                </div>
+                                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready for the assessment?</h2>
+                                <p className="mt-1.5 text-xs md:text-sm text-gray-600">
+                                    This round checks how well your skills align with the role, then unlocks the next application stage.
+                                </p>
                             </div>
-                            <h2 className="mt-6 text-4xl font-semibold tracking-tight text-gray-900">Ready for the assessment?</h2>
-                            <p className="mt-4 text-sm leading-7 text-gray-600">
-                                This round checks how well your skills align with the role, then unlocks the next application stage.
-                            </p>
 
-                            <div className="mt-8 grid gap-4 md:grid-cols-3">
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <ListChecks size={20} />
+                            <div className="mt-4 grid gap-3 grid-cols-3">
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <ListChecks size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Format</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{assessmentType}</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Format</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{assessmentType}</p>
                                 </div>
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <BookOpenCheck size={20} />
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <BookOpenCheck size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Questions</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{totalQuestions}</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Questions</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{totalQuestions}</p>
                                 </div>
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <Clock3 size={20} />
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <Clock3 size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Estimated time</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{estimatedMinutes} min</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Estimated time</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{estimatedMinutes} min</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-6">
-                                <div className="flex items-center gap-3 text-amber-800">
-                                    <AlertCircle size={20} />
-                                    <h3 className="text-sm font-bold uppercase tracking-wider">Before you start</h3>
+                        <div className="space-y-3">
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <div className="flex items-center gap-2.5 text-amber-800">
+                                    <AlertCircle size={18} />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider">Before you start</h3>
                                 </div>
-                                <ul className="mt-4 space-y-3 text-xs leading-5 text-amber-700/80">
+                                <ul className="mt-2.5 space-y-1.5 text-xs text-amber-700/80">
                                     <li className="flex gap-2"><span>•</span> Do not switch tabs or minimize the window.</li>
                                     <li className="flex gap-2"><span>•</span> Ensure you are in a quiet place with stable internet.</li>
                                     <li className="flex gap-2"><span>•</span> Screen sharing and camera must remain active.</li>
@@ -605,12 +607,14 @@ const SkillAssessment = ({
                                 const Icon = item.icon;
 
                                 return (
-                                    <div key={item.title} className="rounded-[1.75rem] border border-black/10 bg-white p-6 shadow-sm">
-                                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                            <Icon size={20} />
+                                    <div key={item.title} className="rounded-2xl border border-black/10 bg-white p-3.5 shadow-sm flex items-center gap-3.5">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f4efe6] text-gray-700">
+                                            <Icon size={18} />
                                         </div>
-                                        <h3 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">{item.title}</h3>
-                                        <p className="mt-2 text-sm leading-7 text-gray-500">{item.description}</p>
+                                        <div>
+                                            <h3 className="text-sm font-semibold tracking-tight text-gray-900">{item.title}</h3>
+                                            <p className="text-xs text-gray-500 leading-normal">{item.description}</p>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -618,27 +622,27 @@ const SkillAssessment = ({
                     </div>
 
                     {error ? (
-                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                            <AlertCircle size={18} />
+                        <div className="mt-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700">
+                            <AlertCircle size={16} />
                             {error}
                         </div>
                     ) : null}
 
-                    <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
+                    <div className="mt-5 flex justify-between items-center border-t border-black/10 pt-4">
                         <button
                             onClick={onBack}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                         >
-                            <ArrowLeft size={18} />
+                            <ArrowLeft size={16} />
                             Back
                         </button>
 
                         <button
                             onClick={() => setLobbyStarted(true)}
-                            className="inline-flex items-center justify-center gap-3 rounded-[2rem] bg-black px-10 py-5 text-sm font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-gray-800 shadow-2xl active:scale-95"
+                            className="inline-flex items-center justify-center gap-2.5 rounded-[2rem] bg-black px-8 py-3.5 text-xs md:text-sm font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-gray-800 shadow-xl active:scale-95 cursor-pointer"
                         >
                             Start Challenge
-                            <Play size={18} />
+                            <Play size={16} />
                         </button>
                     </div>
                 </div>

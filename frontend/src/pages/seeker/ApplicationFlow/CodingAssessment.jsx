@@ -470,75 +470,85 @@ const CodingAssessment = ({
     // Lobby Screen
     if (!started) {
         return (
-            <div className="mx-auto max-w-2xl rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-2xl md:p-12 relative overflow-hidden">
+            <div className="coding-assessment-lobby-card mx-auto max-w-5xl my-6 rounded-3xl md:rounded-[2.5rem] border border-black/10 bg-white p-6 md:p-8 shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
                     <Code2 size={200} />
                 </div>
                 <div className="relative z-10">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-teal-600">Coding Assessment</p>
-                    <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-gray-900">Coding Assessment</h1>
-                    <p className="mt-4 text-base text-gray-500 leading-relaxed">
-                        Welcome to the coding assessment round for <strong>{job?.title || 'this position'}</strong>. You will be evaluated on your programming logic, time complexity, and clean code principles.
-                    </p>
-
-                    <div className="my-8 space-y-4 rounded-2xl bg-[#faf8f5] p-6 border border-black/5">
-                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                            <Clock3 size={18} className="text-teal-600" />
-                            Rules & Structure
-                        </h3>
-                        <ul className="text-sm text-gray-600 space-y-2 list-disc list-inside">
-                            <li>Total time allotted: <strong>{roundConfig?.totalTime || 60} minutes</strong></li>
-                            <li>Total programming challenges: <strong>{questions.length} questions</strong> • Maximum Score: <strong>100 Marks</strong></li>
-                            <li>Each challenge has dynamic proportional marks based on difficulty totaling exactly 100 marks.</li>
-                            <li>Ensure you choose the correct language from the dropdown menu.</li>
-                            <li>This assessment is strictly proctored. <strong>Tab switching or leaving screen share will result in immediate disqualification.</strong></li>
-                        </ul>
+                    <div className="mb-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-teal-600">Coding Assessment</p>
+                        <h1 className="mt-1.5 text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">Coding Assessment</h1>
+                        <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                            Welcome to the coding assessment round for <strong>{job?.title || 'this position'}</strong>. You will be evaluated on your programming logic, time complexity, and clean code principles.
+                        </p>
                     </div>
 
-                    {!sharedStream ? (
-                        <div className="space-y-4">
-                            <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-800 text-sm font-semibold flex items-start gap-3">
-                                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                                <span>Webcam and microphone access are required to verify identity and maintain test integrity.</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
+                        {/* Left Side: Rules & Structure Instructions */}
+                        <div className="rounded-2xl bg-[#faf8f5] p-5 border border-black/5 flex flex-col justify-between">
+                            <div>
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-3 text-sm md:text-base">
+                                    <Clock3 size={18} className="text-teal-600" />
+                                    Rules & Structure
+                                </h3>
+                                <ul className="text-xs md:text-sm text-gray-600 space-y-2.5 list-disc list-inside leading-relaxed">
+                                    <li>Total time allotted: <strong>{roundConfig?.totalTime || 60} minutes</strong></li>
+                                    <li>Total programming challenges: <strong>{questions.length} questions</strong> • Maximum Score: <strong>100 Marks</strong></li>
+                                    <li>Each challenge has dynamic proportional marks based on difficulty totaling exactly 100 marks.</li>
+                                    <li>Ensure you choose the correct language from the dropdown menu.</li>
+                                    <li>This assessment is strictly proctored. <strong>Tab switching or leaving screen share will result in immediate disqualification.</strong></li>
+                                </ul>
                             </div>
-                            {lobbyError && (
-                                <p className="text-xs text-red-500 font-bold">{lobbyError}</p>
-                            )}
-                            <button
-                                onClick={enableMedia}
-                                className="w-full py-4 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-teal-500/20"
-                            >
-                                <Play size={18} />
-                                Grant Camera & Mic Access
-                            </button>
                         </div>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className="aspect-video w-full rounded-2xl bg-black border border-black/10 overflow-hidden relative shadow-inner">
-                                <video
-                                    autoPlay
-                                    muted
-                                    playsInline
-                                    ref={(videoEl) => {
-                                        if (videoEl && sharedStream) {
-                                            videoEl.srcObject = sharedStream;
-                                        }
-                                    }}
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute top-4 left-4 px-3 py-1 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow">
-                                    Camera Active
-                                </div>
-                            </div>
 
-                            <button
-                                onClick={startCodingAssessment}
-                                className="w-full py-5 rounded-3xl bg-black hover:bg-gray-800 text-white text-lg font-bold transition-all shadow-xl hover:scale-[1.01] active:scale-98 cursor-pointer"
-                            >
-                                Start Coding Assessment
-                              </button>
+                        {/* Right Side: Video Preview & Action */}
+                        <div className="flex flex-col justify-center">
+                            {!sharedStream ? (
+                                <div className="space-y-4 my-auto">
+                                    <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-800 text-xs md:text-sm font-semibold flex items-start gap-2.5">
+                                        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                                        <span>Webcam and microphone access are required to verify identity and maintain test integrity.</span>
+                                    </div>
+                                    {lobbyError && (
+                                        <p className="text-xs text-red-500 font-bold">{lobbyError}</p>
+                                    )}
+                                    <button
+                                        onClick={enableMedia}
+                                        className="w-full py-3.5 rounded-2xl bg-gray-600 hover:bg-gray-700 text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-gray-500/20"
+                                    >
+                                        <Play size={18} />
+                                        Grant Camera & Mic Access
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <div className="aspect-video w-full rounded-2xl bg-black border border-black/10 overflow-hidden relative shadow-inner max-h-[220px]">
+                                        <video
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                            ref={(videoEl) => {
+                                                if (videoEl && sharedStream) {
+                                                    videoEl.srcObject = sharedStream;
+                                                }
+                                            }}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-3 left-3 px-2.5 py-0.5 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow">
+                                            Camera Active
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={startCodingAssessment}
+                                        className="w-full py-3.5 rounded-2xl bg-black hover:bg-gray-800 text-white text-base font-bold transition-all shadow-xl hover:scale-[1.01] active:scale-98 cursor-pointer"
+                                    >
+                                        Start Coding Assessment
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         );

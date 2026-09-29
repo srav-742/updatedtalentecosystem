@@ -404,7 +404,16 @@ const PostJob = () => {
 
         try {
             setIsGeneratingDesc(true);
-            const token = localStorage.getItem('token');
+            const headers = await getAuthHeaders();
+            const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+            if (token && !headers['Authorization']) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const uid = user?.uid || user?._id || user?.id;
+            if (uid && !headers['x-user-id']) {
+                headers['x-user-id'] = uid;
+            }
+
             const res = await axios.post(`${API_URL}/jobs/generate-description`, {
                 title: jobData.title,
                 skills: jobData.skills,
@@ -413,7 +422,7 @@ const PostJob = () => {
                 location: jobData.location,
                 specialInstructions: jobData.specialInstructions
             }, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
+                headers
             });
 
             if (res.data && res.data.description) {
@@ -421,7 +430,8 @@ const PostJob = () => {
             }
         } catch (error) {
             console.error('Error generating description:', error);
-            alert('Failed to generate description. Please try again.');
+            const errorMsg = error.response?.data?.message || 'Failed to generate description. Please try again.';
+            alert(errorMsg);
         } finally {
             setIsGeneratingDesc(false);
         }

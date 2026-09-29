@@ -195,30 +195,30 @@ const CandidateDeck = ({ job, user, onComplete }) => {
     };
 
     return (
-        <div className="max-w-3xl mx-auto px-4 py-8">
-            <div className="bg-white rounded-[2.5rem] border border-gray-200 shadow-xl overflow-hidden">
+        <div className="candidate-deck-wrapper w-full max-w-4xl mx-auto px-4 pt-6 pb-8 md:pt-8 md:pb-10">
+            <div className="candidate-deck-card bg-white rounded-3xl border border-gray-200/80 shadow-xl shadow-slate-900/5 overflow-hidden">
                 {/* Header */}
-                <div className="p-8 text-center border-b border-gray-100">
-                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Video size={32} />
+                <div className="p-6 md:p-7 text-center border-b border-gray-100">
+                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm border border-blue-100/50">
+                        <Video size={28} />
                     </div>
-                    <h2 className="text-2xl font-black text-gray-900 mb-2">Video Candidate Deck</h2>
-                    <p className="text-gray-500 text-sm font-medium max-w-md mx-auto">
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-900 mb-1.5">Video Candidate Deck</h2>
+                    <p className="text-gray-500 text-sm font-normal max-w-lg mx-auto leading-relaxed">
                         Introduce yourself in 60 seconds. Share your passion, experience, and why you're a great fit for {job?.title || 'this role'}.
                     </p>
                 </div>
 
                 {/* Recorder Area */}
-                <div className="relative aspect-video bg-gray-900 overflow-hidden">
+                <div className="candidate-deck-video-box relative aspect-video bg-gray-950 overflow-hidden">
                     {step === 'ready' && (
-                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm px-6 text-center">
-                            <Camera className="text-white mb-4" size={48} />
-                            <h3 className="text-white font-bold text-xl mb-2">Ready to record?</h3>
-                            <p className="text-gray-300 text-sm mb-8">Make sure you're in a well-lit area and your face is visible.</p>
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm px-6 text-center">
+                            <Camera className="text-white mb-3" size={42} />
+                            <h3 className="text-white font-bold text-xl mb-1.5">Ready to record?</h3>
+                            <p className="text-gray-300 text-sm mb-6 max-w-md">Make sure you're in a well-lit area and your face is visible.</p>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <button
                                     onClick={startRecording}
-                                    className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-lg"
+                                    className="px-7 py-3.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-blue-600/25 text-sm active:scale-95"
                                 >
                                     Start Recording
                                 </button>
@@ -228,9 +228,9 @@ const CandidateDeck = ({ job, user, onComplete }) => {
                                             getDevices();
                                             setShowSettings(true);
                                         }}
-                                        className="px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                                        className="px-5 py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm backdrop-blur-sm"
                                     >
-                                        <Settings size={18} /> Camera Settings
+                                        <Settings size={17} /> Camera Settings
                                     </button>
                                 )}
                             </div>
@@ -360,23 +360,23 @@ const CandidateDeck = ({ job, user, onComplete }) => {
 
                 {/* Controls Area */}
                 {step === 'reviewing' && !isUploading && (
-                    <div className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6 bg-gray-50">
+                    <div className="p-6 md:p-7 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50/80 border-t border-gray-100">
                         <div className="flex flex-col">
-                            <span className="text-[10px] uppercase font-black tracking-widest text-gray-400 mb-1">Check your video</span>
-                            <p className="text-sm font-bold text-gray-700">Satisfied with your introduction?</p>
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-0.5">Check your video</span>
+                            <p className="text-sm font-semibold text-gray-700">Satisfied with your introduction?</p>
                         </div>
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
                             <button
                                 onClick={handleRetake}
-                                className="flex-1 sm:flex-none px-6 py-4 bg-white border border-gray-200 text-gray-700 rounded-2xl font-bold hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 sm:flex-none px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-100 transition-all flex items-center justify-center gap-2 text-sm"
                             >
-                                <RefreshCcw size={18} /> Retake
+                                <RefreshCcw size={17} /> Retake
                             </button>
                             <button
                                 onClick={handleUpload}
-                                className="flex-1 sm:flex-none px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 text-sm"
                             >
-                                Submit Video <Check size={18} />
+                                Submit Video <Check size={17} />
                             </button>
                         </div>
                     </div>
@@ -384,15 +384,15 @@ const CandidateDeck = ({ job, user, onComplete }) => {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="px-8 py-4 bg-red-50 border-t border-red-100 flex items-center gap-3 text-red-600 animate-in slide-in-from-bottom duration-300">
-                        <AlertCircle size={20} />
-                        <p className="text-sm font-bold">{error}</p>
+                    <div className="px-6 py-3.5 bg-red-50 border-t border-red-100 flex items-center gap-3 text-red-600 animate-in slide-in-from-bottom duration-300">
+                        <AlertCircle size={18} />
+                        <p className="text-sm font-medium">{error}</p>
                     </div>
                 )}
 
                 {/* Privacy Badge */}
-                <div className="p-6 text-center bg-white">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                <div className="py-3.5 px-6 text-center bg-white border-t border-gray-100/60">
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider flex items-center justify-center gap-2">
                         <Lock size={12} /> Private & Secure Recording Active
                     </p>
                 </div>
