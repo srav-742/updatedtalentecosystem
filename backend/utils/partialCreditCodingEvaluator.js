@@ -276,9 +276,21 @@ function buildStructuredFeedbackText({
  * 4. `confidence` is clamped between 0 and 100 and never added to the score.
  * 5. Bugs are normalized to the 12 standard bug types.
  */
-function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 10) {
+function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 10, realExecutionResults = null) {
     if (!rawJson || typeof rawJson !== 'object') {
         return createDeterministicZeroEvaluation('Invalid evaluation payload received.');
+    }
+
+    // Determine factual test case pass numbers if real execution was conducted
+    let passedTests = 0;
+    let totalTests = 10;
+    if (realExecutionResults && typeof realExecutionResults.passed === 'number' && typeof realExecutionResults.total === 'number') {
+        passedTests = realExecutionResults.passed;
+        totalTests = Math.max(1, realExecutionResults.total);
+    } else {
+        const rawFunc = rawJson.functionality || {};
+        passedTests = Math.max(0, Math.min(10, parseInt(rawFunc.passedTests ?? rawJson.testCasesPassed, 10) || 0));
+        totalTests = Math.max(1, parseInt(rawFunc.totalTests ?? rawJson.totalTestCases, 10) || 10);
     }
 
     // 1. Core Algorithm / Logic (Max 40)
@@ -295,9 +307,18 @@ function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 1
     const rawFunc = rawJson.functionality || {};
     const funcMax = SCORING_WEIGHTS.FUNCTIONALITY;
     let funcScore = typeof rawFunc.score === 'number' ? rawFunc.score : (typeof rawJson.functionalityScore === 'number' ? rawJson.functionalityScore : 0);
+    
+    // When real execution results are present, align functionality score factually with real test passes
+    if (realExecutionResults && totalTests > 0) {
+        if (realExecutionResults.status === 'COMPILATION_ERROR') {
+            funcScore = 0;
+        } else {
+            const factualFuncScore = round2((passedTests / totalTests) * funcMax);
+            funcScore = Math.max(factualFuncScore, funcScore * 0.5); // ground with factual execution
+            funcScore = Math.min(funcMax, factualFuncScore);
+        }
+    }
     funcScore = Math.max(0, Math.min(funcMax, round2(funcScore)));
-    const passedTests = Math.max(0, Math.min(10, parseInt(rawFunc.passedTests ?? rawJson.testCasesPassed, 10) || 0));
-    const totalTests = Math.max(1, parseInt(rawFunc.totalTests ?? rawJson.totalTestCases, 10) || 10);
     const funcReason = String(rawFunc.reason || rawFunc.description || '').trim();
 
     // 3. Test-Case Coverage (Max 15)
@@ -556,12 +577,30 @@ function createDeterministicFallbackEvaluation({
 /**
  * Builds the AI prompt for structured partial-credit evaluation.
  */
-function buildEvaluationPrompts({ question, code, language, dynamicInfo }) {
+function buildEvaluationPrompts({ question, code, language, dynamicInfo, realExecutionResults = null }) {
     const questionMaxMarks = dynamicInfo?.maximumMarks || question?.marks || 10;
     const difficulty = dynamicInfo?.difficulty || question?.difficulty || 'MEDIUM';
 
+    let executionContext = '';
+    if (realExecutionResults) {
+        const passed = realExecutionResults.passed ?? 0;
+        const total = realExecutionResults.total ?? 0;
+        executionContext = `
+FACTUAL SECURE EXECUTION RESULTS (Ground Truth from Sandbox Execution):
+- Overall Status: ${realExecutionResults.status || 'COMPLETED'}
+- Real Tests Passed: ${passed} out of ${total}
+- Execution Runtime: ${realExecutionResults.executionTime || 0}s
+${Array.isArray(realExecutionResults.results) ? realExecutionResults.results.slice(0, 10).map((r, i) => `Test ${i + 1} [${r.category || 'TEST'}]: ${r.status}${r.errorMessage ? ' (' + r.errorMessage.substring(0, 80) + ')' : ''}`).join('\n') : ''}
+
+CRITICAL: The candidate code has been ACTUALLY EXECUTED against real test cases.
+DO NOT guess or simulate how many test cases passed. The ground-truth result is exactly ${passed} passed out of ${total}.
+You must set "passedTests": ${passed} and "totalTests": ${total} in your functionality object.
+Focus your analysis on the algorithmic reasons why the failing test cases did not succeed, pinpoint the exact line numbers and bugs, and provide the optimal suggested fix.`;
+    }
+
     const systemPrompt = `You are an expert technical interviewer, senior algorithmic reviewer, and code evaluation engine.
 Your task is to provide an objective, EVIDENCE-BASED, PARTIAL-CREDIT evaluation of candidate code for a programming challenge.
+${realExecutionResults ? 'The code has already been executed in a secure sandbox against test cases. Use the factual execution results provided in the prompt as ground truth.' : ''}
 
 CRITICAL EVALUATION PRINCIPLES:
 
@@ -683,6 +722,7 @@ Constraints: ${question?.constraints || 'Standard constraints'}
 ${question?.expectedApproach ? 'Expected Approach: ' + question.expectedApproach : ''}
 ${Array.isArray(question?.examples) && question.examples.length > 0 ? 'Examples:\n' + question.examples.map((ex, i) => `Example ${i + 1}:\nInput: ${ex.input}\nOutput: ${ex.output}\nExplanation: ${ex.explanation}`).join('\n\n') : ''}
 Target Question Max Marks: ${questionMaxMarks}
+${executionContext}
 
 CANDIDATE'S SUBMISSION:
 Language: ${language || 'python'}
@@ -707,7 +747,7 @@ Perform the comprehensive partial-credit evaluation now. Return strictly raw JSO
  * @param {Object} [params.dynamicInfo] - Normalized difficulty and marks
  * @returns {Promise<Object>} Complete evaluation result including marks, verdict, feedback, breakdown
  */
-async function evaluateCodingSubmission({ question, code, language, dynamicInfo }) {
+async function evaluateCodingSubmission({ question, code, language, dynamicInfo, realExecutionResults = null }) {
     const questionMaxMarks = dynamicInfo?.maximumMarks || question?.marks || 10;
     const normLang = language || 'python';
 
@@ -723,9 +763,10 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
             maximumMarks: questionMaxMarks,
             performancePercentage: 0,
             testCasesPassed: 0,
-            totalTestCases: 10,
+            totalTestCases: realExecutionResults ? realExecutionResults.total : 10,
             aiEvaluationStatus: 'success',
-            correctnessVerdict: 'Incorrect'
+            correctnessVerdict: 'Incorrect',
+            execution: realExecutionResults || null
         };
     }
 
@@ -734,7 +775,8 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
         question,
         code,
         language: normLang,
-        dynamicInfo
+        dynamicInfo,
+        realExecutionResults
     });
 
     let evalResult = null;
@@ -748,7 +790,7 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
             if (responseText) {
                 const parsed = safeParseAIJson(responseText, null);
                 if (parsed && (parsed.algorithm || parsed.finalScore !== undefined || parsed.performancePercentage !== undefined)) {
-                    evalResult = validateAndNormalizeEvaluation(parsed, code, questionMaxMarks);
+                    evalResult = validateAndNormalizeEvaluation(parsed, code, questionMaxMarks, realExecutionResults);
                     aiEvaluationStatus = 'success';
                     console.log(`[EVALUATOR] AI Evaluation succeeded on attempt ${attempt}. Final internal score: ${evalResult.finalScore}/100`);
                     break;
@@ -770,7 +812,7 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
             if (groqResponse) {
                 const parsed = safeParseAIJson(groqResponse, null);
                 if (parsed && (parsed.algorithm || parsed.finalScore !== undefined)) {
-                    evalResult = validateAndNormalizeEvaluation(parsed, code, questionMaxMarks);
+                    evalResult = validateAndNormalizeEvaluation(parsed, code, questionMaxMarks, realExecutionResults);
                     aiEvaluationStatus = 'success';
                     console.log(`[EVALUATOR] Groq fallback succeeded. Final internal score: ${evalResult.finalScore}/100`);
                 }
@@ -797,16 +839,24 @@ async function evaluateCodingSubmission({ question, code, language, dynamicInfo 
     const internalPercentage = evalResult.finalScore; // 0 to 100
     const obtainedMarks = round2((internalPercentage / 100) * questionMaxMarks);
 
+    const finalPassedTests = realExecutionResults && typeof realExecutionResults.passed === 'number'
+        ? realExecutionResults.passed
+        : (evalResult.functionality?.passedTests ?? 0);
+    const finalTotalTests = realExecutionResults && typeof realExecutionResults.total === 'number'
+        ? realExecutionResults.total
+        : (evalResult.functionality?.totalTests ?? 10);
+
     return {
         ...evalResult,
         obtainedMarks,
         score: obtainedMarks,
         maximumMarks: questionMaxMarks,
         performancePercentage: internalPercentage,
-        testCasesPassed: evalResult.functionality?.passedTests ?? 0,
-        totalTestCases: evalResult.functionality?.totalTests ?? 10,
+        testCasesPassed: finalPassedTests,
+        totalTestCases: finalTotalTests,
         aiEvaluationStatus,
-        correctnessVerdict: evalResult.correctnessVerdict || (internalPercentage >= 90 ? 'Correct' : internalPercentage >= 35 ? 'Partially Correct' : 'Incorrect')
+        correctnessVerdict: evalResult.correctnessVerdict || (internalPercentage >= 90 ? 'Correct' : internalPercentage >= 35 ? 'Partially Correct' : 'Incorrect'),
+        execution: realExecutionResults || null
     };
 }
 

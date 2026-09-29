@@ -115,7 +115,8 @@ const applicationSchema = new mongoose.Schema({
             suggestedCode: String,
             aiEvaluationStatus: { type: String, enum: ['success', 'failed', 'pending'], default: 'pending' },
             correctnessVerdict: { type: String, enum: ['Correct', 'Partially Correct', 'Incorrect', 'Not Evaluated'], default: 'Not Evaluated' },
-            evaluation: { type: mongoose.Schema.Types.Mixed, default: null }
+            evaluation: { type: mongoose.Schema.Types.Mixed, default: null },
+            execution: { type: mongoose.Schema.Types.Mixed, default: null }
         }
     ],
     codingDetails: {

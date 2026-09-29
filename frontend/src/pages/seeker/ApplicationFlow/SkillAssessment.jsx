@@ -316,7 +316,7 @@ const SkillAssessment = ({
             const response = await axios.post(`${API_URL}/submit-assessment`, {
                 jobId: currentJobId || job?._id || job?.id,
                 userId: currentUserId,
-                sessionId,
+                sessionId: sessionId || sharedSessionId || `assessment_${Date.now()}`,
                 questions,
                 answers: formattedAnswers
             });

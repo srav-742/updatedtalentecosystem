@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Save, Loader2, Plus, Trash2, Code2 } from 'lucide-react';
+import { X, Save, Loader2, Plus, Trash2, Code2, Sparkles, Eye, EyeOff, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { normalizeDifficulty } from '../../utils/codingScoreCalculator';
 
 const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerType, onSave, onClose }) => {
     const isEditing = !!question;
 
     const [saving, setSaving] = useState(false);
+    const [generatingTestCases, setGeneratingTestCases] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -17,6 +18,7 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
         constraints: '',
         expectedApproach: '',
         examples: [{ input: '', output: '', explanation: '' }],
+        testCases: [],
         difficulty: 'MEDIUM',
         marks: 10,
         allowedLanguages: [],
@@ -34,6 +36,7 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
                 constraints: question.constraints || '',
                 expectedApproach: question.expectedApproach || '',
                 examples: question.examples?.length > 0 ? question.examples : [{ input: '', output: '', explanation: '' }],
+                testCases: Array.isArray(question.testCases) ? question.testCases : [],
                 difficulty: normalizeDifficulty(question.difficulty || 'MEDIUM'),
                 marks: question.marks || 10,
                 allowedLanguages: question.allowedLanguages || [],
@@ -67,6 +70,63 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
             ...prev,
             examples: prev.examples.filter((_, i) => i !== idx)
         }));
+    };
+
+    // Test Cases handlers
+    const handleTestCaseChange = (idx, field, value) => {
+        const updated = [...formData.testCases];
+        updated[idx] = { ...updated[idx], [field]: value };
+        setFormData(prev => ({ ...prev, testCases: updated }));
+    };
+
+    const addTestCase = () => {
+        setFormData(prev => ({
+            ...prev,
+            testCases: [
+                ...prev.testCases,
+                { input: '', expectedOutput: '', isHidden: false, category: 'NORMAL', explanation: '' }
+            ]
+        }));
+    };
+
+    const removeTestCase = (idx) => {
+        setFormData(prev => ({
+            ...prev,
+            testCases: prev.testCases.filter((_, i) => i !== idx)
+        }));
+    };
+
+    const handleGenerateTestCases = async () => {
+        if (!formData.title.trim() || !formData.description.trim()) {
+            alert('Please fill in the Question Title and Problem Statement before generating test cases.');
+            return;
+        }
+
+        setGeneratingTestCases(true);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            const targetLang = formData.allowedLanguages?.[0] || roundLanguages?.[0] || 'python';
+            const res = await axios.post(`${API_URL}/coding-assessments/generate-test-cases`, {
+                question: formData,
+                language: targetLang,
+                questionId: question?._id || question?.id
+            }, { headers });
+
+            if (res.data?.success && Array.isArray(res.data.testCases)) {
+                setFormData(prev => ({
+                    ...prev,
+                    testCases: res.data.testCases
+                }));
+                alert(`Successfully generated and sandbox-validated ${res.data.testCases.length} test cases!`);
+            } else {
+                alert(res.data?.message || 'Failed to generate test cases.');
+            }
+        } catch (err) {
+            console.error('Failed to generate test cases:', err);
+            alert(err.response?.data?.message || err.message || 'AI test-case generation failed.');
+        } finally {
+            setGeneratingTestCases(false);
+        }
     };
 
     const toggleLanguage = (lang) => {
@@ -296,6 +356,139 @@ const CodingQuestionBuilder = ({ codingRoundId, question, roundLanguages, timerT
                                 </div>
                             ))}
                         </div>
+                    </div>
+
+                    {/* Test Cases (Public & Hidden for Real Code Execution) */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-500">
+                                    Test Cases for Real Code Execution
+                                </label>
+                                <p className="text-[11px] text-gray-500">
+                                    {formData.testCases.length} test cases configured ({formData.testCases.filter(t => !t.isHidden).length} Public, {formData.testCases.filter(t => t.isHidden).length} Hidden)
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateTestCases}
+                                    disabled={generatingTestCases}
+                                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-500/20 to-blue-500/20 hover:from-teal-500/30 hover:to-blue-500/30 border border-teal-500/30 text-teal-400 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                    {generatingTestCases ? (
+                                        <>
+                                            <Loader2 size={13} className="animate-spin text-teal-400" />
+                                            <span>Validating with AI...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles size={13} className="text-teal-400" />
+                                            <span>Auto-Generate with AI</span>
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={addTestCase}
+                                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-300 flex items-center gap-1 transition-all cursor-pointer"
+                                >
+                                    <Plus size={14} />
+                                    <span>Add Test Case</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {formData.testCases.length === 0 ? (
+                            <div className="p-5 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 text-center">
+                                <p className="text-xs text-gray-400">No test cases configured yet.</p>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Click <strong>Auto-Generate with AI</strong> to create reference-validated test cases across normal, boundary, edge, and performance categories.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                                {formData.testCases.map((tc, idx) => (
+                                    <div key={idx} className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 relative space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded">
+                                                    Test Case #{idx + 1}
+                                                </span>
+                                                <select
+                                                    value={tc.category || 'NORMAL'}
+                                                    onChange={(e) => handleTestCaseChange(idx, 'category', e.target.value)}
+                                                    className="bg-white/5 text-gray-300 border border-white/10 rounded-lg px-2 py-0.5 text-[10px] font-bold outline-none"
+                                                >
+                                                    <option value="NORMAL">NORMAL</option>
+                                                    <option value="BOUNDARY">BOUNDARY</option>
+                                                    <option value="EDGE_CASE">EDGE CASE</option>
+                                                    <option value="PERFORMANCE">PERFORMANCE</option>
+                                                    <option value="ALGORITHM">ALGORITHM</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTestCaseChange(idx, 'isHidden', !tc.isHidden)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                        tc.isHidden
+                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                    }`}
+                                                    title={tc.isHidden ? 'Hidden from candidate' : 'Visible to candidate'}
+                                                >
+                                                    {tc.isHidden ? (
+                                                        <>
+                                                            <EyeOff size={11} />
+                                                            <span>Hidden Test</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Eye size={11} />
+                                                            <span>Public Test</span>
+                                                        </>
+                                                    )}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTestCase(idx)}
+                                                    className="p-1 rounded-lg hover:bg-red-500/10 transition-all text-gray-500 hover:text-red-400 cursor-pointer"
+                                                    title="Delete Test Case"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Input</label>
+                                                <textarea
+                                                    value={tc.input}
+                                                    onChange={(e) => handleTestCaseChange(idx, 'input', e.target.value)}
+                                                    rows="2"
+                                                    placeholder="Input values"
+                                                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none text-xs font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Expected Output</label>
+                                                <textarea
+                                                    value={tc.expectedOutput}
+                                                    onChange={(e) => handleTestCaseChange(idx, 'expectedOutput', e.target.value)}
+                                                    rows="2"
+                                                    placeholder="Expected output"
+                                                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none text-xs font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Expected Approach */}

@@ -1245,7 +1245,13 @@ router.post('/next', async (req, res) => {
                     app.status = 'APPLIED';
                 }
 
-                await app.save();
+                await Application.findByIdAndUpdate(app._id, {
+                    $set: {
+                        interviewScore: app.interviewScore,
+                        finalScore: app.finalScore,
+                        status: app.status
+                    }
+                });
                 console.log(`[INTERVIEW-EVAL] Application Updated. Final Score: ${app.finalScore}`);
             }
 

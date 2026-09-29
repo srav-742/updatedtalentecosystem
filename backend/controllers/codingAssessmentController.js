@@ -14,6 +14,8 @@ const {
     getDifficultyWeight
 } = require('../utils/codingScoreCalculator');
 const { evaluateCodingSubmission } = require('../utils/partialCreditCodingEvaluator');
+const { executeAgainstTestCases } = require('../services/codeExecutionService');
+const { generateAndValidateTestCases } = require('../services/aiTestCaseGenerator');
 
 // Helper to sync dynamic question marks across all questions in a round
 const syncRoundQuestionMarks = async (codingRoundId) => {
@@ -58,8 +60,29 @@ const getCodingRoundByJobId = async (req, res) => {
                 }
             });
         }
+        
+        // Recruiter and admin can see all test details; candidates only see public test cases or metadata
+        const isRecruiter = req.user && ['recruiter', 'admin', 'company'].includes(req.user.role);
+        let sanitizedRound = codingRound.toObject ? codingRound.toObject() : { ...codingRound };
+        if (!isRecruiter && Array.isArray(sanitizedRound.questions)) {
+            sanitizedRound.questions = sanitizedRound.questions.map(q => {
+                if (Array.isArray(q.testCases)) {
+                    q.testCases = q.testCases.map(tc => {
+                        if (tc.isHidden) {
+                            return {
+                                _id: tc._id,
+                                category: tc.category || 'EDGE_CASE',
+                                isHidden: true
+                            };
+                        }
+                        return tc;
+                    });
+                }
+                return q;
+            });
+        }
 
-        res.json({ success: true, codingRound });
+        res.json({ success: true, codingRound: sanitizedRound });
     } catch (error) {
         console.error('[CODING-ROUND] Get Error:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -151,7 +174,7 @@ const deleteCodingRound = async (req, res) => {
 
 const addCodingQuestion = async (req, res) => {
     try {
-        const { codingRoundId, title, description, inputFormat, outputFormat, constraints, expectedApproach, examples, difficulty, marks, allowedLanguages, timer } = req.body;
+        const { codingRoundId, title, description, inputFormat, outputFormat, constraints, expectedApproach, examples, difficulty, marks, allowedLanguages, timer, testCases } = req.body;
 
         if (!codingRoundId || !mongoose.Types.ObjectId.isValid(codingRoundId)) {
             return res.status(400).json({ success: false, message: 'Valid Coding Round ID is required.' });
@@ -159,6 +182,17 @@ const addCodingQuestion = async (req, res) => {
 
         const normDifficulty = normalizeDifficulty(difficulty);
         const diffWeight = getDifficultyWeight(normDifficulty);
+
+        let finalTestCases = Array.isArray(testCases) ? testCases : [];
+        if (finalTestCases.length === 0 && Array.isArray(examples) && examples.length > 0) {
+            finalTestCases = examples.map(ex => ({
+                input: ex.input || '',
+                expectedOutput: ex.output || '',
+                isHidden: false,
+                category: 'NORMAL',
+                explanation: ex.explanation || ''
+            }));
+        }
 
         const question = new CodingQuestion({
             codingRoundId,
@@ -169,6 +203,7 @@ const addCodingQuestion = async (req, res) => {
             constraints: constraints || '',
             expectedApproach: expectedApproach || '',
             examples: Array.isArray(examples) ? examples : [],
+            testCases: finalTestCases,
             difficulty: normDifficulty,
             difficultyWeight: diffWeight,
             marks: marks || 10,
@@ -290,11 +325,46 @@ const submitCodingAssessment = async (req, res) => {
             };
             const questionMaxMarks = dynamicInfo.maximumMarks;
 
+            // 1. Execute candidate code against real test cases
+            let executionResult = null;
+            let realExecutionMetrics = null;
+
+            const hasTestCases = Array.isArray(question.testCases) && question.testCases.length > 0;
+            const hasExamples = Array.isArray(question.examples) && question.examples.length > 0;
+
+            if (hasTestCases || hasExamples) {
+                const testCasesToRun = hasTestCases
+                    ? question.testCases
+                    : question.examples.map(ex => ({
+                        input: ex.input || '',
+                        expectedOutput: ex.output || '',
+                        isHidden: false,
+                        category: 'NORMAL'
+                    }));
+
+                try {
+                    // Do not mask hidden details for backend evaluation and recruiter review
+                    executionResult = await executeAgainstTestCases(ans.code, ans.language, testCasesToRun, { maskHiddenDetails: false });
+                    realExecutionMetrics = {
+                        status: executionResult.status,
+                        passed: executionResult.passed,
+                        failed: executionResult.failed,
+                        total: executionResult.total,
+                        executionTime: executionResult.executionTime,
+                        results: executionResult.results
+                    };
+                } catch (execErr) {
+                    console.error('[CODING-SUBMISSION] Real execution failed, falling back:', execErr.message);
+                }
+            }
+
+            // 2. Grade question using factual execution results as ground truth for AI
             const evalResult = await evaluateCodingSubmission({
                 question,
                 code: ans.code,
                 language: ans.language,
-                dynamicInfo
+                dynamicInfo,
+                realExecutionResults: realExecutionMetrics
             });
 
             processedAnswers.push({
@@ -305,7 +375,7 @@ const submitCodingAssessment = async (req, res) => {
                 maximumMarks: questionMaxMarks,
                 obtainedMarks: evalResult.obtainedMarks,
                 testCasesPassed: evalResult.testCasesPassed,
-                totalTestCases: evalResult.totalTestCases || 10,
+                totalTestCases: evalResult.totalTestCases || (realExecutionMetrics ? realExecutionMetrics.total : 10),
                 code: ans.code,
                 language: ans.language,
                 score: evalResult.obtainedMarks, // backward compatibility
@@ -313,6 +383,7 @@ const submitCodingAssessment = async (req, res) => {
                 suggestedCode: evalResult.suggestedCode,
                 aiEvaluationStatus: evalResult.aiEvaluationStatus,
                 correctnessVerdict: evalResult.correctnessVerdict,
+                execution: realExecutionMetrics,
                 evaluation: evalResult
             });
         }
@@ -332,8 +403,14 @@ const submitCodingAssessment = async (req, res) => {
             resolvedPic = seeker.profilePic;
         }
 
-        const appQuery = { jobId: new mongoose.Types.ObjectId(jobId), userId };
-        const existingApp = await Application.findOne(appQuery);
+        const rawJobId = jobId?._id || jobId?.id || jobId;
+        const validJobId = mongoose.Types.ObjectId.isValid(rawJobId) ? new mongoose.Types.ObjectId(rawJobId) : rawJobId;
+        const appQuery = { jobId: validJobId, userId: String(userId) };
+
+        const [existingApp, jobDoc] = await Promise.all([
+            Application.findOne(appQuery).lean().catch(() => null),
+            mongoose.Types.ObjectId.isValid(validJobId) ? Job.findById(validJobId).lean().catch(() => null) : null
+        ]);
 
         const appUpdate = {
             codingScore: standaloneCodingScore,
@@ -341,43 +418,39 @@ const submitCodingAssessment = async (req, res) => {
             codingAnswers: processedAnswers
         };
 
-        if (!existingApp) {
-            if (resolvedName) appUpdate.applicantName = resolvedName;
-            if (resolvedEmail) appUpdate.applicantEmail = resolvedEmail;
-            if (resolvedPic) appUpdate.applicantPic = resolvedPic;
+        const finalName = resolvedName || existingApp?.applicantName;
+        const finalEmail = resolvedEmail || existingApp?.applicantEmail;
+        const finalPic = resolvedPic || existingApp?.applicantPic;
+
+        if (finalName) appUpdate.applicantName = finalName;
+        if (finalEmail) appUpdate.applicantEmail = finalEmail;
+        if (finalPic) appUpdate.applicantPic = finalPic;
+
+        // Recalculate Application final score strictly from present rounds (Resume + MCQ + Interview = 100 max)
+        const r = Number(existingApp?.resumeMatchPercent || 0);
+        const a = Number(existingApp?.assessmentScore || 0);
+        const i = Number(existingApp?.interviewScore || 0);
+        const calculatedFinalScore = r + a + i;
+        appUpdate.finalScore = calculatedFinalScore;
+
+        // Verify completion flags & separate passing thresholds
+        const isResumeDone = !jobDoc || jobDoc.resumeAnalysis?.enabled === false || (existingApp?.resumeMatchPercent !== null && existingApp?.resumeMatchPercent !== undefined);
+        const isAssessmentDone = !jobDoc || !jobDoc.assessment?.enabled || (existingApp?.assessmentScore !== null && existingApp?.assessmentScore !== undefined);
+        const isCodingDone = true;
+        const isInterviewDone = !jobDoc || !jobDoc.mockInterview?.enabled || (existingApp?.interviewScore !== null && existingApp?.interviewScore !== undefined);
+        const isCodingPassed = !jobDoc || !jobDoc.codingAssessment?.enabled || (standaloneCodingScore >= (jobDoc.codingAssessment?.passingScore || 70));
+
+        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && calculatedFinalScore >= 55) {
+            appUpdate.status = 'SHORTLISTED';
         } else {
-            if (!existingApp.applicantName && resolvedName) appUpdate.applicantName = resolvedName;
-            if (!existingApp.applicantEmail && resolvedEmail) appUpdate.applicantEmail = resolvedEmail;
-            if (!existingApp.applicantPic && resolvedPic) appUpdate.applicantPic = resolvedPic;
+            appUpdate.status = 'APPLIED';
         }
 
-        const application = await Application.findOneAndUpdate(
+        await Application.findOneAndUpdate(
             appQuery,
             { $set: appUpdate },
             { new: true, upsert: true }
-        ).populate('jobId');
-
-        // Recalculate Application final score strictly from present rounds (Resume + MCQ + Interview = 100 max)
-        // Coding score is kept completely independent and separate, never mixed into finalScore
-        const r = application.resumeMatchPercent || 0;
-        const a = application.assessmentScore || 0;
-        const i = application.interviewScore || 0;
-        application.finalScore = r + a + i;
-
-        // Verify completion flags & separate passing thresholds
-        const job = application.jobId;
-        const isResumeDone = !job || job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
-        const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
-        const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
-        const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
-        const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
-
-        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && application.finalScore >= 55) {
-            application.status = 'SHORTLISTED';
-        } else {
-            application.status = 'APPLIED';
-        }
-        await application.save();
+        );
         try {
             const { invalidateCache } = require('../middleware/cacheMiddleware');
             invalidateCache('/api/applications');
@@ -505,22 +578,55 @@ const reEvaluateCodingAnswer = async (req, res) => {
             difficulty: normDifficulty
         };
 
+        let realExecutionMetrics = null;
+        const hasTestCases = Array.isArray(targetQuestion.testCases) && targetQuestion.testCases.length > 0;
+        const hasExamples = Array.isArray(targetQuestion.examples) && targetQuestion.examples.length > 0;
+
+        if (hasTestCases || hasExamples) {
+            const testCasesToRun = hasTestCases
+                ? targetQuestion.testCases
+                : targetQuestion.examples.map(ex => ({
+                    input: ex.input || '',
+                    expectedOutput: ex.output || '',
+                    isHidden: false,
+                    category: 'NORMAL'
+                }));
+
+            try {
+                const executionResult = await executeAgainstTestCases(answer.code, answer.language, testCasesToRun, { maskHiddenDetails: false });
+                realExecutionMetrics = {
+                    status: executionResult.status,
+                    passed: executionResult.passed,
+                    failed: executionResult.failed,
+                    total: executionResult.total,
+                    executionTime: executionResult.executionTime,
+                    results: executionResult.results
+                };
+            } catch (execErr) {
+                console.error('[CODING-REEVAL] Real execution failed, falling back:', execErr.message);
+            }
+        }
+
         const evalResult = await evaluateCodingSubmission({
             question: targetQuestion,
             code: answer.code,
             language: answer.language,
-            dynamicInfo
+            dynamicInfo,
+            realExecutionResults: realExecutionMetrics
         });
 
         // Update the specific answer in the array
         application.codingAnswers[qIdx].testCasesPassed = evalResult.testCasesPassed;
-        application.codingAnswers[qIdx].totalTestCases = evalResult.totalTestCases || 10;
+        application.codingAnswers[qIdx].totalTestCases = evalResult.totalTestCases || (realExecutionMetrics ? realExecutionMetrics.total : 10);
         application.codingAnswers[qIdx].obtainedMarks = evalResult.obtainedMarks;
         application.codingAnswers[qIdx].score = evalResult.obtainedMarks;
         application.codingAnswers[qIdx].feedback = evalResult.feedback;
         application.codingAnswers[qIdx].suggestedCode = evalResult.suggestedCode;
         application.codingAnswers[qIdx].aiEvaluationStatus = evalResult.aiEvaluationStatus;
         application.codingAnswers[qIdx].correctnessVerdict = evalResult.correctnessVerdict;
+        if (realExecutionMetrics) {
+            application.codingAnswers[qIdx].execution = realExecutionMetrics;
+        }
         application.codingAnswers[qIdx].evaluation = evalResult;
         if (questionDesc) application.codingAnswers[qIdx].questionDescription = questionDesc;
         if (questionConstraints) application.codingAnswers[qIdx].constraints = questionConstraints;
@@ -561,6 +667,139 @@ const reEvaluateCodingAnswer = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/coding-assessments/run
+ * Executes candidate code against real test cases inside isolated sandbox.
+ * Strictly masks hidden test-case input & expected output for candidate confidentiality.
+ */
+const runCandidateCode = async (req, res) => {
+    try {
+        const { questionId, code, language, customInput } = req.body;
+
+        if (!code || typeof code !== 'string') {
+            return res.status(400).json({ success: false, message: 'Source code is required.' });
+        }
+
+        if (!language || typeof language !== 'string') {
+            return res.status(400).json({ success: false, message: 'Programming language is required.' });
+        }
+
+        let testCases = [];
+
+        // Case 1: Custom input test
+        if (typeof customInput === 'string' && customInput.trim().length > 0) {
+            testCases = [{
+                input: customInput,
+                expectedOutput: '',
+                isHidden: false,
+                category: 'CUSTOM'
+            }];
+        } else if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
+            // Case 2: Configured test cases on the question
+            const question = await CodingQuestion.findById(questionId);
+            if (question) {
+                if (Array.isArray(question.testCases) && question.testCases.length > 0) {
+                    testCases = question.testCases;
+                } else if (Array.isArray(question.examples) && question.examples.length > 0) {
+                    testCases = question.examples.map(ex => ({
+                        input: ex.input || '',
+                        expectedOutput: ex.output || '',
+                        isHidden: false,
+                        category: 'NORMAL',
+                        explanation: ex.explanation || ''
+                    }));
+                }
+            }
+        }
+
+        // If no test cases defined, provide empty input fallback run
+        if (testCases.length === 0) {
+            testCases = [{
+                input: '',
+                expectedOutput: '',
+                isHidden: false,
+                category: 'NORMAL'
+            }];
+        }
+
+        // Execute against test cases with hidden details strictly masked
+        const executionResult = await executeAgainstTestCases(code, language, testCases, { maskHiddenDetails: true });
+
+        const publicTests = testCases.filter(t => !t.isHidden);
+        const hiddenTests = testCases.filter(t => t.isHidden);
+        const publicPassed = executionResult.results.filter(r => !r.isHidden && r.passed).length;
+        const hiddenPassed = executionResult.results.filter(r => r.isHidden && r.passed).length;
+
+        return res.json({
+            success: true,
+            status: executionResult.status,
+            passed: executionResult.passed,
+            failed: executionResult.failed,
+            total: executionResult.total,
+            publicPassed,
+            publicTotal: publicTests.length,
+            hiddenPassed,
+            hiddenTotal: hiddenTests.length,
+            executionTime: executionResult.executionTime,
+            results: executionResult.results
+        });
+    } catch (error) {
+        console.error('[CODING-ASSESSMENT] Run Code Error:', error);
+        return res.status(200).json({
+            success: false,
+            status: 'EXECUTION_ERROR',
+            message: 'Unable to execute the code at this moment. Please try again.',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * POST /api/coding-assessments/generate-test-cases
+ * AI-generates and sandbox-validates comprehensive test cases for a coding question.
+ */
+const generateQuestionTestCases = async (req, res) => {
+    try {
+        const { questionId, question, language, saveToDb } = req.body;
+
+        let questionData = question;
+        let questionDoc = null;
+
+        if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
+            questionDoc = await CodingQuestion.findById(questionId);
+            if (questionDoc && !questionData) {
+                questionData = questionDoc.toObject();
+            }
+        }
+
+        if (!questionData || !questionData.title) {
+            return res.status(400).json({ success: false, message: 'Valid question data or questionId is required.' });
+        }
+
+        const targetLang = language || (Array.isArray(questionData.allowedLanguages) && questionData.allowedLanguages[0]) || 'python';
+
+        console.log(`[TEST-CASE-GEN] Generating and sandbox-validating test cases for "${questionData.title}" in ${targetLang}...`);
+        const genResult = await generateAndValidateTestCases(questionData, targetLang);
+
+        if (saveToDb && questionDoc && Array.isArray(genResult.testCases) && genResult.testCases.length > 0) {
+            questionDoc.testCases = genResult.testCases;
+            await questionDoc.save();
+            console.log(`[TEST-CASE-GEN] Saved ${genResult.testCases.length} validated test cases to question ${questionId}`);
+        }
+
+        return res.json({
+            success: true,
+            message: `Successfully generated and validated ${genResult.testCases?.length || 0} test cases.`,
+            testCases: genResult.testCases || [],
+            referenceSolution: genResult.referenceSolution,
+            validationMetrics: genResult.validationMetrics
+        });
+    } catch (error) {
+        console.error('[TEST-CASE-GEN] Error:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     getCodingRoundByJobId,
     createOrUpdateCodingRound,
@@ -570,5 +809,8 @@ module.exports = {
     deleteCodingQuestion,
     submitCodingAssessment,
     getCodingAssessmentDetails,
-    reEvaluateCodingAnswer
+    reEvaluateCodingAnswer,
+    runCandidateCode,
+    generateQuestionTestCases
 };
+

@@ -651,7 +651,13 @@ async function finalizeInterview(session, sessionId) {
             } else {
                 app.status = 'APPLIED';
             }
-            await app.save();
+            await Application.findByIdAndUpdate(app._id, {
+                $set: {
+                    interviewScore: app.interviewScore,
+                    finalScore: app.finalScore,
+                    status: app.status
+                }
+            });
             try {
                 const { invalidateCache } = require('../middleware/cacheMiddleware');
                 invalidateCache('/api/applications');

@@ -438,6 +438,75 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                                         </div>
                                     </div>
 
+                                    {/* Real Test Execution Results (if available) */}
+                                    {currentQuestion.execution && (
+                                        <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                                                    <CheckCircle size={15} className="text-emerald-400" />
+                                                    <span>Real Sandbox Test Execution</span>
+                                                </h4>
+                                                <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
+                                                    currentQuestion.execution.status === 'ALL_PASSED'
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                        : currentQuestion.execution.status === 'PARTIALLY_PASSED'
+                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                                                }`}>
+                                                    {currentQuestion.execution.status}
+                                                </span>
+                                            </div>
+
+                                            {/* Stats Grid */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Passed Tests</span>
+                                                    <span className="text-lg font-black text-emerald-400">{currentQuestion.execution.passed} / {currentQuestion.execution.total}</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Failed Tests</span>
+                                                    <span className="text-lg font-black text-red-400">{currentQuestion.execution.failed}</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Execution Time</span>
+                                                    <span className="text-lg font-black text-blue-400">{currentQuestion.execution.executionTime || 0}s</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Sandbox Engine</span>
+                                                    <span className="text-xs font-bold text-teal-400 mt-1 block truncate">Wandbox Container</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Individual Test Cases Run Breakdown */}
+                                            {Array.isArray(currentQuestion.execution.results) && currentQuestion.execution.results.length > 0 && (
+                                                <div className="space-y-2 pt-2 border-t border-white/5">
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Individual Test Results</span>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                        {currentQuestion.execution.results.map((tc, idx) => (
+                                                            <div key={idx} className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-xs font-mono">
+                                                                <div className="flex items-center gap-2 truncate">
+                                                                    {tc.passed ? (
+                                                                        <CheckCircle size={13} className="text-emerald-400 shrink-0" />
+                                                                    ) : (
+                                                                        <XCircle size={13} className="text-red-400 shrink-0" />
+                                                                    )}
+                                                                    <span className="truncate text-gray-300">
+                                                                        {tc.isHidden ? `Hidden Case #${idx + 1}` : `Case #${idx + 1}`} ({tc.category || 'NORMAL'})
+                                                                    </span>
+                                                                </div>
+                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                                                    tc.passed ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                                                                }`}>
+                                                                    {tc.status}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* AI Suggested Correct Code */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">

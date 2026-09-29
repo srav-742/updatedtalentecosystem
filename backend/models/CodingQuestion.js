@@ -6,6 +6,18 @@ const exampleSchema = new mongoose.Schema({
     explanation: { type: String, default: '' }
 }, { _id: false });
 
+const testCaseSchema = new mongoose.Schema({
+    input: { type: String, default: '' },
+    expectedOutput: { type: String, default: '' },
+    isHidden: { type: Boolean, default: false },
+    category: {
+        type: String,
+        enum: ['NORMAL', 'BOUNDARY', 'EDGE_CASE', 'PERFORMANCE', 'ALGORITHM', 'Normal', 'Boundary', 'Edge', 'Performance', 'Algorithm'],
+        default: 'NORMAL'
+    },
+    explanation: { type: String, default: '' }
+}, { _id: true });
+
 const codingQuestionSchema = new mongoose.Schema({
     codingRoundId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodingRound', required: true, index: true },
     title: { type: String, required: true },
@@ -15,6 +27,7 @@ const codingQuestionSchema = new mongoose.Schema({
     constraints: { type: String, default: '' },
     expectedApproach: { type: String, default: '' },
     examples: [exampleSchema],
+    testCases: [testCaseSchema],
     difficulty: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH', 'Low', 'Medium', 'High', 'Easy', 'Hard'], default: 'MEDIUM' },
     difficultyWeight: { type: Number, default: 2 },
     marks: { type: Number, default: 10 },

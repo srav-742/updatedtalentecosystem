@@ -1112,7 +1112,13 @@ async function finalizeInterview(session, sessionId) {
                 }
             }
 
-            await app.save();
+            await Application.findByIdAndUpdate(app._id, {
+                $set: {
+                    interviewScore: i,
+                    finalScore: app.finalScore,
+                    status: app.status
+                }
+            });
             try {
                 const { invalidateCache } = require('../middleware/cacheMiddleware');
                 invalidateCache('/api/applications');

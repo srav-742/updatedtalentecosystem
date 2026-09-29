@@ -43,41 +43,35 @@ const submitApplication = async (req, res) => {
         if (assessmentSubmissionId) {
             update.assessmentSubmissionId = assessmentSubmissionId;
         }
-        const application = await Application.findOneAndUpdate(query, update, { new: true, upsert: true }).populate('jobId');
+        const [existingApp, jobDoc] = await Promise.all([
+            Application.findOne(query).lean().catch(() => null),
+            mongoose.Types.ObjectId.isValid(jobId) ? require('../models/Job').findById(jobId).lean().catch(() => null) : null
+        ]);
 
-        if (req.body.status) {
-            application.status = req.body.status;
-        }
-
-        // Transition from SAVED to APPLIED if user is now submitting application details
-        if (application.status === 'SAVED' && req.body.status !== 'SAVED') {
-            application.status = 'APPLIED';
-        }
-
-        // Calculate Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
-        // Coding assessment has its own dedicated score and is kept completely separate
-        const r = application.resumeMatchPercent || 0;
-        const a = application.assessmentScore || 0;
-        const i = application.interviewScore || 0;
-
-        // Final Score is the direct sum of the primary components (max 100)
+        const r = Number(updateData.resumeMatchPercent !== undefined ? updateData.resumeMatchPercent : (existingApp?.resumeMatchPercent || 0));
+        const a = Number(updateData.assessmentScore !== undefined ? updateData.assessmentScore : (existingApp?.assessmentScore || 0));
+        const i = Number(updateData.interviewScore !== undefined ? updateData.interviewScore : (existingApp?.interviewScore || 0));
         const finalScore = r + a + i;
-        application.finalScore = finalScore;
+        update.finalScore = finalScore;
 
-        const job = application.jobId;
-
-        // Ensure all enabled modules are fully completed before shortlisting
-        const isResumeDone = !job || job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
-        const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
-        const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
-        const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
-        const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
-
-        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && application.finalScore >= 55) {
-            console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${application.finalScore})`);
-            application.status = 'SHORTLISTED';
+        let targetStatus = req.body.status || existingApp?.status || 'APPLIED';
+        if (targetStatus === 'SAVED' && req.body.status !== 'SAVED') {
+            targetStatus = 'APPLIED';
         }
-        await application.save();
+
+        const isResumeDone = !jobDoc || jobDoc.resumeAnalysis?.enabled === false || (r !== null && r !== undefined);
+        const isAssessmentDone = !jobDoc || !jobDoc.assessment?.enabled || (existingApp?.assessmentScore !== null && existingApp?.assessmentScore !== undefined) || (updateData.assessmentScore !== undefined);
+        const isCodingDone = !jobDoc || !jobDoc.codingAssessment?.enabled || (existingApp?.codingScore !== null && existingApp?.codingScore !== undefined);
+        const isInterviewDone = !jobDoc || !jobDoc.mockInterview?.enabled || (existingApp?.interviewScore !== null && existingApp?.interviewScore !== undefined) || (updateData.interviewScore !== undefined);
+        const isCodingPassed = !jobDoc || !jobDoc.codingAssessment?.enabled || (Number(existingApp?.codingScore || 0) >= (jobDoc.codingAssessment?.passingScore || 70));
+
+        if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && finalScore >= 55) {
+            console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${finalScore})`);
+            targetStatus = 'SHORTLISTED';
+        }
+        update.status = targetStatus;
+
+        const application = await Application.findOneAndUpdate(query, { $set: update }, { new: true, upsert: true });
         invalidateCache('/api/applications');
         res.status(201).json(application);
     } catch (error) {

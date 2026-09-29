@@ -48,9 +48,11 @@ export default function SecureExamWrapperMultiLayer({
     const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
     const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState(null);
-    const [webcamPosition, setWebcamPosition] = useState({ x: 16, y: 16 });
+    const [webcamPosition, setWebcamPosition] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [toasts, setToasts] = useState([]);
+
+    const webcamContainerRef = useRef(null);
 
     const videoRef = useRef(null);
     const [videoEl, setVideoEl] = useState(null);
@@ -201,27 +203,90 @@ export default function SecureExamWrapperMultiLayer({
 
     // Webcam Drag handlers
     const handleDragStart = useCallback((e) => {
+        if (e.type === 'mousedown' && e.button !== 0) return;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        dragOffsetRef.current = { x: clientX - webcamPosition.x, y: clientY - webcamPosition.y };
+
+        const el = webcamContainerRef.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
+        dragOffsetRef.current = {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+        };
+        setWebcamPosition({
+            x: rect.left,
+            y: rect.top,
+        });
         setIsDragging(true);
-    }, [webcamPosition]);
+    }, []);
 
     useEffect(() => {
         if (!isDragging) return;
+
         const handleMove = (e) => {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            setWebcamPosition({ x: clientX - dragOffsetRef.current.x, y: clientY - dragOffsetRef.current.y });
+
+            const el = webcamContainerRef.current;
+            const width = el ? el.offsetWidth : 220;
+            const height = el ? el.offsetHeight : 165;
+
+            const margin = 8;
+            const minX = margin;
+            const maxX = Math.max(margin, window.innerWidth - width - margin);
+            const minY = margin;
+            const maxY = Math.max(margin, window.innerHeight - height - margin);
+
+            const rawX = clientX - dragOffsetRef.current.x;
+            const rawY = clientY - dragOffsetRef.current.y;
+
+            setWebcamPosition({
+                x: Math.min(Math.max(rawX, minX), maxX),
+                y: Math.min(Math.max(rawY, minY), maxY),
+            });
+
+            if (e.cancelable) e.preventDefault();
         };
+
         const handleEnd = () => setIsDragging(false);
-        window.addEventListener("mousemove", handleMove);
+
+        window.addEventListener("mousemove", handleMove, { passive: true });
         window.addEventListener("mouseup", handleEnd);
+        window.addEventListener("touchmove", handleMove, { passive: false });
+        window.addEventListener("touchend", handleEnd);
+        window.addEventListener("touchcancel", handleEnd);
+
         return () => {
             window.removeEventListener("mousemove", handleMove);
             window.removeEventListener("mouseup", handleEnd);
+            window.removeEventListener("touchmove", handleMove);
+            window.removeEventListener("touchend", handleEnd);
+            window.removeEventListener("touchcancel", handleEnd);
         };
     }, [isDragging]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setWebcamPosition((prev) => {
+                if (!prev || prev.x === null || prev.y === null) return prev;
+                const el = webcamContainerRef.current;
+                const width = el ? el.offsetWidth : 220;
+                const height = el ? el.offsetHeight : 165;
+                const margin = 8;
+                const maxX = Math.max(margin, window.innerWidth - width - margin);
+                const maxY = Math.max(margin, window.innerHeight - height - margin);
+                return {
+                    x: Math.min(Math.max(prev.x, margin), maxX),
+                    y: Math.min(Math.max(prev.y, margin), maxY),
+                };
+            });
+        };
+
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     const needsScreenShare = requireScreenShare && isActive && !isSharing;
 
@@ -242,21 +307,46 @@ export default function SecureExamWrapperMultiLayer({
             {/* Draggable Webcam Preview */}
             {requireCamera && isActive && activeStream && showWebcamPreview && (
                 <div
-                    className="fixed z-[8999] cursor-grab select-none active:cursor-grabbing"
-                    style={{ right: `${webcamPosition.x}px`, bottom: `${webcamPosition.y}px`, width: "220px" }}
+                    ref={webcamContainerRef}
+                    className="fixed z-[9999] select-none"
+                    style={{
+                        position: "fixed",
+                        width: "220px",
+                        cursor: isDragging ? "grabbing" : "grab",
+                        touchAction: "none",
+                        ...(webcamPosition && webcamPosition.x !== null && webcamPosition.y !== null
+                            ? {
+                                  left: `${webcamPosition.x}px`,
+                                  top: `${webcamPosition.y}px`,
+                                  right: "auto",
+                                  bottom: "auto",
+                              }
+                            : {
+                                  right: "24px",
+                                  bottom: "24px",
+                              }),
+                    }}
                     onMouseDown={handleDragStart}
+                    onTouchStart={handleDragStart}
                 >
-                    <div className="overflow-hidden rounded-2xl border-2 border-black/10 bg-black shadow-2xl">
+                    <div className="overflow-hidden rounded-2xl border-2 border-white/20 bg-black shadow-2xl relative group">
                         <video
                             ref={videoRefCallback}
                             autoPlay
                             muted
                             playsInline
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover pointer-events-none"
                             style={{ transform: "scaleX(-1)", aspectRatio: "4/3" }}
                         />
-
-
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity">
+                            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-[10px] font-medium text-white/90">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Proctor
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[9px] text-white/70">
+                                ⠿ Drag
+                            </span>
+                        </div>
                     </div>
                 </div>
             )}

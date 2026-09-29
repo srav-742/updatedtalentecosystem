@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
-    type: { type: String, enum: ['mcq', 'coding', 'MCQ', 'CODING'], required: true, default: 'mcq' },
-    skill: { type: String, required: true, default: 'General' },
-    question: { type: String, required: true, default: 'Untitled Question' },
+    type: { type: String, default: 'mcq' },
+    skill: { type: String, default: 'General' },
+    question: { type: String, default: 'Untitled Question' },
     difficulty: { type: String, default: 'medium' },
     options: [String],
     correctAnswer: mongoose.Mixed,
@@ -11,9 +11,9 @@ const questionSchema = new mongoose.Schema({
 });
 
 const answerSchema = new mongoose.Schema({
-    questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'QuestionLog' },
-    question: { type: String, required: true, default: 'Untitled Question' },
-    questionType: { type: String, enum: ['mcq', 'coding', 'MCQ', 'CODING'], required: true, default: 'mcq' },
+    questionId: { type: mongoose.Schema.Types.Mixed, default: null },
+    question: { type: String, default: 'Untitled Question' },
+    questionType: { type: String, default: 'mcq' },
     skill: String,
     userAnswer: mongoose.Mixed,
     correctAnswer: mongoose.Mixed,
@@ -25,12 +25,12 @@ const assessmentSubmissionSchema = new mongoose.Schema({
     jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job', required: true, index: true },
     userId: { type: String, required: true, index: true },
     applicationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Application', index: true },
-    sessionId: { type: String, required: true },
+    sessionId: { type: String, default: '' },
     questions: [questionSchema],
     answers: [answerSchema],
-    totalQuestions: { type: Number, required: true },
+    totalQuestions: { type: Number, default: 0 },
     correctAnswers: { type: Number, default: 0 },
-    score: { type: Number, required: true },
+    score: { type: Number, default: 0 },
     terminated: { type: Boolean, default: false },
     terminationReason: { type: String },
     submittedAt: { type: Date, default: Date.now }

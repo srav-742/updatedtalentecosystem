@@ -33,6 +33,10 @@ router.delete('/questions/:questionId', authMiddleware, roleCheck('recruiter'), 
 router.post('/submit', authMiddleware, codingAssessmentController.submitCodingAssessment);
 router.get('/details/:applicationId', authMiddleware, codingAssessmentController.getCodingAssessmentDetails);
 
+// ─── Code Execution & Test Cases ──────────────────────────
+router.post('/run', optionalAuth, codingAssessmentController.runCandidateCode);
+router.post('/generate-test-cases', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.generateQuestionTestCases);
+
 // ─── AI Re-evaluation ────────────────────────────────────
 router.post('/re-evaluate/:applicationId/:questionIndex', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.reEvaluateCodingAnswer);
 

@@ -10,6 +10,7 @@ const {
     normalizeDifficulty,
     getDifficultyWeight
 } = require('../utils/codingScoreCalculator');
+const { generateAndValidateTestCases } = require('../services/aiTestCaseGenerator');
 
 /**
  * POST /api/custom-coding-assessments/generate
@@ -116,6 +117,35 @@ Each question object in the JSON array must follow this exact format:
             });
         }
 
+        // Generate and sandbox-validate test cases for each question
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            if (!Array.isArray(q.testCases) || q.testCases.length === 0) {
+                try {
+                    console.log(`[CUSTOM-CODING-AI] Generating validated test cases for question "${q.title}"...`);
+                    const tcResult = await generateAndValidateTestCases(q, language);
+                    if (tcResult && Array.isArray(tcResult.testCases) && tcResult.testCases.length > 0) {
+                        q.testCases = tcResult.testCases;
+                        if (tcResult.referenceSolution) {
+                            q.referenceSolution = tcResult.referenceSolution;
+                        }
+                    }
+                } catch (tcErr) {
+                    console.warn(`[CUSTOM-CODING-AI] Test case generation warning for "${q.title}":`, tcErr.message);
+                    // Fallback to examples
+                    if (Array.isArray(q.examples) && q.examples.length > 0) {
+                        q.testCases = q.examples.map(ex => ({
+                            input: ex.input || '',
+                            expectedOutput: ex.output || '',
+                            isHidden: false,
+                            category: 'NORMAL',
+                            explanation: ex.explanation || ''
+                        }));
+                    }
+                }
+            }
+        }
+
         res.json({ success: true, questions });
     } catch (error) {
         console.error('[CUSTOM-CODING-AI] Generation Error:', error);
@@ -185,6 +215,17 @@ const saveCustomCodingRound = async (req, res) => {
                 maximumMarks: 10
             };
 
+            let qTestCases = Array.isArray(q.testCases) ? q.testCases : [];
+            if (qTestCases.length === 0 && Array.isArray(q.examples) && q.examples.length > 0) {
+                qTestCases = q.examples.map(ex => ({
+                    input: ex.input || '',
+                    expectedOutput: ex.output || '',
+                    isHidden: false,
+                    category: 'NORMAL',
+                    explanation: ex.explanation || ''
+                }));
+            }
+
             const questionDoc = new CodingQuestion({
                 codingRoundId: codingRound._id,
                 title: q.title || 'Coding Challenge',
@@ -194,6 +235,7 @@ const saveCustomCodingRound = async (req, res) => {
                 constraints: q.constraints || '',
                 expectedApproach: q.expectedApproach || '',
                 examples: Array.isArray(q.examples) ? q.examples : [],
+                testCases: qTestCases,
                 difficulty: dynamicInfo.difficulty,
                 difficultyWeight: dynamicInfo.difficultyWeight,
                 marks: dynamicInfo.maximumMarks,

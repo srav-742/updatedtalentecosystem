@@ -11,7 +11,12 @@ import {
     Loader2,
     CheckCircle2,
     FileLock2,
-    RotateCcw
+    RotateCcw,
+    ChevronUp,
+    ChevronDown,
+    Check,
+    X,
+    ShieldAlert
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../../firebase';
@@ -51,6 +56,12 @@ const CodingAssessment = ({
     const [error, setError] = useState(null);
     const [timeLeft, setTimeLeft] = useState(0); // in seconds
     const [securityResetting, setSecurityResetting] = useState(false);
+
+    // Real Code Execution State
+    const [runningCode, setRunningCode] = useState(false);
+    const [executionResults, setExecutionResults] = useState({}); // { [questionId]: { status, passed, failed, total, publicPassed, publicTotal, hiddenPassed, hiddenTotal, executionTime, results } }
+    const [selectedTestCaseIdx, setSelectedTestCaseIdx] = useState(0);
+    const [consoleOpen, setConsoleOpen] = useState(false);
 
     const timerRef = useRef(null);
 
@@ -241,6 +252,71 @@ const CodingAssessment = ({
         }));
     };
 
+    const handleRunCode = async () => {
+        if (!currentQuestion) return;
+        const currentAns = answers[currentQuestion._id];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write some code before running tests.');
+            return;
+        }
+
+        setRunningCode(true);
+        setConsoleOpen(true);
+        setError(null);
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const payload = {
+                questionId: currentQuestion._id,
+                code,
+                language
+            };
+
+            const res = await axios.post(`${API_URL}/coding-assessments/run`, payload, { headers });
+            if (res.data?.success) {
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [currentQuestion._id]: res.data
+                }));
+                setSelectedTestCaseIdx(0);
+            } else {
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [currentQuestion._id]: {
+                        status: res.data?.status || 'EXECUTION_ERROR',
+                        passed: 0,
+                        failed: 0,
+                        total: 0,
+                        errorMessage: res.data?.message || 'Execution failed. Please try again.',
+                        results: []
+                    }
+                }));
+            }
+        } catch (runErr) {
+            console.error('Run code error:', runErr);
+            setExecutionResults(prev => ({
+                ...prev,
+                [currentQuestion._id]: {
+                    status: 'EXECUTION_ERROR',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    errorMessage: runErr.response?.data?.message || runErr.message || 'Execution service unreachable. Please retry.',
+                    results: []
+                }
+            }));
+        } finally {
+            setRunningCode(false);
+        }
+    };
+
     const handleSubmitSolutions = async () => {
         setSaving(true);
         setError(null);
@@ -347,6 +423,7 @@ const CodingAssessment = ({
     };
 
     const currentQuestion = questions[currentQIndex];
+    const currentResult = currentQuestion ? executionResults[currentQuestion._id] : null;
     const progress = questions.length > 0 ? ((currentQIndex + 1) / questions.length) * 100 : 0;
 
     if (loading) {
@@ -739,7 +816,7 @@ const CodingAssessment = ({
                         </div>
 
                         {/* Editor Textarea / Notepad Area */}
-                        <div className="flex-1 relative flex flex-col bg-[#05080f] overflow-hidden">
+                        <div className="flex-1 relative flex flex-col bg-[#05080f] overflow-hidden min-h-[220px]">
                             <textarea
                                 className="flex-1 w-full h-full bg-[#05080f] text-emerald-300 p-6 font-mono text-sm leading-6 outline-none resize-none border-none overflow-y-auto focus:ring-0 selection:bg-teal-500/30 selection:text-white"
                                 value={answers[currentQuestion?._id]?.code || ''}
@@ -750,14 +827,237 @@ const CodingAssessment = ({
                             />
                         </div>
 
+                        {/* Execution Console Panel */}
+                        {consoleOpen && (
+                            <div className="h-64 border-t border-[#30363d] bg-[#0d1117] flex flex-col shrink-0 overflow-hidden shadow-2xl">
+                                {/* Console Header Bar */}
+                                <div className="px-4 py-2 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+                                            <Terminal size={14} className="text-teal-400" />
+                                            Execution Results
+                                        </span>
+
+                                        {runningCode ? (
+                                            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[11px] font-semibold">
+                                                <Loader2 size={12} className="animate-spin" />
+                                                <span>Running in container sandbox...</span>
+                                            </div>
+                                        ) : currentResult ? (
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                                                    currentResult.status === 'ALL_PASSED'
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                        : currentResult.status === 'PARTIALLY_PASSED'
+                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                                                }`}>
+                                                    {currentResult.status === 'ALL_PASSED' ? 'All Passed' :
+                                                     currentResult.status === 'PARTIALLY_PASSED' ? `${currentResult.passed}/${currentResult.total} Passed` :
+                                                     currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
+                                                     currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
+                                                     currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
+                                                     'Failed'}
+                                                </span>
+
+                                                {currentResult.publicTotal > 0 && (
+                                                    <span className="text-[11px] text-gray-400 font-mono">
+                                                        Public: <strong className="text-gray-200">{currentResult.publicPassed}/{currentResult.publicTotal}</strong>
+                                                    </span>
+                                                )}
+                                                {currentResult.hiddenTotal > 0 && (
+                                                    <span className="text-[11px] text-gray-400 font-mono">
+                                                        Hidden: <strong className="text-gray-200">{currentResult.hiddenPassed}/{currentResult.hiddenTotal}</strong>
+                                                    </span>
+                                                )}
+                                                {currentResult.executionTime !== undefined && (
+                                                    <span className="text-[11px] text-gray-500 font-mono">
+                                                        • {currentResult.executionTime}s
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setConsoleOpen(false)}
+                                            className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+                                            title="Minimize Console"
+                                        >
+                                            <ChevronDown size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Console Body */}
+                                <div className="flex-1 overflow-hidden flex">
+                                    {runningCode ? (
+                                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-gray-400 gap-2">
+                                            <Loader2 size={24} className="animate-spin text-teal-400" />
+                                            <span className="text-xs font-medium">Executing code against test cases in isolated sandbox...</span>
+                                        </div>
+                                    ) : currentResult?.status === 'COMPILATION_ERROR' || currentResult?.errorMessage ? (
+                                        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs bg-red-950/20 text-red-300 space-y-1">
+                                            <div className="flex items-center gap-1.5 text-red-400 font-bold mb-2">
+                                                <AlertCircle size={14} />
+                                                <span>Compilation / Syntax Output</span>
+                                            </div>
+                                            <pre className="whitespace-pre-wrap">{currentResult.errorMessage || currentResult.results?.[0]?.errorMessage || 'Error executing program.'}</pre>
+                                        </div>
+                                    ) : currentResult?.results?.length > 0 ? (
+                                        <div className="flex-1 flex overflow-hidden">
+                                            {/* Test Case Pills (left column) */}
+                                            <div className="w-44 border-r border-[#30363d] overflow-y-auto p-2 space-y-1 bg-[#0d1117] shrink-0">
+                                                {currentResult.results.map((tc, idx) => {
+                                                    const isSelected = selectedTestCaseIdx === idx;
+                                                    return (
+                                                        <button
+                                                            key={tc.id || idx}
+                                                            type="button"
+                                                            onClick={() => setSelectedTestCaseIdx(idx)}
+                                                            className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition-all flex items-center justify-between cursor-pointer ${
+                                                                isSelected
+                                                                    ? 'bg-[#21262d] text-white border border-[#30363d]'
+                                                                    : 'hover:bg-[#161b22] text-gray-400'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                {tc.passed ? (
+                                                                    <Check size={13} className="text-emerald-400 shrink-0" />
+                                                                ) : (
+                                                                    <X size={13} className="text-red-400 shrink-0" />
+                                                                )}
+                                                                <span className="truncate">
+                                                                    {tc.isHidden ? `Hidden ${idx + 1}` : `Case ${idx + 1}`}
+                                                                </span>
+                                                            </div>
+                                                            <span className={`text-[10px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {tc.passed ? 'Pass' : 'Fail'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Selected Test Case Details (right column) */}
+                                            <div className="flex-1 overflow-y-auto p-4 bg-[#05080f] font-mono text-xs">
+                                                {(() => {
+                                                    const tc = currentResult.results[selectedTestCaseIdx] || currentResult.results[0];
+                                                    if (!tc) return null;
+                                                    if (tc.isHidden) {
+                                                        return (
+                                                            <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                                                                <div className="p-3 rounded-full bg-white/5 border border-white/10">
+                                                                    <FileLock2 size={24} className="text-teal-400" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-sm font-bold text-gray-200">Hidden Test Case</div>
+                                                                    <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                                                                        Test inputs and expected outputs are confidential to ensure assessment fairness and integrity.
+                                                                    </p>
+                                                                </div>
+                                                                <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                                    tc.passed
+                                                                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                                                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                                                                }`}>
+                                                                    Result: {tc.passed ? 'Passed ✓' : 'Failed ✗'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-gray-400 font-bold uppercase text-[10px] tracking-wider">
+                                                                    Test Case {selectedTestCaseIdx + 1} ({tc.category || 'NORMAL'})
+                                                                </span>
+                                                                <span className={`text-[11px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {tc.status} {tc.executionTime ? `• ${tc.executionTime}s` : ''}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Input</label>
+                                                                <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-gray-200 whitespace-pre-wrap">{tc.input || '(empty)'}</pre>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Expected Output</label>
+                                                                    <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-emerald-400 whitespace-pre-wrap">{tc.expectedOutput || '(empty)'}</pre>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Actual Output</label>
+                                                                    <pre className={`p-2.5 rounded-lg bg-[#0d1117] border ${tc.passed ? 'border-emerald-500/30 text-emerald-300' : 'border-red-500/30 text-red-300'} whitespace-pre-wrap`}>
+                                                                        {tc.actualOutput || (tc.errorMessage ? `Error: ${tc.errorMessage}` : '(no output)')}
+                                                                    </pre>
+                                                                </div>
+                                                            </div>
+
+                                                            {tc.errorMessage && (
+                                                                <div className="p-2 rounded-lg bg-red-950/20 border border-red-500/30 text-red-300">
+                                                                    <span className="font-bold text-[10px] uppercase block text-red-400 mb-0.5">Error details:</span>
+                                                                    <pre className="whitespace-pre-wrap text-[11px]">{tc.errorMessage}</pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-gray-500 text-xs">
+                                            <Terminal size={20} className="mb-2 text-gray-600" />
+                                            <span>Click "Run Code" below to test your solution against test cases.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Editor Action Footer */}
                         <div className="px-6 py-3 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2 text-xs text-gray-400">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>Auto-saved locally</span>
+                            <div className="flex items-center gap-3 text-xs text-gray-400">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Auto-saved locally</span>
+                                </div>
+                                {currentResult && !consoleOpen && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConsoleOpen(true)}
+                                        className="text-[11px] text-teal-400 hover:text-teal-300 underline cursor-pointer"
+                                    >
+                                        View results ({currentResult.passed}/{currentResult.total} passed)
+                                    </button>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-3">
+                                {/* NEW: Run Code Button */}
+                                <button
+                                    type="button"
+                                    onClick={handleRunCode}
+                                    disabled={runningCode}
+                                    className="px-5 py-2.5 rounded-xl bg-[#21262d] hover:bg-[#30363d] active:scale-95 text-teal-300 font-extrabold text-xs transition-all border border-teal-500/30 hover:border-teal-500 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                    {runningCode ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin text-teal-400" />
+                                            <span>Executing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play size={13} className="text-teal-400 fill-teal-400" />
+                                            <span>Run Code</span>
+                                        </>
+                                    )}
+                                </button>
+
                                 {currentQIndex < questions.length - 1 ? (
                                     <button
                                         onClick={() => setCurrentQIndex(prev => prev + 1)}
