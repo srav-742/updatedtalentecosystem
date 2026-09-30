@@ -107,14 +107,17 @@ function getStatus(sessionId) {
  * @returns {Object} Updated sandbox state
  */
 function applyResourceMutation(sessionId, mutationContract) {
-    if (!sessionId || !activeSandboxes.has(sessionId)) {
-        throw new Error(`Sandbox session ${sessionId} not found`);
+    if (!sessionId) {
+        throw new Error('Valid sessionId is required');
+    }
+    let session = activeSandboxes.get(sessionId);
+    if (!session) {
+        session = createSession(sessionId);
     }
     if (!mutationContract || !mutationContract.resourceConstraints) {
         throw new Error('Valid mutation contract with resourceConstraints is required');
     }
 
-    const session = activeSandboxes.get(sessionId);
     const prevConstraints = { ...session.currentConstraints };
     const newConstraints = {
         ...session.currentConstraints,
@@ -201,18 +204,40 @@ function execute(sessionId, code, language, stdin = '', timeoutOverrideMs = null
         cmd = process.platform === 'win32' ? 'python' : 'python3';
         const scriptPath = `${targetFile}.${ext}`;
 
-        // Wrap python code with memory-enforcing monitor / watchdog
-        // Under Linux, resource.setrlimit clamps virtual memory.
-        // On all platforms, memory watchdog tracks RSS/heap and aborts if exceeded.
+        // Wrap python code with real memory-enforcing monitor / watchdog
+        // Under Linux, resource.setrlimit clamps data segment where available.
+        // On all platforms (Windows & Linux), tracemalloc watchdog tracks heap and aborts with exit code 137 if exceeded.
         const memoryGuardCode = `
-import sys, os
+import sys, os, time, threading
 
-# Memory limit enforcement
+# DMCE Live Runtime Memory Enforcement
 MEMORY_LIMIT_MB = ${memoryLimitMb}
+MEMORY_LIMIT_BYTES = MEMORY_LIMIT_MB * 1024 * 1024
+
+try:
+    import tracemalloc
+    tracemalloc.start()
+
+    def _dmce_memory_watchdog():
+        while True:
+            try:
+                curr, peak = tracemalloc.get_traced_memory()
+                if curr > MEMORY_LIMIT_BYTES or peak > MEMORY_LIMIT_BYTES:
+                    sys.stderr.write(f"\\nMemoryError: Memory Limit Exceeded: Process exceeded clamped heap quota of {MEMORY_LIMIT_MB} MB. Peak allocation: {max(curr, peak) / (1024 * 1024):.2f} MB\\n")
+                    sys.stderr.flush()
+                    os._exit(137)
+            except Exception:
+                pass
+            time.sleep(0.005)
+
+    _dmce_thread = threading.Thread(target=_dmce_memory_watchdog, daemon=True)
+    _dmce_thread.start()
+except Exception:
+    pass
+
 try:
     import resource
-    limit_bytes = MEMORY_LIMIT_MB * 1024 * 1024
-    resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+    resource.setrlimit(resource.RLIMIT_DATA, (MEMORY_LIMIT_BYTES, MEMORY_LIMIT_BYTES))
 except Exception:
     pass
 
@@ -227,7 +252,22 @@ ${runnableCode}
         const scriptPath = `${targetFile}.${ext}`;
 
         // Node provides native --max-old-space-size flag to hard-clamp heap
-        fs.writeFileSync(scriptPath, runnableCode, 'utf8');
+        // In addition, in-process watchdog monitors heapUsed and exits 137 on breach
+        const memoryGuardJs = `
+// DMCE Live Runtime Memory Enforcement
+const _dmce_mem_limit = ${memoryLimitMb} * 1024 * 1024;
+const _dmce_interval = setInterval(() => {
+    const mem = process.memoryUsage();
+    if (mem.heapUsed > _dmce_mem_limit || mem.rss > _dmce_mem_limit * 2) {
+        process.stderr.write(\`\\nAllocation failed - JavaScript heap out of memory: Exceeded \${${memoryLimitMb}} MB heap quota.\\n\`);
+        process.exit(137);
+    }
+}, 5);
+_dmce_interval.unref();
+
+${runnableCode}
+`;
+        fs.writeFileSync(scriptPath, memoryGuardJs, 'utf8');
         args = [`--max-old-space-size=${memoryLimitMb}`, scriptPath];
     } else {
         // Fallback for languages needing container execution
@@ -414,7 +454,8 @@ async function executeMutationTests(sessionId, code, language, mutationTests = [
         });
     }
 
-    const overallStatus = failedCount === 0 ? 'ALL_PASSED' : (passedCount > 0 ? 'PARTIALLY_PASSED' : 'FAILED');
+    const hasMemoryExceeded = results.some(r => r.status === 'MEMORY_LIMIT_EXCEEDED');
+    const overallStatus = failedCount === 0 ? 'ALL_PASSED' : (passedCount > 0 ? 'PARTIALLY_PASSED' : (hasMemoryExceeded ? 'MEMORY_LIMIT_EXCEEDED' : 'FAILED'));
     console.log(`[DMCE-SANDBOX] [MUTATION_TEST_COMPLETED] Mutation tests finished: ${passedCount}/${mutationTests.length} passed (Status: ${overallStatus})`);
 
     return {

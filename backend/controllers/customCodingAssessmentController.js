@@ -216,14 +216,21 @@ const saveCustomCodingRound = async (req, res) => {
             };
 
             let qTestCases = Array.isArray(q.testCases) ? q.testCases : [];
+            let validationStatus = q.validationStatus || (qTestCases.length > 0 ? 'VALIDATED' : 'PENDING_GENERATION');
+            let validationMetrics = q.validationMetrics || null;
+            let referenceSolution = q.referenceSolution || null;
+
             if (qTestCases.length === 0 && Array.isArray(q.examples) && q.examples.length > 0) {
                 qTestCases = q.examples.map(ex => ({
                     input: ex.input || '',
                     expectedOutput: ex.output || '',
                     isHidden: false,
                     category: 'NORMAL',
-                    explanation: ex.explanation || ''
+                    explanation: ex.explanation || '',
+                    validationStatus: 'VALIDATED',
+                    source: 'EXAMPLE'
                 }));
+                validationStatus = 'VALIDATED';
             }
 
             const questionDoc = new CodingQuestion({
@@ -240,7 +247,11 @@ const saveCustomCodingRound = async (req, res) => {
                 difficultyWeight: dynamicInfo.difficultyWeight,
                 marks: dynamicInfo.maximumMarks,
                 allowedLanguages: Array.isArray(q.allowedLanguages) ? q.allowedLanguages : languages,
-                timer: parseInt(q.timer) || 0
+                timer: parseInt(q.timer) || 0,
+                validationStatus,
+                validationMetrics,
+                referenceSolution,
+                testCasesValidatedAt: validationStatus === 'VALIDATED' ? new Date() : null
             });
             await questionDoc.save({ session });
             savedQuestionIds.push(questionDoc._id);

@@ -696,10 +696,197 @@ solution_stream()
         mutationEngine.cleanupSession(e2eSid);
     });
 
+    // ─── TEST GROUP 16: DYNAMIC RUNTIME MUTATION ENFORCEMENT FIX ───
+    console.log('\n--- TEST GROUP 16: Dynamic Runtime Mutation Enforcement & Activation Fix ---');
+
+    await test('Mutation Activation: Rejects activation if baseline tests have not passed', async () => {
+        const unpassedSid = `unpassed-act-${Date.now()}`;
+        initSession({ sessionId: unpassedSid, language: 'python' });
+
+        assert.throws(() => {
+            mutationEngine.activateCandidateMutation(unpassedSid, 'print(1)');
+        }, /Stage-1 baseline/i);
+
+        mutationEngine.cleanupSession(unpassedSid);
+    });
+
+    await test('Mutation Activation: Successfully activates mutation and applies 16MB sandbox constraint', async () => {
+        const actSid = `act-success-${Date.now()}`;
+        const sess = initSession({ sessionId: actSid, language: 'python' });
+        sess.baselinePassed = true;
+        sess.baselineScore = 100;
+
+        const res = mutationEngine.activateCandidateMutation(actSid, 'def solution(): return 42');
+        assert.strictEqual(res.activated, true);
+        assert.strictEqual(res.alreadyActive, false);
+        assert.strictEqual(res.mutation.mutationId, 'mut_mem_opt_16mb');
+        assert.strictEqual(res.mutation.resourceConstraints.memoryLimitMb, 16);
+        assert.strictEqual(res.sandbox.currentConstraints.memoryLimitMb, 16);
+
+        const updatedSess = getSession(actSid);
+        assert.strictEqual(updatedSess.state, LIFECYCLE_STATES.MUTATION_ACTIVE);
+        assert.strictEqual(updatedSess.mutation.activated, true);
+        assert.ok(updatedSess.mutation.adaptationStartedAt > 0);
+
+        mutationEngine.cleanupSession(actSid);
+    });
+
+    await test('Mutation Activation: Idempotent - multiple activation clicks do not reset timer or re-activate', async () => {
+        const idemSid = `idem-act-${Date.now()}`;
+        const sess = initSession({ sessionId: idemSid, language: 'python' });
+        sess.baselinePassed = true;
+
+        const res1 = mutationEngine.activateCandidateMutation(idemSid, 'code_v1');
+        const firstStartedAt = res1.mutation.adaptationStartedAt;
+
+        // Second click
+        const res2 = mutationEngine.activateCandidateMutation(idemSid, 'code_v2');
+        assert.strictEqual(res2.activated, true);
+        assert.strictEqual(res2.alreadyActive, true);
+        assert.strictEqual(res2.mutation.adaptationStartedAt, firstStartedAt, 'Adaptation start timestamp must not be overwritten');
+
+        mutationEngine.cleanupSession(idemSid);
+    });
+
+    await test('Runtime Enforcement (Python): Allocating > 16MB heap triggers real MEMORY_LIMIT_EXCEEDED', async () => {
+        const pyMemSid = `py-oom-${Date.now()}`;
+        createSession(pyMemSid);
+        const contract = getMutationContract('mut_mem_opt_16mb');
+        applyResourceMutation(pyMemSid, contract);
+
+        // Python code that allocates ~40MB of integers (exceeds 16MB clamp)
+        const excessiveMemCode = `
+import sys
+# Attempt to allocate 5,000,000 integers (~40MB heap)
+big_list = [i for i in range(5000000)]
+print(f"ALLOC_FINISHED:{len(big_list)}")
+`;
+        const res = await execute(pyMemSid, excessiveMemCode, 'python');
+        assert.strictEqual(res.status, 'MEMORY_LIMIT_EXCEEDED');
+        assert.strictEqual(res.exitCode, 137);
+        assert.ok(res.stderr.includes('Memory Limit Exceeded') || res.stderr.includes('16 MB'));
+
+        destroySession(pyMemSid);
+    });
+
+    await test('Runtime Enforcement (Python): In-place streaming generator operates cleanly under 16MB cap', async () => {
+        const pyStreamSid = `py-stream-${Date.now()}`;
+        createSession(pyStreamSid);
+        const contract = getMutationContract('mut_mem_opt_16mb');
+        applyResourceMutation(pyStreamSid, contract);
+
+        // Adaptive solution: stream sum without building large in-memory list (< 1MB heap)
+        const streamCode = `
+total = sum(i for i in range(500000))
+print(f"STREAM_SUCCESS:{total}")
+`;
+        const res = await execute(pyStreamSid, streamCode, 'python');
+        assert.strictEqual(res.status, 'SUCCESS');
+        assert.strictEqual(res.exitCode, 0);
+        assert.ok(res.stdout.includes('STREAM_SUCCESS:124999750000'));
+
+        destroySession(pyStreamSid);
+    });
+
+    await test('Runtime Enforcement (Node.js): Allocating > 16MB heap triggers real MEMORY_LIMIT_EXCEEDED', async () => {
+        const jsMemSid = `js-oom-${Date.now()}`;
+        createSession(jsMemSid);
+        const contract = getMutationContract('mut_mem_opt_16mb');
+        applyResourceMutation(jsMemSid, contract);
+
+        // Node.js code allocating objects beyond 16MB
+        const excessiveJsCode = `
+const items = [];
+for (let i = 0; i < 2000000; i++) {
+    items.push({ id: i, payload: "heap stress test chunk" });
+}
+console.log("ALLOC_FINISHED:" + items.length);
+`;
+        const res = await execute(jsMemSid, excessiveJsCode, 'javascript');
+        assert.strictEqual(res.status, 'MEMORY_LIMIT_EXCEEDED');
+        assert.ok(res.stderr.includes('Memory Limit Exceeded') || res.stderr.includes('heap'));
+
+        destroySession(jsMemSid);
+    });
+
+    await test('Runtime Enforcement (Node.js): In-place loop operates cleanly under 16MB cap', async () => {
+        const jsStreamSid = `js-stream-${Date.now()}`;
+        createSession(jsStreamSid);
+        const contract = getMutationContract('mut_mem_opt_16mb');
+        applyResourceMutation(jsStreamSid, contract);
+
+        const streamingJsCode = `
+let sum = 0;
+for (let i = 0; i < 500000; i++) {
+    sum += i;
+}
+console.log("STREAM_SUCCESS:" + sum);
+`;
+        const res = await execute(jsStreamSid, streamingJsCode, 'javascript');
+        assert.strictEqual(res.status, 'SUCCESS');
+        assert.strictEqual(res.exitCode, 0);
+        assert.ok(res.stdout.includes('STREAM_SUCCESS:124999750000'));
+
+        destroySession(jsStreamSid);
+    });
+
+    await test('Execution Distinction: Logic errors and timeouts are NOT misclassified as memory errors', async () => {
+        const distSid = `dist-test-${Date.now()}`;
+        createSession(distSid);
+        const contract = getMutationContract('mut_mem_opt_16mb');
+        applyResourceMutation(distSid, contract);
+
+        // 1. Normal runtime error (ZeroDivisionError)
+        const logicErrCode = `x = 1 / 0`;
+        const resLogic = await execute(distSid, logicErrCode, 'python');
+        assert.strictEqual(resLogic.status, 'RUNTIME_ERROR');
+        assert.notStrictEqual(resLogic.status, 'MEMORY_LIMIT_EXCEEDED');
+
+        // 2. Timeout (infinite loop)
+        const timeoutCode = `while True: pass`;
+        const resTimeout = await execute(distSid, timeoutCode, 'python', '', 1000);
+        assert.strictEqual(resTimeout.status, 'TIME_LIMIT_EXCEEDED');
+        assert.notStrictEqual(resTimeout.status, 'MEMORY_LIMIT_EXCEEDED');
+
+        destroySession(distSid);
+    });
+
+    await test('Mutation Testing Pipeline: Runs custom question test cases under 16MB limit and preserves baseline score', async () => {
+        const qTestSid = `q-test-${Date.now()}`;
+        const sess = initSession({ sessionId: qTestSid, language: 'python' });
+        sess.baselinePassed = true;
+        sess.baselineScore = 100;
+
+        mutationEngine.activateCandidateMutation(qTestSid, 'def solution(): pass');
+
+        // Test cases from question
+        const questionTestCases = [
+            { input: 'Alpha', expectedOutput: 'Echo:Alpha', category: 'MUTATION' },
+            { input: 'Beta', expectedOutput: 'Echo:Beta', category: 'MUTATION' }
+        ];
+
+        const streamingSolution = `
+import sys
+data = sys.stdin.read().strip()
+print(f"Echo:{data}")
+`;
+        const mutResults = await mutationEngine.runMutationTests(qTestSid, streamingSolution, 'python', questionTestCases);
+        assert.strictEqual(mutResults.passed, 2);
+        assert.strictEqual(mutResults.failed, 0);
+        assert.strictEqual(mutResults.mutationStatus, 'PASSED');
+
+        // Invariant: baselineScore must remain 100% intact
+        const finalizedSession = getSession(qTestSid);
+        assert.strictEqual(finalizedSession.baselineScore, 100);
+        assert.strictEqual(finalizedSession.baselinePassed, true);
+
+        mutationEngine.cleanupSession(qTestSid);
+    });
+
     console.log('\n================================================================');
     console.log(`📊 DMCE TEST SUITE RESULTS: ${passedTests} Passed, ${failedTests} Failed (Total: ${totalTests})`);
     if (failedTests === 0) {
-        console.log('🎉 ALL 15 DMCE TEST GROUPS PASSED WITH ZERO REGRESSIONS!');
+        console.log('🎉 ALL 16 DMCE TEST GROUPS PASSED WITH ZERO REGRESSIONS!');
     } else {
         console.log('⚠️ SOME TESTS FAILED.');
     }

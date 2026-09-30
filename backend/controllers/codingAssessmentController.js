@@ -186,14 +186,62 @@ const addCodingQuestion = async (req, res) => {
         const diffWeight = getDifficultyWeight(normDifficulty);
 
         let finalTestCases = Array.isArray(testCases) ? testCases : [];
-        if (finalTestCases.length === 0 && Array.isArray(examples) && examples.length > 0) {
-            finalTestCases = examples.map(ex => ({
-                input: ex.input || '',
-                expectedOutput: ex.output || '',
-                isHidden: false,
-                category: 'NORMAL',
-                explanation: ex.explanation || ''
-            }));
+        let validationStatus = finalTestCases.length > 0 ? 'VALIDATED' : 'PENDING_GENERATION';
+        let validationMetrics = null;
+        let referenceSolution = null;
+
+        // If no test cases were provided by recruiter, auto-generate & validate using AI service
+        if (finalTestCases.length === 0) {
+            try {
+                const targetLang = (Array.isArray(allowedLanguages) && allowedLanguages[0]) || 'python';
+                const genResult = await generateAndValidateTestCases({
+                    title,
+                    description,
+                    inputFormat,
+                    outputFormat,
+                    constraints,
+                    expectedApproach,
+                    examples: Array.isArray(examples) ? examples : [],
+                    difficulty: normDifficulty,
+                    allowedLanguages
+                }, targetLang);
+
+                if (genResult && Array.isArray(genResult.testCases) && genResult.testCases.length > 0) {
+                    finalTestCases = genResult.testCases;
+                    validationStatus = genResult.status || 'VALIDATED';
+                    validationMetrics = genResult.validationMetrics;
+                    referenceSolution = genResult.referenceSolution;
+                } else if (Array.isArray(examples) && examples.length > 0) {
+                    finalTestCases = examples.map(ex => ({
+                        input: ex.input || '',
+                        expectedOutput: ex.output || '',
+                        isHidden: false,
+                        category: 'NORMAL',
+                        explanation: ex.explanation || '',
+                        validationStatus: 'VALIDATED',
+                        source: 'EXAMPLE'
+                    }));
+                    validationStatus = 'VALIDATED';
+                } else {
+                    validationStatus = 'NEEDS_REVIEW';
+                }
+            } catch (genErr) {
+                console.warn('[CODING-QUESTION] Automatic test case generation warning:', genErr.message);
+                if (Array.isArray(examples) && examples.length > 0) {
+                    finalTestCases = examples.map(ex => ({
+                        input: ex.input || '',
+                        expectedOutput: ex.output || '',
+                        isHidden: false,
+                        category: 'NORMAL',
+                        explanation: ex.explanation || '',
+                        validationStatus: 'VALIDATED',
+                        source: 'EXAMPLE'
+                    }));
+                    validationStatus = 'VALIDATED';
+                } else {
+                    validationStatus = 'NEEDS_REVIEW';
+                }
+            }
         }
 
         const question = new CodingQuestion({
@@ -210,7 +258,11 @@ const addCodingQuestion = async (req, res) => {
             difficultyWeight: diffWeight,
             marks: marks || 10,
             allowedLanguages: allowedLanguages || [],
-            timer: timer || 0
+            timer: timer || 0,
+            validationStatus,
+            validationMetrics,
+            referenceSolution,
+            testCasesValidatedAt: validationStatus === 'VALIDATED' ? new Date() : null
         });
         await question.save();
 
@@ -749,14 +801,22 @@ const runCandidateCode = async (req, res) => {
             }
         }
 
-        // If no test cases defined, provide empty input fallback run
+        // Disallow empty dummy test cases: if no test cases defined, return explicit TEST_CONFIGURATION_ERROR
         if (testCases.length === 0) {
-            testCases = [{
-                input: '',
-                expectedOutput: '',
-                isHidden: false,
-                category: 'NORMAL'
-            }];
+            return res.status(200).json({
+                success: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                message: 'No validated test suite exists for this question.',
+                passed: 0,
+                failed: 0,
+                total: 0,
+                publicPassed: 0,
+                publicTotal: 0,
+                hiddenPassed: 0,
+                hiddenTotal: 0,
+                executionTime: 0,
+                results: []
+            });
         }
 
         // Execute against test cases with hidden details strictly masked
@@ -820,13 +880,18 @@ const generateQuestionTestCases = async (req, res) => {
 
         if (saveToDb && questionDoc && Array.isArray(genResult.testCases) && genResult.testCases.length > 0) {
             questionDoc.testCases = genResult.testCases;
+            questionDoc.validationStatus = genResult.status || 'VALIDATED';
+            questionDoc.referenceSolution = genResult.referenceSolution;
+            questionDoc.testCasesValidatedAt = new Date();
+            questionDoc.validationMetrics = genResult.validationMetrics;
             await questionDoc.save();
             console.log(`[TEST-CASE-GEN] Saved ${genResult.testCases.length} validated test cases to question ${questionId}`);
         }
 
         return res.json({
-            success: true,
-            message: `Successfully generated and validated ${genResult.testCases?.length || 0} test cases.`,
+            success: genResult.success,
+            status: genResult.status,
+            message: genResult.message || `Successfully generated and validated ${genResult.testCases?.length || 0} test cases.`,
             testCases: genResult.testCases || [],
             referenceSolution: genResult.referenceSolution,
             validationMetrics: genResult.validationMetrics
@@ -914,8 +979,22 @@ const runDMCEBaseline = async (req, res) => {
             }
         }
 
+        // Never emit dummy test case fallback
         if (testCases.length === 0) {
-            testCases = [{ input: '', expectedOutput: '', isHidden: false, category: 'NORMAL' }];
+            return res.status(200).json({
+                success: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                message: 'No validated test cases available for this question.',
+                execution: {
+                    status: 'TEST_CONFIGURATION_ERROR',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    results: []
+                },
+                baselinePassed: false,
+                mutationEligible: false
+            });
         }
 
         const baselineResult = await mutationEngine.runBaseline(sessionId, code, language, testCases);
@@ -944,14 +1023,90 @@ const runDMCEBaseline = async (req, res) => {
     }
 };
 
+const activateDMCEMutation = async (req, res) => {
+    try {
+        const { sessionId, questionId, candidateId, code } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'Session ID is required.' });
+        }
+
+        const session = mutationEngine.getSession(sessionId);
+        if (!session) {
+            return res.status(404).json({ success: false, message: `Session ${sessionId} not found.` });
+        }
+
+        // Validate candidate authorization if candidateId is provided
+        const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'] || candidateId;
+        if (session.candidateId && authedUser && session.candidateId !== String(authedUser)) {
+            return res.status(403).json({ success: false, message: 'Unauthorized: Candidate does not own this session.' });
+        }
+
+        // Validate baseline completion
+        if (!session.baselinePassed && session.state !== 'MUTATION_ACTIVE') {
+            return res.status(400).json({
+                success: false,
+                message: 'Stage-1 baseline tests must be validated before adapting to mutated constraints.'
+            });
+        }
+
+        const activationResult = mutationEngine.activateCandidateMutation(sessionId, code);
+
+        res.json({
+            success: true,
+            activated: activationResult.activated,
+            alreadyActive: activationResult.alreadyActive,
+            mutation: activationResult.mutation,
+            sandbox: activationResult.sandbox
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] activateMutation Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 const runDMCEMutation = async (req, res) => {
     try {
-        const { sessionId, code, language } = req.body;
+        const { sessionId, questionId, code, language } = req.body;
         if (!sessionId || !code) {
             return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
         }
 
-        const mutationResult = await mutationEngine.runMutationTests(sessionId, code, language);
+        const session = mutationEngine.getSession(sessionId);
+        if (!session) {
+            return res.status(404).json({ success: false, message: `Session ${sessionId} not found.` });
+        }
+
+        const targetQId = questionId || session.questionId;
+        let testCasesToRun = null;
+
+        if (targetQId && mongoose.Types.ObjectId.isValid(targetQId)) {
+            const question = await CodingQuestion.findById(targetQId);
+            if (question && Array.isArray(question.testCases) && question.testCases.length > 0) {
+                const mutCases = question.testCases.filter(tc => tc.category === 'MUTATION' || tc.category === 'Mutation');
+                if (mutCases.length > 0) {
+                    testCasesToRun = mutCases;
+                } else {
+                    const fallbackCases = question.testCases.filter(tc => tc.isHidden || tc.category === 'PERFORMANCE' || tc.category === 'BOUNDARY');
+                    testCasesToRun = fallbackCases.length > 0 ? fallbackCases : question.testCases;
+                }
+            }
+        }
+
+        // If no question-specific mutation cases exist, do not run generic infrastructure benchmarks against candidate
+        if (!testCasesToRun || testCasesToRun.length === 0) {
+            return res.json({
+                success: true,
+                mutationStatus: 'TEST_CONFIGURATION_ERROR',
+                passed: 0,
+                failed: 0,
+                total: 0,
+                adaptationDurationSec: session.mutation?.adaptationDurationSec || 0,
+                errorMessage: 'No question-specific mutation test cases available. Excluded from candidate scoring.',
+                results: []
+            });
+        }
+
+        const mutationResult = await mutationEngine.runMutationTests(sessionId, code, language, testCasesToRun);
         res.json({
             success: true,
             ...mutationResult
@@ -982,16 +1137,67 @@ const getDMCESessionStatus = async (req, res) => {
         if (!session) {
             return res.status(404).json({ success: false, message: 'Session not found' });
         }
+        const { getStatus: getSandboxStatus } = require('../services/dmce/sandboxManager');
+        const sandboxStatus = getSandboxStatus(sessionId);
+
+        const remainingSec = Math.max(0, Math.floor(((session.timerExpiresAt || (session.startedAt + (session.durationSec || 1800) * 1000)) - Date.now()) / 1000));
+
         res.json({
             success: true,
             sessionId: session.sessionId,
+            candidateId: session.candidateId,
+            questionId: session.questionId,
             state: session.state,
             baselinePassed: session.baselinePassed,
+            baselineScore: session.baselineScore,
             mutation: session.mutation,
             startedAt: session.startedAt,
-            config: session.config
+            timerExpiresAt: session.timerExpiresAt,
+            timerRemainingSec: remainingSec,
+            adaptationBufferApplied: !!session.adaptationBufferApplied,
+            adaptationBufferSec: session.adaptationBufferSec || 0,
+            config: session.config,
+            sandbox: sandboxStatus
         });
     } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const backfillCodingQuestions = async (req, res) => {
+    try {
+        const { codingRoundId, jobId, dryRun = false } = req.body;
+        let query = {};
+        if (codingRoundId && mongoose.Types.ObjectId.isValid(codingRoundId)) {
+            query.codingRoundId = codingRoundId;
+        } else if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+            const round = await CodingRound.findOne({ jobId });
+            if (round) query.codingRoundId = round._id;
+        }
+
+        const questions = await CodingQuestion.find(query);
+        const { backfillQuestionTestSuite } = require('../services/aiTestCaseGenerator');
+        const results = [];
+
+        for (const qDoc of questions) {
+            const bfRes = await backfillQuestionTestSuite(qDoc, 'python', { dryRun: !!dryRun });
+            results.push({
+                questionId: qDoc._id,
+                title: qDoc.title,
+                status: bfRes.status,
+                testCasesCount: bfRes.testCasesCount,
+                message: bfRes.message
+            });
+        }
+
+        res.json({
+            success: true,
+            totalQuestions: questions.length,
+            dryRun: !!dryRun,
+            results
+        });
+    } catch (err) {
+        console.error('[BACKFILL] Error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
@@ -1008,9 +1214,11 @@ module.exports = {
     reEvaluateCodingAnswer,
     runCandidateCode,
     generateQuestionTestCases,
+    backfillCodingQuestions,
     startDMCESession,
     heartbeatDMCESession,
     runDMCEBaseline,
+    activateDMCEMutation,
     runDMCEMutation,
     ingestDMCETelemetry,
     getDMCESessionStatus

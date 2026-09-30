@@ -10,6 +10,7 @@
  * - AST Analysis & Telemetry Forensics
  */
 
+const { compareOutputs } = require('../codeExecutionService');
 const { getMutationContract, selectMutationForQuestion } = require('./mutationRegistry');
 const {
     createSession: createSandboxSession,
@@ -74,6 +75,29 @@ function startSession({
 async function runBaseline(sessionId, code, language, testCases = []) {
     const session = getSession(sessionId) || initSession({ sessionId, language });
 
+    if (!Array.isArray(testCases) || testCases.length === 0) {
+        const executionSummary = {
+            status: 'TEST_CONFIGURATION_ERROR',
+            passed: 0,
+            failed: 0,
+            total: 0,
+            publicPassed: 0,
+            publicTotal: 0,
+            hiddenPassed: 0,
+            hiddenTotal: 0,
+            executionTime: 0,
+            errorMessage: 'No validated test cases configured for this question.',
+            results: []
+        };
+        recordBaselineExecution(sessionId, code, language, executionSummary);
+        return {
+            execution: executionSummary,
+            baselinePassed: false,
+            mutationEligible: false,
+            triggerEvaluation: { eligible: false, reason: 'NO_TEST_CASES' }
+        };
+    }
+
     // Execute baseline tests using the dedicated sandbox
     let passedCount = 0;
     let failedCount = 0;
@@ -85,6 +109,21 @@ async function runBaseline(sessionId, code, language, testCases = []) {
 
     for (let i = 0; i < testCases.length; i++) {
         const tc = testCases[i];
+        if (!tc || tc.input === undefined || tc.input === null || tc.expectedOutput === undefined || tc.expectedOutput === null) {
+            results.push({
+                id: tc?._id ? String(tc._id) : `test-${i + 1}`,
+                category: tc?.category || 'NORMAL',
+                isHidden: !!tc?.isHidden,
+                passed: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                executionTime: 0,
+                actualOutput: tc?.isHidden ? 'Failed' : '',
+                errorMessage: 'Test case configuration error: missing input or expected output.'
+            });
+            failedCount++;
+            continue;
+        }
+
         const execRes = await executeInSandbox(sessionId, code, language, tc.input || '');
         totalTime += execRes.executionTime || 0;
 
@@ -92,7 +131,7 @@ async function runBaseline(sessionId, code, language, testCases = []) {
         let tcStatus = execRes.status;
 
         if (execRes.status === 'SUCCESS') {
-            const isMatch = (execRes.stdout || '').trim() === (tc.expectedOutput || '').trim();
+            const isMatch = compareOutputs(execRes.stdout, tc.expectedOutput);
             if (isMatch) {
                 tcPassed = true;
                 tcStatus = 'PASSED';
@@ -193,20 +232,84 @@ function triggerMutationIfEligible(sessionId, currentCode = null, customMutation
 }
 
 /**
- * Executes mutation-specific tests under mutated constraints.
+ * Explicit candidate mutation activation (called when candidate clicks "Adapt Solution Under Constraint").
+ * Validates candidate session & baseline eligibility, clamps resources to 16MB, and starts adaptation timer.
  */
-async function runMutationTests(sessionId, code, language) {
+function activateCandidateMutation(sessionId, currentCode = null, customMutationId = null) {
+    const session = getSession(sessionId);
+    if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+    }
+
+    if (session.state === 'COMPLETED' || session.state === 'FINAL_SUBMISSION' || session.state === 'SANDBOX_DESTROYED') {
+        throw new Error('Cannot activate mutation on completed or submitted assessment session.');
+    }
+
+    if (session.timerExpiresAt && Date.now() > session.timerExpiresAt) {
+        throw new Error('Assessment session has expired.');
+    }
+
+    if (!session.baselinePassed && session.state !== 'MUTATION_ACTIVE') {
+        throw new Error('Candidate must complete and pass Stage-1 baseline validation before adapting under mutated constraints.');
+    }
+
+    // Idempotent return if already activated
+    if (session.mutation && session.mutation.activated) {
+        const sandboxStatus = getSandboxStatus(sessionId);
+        return {
+            activated: true,
+            alreadyActive: true,
+            mutation: session.mutation,
+            sandbox: sandboxStatus
+        };
+    }
+
+    const mutationId = customMutationId || session.mutation?.mutationId || 'mut_mem_opt_16mb';
+    const contract = getMutationContract(mutationId) || selectMutationForQuestion({ mutationContractId: mutationId });
+
+    if (!contract) {
+        throw new Error(`Mutation contract ${mutationId} not found in registry`);
+    }
+
+    // 1. Live Hot Clamp active sandbox
+    const updatedSandbox = applyResourceMutation(sessionId, contract);
+
+    // 2. Activate in persistent session state
+    const updatedSession = activateMutation(sessionId, contract, currentCode);
+
+    return {
+        activated: true,
+        alreadyActive: false,
+        mutation: updatedSession.mutation,
+        sandbox: {
+            status: updatedSandbox.status,
+            currentConstraints: updatedSandbox.currentConstraints
+        }
+    };
+}
+
+/**
+ * Executes mutation-specific tests under mutated constraints (16MB memory limit).
+ * Supports question-specific test cases or falls back to contract benchmark tests.
+ */
+async function runMutationTests(sessionId, code, language, testCasesOverride = null) {
     const session = getSession(sessionId);
     if (!session) throw new Error(`Session ${sessionId} not found`);
 
-    if (!session.mutation || !session.mutation.triggered) {
+    if (!session.mutation || (!session.mutation.triggered && !session.mutation.activated)) {
         throw new Error('Mutation has not been triggered on this session');
     }
 
     const contract = getMutationContract(session.mutation.mutationId);
-    const mutationTests = contract ? contract.mutationTests : [];
+    let mutationTests = [];
 
-    // Execute under mutated constraints
+    if (Array.isArray(testCasesOverride) && testCasesOverride.length > 0) {
+        mutationTests = testCasesOverride;
+    } else if (contract && Array.isArray(contract.mutationTests)) {
+        mutationTests = contract.mutationTests;
+    }
+
+    // Execute under mutated constraints (16 MB clamped heap)
     const testResults = await executeMutationTests(sessionId, code, language, mutationTests);
 
     // Record snapshot and update session
@@ -257,6 +360,7 @@ module.exports = {
     startSession,
     runBaseline,
     triggerMutationIfEligible,
+    activateCandidateMutation,
     runMutationTests,
     submitAndAnalyze,
     getSession,

@@ -660,6 +660,15 @@ const CodingAssessmentConfig = () => {
                                                         {q.allowedLanguages.join(', ')}
                                                     </span>
                                                 )}
+                                                {Array.isArray(q.testCases) && q.testCases.length > 0 ? (
+                                                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono text-[10px]">
+                                                        ✓ {q.testCases.length} Tests ({q.testCases.filter(t => !t.isHidden).length} Public, {q.testCases.filter(t => t.isHidden).length} Hidden)
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono text-[10px]">
+                                                        ⚠️ Tests Required
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

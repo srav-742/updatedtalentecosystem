@@ -36,11 +36,13 @@ router.get('/details/:applicationId', authMiddleware, codingAssessmentController
 // ─── Code Execution & Test Cases ──────────────────────────
 router.post('/run', optionalAuth, codingAssessmentController.runCandidateCode);
 router.post('/generate-test-cases', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.generateQuestionTestCases);
+router.post('/backfill-test-cases', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.backfillCodingQuestions);
 
 // ─── DMCE Dedicated Sandbox & Dynamic Mutation ───────────
 router.post('/session/start', optionalAuth, codingAssessmentController.startDMCESession);
 router.post('/session/heartbeat', optionalAuth, codingAssessmentController.heartbeatDMCESession);
 router.post('/session/run-baseline', optionalAuth, codingAssessmentController.runDMCEBaseline);
+router.post('/session/activate-mutation', optionalAuth, codingAssessmentController.activateDMCEMutation);
 router.post('/session/run-mutation', optionalAuth, codingAssessmentController.runDMCEMutation);
 router.post('/session/telemetry', optionalAuth, codingAssessmentController.ingestDMCETelemetry);
 router.get('/session/status/:sessionId', optionalAuth, codingAssessmentController.getDMCESessionStatus);

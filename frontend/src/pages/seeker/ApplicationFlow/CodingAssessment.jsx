@@ -77,6 +77,8 @@ const CodingAssessment = ({
     const [showMutationModal, setShowMutationModal] = useState(false);
     const [activeMutationAlert, setActiveMutationAlert] = useState(null);
     const [mutationBufferedQuestions, setMutationBufferedQuestions] = useState(new Set());
+    const [activatingMutation, setActivatingMutation] = useState(false);
+    const [mutationActivationError, setMutationActivationError] = useState(null);
     const telemetryBufferRef = useRef([]);
     const telemetrySeqRef = useRef(0);
     const telemetrySocketRef = useRef(null);
@@ -92,26 +94,80 @@ const CodingAssessment = ({
         });
     };
 
-    // Trigger Mutation Notification Banner & Apply Adaptation Time Buffer (+10m)
+    // Trigger Mutation Notification Banner
     const triggerMutationAlert = (mutationPayload, qId) => {
         if (!mutationPayload) return;
         setDmceMutations(prev => ({
             ...prev,
-            [qId]: mutationPayload
+            [qId]: {
+                ...(prev[qId] || {}),
+                ...mutationPayload,
+                triggered: true
+            }
         }));
         setActiveMutationAlert(mutationPayload);
         setShowMutationModal(true);
+    };
 
-        setMutationBufferedQuestions(prev => {
-            if (!prev.has(qId)) {
-                const next = new Set(prev);
-                next.add(qId);
-                const bufferSec = mutationPayload.adaptationTimeBufferSec || 600;
-                setTimeLeft(curr => curr + bufferSec);
-                return next;
+    // Candidate clicks "Adapt Solution Under Constraint"
+    const handleAdaptMutation = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentSid = dmceSessions[qId];
+        const currentAns = answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        setActivatingMutation(true);
+        setMutationActivationError(null);
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
             }
-            return prev;
-        });
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/activate-mutation`, {
+                sessionId: currentSid,
+                questionId: qId,
+                candidateId: user?.uid || user?._id || user?.id || '',
+                code,
+                language
+            }, { headers });
+
+            if (res.data?.success && res.data.activated) {
+                const appliedMutation = res.data.mutation || activeMutationAlert;
+                setDmceMutations(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...appliedMutation,
+                        activated: true,
+                        triggered: true
+                    }
+                }));
+
+                // Apply authoritative adaptation time buffer only once
+                setMutationBufferedQuestions(prev => {
+                    if (!prev.has(qId)) {
+                        const next = new Set(prev);
+                        next.add(qId);
+                        const bufferSec = appliedMutation.adaptationTimeBufferSec || 600;
+                        setTimeLeft(curr => curr + bufferSec);
+                        return next;
+                    }
+                    return prev;
+                });
+
+                setShowMutationModal(false);
+            } else {
+                setMutationActivationError(res.data?.message || 'Failed to activate mutation constraint.');
+            }
+        } catch (err) {
+            console.error('[DMCE] Mutation activation error:', err);
+            setMutationActivationError(err.response?.data?.message || 'Failed to activate constraint. Please retry.');
+        } finally {
+            setActivatingMutation(false);
+        }
     };
 
     // Initialize dedicated DMCE sandbox when candidate starts or switches question
@@ -137,6 +193,27 @@ const CodingAssessment = ({
 
                 if (res.data?.success) {
                     setDmceSessions(prev => ({ ...prev, [qId]: sid }));
+
+                    // Restore existing session status if candidate reloads/returns
+                    try {
+                        const statusRes = await axios.get(`${API_URL}/coding-assessments/session/status/${sid}`, { headers });
+                        if (statusRes.data?.success) {
+                            if (statusRes.data.timerRemainingSec !== undefined && statusRes.data.timerRemainingSec > 0) {
+                                setTimeLeft(statusRes.data.timerRemainingSec);
+                            }
+                            if (statusRes.data.adaptationBufferApplied) {
+                                setMutationBufferedQuestions(prev => new Set([...prev, qId]));
+                            }
+                            if (statusRes.data.mutation) {
+                                const mut = statusRes.data.mutation;
+                                if (mut.activated) {
+                                    setDmceMutations(prev => ({ ...prev, [qId]: { ...mut, activated: true, triggered: true } }));
+                                } else if (mut.triggered) {
+                                    triggerMutationAlert(mut, qId);
+                                }
+                            }
+                        }
+                    } catch (_) {}
                 }
             } catch (err) {
                 console.warn('[DMCE] Sandbox init fallback:', err.message);
@@ -415,7 +492,7 @@ const CodingAssessment = ({
         setError(null);
 
         const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
-        const isMutated = !!dmceMutations[qId]?.triggered;
+        const isMutated = !!dmceMutations[qId]?.activated || !!dmceMutations[qId]?.triggered;
 
         try {
             const headers = await getAuthHeaders().catch(() => ({}));
@@ -428,6 +505,7 @@ const CodingAssessment = ({
                 // Execute mutation-specific test suite under mutated constraints (16MB heap)
                 res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
                     sessionId: currentSid,
+                    questionId: qId,
                     code,
                     language
                 }, { headers });
@@ -993,12 +1071,23 @@ const CodingAssessment = ({
                                 <span className="font-mono text-xs text-gray-300">
                                     solution.{getFileExtension(answers[currentQuestion?._id]?.language)}
                                 </span>
-                                {dmceMutations[currentQuestion?._id]?.triggered && (
-                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-extrabold animate-pulse">
-                                        <Zap size={11} className="text-amber-400" />
-                                        <span>MUTATION ACTIVE: {dmceMutations[currentQuestion?._id]?.type || '16MB HEAP'}</span>
+                                {dmceMutations[currentQuestion?._id]?.activated ? (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-extrabold animate-pulse">
+                                        <Cpu size={12} className="text-amber-400" />
+                                        <span>16 MB MEMORY CAP ENFORCED</span>
                                     </div>
-                                )}
+                                ) : dmceMutations[currentQuestion?._id]?.triggered ? (
+                                    <button
+                                        onClick={() => {
+                                            setActiveMutationAlert(dmceMutations[currentQuestion?._id]);
+                                            setShowMutationModal(true);
+                                        }}
+                                        className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 text-[10px] font-extrabold cursor-pointer hover:bg-yellow-500/30"
+                                    >
+                                        <Zap size={11} className="text-yellow-400 animate-bounce" />
+                                        <span>MUTATION PENDING: CLICK TO ADAPT</span>
+                                    </button>
+                                ) : null}
                             </div>
 
                             <div className="flex items-center gap-3">
@@ -1070,6 +1159,7 @@ const CodingAssessment = ({
                                                 }`}>
                                                     {currentResult.status === 'ALL_PASSED' ? 'All Passed' :
                                                      currentResult.status === 'PARTIALLY_PASSED' ? `${currentResult.passed}/${currentResult.total} Passed` :
+                                                     currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? 'Memory Limit Exceeded (16 MB Clamped)' :
                                                      currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
                                                      currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
                                                      currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
@@ -1365,16 +1455,31 @@ const CodingAssessment = ({
                                 </div>
                             </div>
 
+                            {mutationActivationError && (
+                                <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+                                    <AlertCircle size={15} className="shrink-0 text-red-400" />
+                                    <span>{mutationActivationError}</span>
+                                </div>
+                            )}
+
                             <div className="mt-6 flex items-center justify-between gap-3">
                                 <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
                                     <ShieldCheck size={14} className="text-emerald-400" />
                                     <span>Stage-1 Baseline credit is 100% preserved.</span>
                                 </div>
                                 <button
-                                    onClick={() => setShowMutationModal(false)}
-                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                                    onClick={handleAdaptMutation}
+                                    disabled={activatingMutation}
+                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    Adapt Solution Under Constraint
+                                    {activatingMutation ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin text-black" />
+                                            <span>Enforcing 16 MB Limit...</span>
+                                        </>
+                                    ) : (
+                                        <span>Adapt Solution Under Constraint</span>
+                                    )}
                                 </button>
                             </div>
                         </motion.div>

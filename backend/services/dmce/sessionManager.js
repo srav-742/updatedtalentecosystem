@@ -71,6 +71,12 @@ function initSession({
             enabled: config.enabled !== undefined ? config.enabled : true
         },
 
+        // Authoritative Timer Management (Server-enforced)
+        durationSec: config.durationSec !== undefined ? config.durationSec : 1800,
+        timerExpiresAt: Date.now() + (config.durationSec !== undefined ? config.durationSec : 1800) * 1000,
+        adaptationBufferApplied: false,
+        adaptationBufferSec: 0,
+
         // Baseline tracking
         baselinePassed: false,
         baselineScore: 0,
@@ -167,23 +173,40 @@ function recordBaselineExecution(sessionId, code, language, executionResult) {
 
 /**
  * Activates a mutation on the session and captures the pre-mutation snapshot.
+ * Idempotent: If already activated, preserves existing activation timestamp and state.
  */
 function activateMutation(sessionId, mutationContract, currentCode) {
     const session = sessions.get(sessionId);
     if (!session) return null;
 
+    // Idempotent guard: if already activated, do not reset adaptation timer or re-trigger
+    if (session.mutation && session.mutation.activated) {
+        return session;
+    }
+
     const now = Date.now();
     session.state = LIFECYCLE_STATES.MUTATION_ACTIVE;
-    session.snapshots.preMutationCode = currentCode || session.snapshots.baselineCode;
+    session.snapshots.preMutationCode = currentCode || session.snapshots.preMutationCode || session.snapshots.baselineCode;
+
+    const bufferSec = mutationContract.adaptationTimeBufferSec || 600;
+
+    if (!session.adaptationBufferApplied) {
+        session.adaptationBufferApplied = true;
+        session.adaptationBufferSec = bufferSec;
+        session.timerExpiresAt = (session.timerExpiresAt || (session.startedAt + (session.durationSec || 1800) * 1000)) + (bufferSec * 1000);
+    }
 
     session.mutation = {
         triggered: true,
+        activated: true,
         mutationId: mutationContract.mutationId,
         type: mutationContract.type,
         headline: mutationContract.headline,
         description: mutationContract.description,
-        triggeredAt: now,
-        adaptationStartedAt: now,
+        resourceConstraints: mutationContract.resourceConstraints,
+        adaptationTimeBufferSec: bufferSec,
+        triggeredAt: session.mutation?.triggeredAt || now,
+        adaptationStartedAt: session.mutation?.adaptationStartedAt || now,
         adaptationDurationSec: 0,
         status: 'ACTIVE',
         mutationTestsPassed: 0,
@@ -192,13 +215,13 @@ function activateMutation(sessionId, mutationContract, currentCode) {
     };
 
     session.timeline.push({
-        event: 'MUTATION_TRIGGERED',
+        event: 'MUTATION_ACTIVATED',
         timestamp: now,
         mutationId: mutationContract.mutationId,
-        message: `Mutation triggered: ${mutationContract.headline}`
+        message: `Mutation activated by candidate: ${mutationContract.headline} (${mutationContract.resourceConstraints?.memoryLimitMb || 16} MB clamped)`
     });
 
-    console.log(`[DMCE-SESSION] [MUTATION_TRIGGERED] Mutation ${mutationContract.mutationId} activated for session ${sessionId}`);
+    console.log(`[DMCE-SESSION] [MUTATION_ACTIVATED] Mutation ${mutationContract.mutationId} activated for session ${sessionId}`);
     return session;
 }
 

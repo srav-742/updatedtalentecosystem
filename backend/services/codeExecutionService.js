@@ -74,8 +74,19 @@ function normalizeOutput(str) {
  * Handles exact strings, whitespace differences, numeric formatting, and structured JSON.
  */
 function compareOutputs(actual, expected) {
+    if (expected === null || expected === undefined) return false;
     const normActual = normalizeOutput(actual);
     const normExpected = normalizeOutput(expected);
+
+    // If expected is empty string, check exact match
+    if (normExpected === '') {
+        return normActual === '';
+    }
+
+    // If actual is empty but expected is not, it cannot match
+    if (normActual === '') {
+        return false;
+    }
 
     // 1. Exact string match after normalization
     if (normActual === normExpected) {
@@ -153,31 +164,46 @@ function prepareRunnableCode(rawCode, language, input) {
             const funcName = funcMatch[1];
             const params = funcMatch[2].split(',').map(p => p.trim()).filter(Boolean);
             const wrapper = `
-import sys, json, ast
+import sys, json, ast, traceback
 
 ${trimmed}
 
 if __name__ == '__main__':
-    raw_in = sys.stdin.read().strip()
-    if not raw_in:
-        try:
+    try:
+        raw_in = sys.stdin.read().strip()
+        if not raw_in:
             res = ${funcName}()
             if res is not None:
-                print(res)
-        except Exception as e:
-            pass
-    else:
-        lines = [l for l in raw_in.splitlines() if l.strip()]
-        args = []
-        for l in lines:
-            try:
-                args.append(json.loads(l))
-            except Exception:
+                if isinstance(res, (list, dict)):
+                    print(json.dumps(res))
+                else:
+                    print(res)
+        else:
+            lines = [l for l in raw_in.splitlines() if l.strip()]
+            args = []
+            for l in lines:
                 try:
-                    args.append(ast.literal_eval(l))
+                    args.append(json.loads(l))
                 except Exception:
-                    args.append(l)
-        try:
+                    try:
+                        args.append(ast.literal_eval(l))
+                    except Exception:
+                        args.append(l)
+            if len(args) == 0 and raw_in:
+                args = [raw_in]
+            
+            # If function expects multiple arguments but args has 1 space-separated string
+            if len(args) == 1 and ${params.length} > 1 and isinstance(args[0], str):
+                tokens = args[0].split()
+                if len(tokens) == ${params.length}:
+                    parsed_tokens = []
+                    for t in tokens:
+                        try:
+                            parsed_tokens.append(json.loads(t))
+                        except Exception:
+                            parsed_tokens.append(t)
+                    args = parsed_tokens
+
             if len(args) == ${params.length}:
                 res = ${funcName}(*args)
             elif len(args) == 1 and ${params.length} == 1:
@@ -192,13 +218,9 @@ if __name__ == '__main__':
                     print(json.dumps(res))
                 else:
                     print(res)
-        except TypeError:
-            try:
-                res = ${funcName}()
-                if res is not None:
-                    print(res)
-            except Exception as ex:
-                print(ex, file=sys.stderr)
+    except Exception as ex:
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 `;
             return wrapper;
         }
@@ -237,6 +259,7 @@ try {
     }
 } catch (err) {
     console.error(err);
+    process.exit(1);
 }
 `;
             return wrapper;
@@ -519,9 +542,21 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
         maskHiddenDetails = (maybeOptions && maybeOptions.maskHiddenDetails !== undefined) ? !!maybeOptions.maskHiddenDetails : true;
     }
 
+    if (!Array.isArray(testCases) || testCases.length === 0) {
+        return {
+            status: 'TEST_CONFIGURATION_ERROR',
+            passed: 0,
+            failed: 0,
+            total: 0,
+            executionTime: 0,
+            errorMessage: 'No validated test cases configured for this question.',
+            results: []
+        };
+    }
+
     if (!code || !code.trim()) {
         return {
-            status: 'COMPLETED',
+            status: 'FAILED',
             passed: 0,
             failed: testCases.length,
             total: testCases.length,
@@ -535,7 +570,7 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
                 input: (maskHiddenDetails && tc.isHidden) ? undefined : tc.input,
                 expectedOutput: (maskHiddenDetails && tc.isHidden) ? undefined : tc.expectedOutput,
                 actualOutput: '',
-                errorMessage: 'No code submitted.',
+                errorMessage: (maskHiddenDetails && tc.isHidden) ? 'Hidden test failed' : 'No code submitted.',
                 executionTime: 0
             }))
         };
@@ -543,6 +578,7 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
 
     let passedCount = 0;
     let failedCount = 0;
+    let configErrorCount = 0;
     let totalExecutionTime = 0;
     const results = [];
     let hasCompilationError = false;
@@ -552,6 +588,25 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
         const tc = testCases[i];
         const isHidden = !!tc.isHidden;
         const tcId = tc._id ? String(tc._id) : `test-${i + 1}`;
+
+        // Validate that test case has valid input and expected output (except CUSTOM category which has no expectedOutput)
+        if (tc.input === undefined || tc.input === null || (tc.category !== 'CUSTOM' && (tc.expectedOutput === undefined || tc.expectedOutput === null))) {
+            results.push({
+                id: tcId,
+                category: tc.category || 'NORMAL',
+                isHidden,
+                passed: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                input: (maskHiddenDetails && isHidden) ? undefined : tc.input,
+                expectedOutput: (maskHiddenDetails && isHidden) ? undefined : tc.expectedOutput,
+                actualOutput: '',
+                errorMessage: (maskHiddenDetails && isHidden) ? 'Hidden test failed' : 'Test case configuration error: missing input or expected output.',
+                executionTime: 0
+            });
+            failedCount++;
+            configErrorCount++;
+            continue;
+        }
 
         // If a previous test case caught a syntax / compilation error, subsequent tests fail immediately
         if (hasCompilationError) {
@@ -564,7 +619,7 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
                 input: (maskHiddenDetails && isHidden) ? undefined : tc.input,
                 expectedOutput: (maskHiddenDetails && isHidden) ? undefined : tc.expectedOutput,
                 actualOutput: '',
-                errorMessage: globalCompilationError,
+                errorMessage: (maskHiddenDetails && isHidden) ? 'Hidden test failed' : globalCompilationError,
                 executionTime: 0
             });
             failedCount++;
@@ -592,6 +647,11 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
         } else if (execResult.status === 'EXECUTION_ERROR') {
             tcStatus = 'EXECUTION_ERROR';
             tcPassed = false;
+        } else if (tc.category === 'CUSTOM') {
+            // Custom user-input execution: show output without grading pass/fail
+            tcStatus = 'PASSED';
+            tcPassed = true;
+            errorMessage = '';
         } else {
             // Execution completed successfully, compare outputs
             const isMatch = compareOutputs(execResult.stdout, tc.expectedOutput);
@@ -621,18 +681,20 @@ async function executeAgainstTestCases(codeOrParams, maybeLanguage, maybeTestCas
             input: (maskHiddenDetails && isHidden) ? undefined : tc.input,
             expectedOutput: (maskHiddenDetails && isHidden) ? undefined : tc.expectedOutput,
             actualOutput: (maskHiddenDetails && isHidden) ? (tcPassed ? 'Passed' : 'Failed') : (execResult.stdout || ''),
-            errorMessage: (maskHiddenDetails && isHidden && tcStatus !== 'COMPILATION_ERROR') ? undefined : errorMessage,
+            errorMessage: (maskHiddenDetails && isHidden) ? (tcPassed ? undefined : 'Hidden test failed') : errorMessage,
             executionTime: execResult.executionTime
         });
     }
 
     const overallStatus = hasCompilationError
         ? 'COMPILATION_ERROR'
-        : failedCount === 0
-            ? 'ALL_PASSED'
-            : passedCount > 0
-                ? 'PARTIALLY_PASSED'
-                : 'FAILED';
+        : (configErrorCount === testCases.length && testCases.length > 0)
+            ? 'TEST_CONFIGURATION_ERROR'
+            : failedCount === 0
+                ? 'ALL_PASSED'
+                : passedCount > 0
+                    ? 'PARTIALLY_PASSED'
+                    : 'FAILED';
 
     return {
         status: overallStatus,
