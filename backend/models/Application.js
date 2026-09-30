@@ -116,14 +116,46 @@ const applicationSchema = new mongoose.Schema({
             aiEvaluationStatus: { type: String, enum: ['success', 'failed', 'pending'], default: 'pending' },
             correctnessVerdict: { type: String, enum: ['Correct', 'Partially Correct', 'Incorrect', 'Not Evaluated'], default: 'Not Evaluated' },
             evaluation: { type: mongoose.Schema.Types.Mixed, default: null },
-            execution: { type: mongoose.Schema.Types.Mixed, default: null }
+            execution: { type: mongoose.Schema.Types.Mixed, default: null },
+            baseline: {
+                passed: { type: Boolean, default: false },
+                score: { type: Number, default: 0 },
+                execution: { type: mongoose.Schema.Types.Mixed, default: null }
+            },
+            mutation: {
+                triggered: { type: Boolean, default: false },
+                mutationId: { type: String, default: null },
+                status: { type: String, default: 'PENDING' },
+                mutationTestsPassed: { type: Number, default: 0 },
+                mutationTestsTotal: { type: Number, default: 0 },
+                adaptationDurationSec: { type: Number, default: 0 },
+                headline: { type: String, default: null },
+                description: { type: String, default: null },
+                results: { type: mongoose.Schema.Types.Mixed, default: [] }
+            },
+            forensics: {
+                astVolatility: { type: Number, default: null },
+                spatialLocality: { type: Number, default: null },
+                keystrokeMonotonicity: { type: Number, default: null },
+                diagnosticInteractivity: { type: Number, default: null },
+                casScore: { type: Number, default: null },
+                reviewIndicators: [{ type: String }]
+            },
+            snapshots: {
+                baselineCode: { type: String, default: '' },
+                preMutationCode: { type: String, default: '' },
+                postMutationCode: { type: String, default: '' },
+                finalSubmittedCode: { type: String, default: '' }
+            },
+            sandboxSessionId: { type: String, default: null }
         }
     ],
     codingDetails: {
         totalQuestions: { type: Number, default: 0 },
         totalMaximumMarks: { type: Number, default: 100 },
         totalObtainedMarks: { type: Number, default: 0 },
-        finalPercentage: { type: Number, default: 0 }
+        finalPercentage: { type: Number, default: 0 },
+        dmceSummary: { type: mongoose.Schema.Types.Mixed, default: null }
     },
     recommendationSummary: {
         keyStrengths: [String],

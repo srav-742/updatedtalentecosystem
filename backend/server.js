@@ -9,6 +9,8 @@ const seedAdmin = require('./utils/seedAdmin');
 const fs = require('fs');
 const path = require('path');
 
+const { initWebSocketServer } = require('./services/dmce/wsServer');
+
 const startServer = async () => {
     try {
         // Ensure private storage exists
@@ -24,11 +26,12 @@ const startServer = async () => {
         // One-time cleanup block that deleted blog posts has been removed to prevent ephemeral file loss on restarts.
 
         const PORT = process.env.PORT || 5000;
-        app.listen(PORT, async () => {
+        const server = app.listen(PORT, async () => {
             console.log(`[CORE] TalentEcoSystem Server - RUNNING on Port: ${PORT}`);
             await seedAdmin();
             startCleanupJob();
         });
+        initWebSocketServer(server);
     } catch (err) {
         console.error("[FATAL] Failed to start server:", err.message);
         process.exit(1);

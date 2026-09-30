@@ -1556,8 +1556,8 @@ export default function BlogPostDetailsPage() {
                             
                             <div className="relative z-10 pt-6">
                                 <Link 
-                                    to="/signup?role=seeker" 
-                                    state={{ role: 'seeker' }}
+                                    to="/signup?role=candidate" 
+                                    state={{ role: 'candidate' }}
                                     className="inline-flex items-center gap-2 font-semibold text-white rounded-full px-6 py-3 transition-all duration-200 cursor-pointer group/btn"
                                     style={{ background: '#2563eb', fontSize: '1rem', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
                                     aria-label="Get Started for Candidates"

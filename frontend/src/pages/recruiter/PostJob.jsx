@@ -21,7 +21,7 @@ const PostJob = () => {
         if (!user.uid && !user._id && !user.id) {
             navigate('/login');
         } else if (user.role !== 'recruiter' && user.role !== 'admin') {
-            navigate('/seeker');
+            navigate('/candidate');
         }
     }, [user, navigate]);
 

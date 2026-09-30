@@ -30,7 +30,13 @@ const CodingAssessmentConfig = () => {
         timerType: 'overall',
         languages: [],
         instructions: '',
-        status: 'draft'
+        status: 'draft',
+        dynamicMutation: {
+            enabled: true,
+            minTriggerSec: 30,
+            maxTriggerSec: 1800,
+            mutationTimeBufferSec: 600
+        }
     });
     const [codingRoundId, setCodingRoundId] = useState(null);
     const [questions, setQuestions] = useState([]);
@@ -44,7 +50,7 @@ const CodingAssessmentConfig = () => {
         if (!user.uid && !user._id && !user.id) {
             navigate('/login');
         } else if (user.role !== 'recruiter' && user.role !== 'admin') {
-            navigate('/seeker');
+            navigate('/candidate');
         }
     }, [user, navigate]);
 
@@ -66,7 +72,13 @@ const CodingAssessmentConfig = () => {
                         timerType: round.timerType || 'overall',
                         languages: round.languages || [],
                         instructions: round.instructions || '',
-                        status: round.status || 'draft'
+                        status: round.status || 'draft',
+                        dynamicMutation: round.dynamicMutation || {
+                            enabled: true,
+                            minTriggerSec: 30,
+                            maxTriggerSec: 1800,
+                            mutationTimeBufferSec: 600
+                        }
                     });
                     setQuestions(round.questions || []);
                 }
@@ -376,6 +388,93 @@ const CodingAssessmentConfig = () => {
                             placeholder="e.g. Write clean code with proper variable naming. No external libraries allowed."
                             className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all resize-none text-sm"
                         />
+                    </div>
+
+                    {/* Dynamic Mutation Coding Engine (DMCE / DRI) Settings */}
+                    <div className="md:col-span-2 p-5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-cyan-500/5 to-transparent border border-teal-500/20 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Zap size={18} className="text-teal-400" />
+                                <div>
+                                    <h4 className="text-sm font-bold text-white">Dynamic Mutation Coding Engine (DMCE / DRI)</h4>
+                                    <p className="text-xs text-slate-400">Deterministic runtime resource mutation (16MB heap clamping) during assessment</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={roundConfig.dynamicMutation?.enabled ?? true}
+                                    onChange={(e) => setRoundConfig(prev => ({
+                                        ...prev,
+                                        dynamicMutation: {
+                                            ...(prev.dynamicMutation || {}),
+                                            enabled: e.target.checked
+                                        }
+                                    }))}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
+                            </label>
+                        </div>
+
+                        {roundConfig.dynamicMutation?.enabled && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-teal-500/10 text-xs">
+                                <div>
+                                    <label className="block font-bold text-slate-300 mb-1">Min Trigger Time (sec)</label>
+                                    <input
+                                        type="number"
+                                        min="10"
+                                        max="600"
+                                        value={roundConfig.dynamicMutation?.minTriggerSec ?? 30}
+                                        onChange={(e) => setRoundConfig(prev => ({
+                                            ...prev,
+                                            dynamicMutation: {
+                                                ...prev.dynamicMutation,
+                                                minTriggerSec: Number(e.target.value)
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">Earliest mutation trigger</span>
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-300 mb-1">Max Trigger Time (sec)</label>
+                                    <input
+                                        type="number"
+                                        min="60"
+                                        max="3600"
+                                        value={roundConfig.dynamicMutation?.maxTriggerSec ?? 1800}
+                                        onChange={(e) => setRoundConfig(prev => ({
+                                            ...prev,
+                                            dynamicMutation: {
+                                                ...prev.dynamicMutation,
+                                                maxTriggerSec: Number(e.target.value)
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">Latest mutation trigger</span>
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-300 mb-1">Adaptation Buffer (min)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="30"
+                                        value={Math.round((roundConfig.dynamicMutation?.mutationTimeBufferSec ?? 600) / 60)}
+                                        onChange={(e) => setRoundConfig(prev => ({
+                                            ...prev,
+                                            dynamicMutation: {
+                                                ...prev.dynamicMutation,
+                                                mutationTimeBufferSec: Number(e.target.value) * 60
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">Additional time granted</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

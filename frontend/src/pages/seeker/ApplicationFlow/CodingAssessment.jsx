@@ -16,7 +16,11 @@ import {
     ChevronDown,
     Check,
     X,
-    ShieldAlert
+    ShieldAlert,
+    Zap,
+    Cpu,
+    Layers,
+    ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../../firebase';
@@ -64,6 +68,143 @@ const CodingAssessment = ({
     const [consoleOpen, setConsoleOpen] = useState(false);
 
     const timerRef = useRef(null);
+
+    const currentQuestion = questions[currentQIndex] || null;
+
+    // DMCE Dedicated Sandbox & Dynamic Mutation State
+    const [dmceSessions, setDmceSessions] = useState({}); // { [questionId]: sessionId }
+    const [dmceMutations, setDmceMutations] = useState({}); // { [questionId]: mutationPayload }
+    const [showMutationModal, setShowMutationModal] = useState(false);
+    const [activeMutationAlert, setActiveMutationAlert] = useState(null);
+    const [mutationBufferedQuestions, setMutationBufferedQuestions] = useState(new Set());
+    const telemetryBufferRef = useRef([]);
+    const telemetrySeqRef = useRef(0);
+    const telemetrySocketRef = useRef(null);
+
+    // Record Telemetry Event Helper (keystroke, delete, cursor, run)
+    const recordTelemetry = (type, meta = {}) => {
+        telemetryBufferRef.current.push({
+            type,
+            line: meta.line || 1,
+            column: meta.column || 1,
+            key: meta.key || '',
+            timestamp: Date.now()
+        });
+    };
+
+    // Trigger Mutation Notification Banner & Apply Adaptation Time Buffer (+10m)
+    const triggerMutationAlert = (mutationPayload, qId) => {
+        if (!mutationPayload) return;
+        setDmceMutations(prev => ({
+            ...prev,
+            [qId]: mutationPayload
+        }));
+        setActiveMutationAlert(mutationPayload);
+        setShowMutationModal(true);
+
+        setMutationBufferedQuestions(prev => {
+            if (!prev.has(qId)) {
+                const next = new Set(prev);
+                next.add(qId);
+                const bufferSec = mutationPayload.adaptationTimeBufferSec || 600;
+                setTimeLeft(curr => curr + bufferSec);
+                return next;
+            }
+            return prev;
+        });
+    };
+
+    // Initialize dedicated DMCE sandbox when candidate starts or switches question
+    useEffect(() => {
+        if (!started || !currentQuestion?._id) return;
+        const qId = currentQuestion._id;
+        if (dmceSessions[qId]) return;
+
+        const startSandbox = async () => {
+            try {
+                const sid = `dmce-${user?.uid || 'candidate'}-${qId}-${Date.now().toString(36)}`;
+                const headers = await getAuthHeaders().catch(() => ({}));
+                if (user?.uid || user?._id || user?.id) {
+                    headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+                }
+                const res = await axios.post(`${API_URL}/coding-assessments/session/start`, {
+                    sessionId: sid,
+                    candidateId: user?.uid || user?._id || user?.id || '',
+                    jobId: job?._id || job?.id || '',
+                    questionId: qId,
+                    language: answers[qId]?.language || 'python'
+                }, { headers });
+
+                if (res.data?.success) {
+                    setDmceSessions(prev => ({ ...prev, [qId]: sid }));
+                }
+            } catch (err) {
+                console.warn('[DMCE] Sandbox init fallback:', err.message);
+            }
+        };
+
+        startSandbox();
+    }, [started, currentQIndex, questions]);
+
+    // WebSocket Telemetry Streaming & 500ms batched transmission
+    useEffect(() => {
+        if (!started) return;
+        const qId = currentQuestion?._id;
+        const currentSid = qId ? dmceSessions[qId] : null;
+
+        let ws = null;
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/telemetry`);
+            telemetrySocketRef.current = ws;
+
+            ws.onopen = () => {
+                if (currentSid) {
+                    ws.send(JSON.stringify({ type: 'INIT_SESSION', sessionId: currentSid }));
+                }
+            };
+
+            ws.onmessage = (evt) => {
+                try {
+                    const data = JSON.parse(evt.data);
+                    if (data.type === 'MUTATION_TRIGGERED' && data.payload) {
+                        triggerMutationAlert(data.payload, qId);
+                    }
+                } catch (_) {}
+            };
+        } catch (_) {}
+
+        const batchInterval = setInterval(() => {
+            if (telemetryBufferRef.current.length > 0 && currentSid) {
+                const batch = [...telemetryBufferRef.current];
+                telemetryBufferRef.current = [];
+                const seq = ++telemetrySeqRef.current;
+
+                if (telemetrySocketRef.current && telemetrySocketRef.current.readyState === WebSocket.OPEN) {
+                    telemetrySocketRef.current.send(JSON.stringify({
+                        type: 'TELEMETRY_BATCH',
+                        sessionId: currentSid,
+                        seqId: seq,
+                        events: batch
+                    }));
+                } else {
+                    axios.post(`${API_URL}/coding-assessments/session/telemetry`, {
+                        sessionId: currentSid,
+                        seqId: seq,
+                        events: batch
+                    }).catch(() => {});
+                }
+            }
+        }, 500);
+
+        return () => {
+            clearInterval(batchInterval);
+            if (ws) {
+                try { ws.close(); } catch (_) {}
+            }
+        };
+    }, [started, currentQIndex, dmceSessions]);
 
     // Fetch existing coding round configuration
     const fetchCodingRound = async () => {
@@ -232,6 +373,10 @@ const CodingAssessment = ({
 
     const handleCodeChange = (codeValue) => {
         if (!currentQuestion) return;
+        const prevCode = answers[currentQuestion._id]?.code || '';
+        const isDelete = codeValue.length < prevCode.length;
+        recordTelemetry(isDelete ? 'DELETE' : 'KEY_PRESS', { line: 1, column: 1 });
+
         setAnswers(prev => ({
             ...prev,
             [currentQuestion._id]: {
@@ -254,7 +399,8 @@ const CodingAssessment = ({
 
     const handleRunCode = async () => {
         if (!currentQuestion) return;
-        const currentAns = answers[currentQuestion._id];
+        const qId = currentQuestion._id;
+        const currentAns = answers[qId];
         const code = currentAns?.code || '';
         const language = currentAns?.language || 'python';
 
@@ -263,9 +409,13 @@ const CodingAssessment = ({
             return;
         }
 
+        recordTelemetry('RUN', { line: 1, column: 1 });
         setRunningCode(true);
         setConsoleOpen(true);
         setError(null);
+
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+        const isMutated = !!dmceMutations[qId]?.triggered;
 
         try {
             const headers = await getAuthHeaders().catch(() => ({}));
@@ -273,37 +423,87 @@ const CodingAssessment = ({
                 headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
             }
 
-            const payload = {
-                questionId: currentQuestion._id,
-                code,
-                language
-            };
+            let res;
+            if (isMutated) {
+                // Execute mutation-specific test suite under mutated constraints (16MB heap)
+                res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
+                    sessionId: currentSid,
+                    code,
+                    language
+                }, { headers });
 
-            const res = await axios.post(`${API_URL}/coding-assessments/run`, payload, { headers });
-            if (res.data?.success) {
-                setExecutionResults(prev => ({
-                    ...prev,
-                    [currentQuestion._id]: res.data
-                }));
-                setSelectedTestCaseIdx(0);
+                if (res.data?.success) {
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: {
+                            status: res.data.mutationStatus || (res.data.passed === res.data.total ? 'ALL_PASSED' : 'PARTIALLY_PASSED'),
+                            passed: res.data.passed,
+                            failed: res.data.failed,
+                            total: res.data.total,
+                            publicPassed: res.data.passed,
+                            publicTotal: res.data.total,
+                            hiddenPassed: 0,
+                            hiddenTotal: 0,
+                            executionTime: res.data.executionTime || 0.1,
+                            isMutationRun: true,
+                            mutationId: dmceMutations[qId]?.mutationId,
+                            results: res.data.results || []
+                        }
+                    }));
+                    setSelectedTestCaseIdx(0);
+                }
             } else {
-                setExecutionResults(prev => ({
-                    ...prev,
-                    [currentQuestion._id]: {
-                        status: res.data?.status || 'EXECUTION_ERROR',
-                        passed: 0,
-                        failed: 0,
-                        total: 0,
-                        errorMessage: res.data?.message || 'Execution failed. Please try again.',
-                        results: []
+                // Execute baseline test suite in dedicated sandbox
+                res = await axios.post(`${API_URL}/coding-assessments/session/run-baseline`, {
+                    sessionId: currentSid,
+                    questionId: qId,
+                    code,
+                    language
+                }, { headers });
+
+                if (res.data?.success && res.data.execution) {
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: res.data.execution
+                    }));
+                    setSelectedTestCaseIdx(0);
+
+                    // Check if baseline pass triggered mutation
+                    if (res.data.mutationTriggered) {
+                        triggerMutationAlert(res.data.mutationTriggered, qId);
                     }
-                }));
+                } else {
+                    // Fallback to standard execution runner
+                    const fallbackRes = await axios.post(`${API_URL}/coding-assessments/run`, {
+                        questionId: qId,
+                        code,
+                        language
+                    }, { headers });
+                    if (fallbackRes.data?.success) {
+                        setExecutionResults(prev => ({ ...prev, [qId]: fallbackRes.data }));
+                        setSelectedTestCaseIdx(0);
+                    }
+                }
             }
         } catch (runErr) {
-            console.error('Run code error:', runErr);
+            console.warn('Run code error, trying fallback:', runErr.message);
+            try {
+                const headers = await getAuthHeaders().catch(() => ({}));
+                const fallbackRes = await axios.post(`${API_URL}/coding-assessments/run`, {
+                    questionId: qId,
+                    code,
+                    language
+                }, { headers });
+                if (fallbackRes.data?.success) {
+                    setExecutionResults(prev => ({ ...prev, [qId]: fallbackRes.data }));
+                    setSelectedTestCaseIdx(0);
+                    return;
+                }
+            } catch (_) {}
+
             setExecutionResults(prev => ({
                 ...prev,
-                [currentQuestion._id]: {
+                [qId]: {
                     status: 'EXECUTION_ERROR',
                     passed: 0,
                     failed: 0,
@@ -323,11 +523,12 @@ const CodingAssessment = ({
         if (timerRef.current) clearInterval(timerRef.current);
 
         try {
-            // Format solutions array
+            // Format solutions array with correlated DMCE sessions
             const solutions = questions.map(q => ({
                 questionId: q._id,
                 code: answers[q._id]?.code || '',
-                language: answers[q._id]?.language || 'python'
+                language: answers[q._id]?.language || 'python',
+                sessionId: dmceSessions[q._id] || undefined
             }));
 
             const headers = await getAuthHeaders().catch(() => ({}));
@@ -422,7 +623,6 @@ const CodingAssessment = ({
         handleCodeChange(starter);
     };
 
-    const currentQuestion = questions[currentQIndex];
     const currentResult = currentQuestion ? executionResults[currentQuestion._id] : null;
     const progress = questions.length > 0 ? ((currentQIndex + 1) / questions.length) * 100 : 0;
 
@@ -793,6 +993,12 @@ const CodingAssessment = ({
                                 <span className="font-mono text-xs text-gray-300">
                                     solution.{getFileExtension(answers[currentQuestion?._id]?.language)}
                                 </span>
+                                {dmceMutations[currentQuestion?._id]?.triggered && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-extrabold animate-pulse">
+                                        <Zap size={11} className="text-amber-400" />
+                                        <span>MUTATION ACTIVE: {dmceMutations[currentQuestion?._id]?.type || '16MB HEAP'}</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-3">
@@ -1048,12 +1254,16 @@ const CodingAssessment = ({
                             </div>
 
                             <div className="flex items-center gap-3">
-                                {/* NEW: Run Code Button */}
+                                {/* Run Code / Run Mutation Tests Button */}
                                 <button
                                     type="button"
                                     onClick={handleRunCode}
                                     disabled={runningCode}
-                                    className="px-5 py-2.5 rounded-xl bg-[#21262d] hover:bg-[#30363d] active:scale-95 text-teal-300 font-extrabold text-xs transition-all border border-teal-500/30 hover:border-teal-500 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                    className={`px-5 py-2.5 rounded-xl active:scale-95 font-extrabold text-xs transition-all border flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                        dmceMutations[currentQuestion?._id]?.triggered
+                                            ? 'bg-amber-500/15 border-amber-500/50 text-amber-300 hover:bg-amber-500/25 shadow-lg shadow-amber-500/10'
+                                            : 'bg-[#21262d] hover:bg-[#30363d] text-teal-300 border-teal-500/30 hover:border-teal-500'
+                                    }`}
                                 >
                                     {runningCode ? (
                                         <>
@@ -1062,8 +1272,16 @@ const CodingAssessment = ({
                                         </>
                                     ) : (
                                         <>
-                                            <Play size={13} className="text-teal-400 fill-teal-400" />
-                                            <span>Run Code</span>
+                                            {dmceMutations[currentQuestion?._id]?.triggered ? (
+                                                <Zap size={13} className="text-amber-400 fill-amber-400" />
+                                            ) : (
+                                                <Play size={13} className="text-teal-400 fill-teal-400" />
+                                            )}
+                                            <span>
+                                                {dmceMutations[currentQuestion?._id]?.triggered
+                                                    ? 'Run Mutation Tests'
+                                                    : 'Run Code'}
+                                            </span>
                                         </>
                                     )}
                                 </button>
@@ -1106,6 +1324,60 @@ const CodingAssessment = ({
                     <div className="p-3 bg-red-500/20 border-t border-red-500/40 text-red-300 text-xs font-semibold flex items-center justify-center gap-2 animate-pulse shrink-0">
                         <AlertCircle size={15} />
                         <span>{error}</span>
+                    </div>
+                )}
+
+                {/* ── DMCE Dynamic Runtime Mutation Modal Notification ───────── */}
+                {showMutationModal && activeMutationAlert && (
+                    <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            className="max-w-xl w-full bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-7 shadow-2xl shadow-amber-500/20 text-white relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600" />
+                            
+                            <div className="flex items-start gap-4">
+                                <div className="h-12 w-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                                    <Zap size={24} className="animate-bounce" />
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                                        SYSTEM SCALE MUTATION TRIGGERED
+                                    </span>
+                                    <h3 className="text-xl font-black text-white tracking-tight">
+                                        {activeMutationAlert.headline || 'System Scale Mutation: Memory Cap Clamped'}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 p-4 rounded-2xl bg-[#0d1117] border border-[#30363d] text-xs text-gray-300 space-y-3 leading-relaxed">
+                                <p className="text-gray-200">
+                                    {activeMutationAlert.description || 'Peak stream volume exceeded. The maximum runtime heap available to your execution environment has been dynamically reduced to 16 MB.'}
+                                </p>
+                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono text-[11px] flex items-center gap-2">
+                                    <Cpu size={14} className="shrink-0 text-amber-400" />
+                                    <span>Constraint: Maximum Heap Clamped to 16 MB. Process dataset in-place using iterators / streams.</span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-300 font-sans font-bold text-xs flex items-center gap-2">
+                                    <Clock3 size={15} className="shrink-0 text-teal-400" />
+                                    <span>Adaptation Time Buffer: +{Math.round((activeMutationAlert.adaptationTimeBufferSec || 600) / 60)} Minutes Added to Assessment Timer</span>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 flex items-center justify-between gap-3">
+                                <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                                    <ShieldCheck size={14} className="text-emerald-400" />
+                                    <span>Stage-1 Baseline credit is 100% preserved.</span>
+                                </div>
+                                <button
+                                    onClick={() => setShowMutationModal(false)}
+                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                                >
+                                    Adapt Solution Under Constraint
+                                </button>
+                            </div>
+                        </motion.div>
                     </div>
                 )}
             </div>

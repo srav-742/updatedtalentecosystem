@@ -16,6 +16,8 @@ const {
 const { evaluateCodingSubmission } = require('../utils/partialCreditCodingEvaluator');
 const { executeAgainstTestCases } = require('../services/codeExecutionService');
 const { generateAndValidateTestCases } = require('../services/aiTestCaseGenerator');
+const mutationEngine = require('../services/dmce/mutationEngine');
+const { broadcastMutationToCandidate } = require('../services/dmce/wsServer');
 
 // Helper to sync dynamic question marks across all questions in a round
 const syncRoundQuestionMarks = async (codingRoundId) => {
@@ -367,6 +369,17 @@ const submitCodingAssessment = async (req, res) => {
                 realExecutionResults: realExecutionMetrics
             });
 
+            // 3. Finalize DMCE session if active for this question
+            let dmceData = null;
+            const targetSid = ans.sessionId || req.body.sessionId || ans.dmceSessionId;
+            if (targetSid) {
+                try {
+                    dmceData = mutationEngine.submitAndAnalyze(targetSid, ans.code, ans.language);
+                } catch (dmceErr) {
+                    console.warn(`[DMCE-SUBMIT] submitAndAnalyze warning for ${targetSid}:`, dmceErr.message);
+                }
+            }
+
             processedAnswers.push({
                 questionId: question._id,
                 questionTitle: question.title,
@@ -384,13 +397,37 @@ const submitCodingAssessment = async (req, res) => {
                 aiEvaluationStatus: evalResult.aiEvaluationStatus,
                 correctnessVerdict: evalResult.correctnessVerdict,
                 execution: realExecutionMetrics,
-                evaluation: evalResult
+                evaluation: evalResult,
+                // Additive DMCE evidence fields
+                baseline: dmceData?.baseline || ans.baseline || { passed: evalResult.testCasesPassed > 0, score: evalResult.obtainedMarks },
+                mutation: dmceData?.mutation || ans.mutation || null,
+                forensics: dmceData?.forensics || ans.forensics || null,
+                snapshots: dmceData?.snapshots || ans.snapshots || {
+                    baselineCode: ans.code,
+                    preMutationCode: ans.code,
+                    postMutationCode: ans.code,
+                    finalSubmittedCode: ans.code
+                },
+                sandboxSessionId: targetSid || null
             });
         }
 
         // 3. Calculate final coding assessment total using the dynamic scoring engine
         const assessmentTotals = calculateAssessmentTotal(processedAnswers);
         const standaloneCodingScore = assessmentTotals.totalObtainedMarks; // strictly 0 to 100
+
+        // Attach DMCE aggregate summary
+        const triggeredMutations = processedAnswers.filter(a => a.mutation?.triggered);
+        if (triggeredMutations.length > 0) {
+            assessmentTotals.dmceSummary = {
+                mutationsTriggered: triggeredMutations.length,
+                mutationsPassed: triggeredMutations.filter(a => a.mutation?.status === 'PASSED').length,
+                totalQuestionsWithDMCE: processedAnswers.filter(a => a.sandboxSessionId).length,
+                overallCasScore: Math.round(
+                    processedAnswers.reduce((acc, a) => acc + (a.forensics?.casScore || 85), 0) / (processedAnswers.length || 1)
+                )
+            };
+        }
 
         // Fetch user basic info
         let resolvedName;
@@ -800,6 +837,165 @@ const generateQuestionTestCases = async (req, res) => {
     }
 };
 
+// ─── DMCE Dedicated Sandbox & Dynamic Mutation Handlers ─────────────────
+
+const startDMCESession = async (req, res) => {
+    try {
+        const { sessionId, candidateId, applicationId, jobId, questionId, language } = req.body;
+        const config = req.body.config || {};
+
+        let roundConfig = null;
+        if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+            roundConfig = await CodingRound.findOne({ jobId });
+        }
+        if (roundConfig?.dynamicMutation) {
+            Object.assign(config, roundConfig.dynamicMutation);
+        }
+
+        const session = mutationEngine.startSession({
+            sessionId,
+            candidateId: candidateId || req.user?.uid || req.user?._id || '',
+            applicationId,
+            jobId,
+            questionId,
+            language,
+            config
+        });
+
+        res.json({
+            success: true,
+            sessionId: session.sessionId,
+            state: session.state,
+            startedAt: session.startedAt,
+            config: session.config,
+            sandbox: session.sandbox
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] startSession Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const heartbeatDMCESession = async (req, res) => {
+    try {
+        const { sessionId, currentCode, customMutationId } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'Session ID is required.' });
+        }
+
+        const triggerResult = mutationEngine.triggerMutationIfEligible(sessionId, currentCode, customMutationId);
+
+        if (triggerResult.triggered) {
+            broadcastMutationToCandidate(sessionId, triggerResult);
+        }
+
+        res.json({
+            success: true,
+            ...triggerResult
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] heartbeat Error:', err);
+        res.status(200).json({ success: false, triggered: false, message: err.message });
+    }
+};
+
+const runDMCEBaseline = async (req, res) => {
+    try {
+        const { sessionId, questionId, code, language } = req.body;
+        if (!sessionId || !code) {
+            return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
+        }
+
+        let testCases = [];
+        if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
+            const question = await CodingQuestion.findById(questionId);
+            if (question && Array.isArray(question.testCases)) {
+                testCases = question.testCases.filter(tc => tc.category !== 'MUTATION' && tc.category !== 'Mutation');
+            }
+        }
+
+        if (testCases.length === 0) {
+            testCases = [{ input: '', expectedOutput: '', isHidden: false, category: 'NORMAL' }];
+        }
+
+        const baselineResult = await mutationEngine.runBaseline(sessionId, code, language, testCases);
+
+        let mutationTriggered = null;
+        if (baselineResult.mutationEligible) {
+            try {
+                const trig = mutationEngine.triggerMutationIfEligible(sessionId, code);
+                if (trig.triggered) {
+                    mutationTriggered = trig;
+                    broadcastMutationToCandidate(sessionId, trig);
+                }
+            } catch (_) {}
+        }
+
+        res.json({
+            success: true,
+            execution: baselineResult.execution,
+            baselinePassed: baselineResult.baselinePassed,
+            mutationEligible: baselineResult.mutationEligible,
+            mutationTriggered
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] runBaseline Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const runDMCEMutation = async (req, res) => {
+    try {
+        const { sessionId, code, language } = req.body;
+        if (!sessionId || !code) {
+            return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
+        }
+
+        const mutationResult = await mutationEngine.runMutationTests(sessionId, code, language);
+        res.json({
+            success: true,
+            ...mutationResult
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] runMutation Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const ingestDMCETelemetry = async (req, res) => {
+    try {
+        const { sessionId, seqId, events, documentHash } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'sessionId is required.' });
+        }
+        mutationEngine.ingestTelemetryBatch(sessionId, { seqId, events, documentHash });
+        res.json({ success: true, timestamp: Date.now() });
+    } catch (err) {
+        res.status(200).json({ success: false, error: err.message });
+    }
+};
+
+const getDMCESessionStatus = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const session = mutationEngine.getSession(sessionId);
+        if (!session) {
+            return res.status(404).json({ success: false, message: 'Session not found' });
+        }
+        res.json({
+            success: true,
+            sessionId: session.sessionId,
+            state: session.state,
+            baselinePassed: session.baselinePassed,
+            mutation: session.mutation,
+            startedAt: session.startedAt,
+            config: session.config
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 module.exports = {
     getCodingRoundByJobId,
     createOrUpdateCodingRound,
@@ -811,6 +1007,12 @@ module.exports = {
     getCodingAssessmentDetails,
     reEvaluateCodingAnswer,
     runCandidateCode,
-    generateQuestionTestCases
+    generateQuestionTestCases,
+    startDMCESession,
+    heartbeatDMCESession,
+    runDMCEBaseline,
+    runDMCEMutation,
+    ingestDMCETelemetry,
+    getDMCESessionStatus
 };
 

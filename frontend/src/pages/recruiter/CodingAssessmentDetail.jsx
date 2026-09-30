@@ -18,10 +18,13 @@ import {
     Sparkles,
     Loader2,
     Copy,
-    Check
+    Check,
+    Zap,
+    Layers
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
+import MutationForensicsViewer from '../../components/recruiter/MutationForensicsViewer';
 
 // Module-level in-memory cache for instant zero-delay reopening
 const codingCache = new Map();
@@ -235,7 +238,18 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                             <p className="text-xs text-gray-500">View code submissions and AI evaluations</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {data.codingDetails?.dmceSummary && (
+                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-bold">
+                                <Zap size={13} className="text-teal-400" />
+                                <span>DMCE Active ({data.codingDetails.dmceSummary.mutationsPassed || 0} Adapted)</span>
+                                {data.codingDetails.dmceSummary.averageCasScore && (
+                                    <span className="text-[10px] bg-teal-500/20 px-1.5 py-0.5 rounded font-mono">
+                                        CAS: {data.codingDetails.dmceSummary.averageCasScore}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                         <div className="px-4 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 font-extrabold text-sm flex items-center gap-2">
                             <span>Score: {codingScore}/100</span>
                         </div>
@@ -286,6 +300,12 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                                                 <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${qVerdict.bg} ${qVerdict.border} ${qVerdict.color} border w-fit flex items-center gap-1`}>
                                                     <QVerdictIcon size={10} />
                                                     {qVerdict.label}
+                                                </span>
+                                            )}
+                                            {(ans.mutation?.triggered || ans.snapshots?.preMutationCode) && (
+                                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-teal-500/20 border border-teal-500/40 text-teal-300 w-fit flex items-center gap-1">
+                                                    <Zap size={9} className="text-teal-400" />
+                                                    DMCE
                                                 </span>
                                             )}
                                         </div>
@@ -437,6 +457,12 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
                                             </pre>
                                         </div>
                                     </div>
+
+                                    {/* DMCE Dynamic Runtime Mutation & Adaptation Forensics (Mentor Subsystem) */}
+                                    <MutationForensicsViewer
+                                        questionAnswer={currentQuestion}
+                                        language={currentQuestion.language}
+                                    />
 
                                     {/* Real Test Execution Results (if available) */}
                                     {currentQuestion.execution && (

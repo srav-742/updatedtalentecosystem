@@ -71,6 +71,9 @@ const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
 const CandidateCareerHub = lazy(() => import('./pages/public/CandidateCareerHub'));
 
+// 404 Not Found page
+const NotFound = lazy(() => import('./pages/NotFound'));
+
 // ─── Lazy Blog Route Shell ─────────────────────────────────────────────────────
 // BlogThemeContext + BlogNavbar are only imported when user visits /blog routes.
 // This keeps the entire blog context/navbar out of the initial bundle.
@@ -243,6 +246,9 @@ function App() {
         <Route path="/seeker/profile" element={<Navigate to="/candidate/profile" replace />} />
         <Route path="/seeker/mock-interview" element={<Navigate to="/candidate/mock-interview" replace />} />
         <Route path="/seeker/community" element={<Navigate to="/candidate/community" replace />} />
+
+        {/* Catch-all 404 — must be last */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
     </BrowserRouter>

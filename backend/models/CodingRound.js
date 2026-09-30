@@ -7,7 +7,14 @@ const codingRoundSchema = new mongoose.Schema({
     languages: [{ type: String }],
     instructions: { type: String, default: '' },
     questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CodingQuestion' }],
-    status: { type: String, enum: ['draft', 'published'], default: 'draft' }
+    status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+    dynamicMutation: {
+        enabled: { type: Boolean, default: true },
+        minTriggerSec: { type: Number, default: 120 },
+        maxTriggerSec: { type: Number, default: 1800 },
+        minAstNodes: { type: Number, default: 12 },
+        mutationTimeBufferSec: { type: Number, default: 600 }
+    }
 }, { timestamps: true });
 
 codingRoundSchema.set('toJSON', { virtuals: true });

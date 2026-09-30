@@ -169,7 +169,7 @@ const TabLockGuard = ({
                             </p>
 
                             <button
-                                onClick={() => window.location.href = '/seeker'}
+                                onClick={() => window.location.href = '/candidate'}
                                 className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-lg"
                             >
                                 Return to Dashboard

@@ -71,7 +71,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                     <div className="flex items-center space-x-4">
                         {themeToggle}
                         {user ? (
-                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>
+                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/candidate'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>
                                 Dashboard
                             </Link>
                         ) : (
@@ -132,7 +132,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                     <div className="pt-4 flex flex-col space-y-4">
                         {user ? (
                             <Link
-                                to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
+                                to={user.role === 'recruiter' ? '/recruiter' : '/candidate'}
                                 onClick={() => setIsMenuOpen(false)}
                                 className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}
                             >

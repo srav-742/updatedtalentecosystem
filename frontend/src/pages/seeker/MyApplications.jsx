@@ -109,6 +109,12 @@ const getStatusBadge = (status) => {
     }
 };
 
+const hasValidInterview = (app) => {
+    if (!app || app.interviewScore === null || app.interviewScore === undefined) return false;
+    if (app.interviewScore > 0) return true;
+    return Array.isArray(app.interviewAnswers) && app.interviewAnswers.length > 0;
+};
+
 const getTimelineSteps = (application, job) => {
     const status = application?.status || 'APPLIED';
     const isShortlisted = ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(status);
@@ -118,13 +124,13 @@ const getTimelineSteps = (application, job) => {
     const isSaved = status === 'SAVED';
 
     const isResumeDone = job?.resumeAnalysis?.enabled === false || (application?.resumeMatchPercent !== null && application?.resumeMatchPercent !== undefined);
-    const isVideoDone = !job?.mockInterview?.enabled || !!application?.videoIntroUrl || (application?.interviewScore !== null && application?.interviewScore !== undefined);
+    const isInterviewDone = !job?.mockInterview?.enabled || hasValidInterview(application);
+    const isVideoDone = !job?.mockInterview?.enabled || !!application?.videoIntroUrl || isInterviewDone;
     const isAssessmentDone = !job?.assessment?.enabled || (application?.assessmentScore !== null && application?.assessmentScore !== undefined);
     const isCodingDone = !job?.codingAssessment?.enabled || (application?.codingScore !== null && application?.codingScore !== undefined);
-    const isInterviewDone = !job?.mockInterview?.enabled || (application?.interviewScore !== null && application?.interviewScore !== undefined);
 
     // Concluded pipeline: all modules done, or candidate concluded the final interview round, or terminal status
-    const hasConcludedInterview = job?.mockInterview?.enabled && (application?.interviewScore !== null && application?.interviewScore !== undefined);
+    const hasConcludedInterview = job?.mockInterview?.enabled && hasValidInterview(application);
     const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
                          (hasConcludedInterview && isResumeDone) ||
                          isShortlisted || isSelected || isHired;
@@ -459,12 +465,12 @@ const MyApplications = () => {
                         const isSaved = application.status === 'SAVED';
 
                         const isResumeDone = job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
-                        const isVideoDone = !job.mockInterview?.enabled || !!application.videoIntroUrl || (application.interviewScore !== null && application.interviewScore !== undefined);
+                        const isInterviewDone = !job.mockInterview?.enabled || hasValidInterview(application);
+                        const isVideoDone = !job.mockInterview?.enabled || !!application.videoIntroUrl || isInterviewDone;
                         const isAssessmentDone = !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
                         const isCodingDone = !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
-                        const isInterviewDone = !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
 
-                        const hasConcludedInterview = job.mockInterview?.enabled && (application.interviewScore !== null && application.interviewScore !== undefined);
+                        const hasConcludedInterview = job.mockInterview?.enabled && hasValidInterview(application);
                         const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
                                              (hasConcludedInterview && isResumeDone) ||
                                              ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(application.status);
@@ -719,11 +725,11 @@ const MyApplications = () => {
                                                             <span className="text-xs font-semibold text-gray-700 truncate">AI Interview</span>
                                                         </div>
                                                         <span className={`text-xs font-bold shrink-0 ${
-                                                            application.interviewScore !== null && application.interviewScore !== undefined
+                                                            hasValidInterview(application)
                                                                 ? 'text-purple-900 font-black'
                                                                 : 'text-gray-400 font-medium'
                                                         }`}>
-                                                            {application.interviewScore !== null && application.interviewScore !== undefined
+                                                            {hasValidInterview(application)
                                                                 ? 'Completed'
                                                                 : 'Pending'}
                                                         </span>

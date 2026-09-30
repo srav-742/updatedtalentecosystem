@@ -152,8 +152,14 @@ const ApplicationFlow = () => {
                         if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
 
                         // Determine the next pending step based on the sequence
+                        const hasValidInterview = (app) => {
+                            if (!app || app.interviewScore === null || app.interviewScore === undefined) return false;
+                            if (app.interviewScore > 0) return true;
+                            return Array.isArray(app.interviewAnswers) && app.interviewAnswers.length > 0;
+                        };
+
                         const resumeDone = !enabledIds.includes('resume') || (existingApp.resumeMatchPercent !== null && existingApp.resumeMatchPercent !== undefined);
-                        const interviewDone = !enabledIds.includes('interview') || (existingApp.interviewScore !== null && existingApp.interviewScore !== undefined);
+                        const interviewDone = !enabledIds.includes('interview') || hasValidInterview(existingApp);
                         const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl || interviewDone;
                         const assessmentDone = !enabledIds.includes('assessment') || (existingApp.assessmentScore !== null && existingApp.assessmentScore !== undefined);
                         const codingDone = !enabledIds.includes('coding') || (existingApp.codingScore !== null && existingApp.codingScore !== undefined);
@@ -400,12 +406,13 @@ const ApplicationFlow = () => {
                             setInterviewResult(result);
                             try {
                                 const headers = await getAuthHeaders();
+                                const score = typeof result?.interviewScore === 'number' ? result.interviewScore : null;
                                 await axios.post(
                                     `${API_URL}/applications`,
                                     {
                                         jobId: job._id,
                                         userId: user.uid || user._id || user.id,
-                                        interviewScore: result?.interviewScore ?? 0,
+                                        ...(score !== null ? { interviewScore: score } : {}),
                                         status: 'APPLIED'
                                     },
                                     { headers }

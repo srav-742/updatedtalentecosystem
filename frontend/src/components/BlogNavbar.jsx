@@ -105,7 +105,7 @@ const BlogNavbar = ({ onToggleTheme }) => {
                     )}
                     {user ? (
                         <Link 
-                            to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} 
+                            to={user.role === 'recruiter' ? '/recruiter' : '/candidate'} 
                             className="text-xs font-black uppercase tracking-wider text-gray-300 hover:text-white transition-colors"
                         >
                             Dashboard
@@ -167,7 +167,7 @@ const BlogNavbar = ({ onToggleTheme }) => {
                             <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 pt-2">Account</span>
                             {user ? (
                                 <Link
-                                    to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
+                                    to={user.role === 'recruiter' ? '/recruiter' : '/candidate'}
                                     onClick={() => setIsMenuOpen(false)}
                                     className="text-sm font-bold uppercase tracking-wider text-gray-400 hover:text-white"
                                 >

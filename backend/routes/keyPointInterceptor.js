@@ -496,19 +496,26 @@ async function finalizeInterview(session, sessionId) {
 
         const qSource = session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
 
+        const hasEvaluations = session.answerEvaluations && session.answerEvaluations.length > 0;
+
         // Update Application document
+        const updatePayload = {
+            interviewQuestionSource: qSource,
+            status: 'APPLIED',
+            resultsVisibleAt: new Date(),
+            metrics: {
+                ownershipMindset: ownershipScore
+            },
+            interviewAnswers: finalAnswers
+        };
+
+        if (hasEvaluations) {
+            updatePayload.interviewScore = computedInterviewScore;
+        }
+
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
-            {
-                interviewScore: computedInterviewScore,
-                interviewQuestionSource: qSource,
-                status: 'APPLIED',
-                resultsVisibleAt: new Date(),
-                metrics: {
-                    ownershipMindset: ownershipScore
-                },
-                interviewAnswers: finalAnswers
-            },
+            updatePayload,
             { upsert: true }
         );
 
