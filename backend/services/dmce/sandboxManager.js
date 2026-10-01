@@ -240,11 +240,6 @@ try:
 except Exception:
     pass
 
-try:
-    import resource
-    resource.setrlimit(resource.RLIMIT_DATA, (MEMORY_LIMIT_BYTES, MEMORY_LIMIT_BYTES))
-except Exception:
-    pass
 
 # Candidate Code
 ${runnableCode}
@@ -449,10 +444,12 @@ async function executeMutationTests(sessionId, code, language, mutationTests = [
 
         results.push({
             id: tcId,
-            category: 'MUTATION',
+            category: tc.category || 'MUTATION',
             isHidden: !!tc.isHidden,
             passed: tcPassed,
             status: tcStatus,
+            input: tc.isHidden ? undefined : tc.input,
+            expectedOutput: tc.isHidden ? undefined : tc.expectedOutput,
             executionTime: execRes.executionTime,
             actualOutput: tc.isHidden ? (tcPassed ? 'Passed' : 'Failed') : execRes.stdout,
             errorMessage: execRes.stderr || undefined

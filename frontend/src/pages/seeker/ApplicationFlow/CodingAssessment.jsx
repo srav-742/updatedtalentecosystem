@@ -534,10 +534,14 @@ const CodingAssessment = ({
                 }, { headers });
 
                 if (res.data?.success) {
+                    const isAllPassed = res.data.status === 'ALL_PASSED' || res.data.mutationStatus === 'ALL_PASSED' || res.data.mutationStatus === 'PASSED' || (res.data.total > 0 && res.data.passed === res.data.total);
+                    const isPartiallyPassed = !isAllPassed && (res.data.status === 'PARTIALLY_PASSED' || res.data.mutationStatus === 'PARTIALLY_PASSED' || res.data.passed > 0);
+                    const computedStatus = isAllPassed ? 'ALL_PASSED' : (isPartiallyPassed ? 'PARTIALLY_PASSED' : (res.data.status || res.data.mutationStatus || 'FAILED'));
+
                     setExecutionResults(prev => ({
                         ...prev,
                         [qId]: {
-                            status: res.data.mutationStatus || (res.data.passed === res.data.total ? 'ALL_PASSED' : 'PARTIALLY_PASSED'),
+                            status: computedStatus,
                             passed: res.data.passed,
                             failed: res.data.failed,
                             total: res.data.total,
@@ -575,9 +579,16 @@ const CodingAssessment = ({
                 }, { headers });
 
                 if (res.data?.success && res.data.execution) {
+                    const exec = res.data.execution;
+                    const isAllPassed = exec.status === 'ALL_PASSED' || (exec.total > 0 && exec.passed === exec.total);
+                    const isPartiallyPassed = !isAllPassed && (exec.status === 'PARTIALLY_PASSED' || exec.passed > 0);
+                    const normalizedExec = {
+                        ...exec,
+                        status: isAllPassed ? 'ALL_PASSED' : (isPartiallyPassed ? 'PARTIALLY_PASSED' : (exec.status || 'FAILED'))
+                    };
                     setExecutionResults(prev => ({
                         ...prev,
-                        [qId]: res.data.execution
+                        [qId]: normalizedExec
                     }));
                     setSelectedTestCaseIdx(0);
 
@@ -1191,41 +1202,46 @@ const CodingAssessment = ({
                                                 <Loader2 size={12} className="animate-spin" />
                                                 <span>Running in container sandbox...</span>
                                             </div>
-                                        ) : currentResult ? (
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
-                                                    currentResult.status === 'ALL_PASSED'
-                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                                        : currentResult.status === 'PARTIALLY_PASSED'
-                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                                                            : 'bg-red-500/10 border-red-500/30 text-red-400'
-                                                }`}>
-                                                    {currentResult.status === 'ALL_PASSED' ? 'All Passed' :
-                                                     currentResult.status === 'PARTIALLY_PASSED' ? `${currentResult.passed}/${currentResult.total} Passed` :
-                                                     currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? `Memory Limit Exceeded (${dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14} MB Clamped)` :
-                                                     currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
-                                                     currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
-                                                     currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
-                                                     'Failed'}
-                                                </span>
+                                        ) : currentResult ? (() => {
+                                            const isAllPassed = currentResult.status === 'ALL_PASSED' || currentResult.status === 'PASSED' || (currentResult.total > 0 && currentResult.passed === currentResult.total);
+                                            const isPartiallyPassed = !isAllPassed && (currentResult.status === 'PARTIALLY_PASSED' || (currentResult.passed > 0 && currentResult.passed < currentResult.total));
 
-                                                {currentResult.publicTotal > 0 && (
-                                                    <span className="text-[11px] text-gray-400 font-mono">
-                                                        Public: <strong className="text-gray-200">{currentResult.publicPassed}/{currentResult.publicTotal}</strong>
+                                            return (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                                                        isAllPassed
+                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                            : isPartiallyPassed
+                                                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                                                : 'bg-red-500/10 border-red-500/30 text-red-400'
+                                                    }`}>
+                                                        {isAllPassed ? 'All Passed' :
+                                                         isPartiallyPassed ? `${currentResult.passed}/${currentResult.total} Passed` :
+                                                         currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? `Memory Limit Exceeded (${dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14} MB Clamped)` :
+                                                         currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
+                                                         currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
+                                                         currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
+                                                         'Failed'}
                                                     </span>
-                                                )}
-                                                {currentResult.hiddenTotal > 0 && (
-                                                    <span className="text-[11px] text-gray-400 font-mono">
-                                                        Hidden: <strong className="text-gray-200">{currentResult.hiddenPassed}/{currentResult.hiddenTotal}</strong>
-                                                    </span>
-                                                )}
-                                                {currentResult.executionTime !== undefined && (
-                                                    <span className="text-[11px] text-gray-500 font-mono">
-                                                        • {currentResult.executionTime}s
-                                                    </span>
-                                                )}
-                                            </div>
-                                        ) : null}
+
+                                                    {currentResult.publicTotal > 0 && (
+                                                        <span className="text-[11px] text-gray-400 font-mono">
+                                                            Public: <strong className="text-gray-200">{currentResult.publicPassed}/{currentResult.publicTotal}</strong>
+                                                        </span>
+                                                    )}
+                                                    {currentResult.hiddenTotal > 0 && (
+                                                        <span className="text-[11px] text-gray-400 font-mono">
+                                                            Hidden: <strong className="text-gray-200">{currentResult.hiddenPassed}/{currentResult.hiddenTotal}</strong>
+                                                        </span>
+                                                    )}
+                                                    {currentResult.executionTime !== undefined && (
+                                                        <span className="text-[11px] text-gray-500 font-mono">
+                                                            • {currentResult.executionTime}s
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })() : null}
                                     </div>
 
                                     <div className="flex items-center gap-2">
@@ -1331,18 +1347,24 @@ const CodingAssessment = ({
 
                                                             <div>
                                                                 <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Input</label>
-                                                                <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-gray-200 whitespace-pre-wrap">{tc.input || '(empty)'}</pre>
+                                                                <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-gray-200 whitespace-pre-wrap">
+                                                                    {tc.input !== undefined && tc.input !== null ? (String(tc.input) === '' ? '""' : String(tc.input)) : '(empty)'}
+                                                                </pre>
                                                             </div>
 
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                                 <div>
                                                                     <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Expected Output</label>
-                                                                    <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-emerald-400 whitespace-pre-wrap">{tc.expectedOutput || '(empty)'}</pre>
+                                                                    <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-emerald-400 whitespace-pre-wrap">
+                                                                        {tc.expectedOutput !== undefined && tc.expectedOutput !== null ? (String(tc.expectedOutput) === '' ? '""' : String(tc.expectedOutput)) : '(empty)'}
+                                                                    </pre>
                                                                 </div>
                                                                 <div>
                                                                     <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Actual Output</label>
                                                                     <pre className={`p-2.5 rounded-lg bg-[#0d1117] border ${tc.passed ? 'border-emerald-500/30 text-emerald-300' : 'border-red-500/30 text-red-300'} whitespace-pre-wrap`}>
-                                                                        {tc.actualOutput || (tc.errorMessage ? `Error: ${tc.errorMessage}` : '(no output)')}
+                                                                        {tc.actualOutput !== undefined && tc.actualOutput !== null && tc.actualOutput !== ''
+                                                                            ? String(tc.actualOutput)
+                                                                            : (tc.errorMessage ? `Error: ${tc.errorMessage}` : '(no output)')}
                                                                     </pre>
                                                                 </div>
                                                             </div>

@@ -121,6 +121,8 @@ async function runBaseline(sessionId, code, language, testCases = []) {
                 isHidden: !!tc?.isHidden,
                 passed: false,
                 status: 'TEST_CONFIGURATION_ERROR',
+                input: tc?.isHidden ? undefined : tc?.input,
+                expectedOutput: tc?.isHidden ? undefined : tc?.expectedOutput,
                 executionTime: 0,
                 actualOutput: tc?.isHidden ? 'Failed' : '',
                 errorMessage: 'Test case configuration error: missing input or expected output.'
@@ -155,6 +157,8 @@ async function runBaseline(sessionId, code, language, testCases = []) {
             isHidden: !!tc.isHidden,
             passed: tcPassed,
             status: tcStatus,
+            input: tc.isHidden ? undefined : tc.input,
+            expectedOutput: tc.isHidden ? undefined : tc.expectedOutput,
             executionTime: execRes.executionTime,
             actualOutput: tc.isHidden ? (tcPassed ? 'Passed' : 'Failed') : execRes.stdout,
             errorMessage: execRes.stderr || undefined
@@ -331,8 +335,11 @@ async function runMutationTests(sessionId, code, language, testCasesOverride = n
     // This ensures subsequent normal code runs are not permanently clamped to 16MB
     resetToOriginalConstraints(sessionId);
 
+    const isAllPassed = testResults.passed === testResults.total && testResults.total > 0;
+    const finalStatus = isAllPassed ? 'ALL_PASSED' : (session.mutation.status === 'PASSED' ? 'ALL_PASSED' : session.mutation.status);
     return {
-        mutationStatus: session.mutation.status,
+        status: finalStatus,
+        mutationStatus: finalStatus,
         passed: testResults.passed,
         failed: testResults.failed,
         total: testResults.total,

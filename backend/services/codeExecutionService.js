@@ -124,6 +124,29 @@ function compareOutputs(actual, expected) {
         return true;
     }
 
+    // 2.1 String unquoting comparison:
+    // Handles cases where expected is "'l'" or '"l"' but candidate output is l, or vice versa
+    const stripSurroundingQuotes = (s) => {
+        if (!s || typeof s !== 'string') return '';
+        const trimmed = s.trim();
+        if ((trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) ||
+            (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2)) {
+            return trimmed.slice(1, -1);
+        }
+        return trimmed;
+    };
+
+    const unqActual = stripSurroundingQuotes(normActual);
+    const unqExpected = stripSurroundingQuotes(normExpected);
+    if (unqActual === unqExpected) {
+        return true;
+    }
+    const unqXlActual = stripSurroundingQuotes(xlActual);
+    const unqXlExpected = stripSurroundingQuotes(xlExpected);
+    if (unqXlActual === unqXlExpected) {
+        return true;
+    }
+
     // 3. Case-insensitive boolean comparison (true/false/yes/no)
     const lowerActual = normActual.toLowerCase().trim();
     const lowerExpected = normExpected.toLowerCase().trim();
