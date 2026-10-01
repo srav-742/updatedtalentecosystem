@@ -64,15 +64,26 @@ const EliteCommunity = () => {
                             You have cleared the candidate screening bar for at least one role, so community-only opportunities and conversations are now open to you.
                         </p>
 
-                        <a
-                            href={community?.invitationLink || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black px-4.5 py-2.5 text-xs md:text-sm font-semibold text-white transition hover:bg-gray-800"
-                        >
-                            Join {community?.platform || 'Community'}
-                            <ExternalLink size={16} />
-                        </a>
+                        {community?.invitationLink ? (
+                            <a
+                                href={community.invitationLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-black px-4.5 py-2.5 text-xs md:text-sm font-semibold text-white transition hover:bg-gray-800"
+                            >
+                                Join {community?.platform || 'Community'}
+                                <ExternalLink size={16} />
+                            </a>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled
+                                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-200 dark:bg-white/10 px-4.5 py-2.5 text-xs md:text-sm font-medium text-gray-500 cursor-not-allowed"
+                                title="Invitation link will be enabled once recruiter onboarding is finalized"
+                            >
+                                Join {community?.platform || 'Community'} (Invite Pending)
+                            </button>
+                        )}
                     </div>
 
                     <div className="rounded-2xl border border-black/10 bg-[#f8f4ed] p-5">

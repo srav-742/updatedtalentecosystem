@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { SOCIAL_LINKS } from '../config';
 
 const Footer = ({ theme = 'dark' }) => {
     const isLight = theme === 'light';
@@ -78,9 +79,15 @@ const Footer = ({ theme = 'dark' }) => {
                 <div className={`pt-8 border-t ${borderColor} flex flex-col sm:flex-row items-center justify-between gap-4 text-xs ${isLight ? 'text-gray-500' : 'text-gray-500'}`}>
                     <p>&copy; 2026 Hire1Percent. All rights reserved.</p>
                     <div className="flex items-center gap-6">
-                        <a href="https://twitter.com/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Twitter</a>
-                        <a href="https://linkedin.com/company/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">LinkedIn</a>
-                        <a href="https://github.com/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">GitHub</a>
+                        {SOCIAL_LINKS.twitter && (
+                            <a href={SOCIAL_LINKS.twitter} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Twitter</a>
+                        )}
+                        {SOCIAL_LINKS.linkedin && (
+                            <a href={SOCIAL_LINKS.linkedin} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">LinkedIn</a>
+                        )}
+                        {SOCIAL_LINKS.github && (
+                            <a href={SOCIAL_LINKS.github} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">GitHub</a>
+                        )}
                     </div>
                 </div>
             </div>

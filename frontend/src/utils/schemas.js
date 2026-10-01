@@ -3,6 +3,8 @@
  * Compliant with Schema.org specifications for AEO / GEO / SEO engines.
  */
 
+import { SOCIAL_LINKS } from '../config';
+
 const BASE_URL = 'https://www.hire1percent.com';
 
 /**
@@ -20,10 +22,10 @@ export function generateOrganizationSchema() {
     'description': 'Hire1Percent is an enterprise AI recruitment platform providing automated skill assessments, AI-driven video interviews, live proctored coding environments, resume intelligence, and predictive candidate scoring.',
     'email': 'contact@hire1percent.com',
     'sameAs': [
-      'https://twitter.com/hire1percent',
-      'https://linkedin.com/company/hire1percent',
-      'https://github.com/hire1percent'
-    ],
+      SOCIAL_LINKS.twitter,
+      SOCIAL_LINKS.linkedin,
+      SOCIAL_LINKS.github
+    ].filter(Boolean),
     'contactPoint': {
       '@type': 'ContactPoint',
       'contactType': 'Customer Support',
