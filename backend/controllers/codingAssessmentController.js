@@ -16,6 +16,12 @@ const {
 const { evaluateCodingSubmission } = require('../utils/partialCreditCodingEvaluator');
 const { executeAgainstTestCases } = require('../services/codeExecutionService');
 const { generateAndValidateTestCases } = require('../services/aiTestCaseGenerator');
+const {
+    resolveTestCasesForQuestion,
+    getBaselineTestCases,
+    getMutationTestCases,
+    maskHiddenTestCases
+} = require('../utils/testCaseResolver');
 const mutationEngine = require('../services/dmce/mutationEngine');
 const { broadcastMutationToCandidate } = require('../services/dmce/wsServer');
 
@@ -93,27 +99,100 @@ const getCodingRoundByJobId = async (req, res) => {
 
 const createOrUpdateCodingRound = async (req, res) => {
     try {
-        const { jobId, totalTime, timerType, languages, instructions, status } = req.body;
+        const { jobId, totalTime, timerType, languages, instructions, status, dynamicMutation } = req.body;
 
         if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Valid Job ID is required.' });
         }
 
+        // Validate dynamicMutation settings if provided
+        let parsedDynamicMutation = undefined;
+        if (dynamicMutation && typeof dynamicMutation === 'object') {
+            parsedDynamicMutation = {};
+            if (dynamicMutation.enabled !== undefined) {
+                parsedDynamicMutation.enabled = Boolean(dynamicMutation.enabled);
+            }
+            if (dynamicMutation.memoryLimitMb !== undefined) {
+                const mem = Number(dynamicMutation.memoryLimitMb);
+                if (isNaN(mem) || !isFinite(mem) || mem < 4 || mem > 512) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid memoryLimitMb: must be a finite number between 4 MB and 512 MB.'
+                    });
+                }
+                parsedDynamicMutation.memoryLimitMb = mem;
+            }
+            if (dynamicMutation.minTriggerSec !== undefined) {
+                const minSec = Number(dynamicMutation.minTriggerSec);
+                if (isNaN(minSec) || !isFinite(minSec) || minSec < 0 || minSec > 3600) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid minTriggerSec: must be a finite non-negative number.'
+                    });
+                }
+                parsedDynamicMutation.minTriggerSec = minSec;
+            }
+            if (dynamicMutation.maxTriggerSec !== undefined) {
+                const maxSec = Number(dynamicMutation.maxTriggerSec);
+                if (isNaN(maxSec) || !isFinite(maxSec) || maxSec <= 0 || maxSec > 7200) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid maxTriggerSec: must be a positive finite number.'
+                    });
+                }
+                parsedDynamicMutation.maxTriggerSec = maxSec;
+            }
+            if (dynamicMutation.mutationTimeBufferSec !== undefined) {
+                const bufSec = Number(dynamicMutation.mutationTimeBufferSec);
+                if (isNaN(bufSec) || !isFinite(bufSec) || bufSec < 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid mutationTimeBufferSec: must be a non-negative number.'
+                    });
+                }
+                parsedDynamicMutation.mutationTimeBufferSec = bufSec;
+            }
+            if (dynamicMutation.minAstNodes !== undefined) {
+                const nodes = Number(dynamicMutation.minAstNodes);
+                if (!isNaN(nodes) && nodes >= 0) {
+                    parsedDynamicMutation.minAstNodes = nodes;
+                }
+            }
+        }
+
         let codingRound = await CodingRound.findOne({ jobId });
         if (codingRound) {
-            codingRound.totalTime = totalTime || codingRound.totalTime;
-            codingRound.timerType = timerType || codingRound.timerType;
-            codingRound.languages = languages || codingRound.languages;
-            codingRound.instructions = instructions || codingRound.instructions;
-            codingRound.status = status || codingRound.status;
+            if (totalTime !== undefined) codingRound.totalTime = totalTime;
+            if (timerType !== undefined) codingRound.timerType = timerType;
+            if (languages !== undefined) codingRound.languages = languages;
+            if (instructions !== undefined) codingRound.instructions = instructions;
+            if (status !== undefined) codingRound.status = status;
+            if (parsedDynamicMutation) {
+                const existingDyn = codingRound.dynamicMutation
+                    ? (codingRound.dynamicMutation.toObject ? codingRound.dynamicMutation.toObject() : codingRound.dynamicMutation)
+                    : {};
+                codingRound.dynamicMutation = {
+                    ...existingDyn,
+                    ...parsedDynamicMutation
+                };
+            }
         } else {
             codingRound = new CodingRound({
                 jobId,
-                totalTime: totalTime || 60,
+                totalTime: totalTime !== undefined ? totalTime : 60,
                 timerType: timerType || 'overall',
                 languages: languages || [],
                 instructions: instructions || '',
-                status: status || 'draft'
+                status: status || 'draft',
+                dynamicMutation: {
+                    enabled: true,
+                    minTriggerSec: 0,
+                    maxTriggerSec: 1800,
+                    minAstNodes: 12,
+                    mutationTimeBufferSec: 0,
+                    memoryLimitMb: 14,
+                    ...(parsedDynamicMutation || {})
+                }
             });
         }
         await codingRound.save();
@@ -817,26 +896,33 @@ const runCandidateCode = async (req, res) => {
         // Case 1: Custom input test
         if (typeof customInput === 'string' && customInput.trim().length > 0) {
             testCases = [{
+                id: 'custom-1',
                 input: customInput,
                 expectedOutput: '',
                 isHidden: false,
                 category: 'CUSTOM'
             }];
         } else if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
-            // Case 2: Configured test cases on the question
+            // Case 2: Configured test cases on the question using shared resolution pipeline
             const question = await CodingQuestion.findById(questionId);
-            if (question) {
-                if (Array.isArray(question.testCases) && question.testCases.length > 0) {
-                    testCases = question.testCases;
-                } else if (Array.isArray(question.examples) && question.examples.length > 0) {
-                    testCases = question.examples.map(ex => ({
-                        input: ex.input || '',
-                        expectedOutput: ex.output || '',
-                        isHidden: false,
-                        category: 'NORMAL',
-                        explanation: ex.explanation || ''
-                    }));
-                }
+            const resolved = resolveTestCasesForQuestion(question);
+            if (resolved.success) {
+                testCases = resolved.testCases;
+            } else {
+                return res.status(200).json({
+                    success: false,
+                    status: 'TEST_CONFIGURATION_ERROR',
+                    message: resolved.message || 'No validated test suite exists for this question.',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    publicPassed: 0,
+                    publicTotal: 0,
+                    hiddenPassed: 0,
+                    hiddenTotal: 0,
+                    executionTime: 0,
+                    results: []
+                });
             }
         }
 
@@ -953,7 +1039,11 @@ const startDMCESession = async (req, res) => {
             roundConfig = await CodingRound.findOne({ jobId });
         }
         if (roundConfig?.dynamicMutation) {
-            Object.assign(config, roundConfig.dynamicMutation);
+            const dynObj = roundConfig.dynamicMutation.toObject ? roundConfig.dynamicMutation.toObject() : roundConfig.dynamicMutation;
+            Object.assign(config, dynObj);
+        }
+        if (config.memoryLimitMb === undefined || isNaN(Number(config.memoryLimitMb))) {
+            config.memoryLimitMb = 14;
         }
         if (config.minTriggerSec === 120 || config.minTriggerSec === undefined) {
             config.minTriggerSec = 0;
@@ -1032,15 +1122,56 @@ const runDMCEBaseline = async (req, res) => {
         }
 
         let question = null;
-        let testCases = [];
         if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
             question = await CodingQuestion.findById(questionId);
-            if (question && Array.isArray(question.testCases)) {
-                testCases = question.testCases.filter(tc => tc.category !== 'MUTATION' && tc.category !== 'Mutation');
-            }
         }
 
-        // 1. Gemini Logic & Intent Validation (Mentor Requirement 6.1)
+        // 1. Resolve test cases using shared resolver
+        const resolved = resolveTestCasesForQuestion(question);
+        if (!resolved.success || resolved.testCases.length === 0) {
+            console.warn(`[DMCE-CONTROLLER] Baseline test case resolution failed for question ${questionId}: ${resolved.message}`);
+            return res.status(200).json({
+                success: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                message: resolved.message || 'No validated test cases available for this question.',
+                execution: {
+                    status: 'TEST_CONFIGURATION_ERROR',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    publicPassed: 0,
+                    publicTotal: 0,
+                    hiddenPassed: 0,
+                    hiddenTotal: 0,
+                    executionTime: 0,
+                    errorMessage: resolved.message || 'No validated test suite exists for this question.',
+                    results: []
+                },
+                baselinePassed: false,
+                mutationEligible: false
+            });
+        }
+
+        // 2. Select small baseline test set: 3-4 appropriate basic tests (Mentor Requirement 6.2)
+        const baselineTests = getBaselineTestCases(resolved.testCases);
+        if (baselineTests.length === 0) {
+            return res.status(200).json({
+                success: false,
+                status: 'TEST_CONFIGURATION_ERROR',
+                message: 'No suitable non-mutation baseline test cases available.',
+                execution: {
+                    status: 'TEST_CONFIGURATION_ERROR',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    results: []
+                },
+                baselinePassed: false,
+                mutationEligible: false
+            });
+        }
+
+        // 3. Gemini Logic & Intent Validation (Mentor Requirement 6.1)
         const { validateCodeIntentWithAi } = require('../services/dmce/mutationTrigger');
         const intentCheck = await validateCodeIntentWithAi({
             questionTitle: question?.title || 'Coding Problem',
@@ -1055,12 +1186,12 @@ const runDMCEBaseline = async (req, res) => {
                 execution: {
                     status: 'INCOMPLETE_OR_UNRELATED',
                     passed: 0,
-                    failed: 0,
-                    total: 0,
+                    failed: baselineTests.length,
+                    total: baselineTests.length,
                     publicPassed: 0,
-                    publicTotal: 0,
+                    publicTotal: baselineTests.filter(t => !t.isHidden).length,
                     hiddenPassed: 0,
-                    hiddenTotal: 0,
+                    hiddenTotal: baselineTests.filter(t => t.isHidden).length,
                     executionTime: 0,
                     errorMessage: intentCheck.reason || 'Code does not appear to meaningfully attempt the requested problem.',
                     results: []
@@ -1075,54 +1206,21 @@ const runDMCEBaseline = async (req, res) => {
             });
         }
 
-        // 2. Select small baseline test set: 3-4 appropriate basic tests (Mentor Requirement 6.2)
-        if (testCases.length === 0) {
-            return res.status(200).json({
-                success: false,
-                status: 'TEST_CONFIGURATION_ERROR',
-                message: 'No validated test cases available for this question.',
-                execution: {
-                    status: 'TEST_CONFIGURATION_ERROR',
-                    passed: 0,
-                    failed: 0,
-                    total: 0,
-                    results: []
-                },
-                baselinePassed: false,
-                mutationEligible: false
-            });
-        }
-
-        const normalTests = testCases.filter(tc => !tc.isHidden || tc.category === 'NORMAL' || tc.category === 'Normal');
-        const edgeTests = testCases.filter(tc => tc.category === 'BOUNDARY' || tc.category === 'EDGE_CASE' || tc.category === 'Boundary' || tc.category === 'Edge');
-
-        const baselineTests = [];
-        normalTests.slice(0, 3).forEach(tc => baselineTests.push(tc));
-        if (edgeTests.length > 0 && baselineTests.length < 4) {
-            const candidateEdge = edgeTests.find(e => !baselineTests.some(b => String(b._id || b.input) === String(e._id || e.input)));
-            if (candidateEdge) baselineTests.push(candidateEdge);
-        }
-        if (baselineTests.length < 3) {
-            for (const tc of testCases) {
-                if (baselineTests.length >= 4) break;
-                if (!baselineTests.some(b => String(b._id || b.input) === String(tc._id || tc.input))) {
-                    baselineTests.push(tc);
-                }
-            }
-        }
-
-        // 3. Execute baseline tests using the dedicated sandbox
+        // 4. Execute baseline tests using the dedicated sandbox
         const baselineResult = await mutationEngine.runBaseline(sessionId, code, language, baselineTests);
 
+        // 5. Evaluate mutation trigger ONLY if all required baseline tests passed
         let mutationTriggered = null;
-        if (baselineResult.baselinePassed || baselineResult.mutationEligible) {
+        if (baselineResult.baselinePassed === true) {
             try {
                 const trig = mutationEngine.triggerMutationIfEligible(sessionId, code);
                 if (trig && trig.triggered) {
                     mutationTriggered = trig;
                     broadcastMutationToCandidate(sessionId, trig);
                 }
-            } catch (_) {}
+            } catch (trigErr) {
+                console.warn(`[DMCE-CONTROLLER] Trigger evaluation warning: ${trigErr.message}`);
+            }
         }
 
         res.json({
@@ -1130,7 +1228,7 @@ const runDMCEBaseline = async (req, res) => {
             execution: baselineResult.execution,
             logicValidation: { valid: true, reason: intentCheck.reason },
             baselinePassed: baselineResult.baselinePassed,
-            mutationEligible: baselineResult.mutationEligible,
+            mutationEligible: Boolean(baselineResult.baselinePassed && mutationTriggered),
             mutationTriggered
         });
     } catch (err) {
@@ -1216,14 +1314,9 @@ const runDMCEMutation = async (req, res) => {
 
         if (targetQId && mongoose.Types.ObjectId.isValid(targetQId)) {
             question = await CodingQuestion.findById(targetQId);
-            if (question && Array.isArray(question.testCases) && question.testCases.length > 0) {
-                const mutCases = question.testCases.filter(tc => tc.category === 'MUTATION' || tc.category === 'Mutation');
-                if (mutCases.length > 0) {
-                    testCasesToRun = mutCases;
-                } else {
-                    const fallbackCases = question.testCases.filter(tc => tc.isHidden || tc.category === 'PERFORMANCE' || tc.category === 'BOUNDARY');
-                    testCasesToRun = fallbackCases.length > 0 ? fallbackCases : question.testCases;
-                }
+            const resolved = resolveTestCasesForQuestion(question);
+            if (resolved.success && resolved.testCases.length > 0) {
+                testCasesToRun = getMutationTestCases(resolved.testCases);
             }
         }
 

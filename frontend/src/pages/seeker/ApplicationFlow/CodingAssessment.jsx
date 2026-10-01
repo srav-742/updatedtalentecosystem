@@ -151,8 +151,7 @@ const CodingAssessment = ({
                     if (!prev.has(qId)) {
                         const next = new Set(prev);
                         next.add(qId);
-                        const bufferSec = appliedMutation.adaptationTimeBufferSec || 600;
-                        setTimeLeft(curr => curr + bufferSec);
+                        // DO NOT add extra time — recruiter's configured duration is the absolute ceiling
                         return next;
                     }
                     return prev;
@@ -178,15 +177,28 @@ const CodingAssessment = ({
 
         const startSandbox = async () => {
             try {
-                const sid = `dmce-${user?.uid || 'candidate'}-${qId}-${Date.now().toString(36)}`;
+                const targetJobId = job?._id || job?.id || 'job';
+                const candidateId = user?.uid || user?._id || user?.id || 'candidate';
+                const sessionKey = `dmce_sid_${targetJobId}_${candidateId}_${qId}`;
+                let sid = null;
+                try {
+                    sid = sessionStorage.getItem(sessionKey);
+                } catch (_) {}
+                if (!sid) {
+                    sid = `dmce-${candidateId}-${qId}-${Date.now().toString(36)}`;
+                    try {
+                        sessionStorage.setItem(sessionKey, sid);
+                    } catch (_) {}
+                }
+
                 const headers = await getAuthHeaders().catch(() => ({}));
                 if (user?.uid || user?._id || user?.id) {
                     headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
                 }
                 const res = await axios.post(`${API_URL}/coding-assessments/session/start`, {
                     sessionId: sid,
-                    candidateId: user?.uid || user?._id || user?.id || '',
-                    jobId: job?._id || job?.id || '',
+                    candidateId: candidateId,
+                    jobId: targetJobId,
                     questionId: qId,
                     language: answers[qId]?.language || 'python'
                 }, { headers });
@@ -329,12 +341,18 @@ const CodingAssessment = ({
                     setTimeLeft((round.totalTime || 60) * 60);
                 }
 
-                // Initialize answers with starter template
+                // Initialize answers with starter template or cached candidate code
+                const targetJobId = job?._id || job?.id || 'job';
                 const initialAnswers = {};
                 (round.questions || []).forEach(q => {
                     const defaultLang = q.allowedLanguages?.[0] || round.languages?.[0] || 'Python';
+                    const codeCacheKey = `dmce_code_${targetJobId}_${q._id}`;
+                    let cachedCode = null;
+                    try {
+                        cachedCode = localStorage.getItem(codeCacheKey);
+                    } catch (_) {}
                     initialAnswers[q._id] = {
-                        code: getStarterTemplate(q.title, defaultLang),
+                        code: (typeof cachedCode === 'string' && cachedCode.length > 0) ? cachedCode : getStarterTemplate(q.title, defaultLang),
                         language: defaultLang
                     };
                 });
@@ -454,6 +472,11 @@ const CodingAssessment = ({
         const isDelete = codeValue.length < prevCode.length;
         recordTelemetry(isDelete ? 'DELETE' : 'KEY_PRESS', { line: 1, column: 1 });
 
+        const targetJobId = job?._id || job?.id || 'job';
+        try {
+            localStorage.setItem(`dmce_code_${targetJobId}_${currentQuestion._id}`, codeValue);
+        } catch (_) {}
+
         setAnswers(prev => ({
             ...prev,
             [currentQuestion._id]: {
@@ -502,7 +525,7 @@ const CodingAssessment = ({
 
             let res;
             if (isMutated) {
-                // Execute mutation-specific test suite under mutated constraints (16MB heap)
+                // Execute mutation-specific test suite under mutated constraints
                 res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
                     sessionId: currentSid,
                     questionId: qId,
@@ -529,6 +552,18 @@ const CodingAssessment = ({
                         }
                     }));
                     setSelectedTestCaseIdx(0);
+                } else {
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: {
+                            status: res.data?.code || 'EXECUTION_ERROR',
+                            passed: 0,
+                            failed: 0,
+                            total: 0,
+                            errorMessage: res.data?.message || 'Mutation execution failed.',
+                            results: []
+                        }
+                    }));
                 }
             } else {
                 // Execute baseline test suite in dedicated sandbox
@@ -551,42 +586,32 @@ const CodingAssessment = ({
                         triggerMutationAlert(res.data.mutationTriggered, qId);
                     }
                 } else {
-                    // Fallback to standard execution runner
-                    const fallbackRes = await axios.post(`${API_URL}/coding-assessments/run`, {
-                        questionId: qId,
-                        code,
-                        language
-                    }, { headers });
-                    if (fallbackRes.data?.success) {
-                        setExecutionResults(prev => ({ ...prev, [qId]: fallbackRes.data }));
-                        setSelectedTestCaseIdx(0);
-                    }
+                    // Do NOT fall back to legacy runner; present the actual execution or configuration error
+                    const execData = res.data?.execution || {
+                        status: res.data?.code || 'TEST_CONFIGURATION_ERROR',
+                        passed: 0,
+                        failed: 0,
+                        total: 0,
+                        errorMessage: res.data?.message || 'Baseline execution failed.',
+                        results: []
+                    };
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: execData
+                    }));
                 }
             }
         } catch (runErr) {
-            console.warn('Run code error, trying fallback:', runErr.message);
-            try {
-                const headers = await getAuthHeaders().catch(() => ({}));
-                const fallbackRes = await axios.post(`${API_URL}/coding-assessments/run`, {
-                    questionId: qId,
-                    code,
-                    language
-                }, { headers });
-                if (fallbackRes.data?.success) {
-                    setExecutionResults(prev => ({ ...prev, [qId]: fallbackRes.data }));
-                    setSelectedTestCaseIdx(0);
-                    return;
-                }
-            } catch (_) {}
-
+            console.error('[CodingAssessment] Run code error:', runErr.message);
+            const errData = runErr.response?.data;
             setExecutionResults(prev => ({
                 ...prev,
                 [qId]: {
-                    status: 'EXECUTION_ERROR',
+                    status: errData?.code || 'EXECUTION_ERROR',
                     passed: 0,
                     failed: 0,
                     total: 0,
-                    errorMessage: runErr.response?.data?.message || runErr.message || 'Execution service unreachable. Please retry.',
+                    errorMessage: errData?.message || runErr.message || 'Execution service unreachable. Please retry.',
                     results: []
                 }
             }));
@@ -620,6 +645,14 @@ const CodingAssessment = ({
             }, { headers });
 
             if (res.data?.success) {
+                // Clear cached draft codes on successful submission
+                try {
+                    const targetJobId = job?._id || job?.id || 'job';
+                    questions.forEach(q => {
+                        localStorage.removeItem(`dmce_code_${targetJobId}_${q._id}`);
+                    });
+                } catch (_) {}
+
                 // Success! Complete step
                 onComplete(res.data.codingScore);
             }
@@ -1084,7 +1117,7 @@ const CodingAssessment = ({
                                 {dmceMutations[currentQuestion?._id]?.activated ? (
                                     <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-extrabold animate-pulse">
                                         <Cpu size={12} className="text-amber-400" />
-                                        <span>16 MB MEMORY CAP ENFORCED</span>
+                                        <span>{(dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14)} MB MEMORY CAP ENFORCED</span>
                                     </div>
                                 ) : dmceMutations[currentQuestion?._id]?.triggered ? (
                                     <button
@@ -1169,7 +1202,7 @@ const CodingAssessment = ({
                                                 }`}>
                                                     {currentResult.status === 'ALL_PASSED' ? 'All Passed' :
                                                      currentResult.status === 'PARTIALLY_PASSED' ? `${currentResult.passed}/${currentResult.total} Passed` :
-                                                     currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? 'Memory Limit Exceeded (16 MB Clamped)' :
+                                                     currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? `Memory Limit Exceeded (${dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14} MB Clamped)` :
                                                      currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
                                                      currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
                                                      currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
@@ -1451,47 +1484,56 @@ const CodingAssessment = ({
                                 </div>
                             </div>
 
-                            <div className="mt-5 p-4 rounded-2xl bg-[#0d1117] border border-[#30363d] text-xs text-gray-300 space-y-3 leading-relaxed">
-                                <p className="text-gray-200">
-                                    {activeMutationAlert.description || 'Peak stream volume exceeded. The maximum runtime heap available to your execution environment has been dynamically reduced to 16 MB.'}
-                                </p>
-                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono text-[11px] flex items-center gap-2">
-                                    <Cpu size={14} className="shrink-0 text-amber-400" />
-                                    <span>Constraint: Maximum Heap Clamped to 16 MB. Process dataset in-place using iterators / streams.</span>
-                                </div>
-                                <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-300 font-sans font-bold text-xs flex items-center gap-2">
-                                    <Clock3 size={15} className="shrink-0 text-teal-400" />
-                                    <span>Adaptation Time Buffer: +{Math.round((activeMutationAlert.adaptationTimeBufferSec || 600) / 60)} Minutes Added to Assessment Timer</span>
-                                </div>
-                            </div>
+                            {(() => {
+                                const effectiveMemMb = activeMutationAlert.resourceConstraints?.memoryLimitMb || activeMutationAlert.memoryLimitMb || 14;
+                                return (
+                                    <>
+                                        <div className="mt-5 p-4 rounded-2xl bg-[#0d1117] border border-[#30363d] text-xs text-gray-300 space-y-3 leading-relaxed">
+                                            <p className="text-gray-200">
+                                                {activeMutationAlert.description || `Peak stream volume exceeded. The maximum runtime heap available to your execution environment has been dynamically reduced to ${effectiveMemMb} MB.`}
+                                            </p>
+                                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono text-[11px] flex items-center gap-2">
+                                                <Cpu size={14} className="shrink-0 text-amber-400" />
+                                                <span>Constraint: Maximum Heap Clamped to {effectiveMemMb} MB. Process dataset in-place using iterators / streams.</span>
+                                            </div>
+                                            {(activeMutationAlert.adaptationTimeBufferSec > 0) && (
+                                                <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-300 font-sans font-bold text-xs flex items-center gap-2">
+                                                    <Clock3 size={15} className="shrink-0 text-teal-400" />
+                                                    <span>Adaptation Time Buffer: +{Math.round(activeMutationAlert.adaptationTimeBufferSec / 60)} Minutes Added to Assessment Timer</span>
+                                                </div>
+                                            )}
+                                        </div>
 
-                            {mutationActivationError && (
-                                <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
-                                    <AlertCircle size={15} className="shrink-0 text-red-400" />
-                                    <span>{mutationActivationError}</span>
-                                </div>
-                            )}
+                                        {mutationActivationError && (
+                                            <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+                                                <AlertCircle size={15} className="shrink-0 text-red-400" />
+                                                <span>{mutationActivationError}</span>
+                                            </div>
+                                        )}
 
-                            <div className="mt-6 flex items-center justify-between gap-3">
-                                <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
-                                    <ShieldCheck size={14} className="text-emerald-400" />
-                                    <span>Stage-1 Baseline credit is 100% preserved.</span>
-                                </div>
-                                <button
-                                    onClick={handleAdaptMutation}
-                                    disabled={activatingMutation}
-                                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {activatingMutation ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin text-black" />
-                                            <span>Enforcing 16 MB Limit...</span>
-                                        </>
-                                    ) : (
-                                        <span>Adapt Solution Under Constraint</span>
-                                    )}
-                                </button>
-                            </div>
+                                        <div className="mt-6 flex items-center justify-between gap-3">
+                                            <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                                                <ShieldCheck size={14} className="text-emerald-400" />
+                                                <span>Stage-1 Baseline credit is 100% preserved.</span>
+                                            </div>
+                                            <button
+                                                onClick={handleAdaptMutation}
+                                                disabled={activatingMutation}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {activatingMutation ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Enforcing {effectiveMemMb} MB Limit...</span>
+                                                    </>
+                                                ) : (
+                                                    <span>Adapt Solution Under Constraint</span>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </motion.div>
                     </div>
                 )}

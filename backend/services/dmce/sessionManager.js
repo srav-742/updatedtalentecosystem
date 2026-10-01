@@ -64,6 +64,7 @@ function initSession({
 
         // Configurable bounds (minTriggerSec defaults to 0 so baseline success triggers mutation immediately)
         config: {
+            memoryLimitMb: config.memoryLimitMb !== undefined ? Number(config.memoryLimitMb) : undefined,
             minTriggerSec: config.minTriggerSec !== undefined ? config.minTriggerSec : 0,
             maxTriggerSec: config.maxTriggerSec !== undefined ? config.maxTriggerSec : 1800, // 30 mins
             minAstNodes: config.minAstNodes !== undefined ? config.minAstNodes : 12,
@@ -188,12 +189,12 @@ function activateMutation(sessionId, mutationContract, currentCode) {
     session.state = LIFECYCLE_STATES.MUTATION_ACTIVE;
     session.snapshots.preMutationCode = currentCode || session.snapshots.preMutationCode || session.snapshots.baselineCode;
 
-    const bufferSec = mutationContract.adaptationTimeBufferSec || 600;
+    const bufferSec = 0; // No extra time — recruiter's configured time is absolute and final
 
     if (!session.adaptationBufferApplied) {
         session.adaptationBufferApplied = true;
-        session.adaptationBufferSec = bufferSec;
-        session.timerExpiresAt = (session.timerExpiresAt || (session.startedAt + (session.durationSec || 1800) * 1000)) + (bufferSec * 1000);
+        session.adaptationBufferSec = 0;
+        // DO NOT extend timerExpiresAt — the recruiter's configured duration is the hard ceiling
     }
 
     session.mutation = {

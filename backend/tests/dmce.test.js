@@ -519,13 +519,13 @@ def process(data):
     // ─── TEST GROUP 12: TIMER & ADAPTATION BUFFER ────────────────
     console.log('\n--- TEST GROUP 12: Assessment Timer & Mutation Adaptation Buffer ---');
 
-    await test('Mutation contract specifies +10 min (600s) buffer, preserving Stage-1 baseline score', () => {
+    await test('Mutation contract specifies 0s buffer (no extra time added), preserving Stage-1 baseline score', () => {
         const contract = getMutationContract('mut_mem_opt_16mb');
-        assert.strictEqual(contract.adaptationTimeBufferSec, 600);
+        assert.strictEqual(contract.adaptationTimeBufferSec, 0);
 
         // Verify baseline credit preservation in session
         const timerSid = `timer-test-${Date.now()}`;
-        const sess = initSession({ sessionId: timerSid, config: { mutationTimeBufferSec: 600 } });
+        const sess = initSession({ sessionId: timerSid, config: { mutationTimeBufferSec: 0 } });
         sess.baselinePassed = true;
         sess.baselineScore = 88;
 

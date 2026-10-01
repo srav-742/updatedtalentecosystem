@@ -134,7 +134,7 @@ export default function PaymentUpgrade() {
                 currency: currency,
                 name: "Talent EcoSystem",
                 description: "Upgrade to Premium Recruiter",
-                image: "https://hire1percent.com/assets/logo.png", // Optional brand logo
+                image: "https://www.hire1percent.com/logo.png", // Optional brand logo
                 order_id: orderId,
                 handler: async function (response) {
                     setVerifying(true);

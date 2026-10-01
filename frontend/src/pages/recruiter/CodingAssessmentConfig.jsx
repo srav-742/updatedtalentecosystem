@@ -33,9 +33,10 @@ const CodingAssessmentConfig = () => {
         status: 'draft',
         dynamicMutation: {
             enabled: true,
-            minTriggerSec: 30,
+            minTriggerSec: 0,
             maxTriggerSec: 1800,
-            mutationTimeBufferSec: 600
+            mutationTimeBufferSec: 0,
+            memoryLimitMb: 14
         }
     });
     const [codingRoundId, setCodingRoundId] = useState(null);
@@ -73,11 +74,12 @@ const CodingAssessmentConfig = () => {
                         languages: round.languages || [],
                         instructions: round.instructions || '',
                         status: round.status || 'draft',
-                        dynamicMutation: round.dynamicMutation || {
-                            enabled: true,
-                            minTriggerSec: 30,
-                            maxTriggerSec: 1800,
-                            mutationTimeBufferSec: 600
+                        dynamicMutation: {
+                            enabled: round.dynamicMutation?.enabled ?? true,
+                            minTriggerSec: round.dynamicMutation?.minTriggerSec ?? 0,
+                            maxTriggerSec: round.dynamicMutation?.maxTriggerSec ?? 1800,
+                            mutationTimeBufferSec: round.dynamicMutation?.mutationTimeBufferSec ?? 0,
+                            memoryLimitMb: round.dynamicMutation?.memoryLimitMb ?? 14
                         }
                     });
                     setQuestions(round.questions || []);
@@ -397,7 +399,7 @@ const CodingAssessmentConfig = () => {
                                 <Zap size={18} className="text-teal-400" />
                                 <div>
                                     <h4 className="text-sm font-bold text-white">Dynamic Mutation Coding Engine (DMCE / DRI)</h4>
-                                    <p className="text-xs text-slate-400">Deterministic runtime resource mutation (16MB heap clamping) during assessment</p>
+                                    <p className="text-xs text-slate-400">Deterministic runtime resource mutation ({roundConfig.dynamicMutation?.memoryLimitMb ?? 14} MB heap clamping) during assessment</p>
                                 </div>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
@@ -418,14 +420,35 @@ const CodingAssessmentConfig = () => {
                         </div>
 
                         {roundConfig.dynamicMutation?.enabled && (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-teal-500/10 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-teal-500/10 text-xs">
+                                <div>
+                                    <label className="block font-bold text-slate-300 mb-1">Memory Limit (MB)</label>
+                                    <input
+                                        type="number"
+                                        min="4"
+                                        max="512"
+                                        value={roundConfig.dynamicMutation?.memoryLimitMb ?? 14}
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            setRoundConfig(prev => ({
+                                                ...prev,
+                                                dynamicMutation: {
+                                                    ...prev.dynamicMutation,
+                                                    memoryLimitMb: isNaN(val) ? 14 : Math.max(4, Math.min(512, val))
+                                                }
+                                            }));
+                                        }}
+                                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                                    />
+                                    <span className="text-[10px] text-slate-400 mt-1 block">Clamped runtime heap (default: 14 MB)</span>
+                                </div>
                                 <div>
                                     <label className="block font-bold text-slate-300 mb-1">Min Trigger Time (sec)</label>
                                     <input
                                         type="number"
-                                        min="10"
+                                        min="0"
                                         max="600"
-                                        value={roundConfig.dynamicMutation?.minTriggerSec ?? 30}
+                                        value={roundConfig.dynamicMutation?.minTriggerSec ?? 0}
                                         onChange={(e) => setRoundConfig(prev => ({
                                             ...prev,
                                             dynamicMutation: {
@@ -459,9 +482,9 @@ const CodingAssessmentConfig = () => {
                                     <label className="block font-bold text-slate-300 mb-1">Adaptation Buffer (min)</label>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min="0"
                                         max="30"
-                                        value={Math.round((roundConfig.dynamicMutation?.mutationTimeBufferSec ?? 600) / 60)}
+                                        value={Math.round((roundConfig.dynamicMutation?.mutationTimeBufferSec ?? 0) / 60)}
                                         onChange={(e) => setRoundConfig(prev => ({
                                             ...prev,
                                             dynamicMutation: {
@@ -471,7 +494,7 @@ const CodingAssessmentConfig = () => {
                                         }))}
                                         className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
                                     />
-                                    <span className="text-[10px] text-slate-400 mt-1 block">Additional time granted</span>
+                                    <span className="text-[10px] text-slate-400 mt-1 block">Extra time granted (0 = none)</span>
                                 </div>
                             </div>
                         )}

@@ -80,7 +80,7 @@ const Footer = ({ theme = 'dark' }) => {
                     <div className="flex items-center gap-6">
                         <a href="https://twitter.com/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Twitter</a>
                         <a href="https://linkedin.com/company/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">LinkedIn</a>
-                        <a href="https://www.linkedin.com/company/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">GitHub</a>
+                        <a href="https://github.com/hire1percent" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">GitHub</a>
                     </div>
                 </div>
             </div>

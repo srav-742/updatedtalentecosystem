@@ -70,8 +70,32 @@ function normalizeOutput(str) {
 }
 
 /**
+ * Cross-language output normalization:
+ * Translates Python-specific output formats to universal equivalents so that
+ * a correct JavaScript solution isn't penalized for printing 'true' instead of 'True'.
+ */
+function crossLanguageNormalize(str) {
+    if (!str || typeof str !== 'string') return '';
+    let s = str;
+    // Python True/False/None → lowercase boolean/null
+    s = s.replace(/\bTrue\b/g, 'true');
+    s = s.replace(/\bFalse\b/g, 'false');
+    s = s.replace(/\bNone\b/g, 'null');
+    // Python single-quoted strings → double-quoted
+    s = s.replace(/'/g, '"');
+    // Python tuple (1, 2, 3) → [1, 2, 3]
+    s = s.replace(/\((\s*(?:-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)*)\s*)\)/g, '[$1]');
+    // Remove trailing comma in tuples/lists: (1,) → [1]
+    s = s.replace(/,\s*\]/g, ']');
+    s = s.replace(/,\s*\)/g, ')');
+    return s;
+}
+
+/**
  * Compares actual program output against expected test-case output.
- * Handles exact strings, whitespace differences, numeric formatting, and structured JSON.
+ * Handles exact strings, whitespace differences, numeric formatting,
+ * structured JSON, cross-language format differences (Python vs JS vs Java),
+ * and common output formatting variations.
  */
 function compareOutputs(actual, expected) {
     if (expected === null || expected === undefined) return false;
@@ -93,14 +117,23 @@ function compareOutputs(actual, expected) {
         return true;
     }
 
-    // 2. Case-insensitive boolean comparison
-    if (['true', 'false'].includes(normExpected.toLowerCase())) {
-        if (normActual.toLowerCase() === normExpected.toLowerCase()) {
+    // 2. Cross-language normalized match (Python True/False/None, tuples, quotes)
+    const xlActual = crossLanguageNormalize(normActual);
+    const xlExpected = crossLanguageNormalize(normExpected);
+    if (xlActual === xlExpected) {
+        return true;
+    }
+
+    // 3. Case-insensitive boolean comparison (true/false/yes/no)
+    const lowerActual = normActual.toLowerCase().trim();
+    const lowerExpected = normExpected.toLowerCase().trim();
+    if (['true', 'false', 'yes', 'no'].includes(lowerExpected)) {
+        if (lowerActual === lowerExpected) {
             return true;
         }
     }
 
-    // 3. Single numeric comparison (allow floating point precision up to 1e-4)
+    // 4. Single numeric comparison (allow floating point precision up to 1e-4)
     const numActual = Number(normActual);
     const numExpected = Number(normExpected);
     if (!isNaN(numActual) && !isNaN(numExpected) && normActual !== '' && normExpected !== '') {
@@ -109,39 +142,110 @@ function compareOutputs(actual, expected) {
         }
     }
 
-    // 4. JSON array / object deep comparison
+    // 5. JSON array / object deep comparison (handles formatting differences)
     try {
-        if ((normExpected.startsWith('[') && normExpected.endsWith(']')) ||
-            (normExpected.startsWith('{') && normExpected.endsWith('}'))) {
-            const parsedExpected = JSON.parse(normExpected);
-            const parsedActual = JSON.parse(normActual);
+        const actualForJson = xlActual;
+        const expectedForJson = xlExpected;
+        if ((expectedForJson.startsWith('[') && expectedForJson.endsWith(']')) ||
+            (expectedForJson.startsWith('{') && expectedForJson.endsWith('}'))) {
+            const parsedExpected = JSON.parse(expectedForJson);
+            const parsedActual = JSON.parse(actualForJson);
             if (JSON.stringify(parsedExpected) === JSON.stringify(parsedActual)) {
                 return true;
+            }
+            // Deep equality with sorted keys for objects
+            if (typeof parsedExpected === 'object' && typeof parsedActual === 'object') {
+                if (JSON.stringify(sortDeep(parsedExpected)) === JSON.stringify(sortDeep(parsedActual))) {
+                    return true;
+                }
             }
         }
     } catch (_) {
         // Not JSON, continue with string comparison
     }
 
-    // 5. Space-delimited elements comparison (e.g. array printed as "1 2 3" vs "1, 2, 3")
-    const cleanActualTokens = normActual.replace(/[,[\]]/g, ' ').trim().split(/\s+/);
-    const cleanExpectedTokens = normExpected.replace(/[,[\]]/g, ' ').trim().split(/\s+/);
-    if (cleanActualTokens.length === cleanExpectedTokens.length && cleanActualTokens.length > 1) {
+    // 5.1 Unordered Set comparison (e.g. {1, 2, 3} vs {3, 1, 2} in Python)
+    if (normActual.startsWith('{') && normActual.endsWith('}') &&
+        normExpected.startsWith('{') && normExpected.endsWith('}') &&
+        !normActual.includes(':') && !normExpected.includes(':')) {
+        const setTokensActual = normActual.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean).sort();
+        const setTokensExpected = normExpected.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean).sort();
+        if (setTokensActual.length === setTokensExpected.length && setTokensActual.length > 0) {
+            if (setTokensActual.every((val, idx) => val === setTokensExpected[idx])) {
+                return true;
+            }
+        }
+    }
+
+    // 6. Space-delimited / comma-delimited elements comparison
+    //    e.g. "1 2 3" vs "1, 2, 3" vs "[1, 2, 3]" vs "[1,2,3]"
+    const cleanActualTokens = xlActual.replace(/[,[\](){}]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    const cleanExpectedTokens = xlExpected.replace(/[,[\](){}]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (cleanActualTokens.length === cleanExpectedTokens.length && cleanActualTokens.length > 0) {
         let allMatch = true;
         for (let i = 0; i < cleanActualTokens.length; i++) {
             if (cleanActualTokens[i] !== cleanExpectedTokens[i]) {
                 const aNum = Number(cleanActualTokens[i]);
                 const eNum = Number(cleanExpectedTokens[i]);
                 if (isNaN(aNum) || isNaN(eNum) || Math.abs(aNum - eNum) >= 1e-4) {
-                    allMatch = false;
-                    break;
+                    // Also check case-insensitive string match
+                    if (cleanActualTokens[i].toLowerCase() !== cleanExpectedTokens[i].toLowerCase()) {
+                        allMatch = false;
+                        break;
+                    }
                 }
             }
         }
         if (allMatch) return true;
     }
 
+    // 7. Multi-line comparison: compare each line independently (handles trailing whitespace)
+    const actualLines = normActual.split('\n').map(l => l.trim()).filter(Boolean);
+    const expectedLines = normExpected.split('\n').map(l => l.trim()).filter(Boolean);
+    if (actualLines.length === expectedLines.length && actualLines.length > 1) {
+        let allLinesMatch = true;
+        for (let i = 0; i < actualLines.length; i++) {
+            if (actualLines[i] !== expectedLines[i]) {
+                // Try cross-language normalization per line
+                if (crossLanguageNormalize(actualLines[i]) !== crossLanguageNormalize(expectedLines[i])) {
+                    // Try numeric comparison per line
+                    const aNum = Number(actualLines[i]);
+                    const eNum = Number(expectedLines[i]);
+                    if (isNaN(aNum) || isNaN(eNum) || Math.abs(aNum - eNum) >= 1e-4) {
+                        allLinesMatch = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if (allLinesMatch) return true;
+
+        // 7.1 Multi-line unordered comparison (e.g. permutations/anagrams output in any order)
+        const sortedActual = [...actualLines].sort();
+        const sortedExpected = [...expectedLines].sort();
+        if (sortedActual.every((line, idx) => line === sortedExpected[idx] || crossLanguageNormalize(line) === crossLanguageNormalize(sortedExpected[idx]))) {
+            return true;
+        }
+    }
+
     return false;
+}
+
+/**
+ * Deep sort helper for JSON comparison — sorts object keys and array elements recursively.
+ */
+function sortDeep(obj) {
+    if (Array.isArray(obj)) {
+        return obj.map(sortDeep);
+    }
+    if (obj !== null && typeof obj === 'object') {
+        const sorted = {};
+        Object.keys(obj).sort().forEach(k => {
+            sorted[k] = sortDeep(obj[k]);
+        });
+        return sorted;
+    }
+    return obj;
 }
 
 /**
@@ -158,73 +262,173 @@ function prepareRunnableCode(rawCode, language, input) {
         if (/input\s*\(|sys\.stdin/i.test(trimmed)) {
             return trimmed;
         }
-        // If candidate defined a function named 'solution' or similar, wrap with stdin auto-call
-        const funcMatch = trimmed.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\):/m);
-        if (funcMatch) {
-            const funcName = funcMatch[1];
+
+        // Check for class Solution pattern
+        const classMatch = trimmed.match(/class\s+Solution\b/);
+        let funcName = null;
+        let params = [];
+        let isClassMethod = false;
+
+        if (classMatch) {
+            // Find method inside Solution class
+            const methodMatch = trimmed.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*self\s*(?:,\s*([^)]*))?\)(?:\s*->\s*[^:]+)?\s*:/);
+            if (methodMatch) {
+                funcName = methodMatch[1];
+                params = methodMatch[2] ? methodMatch[2].split(',').map(p => p.trim()).filter(Boolean) : [];
+                isClassMethod = true;
+            }
+        }
+
+        if (!funcName) {
+            // Find all standalone function definitions (handling type annotations)
+            const defRegex = /(?:^|\n)\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)(?:\s*->\s*[^:]+)?\s*:/g;
+            const matches = [...trimmed.matchAll(defRegex)];
+            if (matches.length > 0) {
+                // Prioritize 'solution', 'solve', 'main', or the last defined function
+                const selected = matches.find(m => /^(solution|solve|main)$/i.test(m[1])) || matches[matches.length - 1];
+                funcName = selected[1];
+                params = selected[2].split(',').map(p => p.trim()).filter(Boolean);
+            }
+        }
+
+        if (funcName) {
             // If candidate script already calls the function or has a main block, execute as-is
-            const bodyAfterDef = trimmed.substring(funcMatch.index + funcMatch[0].length);
-            const alreadyCalled = new RegExp(`\\b${funcName}\\s*\\(`).test(bodyAfterDef) || /if\s+__name__\s*==/.test(trimmed);
-            if (alreadyCalled) {
+            const alreadyCalled = new RegExp(`\\b${funcName}\\s*\\(`).test(trimmed.substring(trimmed.indexOf(funcName) + funcName.length)) || /if\s+__name__\s*==/.test(trimmed);
+            if (alreadyCalled && !isClassMethod) {
                 return trimmed;
             }
 
-            const params = funcMatch[2].split(',').map(p => p.trim()).filter(Boolean);
+            // Strip type annotations from params: "arr: List[int]" -> "arr"
+            const cleanParams = params.map(p => p.split(':')[0].trim()).filter(Boolean);
+            const numParams = cleanParams.length;
+
+            const callInvocation = isClassMethod ? `_sol_inst.${funcName}` : funcName;
+            const instInit = isClassMethod ? `_sol_inst = Solution()\n        ` : '';
+
             const wrapper = `
 import sys, json, ast, traceback
 
 ${trimmed}
 
+def _parse_value(s):
+    """Parse a single value: try JSON, then Python literal, then integer/float, then keep string."""
+    if s is None or s == '':
+        return ''
+    trimmed = s.strip()
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    try:
+        return json.loads(trimmed)
+    except Exception:
+        pass
+    try:
+        return ast.literal_eval(trimmed)
+    except Exception:
+        pass
+    try:
+        if '.' in trimmed:
+            return float(trimmed)
+        return int(trimmed)
+    except Exception:
+        pass
+    return s
+
+def _format_result(res):
+    """Format result for stdout output."""
+    if res is None:
+        return
+    if isinstance(res, bool):
+        print(str(res).lower())
+    elif isinstance(res, (list, tuple, dict)):
+        print(json.dumps(res))
+    else:
+        print(res)
+
 if __name__ == '__main__':
     try:
-        raw_in = sys.stdin.read().strip()
-        if not raw_in:
-            res = ${funcName}()
-            if res is not None:
-                if isinstance(res, (list, dict)):
-                    print(json.dumps(res))
-                else:
-                    print(res)
+        ${instInit}raw_stdin = sys.stdin.read()
+        if raw_stdin.endswith('\\r\\n'):
+            raw_in = raw_stdin[:-2]
+        elif raw_stdin.endswith('\\n'):
+            raw_in = raw_stdin[:-1]
         else:
-            lines = [l for l in raw_in.splitlines() if l.strip()]
-            args = []
-            for l in lines:
-                try:
-                    args.append(json.loads(l))
-                except Exception:
-                    try:
-                        args.append(ast.literal_eval(l))
-                    except Exception:
-                        args.append(l)
-            if len(args) == 0 and raw_in:
-                args = [raw_in]
-            
-            # If function expects multiple arguments but args has 1 space-separated string
-            if len(args) == 1 and ${params.length} > 1 and isinstance(args[0], str):
-                tokens = args[0].split()
-                if len(tokens) == ${params.length}:
-                    parsed_tokens = []
-                    for t in tokens:
-                        try:
-                            parsed_tokens.append(json.loads(t))
-                        except Exception:
-                            parsed_tokens.append(t)
-                    args = parsed_tokens
+            raw_in = raw_stdin
 
-            if len(args) == ${params.length}:
-                res = ${funcName}(*args)
-            elif len(args) == 1 and ${params.length} == 1:
-                res = ${funcName}(args[0])
+        num_params = ${numParams}
+        if num_params == 0:
+            res = ${callInvocation}()
+            _format_result(res)
+        elif raw_in == '':
+            if num_params == 1:
+                res = ${callInvocation}('')
+                _format_result(res)
             else:
+                res = ${callInvocation}()
+                _format_result(res)
+        else:
+            lines = raw_in.splitlines()
+            parsed_lines = [_parse_value(l) for l in lines]
+            
+            # Strategy 1: If we have exactly the right number of parsed lines, use them directly
+            if len(parsed_lines) == num_params:
+                res = ${callInvocation}(*parsed_lines)
+                _format_result(res)
+            # Strategy 2: Single line input for single-param function
+            elif num_params == 1:
+                val = parsed_lines[0] if len(parsed_lines) > 0 else raw_in
+                if len(parsed_lines) == 2 and isinstance(parsed_lines[1], (list, tuple)):
+                    val = parsed_lines[1]
+                elif len(parsed_lines) > 1 and not isinstance(parsed_lines[0], (list, tuple, dict)):
+                    try:
+                        combined = []
+                        for pl in parsed_lines:
+                            if isinstance(pl, (list, tuple)):
+                                combined.extend(pl)
+                            else:
+                                combined.append(pl)
+                        val = combined
+                    except Exception:
+                        val = parsed_lines[0]
+                res = ${callInvocation}(val)
+                _format_result(res)
+            # Strategy 3: More lines than params — try combining
+            elif len(parsed_lines) > num_params:
                 try:
-                    res = ${funcName}(raw_in)
-                except Exception:
-                    res = ${funcName}(*args[:${params.length}])
-            if res is not None:
-                if isinstance(res, (list, dict)):
-                    print(json.dumps(res))
+                    res = ${callInvocation}(*parsed_lines[:num_params])
+                    _format_result(res)
+                except TypeError:
+                    try:
+                        res = ${callInvocation}(raw_in)
+                        _format_result(res)
+                    except Exception:
+                        res = ${callInvocation}(*parsed_lines[:num_params])
+                        _format_result(res)
+            # Strategy 4: Fewer lines than params — try unpacking list or splitting space-separated tokens
+            elif len(parsed_lines) < num_params:
+                if len(parsed_lines) == 1 and isinstance(parsed_lines[0], (list, tuple)) and len(parsed_lines[0]) == num_params:
+                    res = ${callInvocation}(*parsed_lines[0])
+                    _format_result(res)
                 else:
-                    print(res)
+                    all_tokens = []
+                    for l in lines:
+                        tokens = l.strip().split()
+                        all_tokens.extend(tokens)
+                    if len(all_tokens) == num_params:
+                        parsed_tokens = [_parse_value(t) for t in all_tokens]
+                        res = ${callInvocation}(*parsed_tokens)
+                        _format_result(res)
+                    else:
+                        try:
+                            res = ${callInvocation}(raw_in)
+                            _format_result(res)
+                        except Exception:
+                            res = ${callInvocation}(*parsed_lines)
+                            _format_result(res)
+            else:
+                res = ${callInvocation}(raw_in)
+                _format_result(res)
     except Exception as ex:
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
@@ -235,34 +439,123 @@ if __name__ == '__main__':
     }
 
     if (lang === 'javascript') {
-        if (/readline|readFileSync|process\.stdin/i.test(trimmed)) {
+        if (/readline|readFileSync|process\\.stdin/i.test(trimmed)) {
             return trimmed;
         }
-        const funcMatch = trimmed.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
-        if (funcMatch) {
-            const funcName = funcMatch[1];
+
+        let jsFuncName = null;
+        let jsParams = [];
+        let isJsClass = false;
+
+        // Check for class Solution
+        if (/class\\s+Solution\\b/.test(trimmed)) {
+            const m = trimmed.match(/class\\s+Solution[\\s\\S]*?([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(([^)]*)\\)/);
+            if (m && m[1] !== 'constructor') {
+                jsFuncName = m[1];
+                jsParams = m[2].split(',').map(p => p.trim()).filter(Boolean);
+                isJsClass = true;
+            }
+        }
+
+        if (!jsFuncName) {
+            // Match function declaration, arrow function, or function expression
+            const fnMatches = [
+                ...trimmed.matchAll(/(?:function\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(([^)]*)\\)|(?:const|let|var)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*(?:async\\s*)?(?:function\\s*\\(([^)]*)\\)|\\(([^)]*)\\)\\s*=>|([a-zA-Z_][a-zA-Z0-9_]*)\\s*=>))/g)
+            ];
+            if (fnMatches.length > 0) {
+                const selected = fnMatches.find(m => /^(solution|solve|main)$/i.test(m[1] || m[3])) || fnMatches[fnMatches.length - 1];
+                jsFuncName = selected[1] || selected[3];
+                const rawParamStr = selected[2] || selected[4] || selected[5] || selected[6] || '';
+                jsParams = rawParamStr.split(',').map(p => p.trim()).filter(Boolean);
+            }
+        }
+
+        if (jsFuncName) {
+            const jsNumParams = jsParams.length;
             const wrapper = `
 const fs = require('fs');
 
 ${trimmed}
 
-try {
-    const rawIn = fs.readFileSync(0, 'utf-8').trim();
-    if (!rawIn) {
-        const res = typeof ${funcName} === 'function' ? ${funcName}() : null;
-        if (res !== undefined) console.log(typeof res === 'object' ? JSON.stringify(res) : res);
+function _parseValue(s) {
+    if (s === undefined || s === null || s === '') return '';
+    const trimmed = s.trim();
+    try { return JSON.parse(s); } catch (e) {}
+    try { return JSON.parse(trimmed); } catch (e) {}
+    if (!isNaN(trimmed) && trimmed !== '') {
+        return trimmed.includes('.') ? parseFloat(trimmed) : parseInt(trimmed, 10);
+    }
+    return s;
+}
+
+function _formatResult(res) {
+    if (res === undefined || res === null) return;
+    if (typeof res === 'object') {
+        console.log(JSON.stringify(res));
     } else {
-        let parsed;
-        try { parsed = JSON.parse(rawIn); } catch (e) { parsed = rawIn; }
+        console.log(res);
+    }
+}
+
+try {
+    const rawStdin = fs.readFileSync(0, 'utf-8');
+    let rawIn = rawStdin;
+    if (rawIn.endsWith('\\r\\n')) rawIn = rawIn.slice(0, -2);
+    else if (rawIn.endsWith('\\n')) rawIn = rawIn.slice(0, -1);
+
+    const _invokeTarget = ${isJsClass ? `(new Solution()).${jsFuncName}` : `(typeof ${jsFuncName} !== 'undefined' ? ${jsFuncName} : null)`};
+    const numParams = ${jsNumParams};
+
+    if (numParams === 0) {
+        const res = typeof _invokeTarget === 'function' ? _invokeTarget() : null;
+        _formatResult(res);
+    } else if (rawIn === '') {
+        const res = numParams === 1 ? (typeof _invokeTarget === 'function' ? _invokeTarget('') : null) : (typeof _invokeTarget === 'function' ? _invokeTarget() : null);
+        _formatResult(res);
+    } else {
+        const lines = rawIn.split('\\n');
+        const parsedLines = lines.map(l => _parseValue(l));
         let res;
-        if (Array.isArray(parsed) && ${funcName}.length > 1 && parsed.length === ${funcName}.length) {
-            res = ${funcName}(...parsed);
+        
+        if (parsedLines.length === numParams) {
+            // Exact match: one line per parameter
+            res = _invokeTarget(...parsedLines);
+        } else if (numParams === 1) {
+            // Single param function: try first parsed value, or the array if 2 lines (N then array)
+            let val = parsedLines[0];
+            if (parsedLines.length === 2 && Array.isArray(parsedLines[1])) {
+                val = parsedLines[1];
+            } else if (parsedLines.length > 1 && !Array.isArray(parsedLines[0])) {
+                // Multiple scalar lines for single-param function: combine into array
+                val = parsedLines;
+            }
+            res = _invokeTarget(val);
+        } else if (parsedLines.length > numParams) {
+            // More lines than params: try first N parsed values
+            try {
+                res = _invokeTarget(...parsedLines.slice(0, numParams));
+            } catch (e) {
+                res = _invokeTarget(rawIn);
+            }
         } else {
-            res = ${funcName}(parsed);
+            // Fewer lines than params: try unpacking array or splitting space-separated tokens
+            if (parsedLines.length === 1 && Array.isArray(parsedLines[0]) && parsedLines[0].length === numParams) {
+                res = _invokeTarget(...parsedLines[0]);
+            } else {
+                const allTokens = [];
+                lines.forEach(l => l.trim().split(/\\s+/).forEach(t => { if (t) allTokens.push(t); }));
+                if (allTokens.length === numParams) {
+                    res = _invokeTarget(...allTokens.map(t => _parseValue(t)));
+                } else {
+                    try {
+                        res = _invokeTarget(rawIn);
+                    } catch (e2) {
+                        res = _invokeTarget(...parsedLines);
+                    }
+                }
+            }
         }
-        if (res !== undefined) {
-            console.log(typeof res === 'object' ? JSON.stringify(res) : res);
-        }
+        _formatResult(res);
     }
 } catch (err) {
     console.error(err);
@@ -348,16 +641,7 @@ async function executeViaWandbox(code, language, stdin = '', timeoutMs = EXECUTI
             executionTime: elapsedSeconds
         };
     } catch (err) {
-        if (err.code === 'ECONNABORTED' || (err.message && err.message.includes('timeout'))) {
-            return {
-                status: 'TIME_LIMIT_EXCEEDED',
-                stdout: '',
-                stderr: 'Execution timed out exceeding time limit.',
-                exitCode: 124,
-                executionTime: timeoutMs / 1000
-            };
-        }
-        throw err;
+        throw new Error(`Wandbox execution network error: ${err.message}`);
     }
 }
 
@@ -496,12 +780,26 @@ async function executeLocally(code, language, stdin = '', timeoutMs = EXECUTION_
 
 /**
  * Universal Isolated Execution Engine Dispatcher:
- * Tries container sandbox (Wandbox/Piston) first, falls back to local isolated runner if available.
+ * Tries local isolated process runner for Python/JavaScript first (~20ms),
+ * uses Wandbox for compiled languages (C++, Java, Go) or as container fallback.
  */
 async function executeCodeIsolated(code, language, stdin = '', timeoutMs = EXECUTION_TIMEOUT_MS) {
     const runnableCode = prepareRunnableCode(code, language, stdin);
+    const lang = normalizeLanguage(language);
 
-    // 1. Try Wandbox Container Sandbox first (strict container isolation)
+    // 1. For Python and JavaScript, use ultra-fast local isolated process runner
+    // Completely eliminates external HTTP network roundtrip latency to Japan (Wandbox),
+    // eliminating false-positive TIME_LIMIT_EXCEEDED errors caused by public API latency.
+    if (lang === 'python' || lang === 'javascript') {
+        try {
+            const localRes = await executeLocally(runnableCode, language, stdin, timeoutMs);
+            return localRes;
+        } catch (localErr) {
+            console.warn(`[CodeExecutionService] Local execution failed (${localErr.message}). Attempting Wandbox fallback...`);
+        }
+    }
+
+    // 2. Try Wandbox Container Sandbox (for C++, Java, Go, or fallback)
     try {
         const wandboxRes = await executeViaWandbox(runnableCode, language, stdin, timeoutMs);
         return wandboxRes;
@@ -509,7 +807,7 @@ async function executeCodeIsolated(code, language, stdin = '', timeoutMs = EXECU
         console.warn(`[CodeExecutionService] Wandbox container execution failed (${wandboxErr.message}). Attempting local isolated execution fallback...`);
     }
 
-    // 2. Fallback to Local Isolated Process Runner
+    // 3. Fallback to Local Isolated Process Runner
     try {
         const localRes = await executeLocally(runnableCode, language, stdin, timeoutMs);
         return localRes;

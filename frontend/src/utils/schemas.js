@@ -16,7 +16,7 @@ export function generateOrganizationSchema() {
     'name': 'Hire1Percent',
     'alternateName': 'Hire 1 Percent',
     'url': BASE_URL,
-    'logo': `${BASE_URL}/favicon.ico`,
+    'logo': `${BASE_URL}/logo.png`,
     'description': 'Hire1Percent is an enterprise AI recruitment platform providing automated skill assessments, AI-driven video interviews, live proctored coding environments, resume intelligence, and predictive candidate scoring.',
     'email': 'contact@hire1percent.com',
     'sameAs': [

@@ -13,7 +13,8 @@ const codingRoundSchema = new mongoose.Schema({
         minTriggerSec: { type: Number, default: 0 },
         maxTriggerSec: { type: Number, default: 1800 },
         minAstNodes: { type: Number, default: 12 },
-        mutationTimeBufferSec: { type: Number, default: 600 }
+        mutationTimeBufferSec: { type: Number, default: 0 },
+        memoryLimitMb: { type: Number, default: 14 }
     }
 }, { timestamps: true });
 

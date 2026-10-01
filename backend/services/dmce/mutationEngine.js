@@ -16,6 +16,7 @@ const {
     createSession: createSandboxSession,
     getStatus: getSandboxStatus,
     applyResourceMutation,
+    resetToOriginalConstraints,
     execute: executeInSandbox,
     executeMutationTests,
     destroySession: destroySandbox
@@ -74,6 +75,10 @@ function startSession({
  */
 async function runBaseline(sessionId, code, language, testCases = []) {
     const session = getSession(sessionId) || initSession({ sessionId, language });
+
+    // Ensure baseline tests always run under original 512MB constraints,
+    // not any previously-mutated 16MB from a prior mutation activation
+    resetToOriginalConstraints(sessionId);
 
     if (!Array.isArray(testCases) || testCases.length === 0) {
         const executionSummary = {
@@ -203,10 +208,13 @@ function triggerMutationIfEligible(sessionId, currentCode = null, customMutation
         };
     }
 
-    // Select deterministic mutation contract
+    // Select deterministic mutation contract respecting configured session memory limits
+    const configuredMem = session.config?.memoryLimitMb;
+    const effectiveMemLimit = configuredMem || session.mutation?.resourceConstraints?.memoryLimitMb;
+    const effectiveBufferSec = session.config?.mutationTimeBufferSec !== undefined ? session.config.mutationTimeBufferSec : (session.mutation?.adaptationTimeBufferSec ?? 0);
     const contract = customMutationId
-        ? getMutationContract(customMutationId)
-        : selectMutationForQuestion({ mutationContractId: customMutationId });
+        ? getMutationContract(customMutationId, effectiveMemLimit ? { memoryLimitMb: effectiveMemLimit, adaptationTimeBufferSec: effectiveBufferSec } : {})
+        : selectMutationForQuestion(session, effectiveMemLimit ? { memoryLimitMb: effectiveMemLimit, adaptationTimeBufferSec: effectiveBufferSec } : {});
 
     if (!contract) {
         throw new Error('Mutation contract not found in registry');
@@ -233,7 +241,7 @@ function triggerMutationIfEligible(sessionId, currentCode = null, customMutation
 
 /**
  * Explicit candidate mutation activation (called when candidate clicks "Adapt Solution Under Constraint").
- * Validates candidate session & baseline eligibility, clamps resources to 16MB, and starts adaptation timer.
+ * Validates candidate session & baseline eligibility, clamps resources to configured memory limit, and starts adaptation timer.
  */
 function activateCandidateMutation(sessionId, currentCode = null, customMutationId = null) {
     const session = getSession(sessionId);
@@ -264,8 +272,12 @@ function activateCandidateMutation(sessionId, currentCode = null, customMutation
         };
     }
 
-    const mutationId = customMutationId || session.mutation?.mutationId || 'mut_mem_opt_16mb';
-    const contract = getMutationContract(mutationId) || selectMutationForQuestion({ mutationContractId: mutationId });
+    const configuredMem = session.config?.memoryLimitMb;
+    const effectiveMemLimit = configuredMem || session.mutation?.resourceConstraints?.memoryLimitMb;
+    const effectiveBufferSec = session.config?.mutationTimeBufferSec !== undefined ? session.config.mutationTimeBufferSec : (session.mutation?.adaptationTimeBufferSec ?? 0);
+    const mutationId = customMutationId || session.mutation?.mutationId || (effectiveMemLimit ? `mut_mem_opt_${effectiveMemLimit}mb` : 'mut_mem_opt_16mb');
+    const contract = getMutationContract(mutationId, effectiveMemLimit ? { memoryLimitMb: effectiveMemLimit, adaptationTimeBufferSec: effectiveBufferSec } : {})
+        || selectMutationForQuestion(session, effectiveMemLimit ? { memoryLimitMb: effectiveMemLimit, adaptationTimeBufferSec: effectiveBufferSec } : {});
 
     if (!contract) {
         throw new Error(`Mutation contract ${mutationId} not found in registry`);
@@ -314,6 +326,10 @@ async function runMutationTests(sessionId, code, language, testCasesOverride = n
 
     // Record snapshot and update session
     recordMutationExecution(sessionId, code, language, testResults);
+
+    // Auto-reset sandbox back to original 512MB constraints after mutation tests complete
+    // This ensures subsequent normal code runs are not permanently clamped to 16MB
+    resetToOriginalConstraints(sessionId);
 
     return {
         mutationStatus: session.mutation.status,

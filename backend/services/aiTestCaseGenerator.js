@@ -101,31 +101,44 @@ MANDATORY RULES:
    - PERFORMANCE: Large input within constraints to expose inefficient O(N^2) or exponential approaches.
    - ALGORITHM: Inputs designed to break greedy, naive, or off-by-one implementations.
    - MUTATION: Adaptive cases testing efficiency or edge constraints.
-5. INPUT FORMAT:
-   - Provide the EXACT input string that should be passed via stdin to the program, or JSON formatted arguments.
-   - Multiple inputs must be separated by standard newlines or problem-specified delimiters.
+5. INPUT FORMAT — CRITICAL RULES:
+   - Provide the EXACT input string that would be passed via STDIN to the program.
+   - DO NOT use JSON-formatted arguments for inputs. Use plain text stdin format ONLY.
+   - For arrays/lists, use EITHER space-separated values on a single line (e.g., "1 2 3 4 5") OR a count on the first line followed by values on the second line (e.g., "5\\n1 2 3 4 5").
+   - For multiple parameters, put each parameter on its own line. Example for f(arr, target): "1 2 3 4 5\\n3"
+   - For strings, provide the raw string value (no quotes). Example: "hello world"
+   - For single numbers, provide just the number. Example: "42"
    - NEVER create empty dummy inputs or '0'/'0' unless the problem explicitly specifies that.
-6. SPECIAL ATTENTION TO DUPLICATES & SPECIFICATION:
+   - Match the format described in the problem's Input Format section exactly.
+6. OUTPUT FORMAT — CRITICAL RULES:
+   - expectedOutput must be the EXACT string the program should print to stdout.
+   - For arrays/lists, print them as space-separated values (e.g., "1 2 3") unless the problem specifies otherwise.
+   - For booleans, print lowercase: "true" or "false" (not "True" or "False").
+   - For single values, print just the value.
+   - No trailing newlines or extra whitespace.
+7. SPECIAL ATTENTION TO DUPLICATES & SPECIFICATION:
    - If the problem asks for the second-largest value by position (including duplicates), e.g. in [5, 5, 4] the second largest element is 5.
    - If the problem asks for the second-largest DISTINCT value, in [5, 5, 4] it is 4.
    - Follow the EXACT wording of the problem statement!
-7. REFERENCE SOLUTION:
-   - You MUST write a 100% correct, clean reference solution in ${language} that reads from standard input and prints the expected output.
+8. REFERENCE SOLUTION:
+   - You MUST write a 100% correct, clean reference solution in ${language}.
+   - The reference solution MUST read from standard input (using input() in Python, readline/readFileSync in JS) and print the expected output to stdout.
+   - DO NOT write a function-only solution. Write a complete program that reads stdin and prints to stdout.
    - This solution will be executed in a real isolated sandbox to verify every single test case!
 
 Return STRICTLY a raw JSON object fitting this schema (no markdown formatting, no backticks outside JSON):
 {
-  "referenceSolution": "<complete runnable solution in ${language}>",
+  "referenceSolution": "<complete runnable solution in ${language} that reads stdin and prints stdout>",
   "testCases": [
     {
-      "input": "<exact stdin/arguments string>",
+      "input": "<exact stdin string, using \\n for newlines>",
       "expectedOutput": "<exact expected stdout string>",
       "isHidden": false,
       "category": "NORMAL",
       "explanation": "<brief rationale>"
     },
     {
-      "input": "<exact stdin/arguments string>",
+      "input": "<exact stdin string, using \\n for newlines>",
       "expectedOutput": "<exact expected stdout string>",
       "isHidden": true,
       "category": "EDGE_CASE",
@@ -385,39 +398,55 @@ async function generateAndValidateTestCases(question, targetLanguage = 'python')
         try {
             const { systemPrompt, userPrompt, language } = buildTestCaseGenerationPrompt(question, targetLanguage);
 
-            console.log(`[TestCaseGenerator] Calling AI to generate comprehensive test cases for: "${question.title}" in ${language}...`);
-            let responseText = null;
-
-            try {
-                responseText = await callGemini(userPrompt, 4000, true, systemPrompt, 0.3);
-            } catch (geminiErr) {
-                console.warn(`[TestCaseGenerator] Gemini error: ${geminiErr.message}. Attempting Groq fallback...`);
-                try {
-                    responseText = await callInterviewAI(userPrompt, 4000, true, systemPrompt, 0.3);
-                } catch (groqErr) {
-                    console.error(`[TestCaseGenerator] Groq fallback also failed: ${groqErr.message}`);
-                }
-            }
-
-            let rawCases = [];
+            let validatedCases = [];
+            let metrics = { totalGenerated: 0, validatedCount: 0, failedCount: 0, validationMethod: 'none' };
             let refSol = '';
 
-            if (responseText) {
-                const parsed = safeParseAIJson(responseText, null);
-                if (parsed && Array.isArray(parsed.testCases) && parsed.testCases.length > 0) {
-                    rawCases = parsed.testCases;
-                    refSol = parsed.referenceSolution || '';
+            // Retry loop: attempt generation up to 2 times with decreasing temperature
+            const temperatures = [0.3, 0.1];
+            for (let attempt = 0; attempt < temperatures.length; attempt++) {
+                const temp = temperatures[attempt];
+                console.log(`[TestCaseGenerator] Attempt ${attempt + 1}/${temperatures.length}: Generating test cases for "${question.title}" in ${language} (temp=${temp})...`);
+                
+                let responseText = null;
+                try {
+                    responseText = await callGemini(userPrompt, 4000, true, systemPrompt, temp);
+                } catch (geminiErr) {
+                    console.warn(`[TestCaseGenerator] Gemini error: ${geminiErr.message}. Attempting Groq fallback...`);
+                    try {
+                        responseText = await callInterviewAI(userPrompt, 4000, true, systemPrompt, temp);
+                    } catch (groqErr) {
+                        console.error(`[TestCaseGenerator] Groq fallback also failed: ${groqErr.message}`);
+                    }
                 }
-            }
 
-            // Run Independent Validation Pipeline in Isolated Sandbox
-            let validatedCases = [];
-            let metrics = { totalGenerated: rawCases.length, validatedCount: 0, failedCount: 0, validationMethod: 'none' };
+                let rawCases = [];
+                if (responseText) {
+                    const parsed = safeParseAIJson(responseText, null);
+                    if (parsed && Array.isArray(parsed.testCases) && parsed.testCases.length > 0) {
+                        rawCases = parsed.testCases;
+                        refSol = parsed.referenceSolution || refSol;
+                    }
+                }
 
-            if (rawCases.length > 0) {
-                const valResult = await validateTestCasesWithReferenceSolution(rawCases, refSol, language, question);
-                validatedCases = valResult.validatedCases;
-                metrics = valResult.metrics;
+                // Run Independent Validation Pipeline in Isolated Sandbox
+                if (rawCases.length > 0) {
+                    const valResult = await validateTestCasesWithReferenceSolution(rawCases, refSol, language, question);
+                    
+                    // If this attempt produced more validated cases, use them
+                    if (valResult.validatedCases.length > validatedCases.length) {
+                        validatedCases = valResult.validatedCases;
+                        metrics = valResult.metrics;
+                    }
+                }
+
+                // If we have enough validated cases, no need to retry
+                if (validatedCases.length >= 3) {
+                    console.log(`[TestCaseGenerator] Attempt ${attempt + 1} produced ${validatedCases.length} validated cases. Sufficient.`);
+                    break;
+                } else {
+                    console.log(`[TestCaseGenerator] Attempt ${attempt + 1} produced only ${validatedCases.length} validated cases. ${attempt < temperatures.length - 1 ? 'Retrying with lower temperature...' : 'Proceeding to augmentation.'}`);
+                }
             }
 
             // If AI generated fewer than 3 validated test cases, merge with validated question examples

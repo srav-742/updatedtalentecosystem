@@ -49,6 +49,7 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
     const preCode = snapshots?.preMutationCode || snapshots?.baselineCode || questionAnswer.code || '';
     const postCode = snapshots?.postMutationCode || snapshots?.finalSubmittedCode || questionAnswer.code || '';
     const isAdapted = mutation?.status === 'PASSED' || mutation?.passed;
+    const memLimit = mutation?.resourceConstraints?.memoryLimitMb || mutation?.memoryLimitMb || (mutation?.mutationId?.match(/\d+mb/)?.[0]?.replace('mb', '')) || 14;
 
     const formatSec = (sec) => {
         if (!sec && sec !== 0) return 'N/A';
@@ -78,14 +79,14 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                             {isAdapted ? 'Constraint Adapted: PASSED' : 'Constraint Adaptation: INCOMPLETE'}
                         </span>
                         <span className="text-xs font-mono text-slate-400">
-                            ID: {mutation?.mutationId || 'mut_mem_opt_16mb'}
+                            ID: {mutation?.mutationId || `mut_mem_opt_${memLimit}mb`}
                         </span>
                     </div>
                     <h3 className="text-lg font-black text-white mt-2 flex items-center gap-2">
-                        {mutation?.headline || 'System Scale Mutation: Memory Cap (16MB Clamped)'}
+                        {mutation?.headline || `System Scale Mutation: Memory Cap (${memLimit}MB Clamped)`}
                     </h3>
                     <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                        {mutation?.description || 'Peak stream volume exceeded. Execution heap clamped live to 16MB via cgroups without session termination.'}
+                        {mutation?.description || `Peak stream volume exceeded. Execution heap clamped live to ${memLimit}MB via cgroups without session termination.`}
                     </p>
                 </div>
 
@@ -128,7 +129,7 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                     </div>
                     <div className="p-3 rounded-xl bg-indigo-500/[0.05] border border-indigo-500/20 relative">
                         <span className="text-[9px] font-mono font-bold text-indigo-300 uppercase block">3. Live Clamp</span>
-                        <span className="text-xs font-bold text-slate-200 mt-1 block">Heap: 512MB &rarr; 16MB</span>
+                        <span className="text-xs font-bold text-slate-200 mt-1 block">Heap: 512MB &rarr; {memLimit}MB</span>
                         <span className="text-[10px] text-indigo-400 flex items-center gap-1 mt-1">
                             <Cpu size={12} /> cgroup Clamped
                         </span>
@@ -300,7 +301,7 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                         <div className="rounded-2xl border border-emerald-500/20 bg-[#080b12] overflow-hidden">
                             <div className="px-4 py-2 border-b border-emerald-500/20 bg-emerald-500/[0.04] flex items-center justify-between text-xs font-mono text-emerald-300">
                                 <span className="font-bold flex items-center gap-1.5">
-                                    <CheckCircle2 size={13} /> Stage 2: Post-Mutation Code (16MB Heap)
+                                    <CheckCircle2 size={13} /> Stage 2: Post-Mutation Code ({memLimit}MB Heap)
                                 </span>
                                 <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-emerald-500/10">
                                     Adapted Solution
@@ -314,7 +315,7 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                 ) : viewMode === 'pre' ? (
                     <div className="rounded-2xl border border-amber-500/20 bg-[#080b12] overflow-hidden">
                         <div className="px-4 py-2 border-b border-amber-500/20 bg-amber-500/[0.04] flex items-center justify-between text-xs font-mono text-amber-300">
-                            <span className="font-bold">Stage 1: Pre-Mutation Baseline (Before 16MB Clamping)</span>
+                            <span className="font-bold">Stage 1: Pre-Mutation Baseline (Before {memLimit}MB Clamping)</span>
                         </div>
                         <pre className="p-4 text-xs font-mono text-slate-300 leading-6 overflow-x-auto whitespace-pre">
                             {preCode}
@@ -323,7 +324,7 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                 ) : (
                     <div className="rounded-2xl border border-emerald-500/20 bg-[#080b12] overflow-hidden">
                         <div className="px-4 py-2 border-b border-emerald-500/20 bg-emerald-500/[0.04] flex items-center justify-between text-xs font-mono text-emerald-300">
-                            <span className="font-bold">Stage 2: Post-Mutation Adapted Solution (Operated under 16MB)</span>
+                            <span className="font-bold">Stage 2: Post-Mutation Adapted Solution (Operated under {memLimit}MB)</span>
                         </div>
                         <pre className="p-4 text-xs font-mono text-emerald-100/90 leading-6 overflow-x-auto whitespace-pre">
                             {postCode}

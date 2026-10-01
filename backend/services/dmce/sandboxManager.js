@@ -68,6 +68,7 @@ function createSession(sessionId, options = {}) {
         sessionDir,
         workspaceDir,
         readOnlyTestsDir,
+        originalConstraints: { ...DEFAULT_RESOURCE_CONSTRAINTS }, // Immutable original (512MB)
         currentConstraints: { ...DEFAULT_RESOURCE_CONSTRAINTS },
         mutationHistory: [],
         activeMutation: null,
@@ -495,11 +496,55 @@ function destroySession(sessionId) {
     return true;
 }
 
+/**
+ * Resets sandbox resource constraints back to the original 512MB defaults.
+ * Called after mutation-specific tests complete so that normal code runs
+ * are not permanently clamped to 16MB.
+ * 
+ * @param {string} sessionId
+ * @returns {Object|null} Updated sandbox state or null if session not found
+ */
+function resetToOriginalConstraints(sessionId) {
+    if (!sessionId || !activeSandboxes.has(sessionId)) {
+        return null;
+    }
+    const session = activeSandboxes.get(sessionId);
+    const prevConstraints = { ...session.currentConstraints };
+    
+    // Restore to original 512MB constraints
+    session.currentConstraints = { ...(session.originalConstraints || DEFAULT_RESOURCE_CONSTRAINTS) };
+    
+    // Hot-apply cgroup v2 reset if supported on host
+    if (process.platform === 'linux') {
+        try {
+            const cgroupPath = `/sys/fs/cgroup/hire1percent-dmce/${sessionId}`;
+            if (fs.existsSync(cgroupPath)) {
+                const origBytes = session.currentConstraints.memoryLimitBytes || DEFAULT_RESOURCE_CONSTRAINTS.memoryLimitBytes;
+                fs.writeFileSync(path.join(cgroupPath, 'memory.max'), String(origBytes));
+                fs.writeFileSync(path.join(cgroupPath, 'cpu.max'), '100000 100000');
+            }
+        } catch (cgroupErr) {
+            console.warn(`[DMCE-SANDBOX] Linux cgroup reset warning: ${cgroupErr.message}`);
+        }
+    }
+
+    session.mutationHistory.push({
+        mutationId: 'RESET_TO_ORIGINAL',
+        fromConstraints: prevConstraints,
+        toConstraints: session.currentConstraints,
+        timestamp: Date.now()
+    });
+
+    console.log(`[DMCE-SANDBOX] [CONSTRAINTS_RESET] Session ${sessionId} reset to original: Memory=${session.currentConstraints.memoryLimitMb}MB`);
+    return session;
+}
+
 module.exports = {
     DEFAULT_RESOURCE_CONSTRAINTS,
     createSession,
     getStatus,
     applyResourceMutation,
+    resetToOriginalConstraints,
     execute,
     executeMutationTests,
     destroySession,
