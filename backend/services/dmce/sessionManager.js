@@ -62,9 +62,9 @@ function initSession({
         startedAt: Date.now(),
         lastActivityAt: Date.now(),
 
-        // Configurable bounds
+        // Configurable bounds (minTriggerSec defaults to 0 so baseline success triggers mutation immediately)
         config: {
-            minTriggerSec: config.minTriggerSec !== undefined ? config.minTriggerSec : 120, // 2 mins
+            minTriggerSec: config.minTriggerSec !== undefined ? config.minTriggerSec : 0,
             maxTriggerSec: config.maxTriggerSec !== undefined ? config.maxTriggerSec : 1800, // 30 mins
             minAstNodes: config.minAstNodes !== undefined ? config.minAstNodes : 12,
             mutationTimeBufferSec: config.mutationTimeBufferSec !== undefined ? config.mutationTimeBufferSec : 600, // +10 mins

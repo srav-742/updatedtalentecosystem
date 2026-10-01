@@ -162,6 +162,13 @@ function prepareRunnableCode(rawCode, language, input) {
         const funcMatch = trimmed.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\):/m);
         if (funcMatch) {
             const funcName = funcMatch[1];
+            // If candidate script already calls the function or has a main block, execute as-is
+            const bodyAfterDef = trimmed.substring(funcMatch.index + funcMatch[0].length);
+            const alreadyCalled = new RegExp(`\\b${funcName}\\s*\\(`).test(bodyAfterDef) || /if\s+__name__\s*==/.test(trimmed);
+            if (alreadyCalled) {
+                return trimmed;
+            }
+
             const params = funcMatch[2].split(',').map(p => p.trim()).filter(Boolean);
             const wrapper = `
 import sys, json, ast, traceback

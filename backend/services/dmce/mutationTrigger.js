@@ -35,7 +35,7 @@ function evaluateMutationTrigger(session, currentCode = null) {
 
     const now = Date.now();
     const elapsedSec = Math.max(0, Math.floor((now - (session.startedAt || now)) / 1000));
-    const minSec = session.config?.minTriggerSec !== undefined ? session.config.minTriggerSec : 120;
+    const minSec = session.config?.minTriggerSec !== undefined ? session.config.minTriggerSec : 0;
     const maxSec = session.config?.maxTriggerSec !== undefined ? session.config.maxTriggerSec : 1800;
     const minAst = session.config?.minAstNodes !== undefined ? session.config.minAstNodes : 12;
 
@@ -48,7 +48,16 @@ function evaluateMutationTrigger(session, currentCode = null) {
         astNodeCount: 0
     };
 
-    // 1. Check time window bounds
+    // 1. Check baseline validation (Mandatory Mentor Requirement)
+    if (!session.baselinePassed) {
+        return {
+            eligible: false,
+            reason: 'BASELINE_NOT_PASSED: Candidate must pass Stage-1 baseline tests first',
+            details
+        };
+    }
+
+    // 2. Check time window bounds
     if (elapsedSec < minSec) {
         return {
             eligible: false,
@@ -61,15 +70,6 @@ function evaluateMutationTrigger(session, currentCode = null) {
         return {
             eligible: false,
             reason: `AFTER_MAX_TRIGGER_TIME: Elapsed ${elapsedSec}s exceeds max ${maxSec}s`,
-            details
-        };
-    }
-
-    // 2. Check baseline validation
-    if (!session.baselinePassed) {
-        return {
-            eligible: false,
-            reason: 'BASELINE_NOT_PASSED: Candidate must pass Stage-1 baseline tests first',
             details
         };
     }
@@ -95,6 +95,70 @@ function evaluateMutationTrigger(session, currentCode = null) {
     };
 }
 
+/**
+ * Validates whether candidate code represents a meaningful, relevant attempt to solve
+ * the problem, utilizing Gemini 2.5 Flash logic analysis with deterministic fallback.
+ * (Mentor Requirement 6.1 & 18.1)
+ */
+async function validateCodeIntentWithAi({ questionTitle = '', questionDescription = '', code = '', language = 'python' }) {
+    const { isMeaningfulCode, isSyntaxAttempt } = require('../../utils/partialCreditCodingEvaluator');
+
+    if (!isMeaningfulCode(code, language)) {
+        return {
+            meaningfulAttempt: false,
+            reason: 'Code is empty, only comments, or unmodified starter template.'
+        };
+    }
+
+    if (!isSyntaxAttempt(code)) {
+        return {
+            meaningfulAttempt: false,
+            reason: 'Code lacks valid programming syntax or structural statements.'
+        };
+    }
+
+    const systemInstruction = 'You are a senior technical coding interviewer. Your task is to verify whether candidate code appears to meaningfully attempt the specified programming challenge, or whether it is completely unrelated/trivial dummy/empty. Return only valid JSON.';
+    const prompt = `QUESTION TITLE: ${questionTitle}
+QUESTION DESCRIPTION: ${questionDescription}
+LANGUAGE: ${language}
+
+CANDIDATE CODE:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Evaluate if this code represents a relevant attempt to solve the question (even if buggy, partial, or non-optimal).
+Does it demonstrate algorithmic intent addressing the problem, or is it completely unrelated/hardcoded dummy/empty?
+
+Respond strictly in JSON format:
+{
+  "meaningfulAttempt": true,
+  "reason": "concise explanation of findings"
+}`;
+
+    try {
+        const { callGemini } = require('../../utils/aiClients');
+        const raw = await callGemini(prompt, systemInstruction, { temperature: 0.1 });
+        const jsonMatch = raw && raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return {
+                meaningfulAttempt: parsed.meaningfulAttempt !== false,
+                reason: parsed.reason || 'AI verified candidate code algorithmic intent.'
+            };
+        }
+    } catch (aiErr) {
+        // Safe fallback - do not block assessment on AI outage
+    }
+
+    // Graceful deterministic fallback
+    return {
+        meaningfulAttempt: true,
+        reason: 'Deterministic syntax and structure check verified meaningful algorithmic attempt.'
+    };
+}
+
 module.exports = {
-    evaluateMutationTrigger
+    evaluateMutationTrigger,
+    validateCodeIntentWithAi
 };

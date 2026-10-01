@@ -348,6 +348,30 @@ const submitCodingAssessment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required submission fields.' });
         }
 
+        // Candidate Authorization Guard (Mentor Requirement 27)
+        const authedUserId = req.user?.uid || req.user?._id || req.headers['x-user-id'];
+        if (authedUserId && userId && String(authedUserId) !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Forbidden: You cannot submit assessments on behalf of another candidate.' });
+        }
+
+        // Server-Side Deadline Enforcement (Mentor Requirement 26)
+        for (const ans of answers) {
+            const targetSid = ans.sessionId || req.body.sessionId || ans.dmceSessionId;
+            if (targetSid) {
+                const session = mutationEngine.getSession(targetSid);
+                if (session && session.timerExpiresAt) {
+                    const now = Date.now();
+                    const gracePeriodMs = 120000; // 2 minutes grace for network delay
+                    if (now > session.timerExpiresAt + gracePeriodMs) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Assessment deadline has expired. Late submissions cannot be accepted.'
+                        });
+                    }
+                }
+            }
+        }
+
         // 1. Fetch round questions to calculate dynamic marks distribution
         const codingRound = await CodingRound.findOne({ jobId }).populate('questions');
         let roundQuestions = codingRound?.questions || [];
@@ -571,6 +595,15 @@ const getCodingAssessmentDetails = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
+        // Authorization Guard (Mentor Requirement 27): Allow recruiters, admins, or candidate owner
+        const authedUser = req.user;
+        if (authedUser && authedUser.role !== 'recruiter' && authedUser.role !== 'admin') {
+            const uid = authedUser.uid || authedUser._id || req.headers['x-user-id'];
+            if (application.userId && String(application.userId) !== String(uid) && String(application.candidateId) !== String(uid)) {
+                return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to view these assessment details.' });
+            }
+        }
+
         const formattedAnswers = (application.codingAnswers || []).map(ans => {
             const ansObj = ans.toObject ? ans.toObject() : { ...ans };
             const q = ans.questionId && typeof ans.questionId === 'object' ? ans.questionId : null;
@@ -763,7 +796,13 @@ const reEvaluateCodingAnswer = async (req, res) => {
  */
 const runCandidateCode = async (req, res) => {
     try {
-        const { questionId, code, language, customInput } = req.body;
+        const { questionId, code, language, customInput, userId } = req.body;
+
+        // Authorization check if userId is provided
+        const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'];
+        if (userId && authedUser && String(userId) !== String(authedUser)) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Unauthorized execution request.' });
+        }
 
         if (!code || typeof code !== 'string') {
             return res.status(400).json({ success: false, message: 'Source code is required.' });
@@ -916,6 +955,9 @@ const startDMCESession = async (req, res) => {
         if (roundConfig?.dynamicMutation) {
             Object.assign(config, roundConfig.dynamicMutation);
         }
+        if (config.minTriggerSec === 120 || config.minTriggerSec === undefined) {
+            config.minTriggerSec = 0;
+        }
 
         const session = mutationEngine.startSession({
             sessionId,
@@ -971,15 +1013,69 @@ const runDMCEBaseline = async (req, res) => {
             return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
         }
 
+        const session = mutationEngine.getSession(sessionId);
+
+        // Candidate Authorization Guard (Mentor Requirement 27)
+        const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'];
+        if (session && session.candidateId && authedUser && String(session.candidateId) !== String(authedUser)) {
+            return res.status(403).json({ success: false, message: 'Forbidden: You do not own this coding session.' });
+        }
+
+        // Server-Side Deadline Enforcement (Mentor Requirement 26)
+        const now = Date.now();
+        if (session && session.timerExpiresAt && now > session.timerExpiresAt + 120000) {
+            return res.status(400).json({ success: false, message: 'Assessment deadline has expired. Execution denied.' });
+        }
+
+        if (session && session.config && session.config.minTriggerSec === 120) {
+            session.config.minTriggerSec = 0;
+        }
+
+        let question = null;
         let testCases = [];
         if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
-            const question = await CodingQuestion.findById(questionId);
+            question = await CodingQuestion.findById(questionId);
             if (question && Array.isArray(question.testCases)) {
                 testCases = question.testCases.filter(tc => tc.category !== 'MUTATION' && tc.category !== 'Mutation');
             }
         }
 
-        // Never emit dummy test case fallback
+        // 1. Gemini Logic & Intent Validation (Mentor Requirement 6.1)
+        const { validateCodeIntentWithAi } = require('../services/dmce/mutationTrigger');
+        const intentCheck = await validateCodeIntentWithAi({
+            questionTitle: question?.title || 'Coding Problem',
+            questionDescription: question?.description || '',
+            code,
+            language: language || session?.language || 'python'
+        });
+
+        if (!intentCheck.meaningfulAttempt) {
+            return res.json({
+                success: true,
+                execution: {
+                    status: 'INCOMPLETE_OR_UNRELATED',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    publicPassed: 0,
+                    publicTotal: 0,
+                    hiddenPassed: 0,
+                    hiddenTotal: 0,
+                    executionTime: 0,
+                    errorMessage: intentCheck.reason || 'Code does not appear to meaningfully attempt the requested problem.',
+                    results: []
+                },
+                logicValidation: {
+                    valid: false,
+                    reason: intentCheck.reason
+                },
+                baselinePassed: false,
+                mutationEligible: false,
+                mutationTriggered: null
+            });
+        }
+
+        // 2. Select small baseline test set: 3-4 appropriate basic tests (Mentor Requirement 6.2)
         if (testCases.length === 0) {
             return res.status(200).json({
                 success: false,
@@ -997,13 +1093,32 @@ const runDMCEBaseline = async (req, res) => {
             });
         }
 
-        const baselineResult = await mutationEngine.runBaseline(sessionId, code, language, testCases);
+        const normalTests = testCases.filter(tc => !tc.isHidden || tc.category === 'NORMAL' || tc.category === 'Normal');
+        const edgeTests = testCases.filter(tc => tc.category === 'BOUNDARY' || tc.category === 'EDGE_CASE' || tc.category === 'Boundary' || tc.category === 'Edge');
+
+        const baselineTests = [];
+        normalTests.slice(0, 3).forEach(tc => baselineTests.push(tc));
+        if (edgeTests.length > 0 && baselineTests.length < 4) {
+            const candidateEdge = edgeTests.find(e => !baselineTests.some(b => String(b._id || b.input) === String(e._id || e.input)));
+            if (candidateEdge) baselineTests.push(candidateEdge);
+        }
+        if (baselineTests.length < 3) {
+            for (const tc of testCases) {
+                if (baselineTests.length >= 4) break;
+                if (!baselineTests.some(b => String(b._id || b.input) === String(tc._id || tc.input))) {
+                    baselineTests.push(tc);
+                }
+            }
+        }
+
+        // 3. Execute baseline tests using the dedicated sandbox
+        const baselineResult = await mutationEngine.runBaseline(sessionId, code, language, baselineTests);
 
         let mutationTriggered = null;
-        if (baselineResult.mutationEligible) {
+        if (baselineResult.baselinePassed || baselineResult.mutationEligible) {
             try {
                 const trig = mutationEngine.triggerMutationIfEligible(sessionId, code);
-                if (trig.triggered) {
+                if (trig && trig.triggered) {
                     mutationTriggered = trig;
                     broadcastMutationToCandidate(sessionId, trig);
                 }
@@ -1013,6 +1128,7 @@ const runDMCEBaseline = async (req, res) => {
         res.json({
             success: true,
             execution: baselineResult.execution,
+            logicValidation: { valid: true, reason: intentCheck.reason },
             baselinePassed: baselineResult.baselinePassed,
             mutationEligible: baselineResult.mutationEligible,
             mutationTriggered
@@ -1039,6 +1155,12 @@ const activateDMCEMutation = async (req, res) => {
         const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'] || candidateId;
         if (session.candidateId && authedUser && session.candidateId !== String(authedUser)) {
             return res.status(403).json({ success: false, message: 'Unauthorized: Candidate does not own this session.' });
+        }
+
+        // Server-Side Deadline Enforcement (Mentor Requirement 26)
+        const now = Date.now();
+        if (session && session.timerExpiresAt && now > session.timerExpiresAt + 120000) {
+            return res.status(400).json({ success: false, message: 'Assessment deadline has expired.' });
         }
 
         // Validate baseline completion
@@ -1076,11 +1198,24 @@ const runDMCEMutation = async (req, res) => {
             return res.status(404).json({ success: false, message: `Session ${sessionId} not found.` });
         }
 
+        // Candidate Authorization Guard (Mentor Requirement 27)
+        const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'];
+        if (session.candidateId && authedUser && session.candidateId !== String(authedUser)) {
+            return res.status(403).json({ success: false, message: 'Unauthorized: Candidate does not own this session.' });
+        }
+
+        // Server-Side Deadline Enforcement (Mentor Requirement 26)
+        const now = Date.now();
+        if (session && session.timerExpiresAt && now > session.timerExpiresAt + 120000) {
+            return res.status(400).json({ success: false, message: 'Assessment deadline has expired. Execution denied.' });
+        }
+
         const targetQId = questionId || session.questionId;
+        let question = null;
         let testCasesToRun = null;
 
         if (targetQId && mongoose.Types.ObjectId.isValid(targetQId)) {
-            const question = await CodingQuestion.findById(targetQId);
+            question = await CodingQuestion.findById(targetQId);
             if (question && Array.isArray(question.testCases) && question.testCases.length > 0) {
                 const mutCases = question.testCases.filter(tc => tc.category === 'MUTATION' || tc.category === 'Mutation');
                 if (mutCases.length > 0) {
@@ -1090,6 +1225,28 @@ const runDMCEMutation = async (req, res) => {
                     testCasesToRun = fallbackCases.length > 0 ? fallbackCases : question.testCases;
                 }
             }
+        }
+
+        // Gemini Logic Check: Verify Solution #2 still attempts to solve the original question (Mentor Requirement 18.1)
+        const { validateCodeIntentWithAi } = require('../services/dmce/mutationTrigger');
+        const intentCheck = await validateCodeIntentWithAi({
+            questionTitle: question?.title || 'Coding Problem',
+            questionDescription: question?.description || '',
+            code,
+            language: language || session.language || 'python'
+        });
+
+        if (!intentCheck.meaningfulAttempt) {
+            return res.json({
+                success: true,
+                mutationStatus: 'FAILED',
+                passed: 0,
+                failed: 1,
+                total: 1,
+                adaptationDurationSec: session.mutation?.adaptationDurationSec || 0,
+                errorMessage: intentCheck.reason || 'Adapted code does not meaningfully attempt to solve the question.',
+                results: []
+            });
         }
 
         // If no question-specific mutation cases exist, do not run generic infrastructure benchmarks against candidate

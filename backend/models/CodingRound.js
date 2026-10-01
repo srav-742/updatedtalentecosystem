@@ -10,7 +10,7 @@ const codingRoundSchema = new mongoose.Schema({
     status: { type: String, enum: ['draft', 'published'], default: 'draft' },
     dynamicMutation: {
         enabled: { type: Boolean, default: true },
-        minTriggerSec: { type: Number, default: 120 },
+        minTriggerSec: { type: Number, default: 0 },
         maxTriggerSec: { type: Number, default: 1800 },
         minAstNodes: { type: Number, default: 12 },
         mutationTimeBufferSec: { type: Number, default: 600 }

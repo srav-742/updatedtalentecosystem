@@ -236,11 +236,10 @@ function buildStructuredFeedbackText({
             const lineInfo = b.lineNumber ? `Line ${b.lineNumber}` : 'Location unspecified';
             const deduction = typeof b.marksDeducted === 'number' ? ` (−${b.marksDeducted} marks)` : '';
 
-            lines.push(`${idx + 1}. [${typeStr} | ${sevStr}]${deduction}`);
+            lines.push(`${idx + 1}. [${typeStr} | ${sevStr}]${deduction} ${b.description || ''}`);
             if (b.lineNumber || b.codeSnippet) {
                 lines.push(`   📌 ${lineInfo}${b.codeSnippet ? ': `' + b.codeSnippet + '`' : ''}`);
             }
-            if (b.description) lines.push(`   ❌ Mistake: ${b.description}`);
             if (b.correction) lines.push(`   ✅ Recommended Fix: ${b.correction}`);
             if (b.evidence && !b.codeSnippet) lines.push(`   Evidence: ${b.evidence}`);
             if (b.impact) lines.push(`   Impact: ${b.impact}`);
@@ -363,16 +362,21 @@ function validateAndNormalizeEvaluation(rawJson, originalCode = '', maxMarks = 1
     const syntaxAttempt = isSyntaxAttempt(originalCode);
 
     // RULE 1: SINGLE BUG DEDUCTION RULE
-    // If candidate's solution has sound core logic (algoScore >= 25 or algoStatus === 'correct') and only 1 bug:
-    // Deduct strictly ~10 marks (1 mark on 10-point scale), ensuring finalScore >= 88.
-    const isSingleBug = bugs.length <= 1 && (algoScore >= 25 || algoStatus === 'correct');
-    if (isSingleBug && algoScore >= 25) {
+    // If candidate's solution has sound core logic with near-complete test passes and only 1 isolated minor bug:
+    // Deduct strictly ~10 marks from full credit, ensuring finalScore >= 88.
+    const isSingleMinorNearComplete = bugs.length === 1 &&
+        !['SYNTAX_ERROR', 'RUNTIME_ERROR', 'NO_MEANINGFUL_SOLUTION'].includes(bugs[0].type) &&
+        !['critical', 'major'].includes(bugs[0].severity) &&
+        (algoScore >= 35 || algoStatus === 'correct') &&
+        (passedTests >= totalTests - 1 || passedTests >= 9);
+
+    if (isSingleMinorNearComplete && (algoScore + funcScore + covScore + edgeScore + qualScore) < 88) {
         algoScore = Math.max(algoScore, 36);
         funcScore = Math.max(funcScore, 24);
         covScore = Math.max(covScore, 13);
         edgeScore = Math.max(edgeScore, 8);
         qualScore = Math.max(qualScore, 4);
-        if (bugs.length === 1 && (!bugs[0].marksDeducted || bugs[0].marksDeducted > 12)) {
+        if (!bugs[0].marksDeducted || bugs[0].marksDeducted > 12) {
             bugs[0].marksDeducted = 10;
         }
     }
@@ -868,6 +872,7 @@ module.exports = {
     normalizeBugType,
     normalizeBugSeverity,
     isMeaningfulCode,
+    isSyntaxAttempt,
     createDeterministicZeroEvaluation,
     validateAndNormalizeEvaluation,
     createDeterministicFallbackEvaluation,

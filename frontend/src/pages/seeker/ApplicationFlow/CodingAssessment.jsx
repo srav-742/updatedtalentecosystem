@@ -631,6 +631,16 @@ const CodingAssessment = ({
         }
     };
 
+    const handleNextChallenge = () => {
+        const qId = currentQuestion?._id;
+        if (dmceMutations[qId]?.triggered && !dmceMutations[qId]?.activated) {
+            setActiveMutationAlert(dmceMutations[qId]);
+            setShowMutationModal(true);
+            return;
+        }
+        setCurrentQIndex(prev => prev + 1);
+    };
+
     const handleCodingSecurityReset = async (violation) => {
         setSecurityResetting(true);
         if (timerRef.current) clearInterval(timerRef.current);
@@ -1378,7 +1388,7 @@ const CodingAssessment = ({
 
                                 {currentQIndex < questions.length - 1 ? (
                                     <button
-                                        onClick={() => setCurrentQIndex(prev => prev + 1)}
+                                        onClick={handleNextChallenge}
                                         className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
                                     >
                                         <CheckCircle2 size={14} />

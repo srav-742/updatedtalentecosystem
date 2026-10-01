@@ -215,23 +215,27 @@ MEMORY_LIMIT_MB = ${memoryLimitMb}
 MEMORY_LIMIT_BYTES = MEMORY_LIMIT_MB * 1024 * 1024
 
 try:
-    import tracemalloc
+    import tracemalloc, atexit
     tracemalloc.start()
+
+    def _dmce_check_memory():
+        try:
+            curr, peak = tracemalloc.get_traced_memory()
+            if curr > MEMORY_LIMIT_BYTES or peak > MEMORY_LIMIT_BYTES:
+                sys.stderr.write('MemoryError: Memory Limit Exceeded: Process exceeded clamped heap quota of ' + str(MEMORY_LIMIT_MB) + ' MB\\n')
+                sys.stderr.flush()
+                os._exit(137)
+        except Exception:
+            pass
 
     def _dmce_memory_watchdog():
         while True:
-            try:
-                curr, peak = tracemalloc.get_traced_memory()
-                if curr > MEMORY_LIMIT_BYTES or peak > MEMORY_LIMIT_BYTES:
-                    sys.stderr.write(f"\\nMemoryError: Memory Limit Exceeded: Process exceeded clamped heap quota of {MEMORY_LIMIT_MB} MB. Peak allocation: {max(curr, peak) / (1024 * 1024):.2f} MB\\n")
-                    sys.stderr.flush()
-                    os._exit(137)
-            except Exception:
-                pass
+            _dmce_check_memory()
             time.sleep(0.005)
 
     _dmce_thread = threading.Thread(target=_dmce_memory_watchdog, daemon=True)
     _dmce_thread.start()
+    atexit.register(_dmce_check_memory)
 except Exception:
     pass
 
