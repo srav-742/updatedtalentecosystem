@@ -17,6 +17,15 @@ const authMiddleware = async (req, res, next) => {
                 if (admin.apps.length > 0) {
                     const token = authHeader.split(' ')[1];
                     const decodedToken = await admin.auth().verifyIdToken(token);
+
+                    // Enforce email verification for password accounts
+                    if (decodedToken.firebase?.sign_in_provider === 'password' && !decodedToken.email_verified) {
+                        return res.status(403).json({
+                            message: "Email verification required. Please verify your email before accessing this resource.",
+                            emailUnverified: true
+                        });
+                    }
+
                     const user = await User.findOne({ uid: decodedToken.uid });
                     if (user) {
                         req.user = user;

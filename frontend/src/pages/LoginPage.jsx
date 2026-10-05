@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2 } from 'lucide-react';
+import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, CLIENT_ID, CLIENT_SECRET } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
@@ -43,6 +43,30 @@ const LoginPage = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Email verification states for unverified email/password logins
+    const [verificationRequired, setVerificationRequired] = useState(() => {
+        if (location.state?.emailUnverified && location.state?.email) {
+            return {
+                email: location.state.email,
+                user: auth.currentUser,
+                role: (location.state.from?.pathname?.startsWith('/recruiter') ? 'recruiter' : 'candidate')
+            };
+        }
+        return null;
+    });
+    const [checkingVerification, setCheckingVerification] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const [verificationNotice, setVerificationNotice] = useState({ type: '', text: '' });
+
+    // Resend cooldown timer countdown
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setResendCooldown(prev => Math.max(0, prev - 1));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
 
     // Forgot Password States
     const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
@@ -268,6 +292,22 @@ const LoginPage = () => {
                         }
                     } else {
                         throw error;
+                    }
+                }
+
+                // Enforce email verification for password users
+                const isPasswordAuth = user.providerData?.some(p => p.providerId === 'password');
+                if (isPasswordAuth && !user.emailVerified) {
+                    await reloadFirebaseUser(user).catch(() => {});
+                    if (!user.emailVerified) {
+                        setVerificationRequired({
+                            email: normalizedEmail,
+                            user: user,
+                            role: role
+                        });
+                        setResendCooldown(60);
+                        setLoading(false);
+                        return;
                     }
                 }
 
@@ -650,6 +690,211 @@ const LoginPage = () => {
         );
     };
 
+    const handleCheckVerification = async () => {
+        if (!verificationRequired) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationRequired.user || auth.currentUser;
+            if (!currentUser) {
+                setVerificationNotice({
+                    type: 'error',
+                    text: "Session expired. Please sign in with your credentials again."
+                });
+                return;
+            }
+
+            const refreshedUser = await reloadFirebaseUser(currentUser);
+            if (refreshedUser && refreshedUser.emailVerified) {
+                setVerificationNotice({
+                    type: 'success',
+                    text: "Email verified successfully! Logging you in..."
+                });
+
+                const normalizedEmail = (refreshedUser.email || verificationRequired.email).toLowerCase().trim();
+                const targetRole = verificationRequired.role || role || 'candidate';
+
+                // Fetch Profile and initialize Gateway Session in parallel
+                const [fetchedProfile] = await Promise.all([
+                    withRetry(() => getUserProfile(normalizedEmail), 3, 'getProfile').catch(() => null),
+                    withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, refreshedUser.uid), 3, 'gatewaySession').catch(err => {
+                        console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
+                    }),
+                    withRetry(async () => {
+                        await apiClient.post('/users/sync', {
+                            uid: refreshedUser.uid,
+                            email: normalizedEmail,
+                            name: refreshedUser.displayName || normalizedEmail.split('@')[0],
+                            role: targetRole
+                        });
+                    }, 2, 'loginSync').catch(err => {
+                        console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
+                    })
+                ]);
+
+                let profile = fetchedProfile;
+                if (!profile) {
+                    profile = {
+                        uid: refreshedUser.uid,
+                        name: refreshedUser.displayName || normalizedEmail.split('@')[0],
+                        email: normalizedEmail,
+                        role: targetRole,
+                        createdAt: new Date().toISOString()
+                    };
+                    await withRetry(() => saveUserProfile(refreshedUser.uid, profile), 3, 'autoCreateProfile').catch(() => {});
+                }
+
+                localStorage.setItem('user', JSON.stringify({ ...profile, role: targetRole }));
+
+                const from = location.state?.from?.pathname;
+                if (from && from !== '/recruiter' && from !== '/admin') {
+                    navigate(from, { replace: true });
+                } else if (targetRole === 'admin') {
+                    navigate('/recruiter/my-jobs', { replace: true });
+                } else {
+                    navigate(targetRole === 'recruiter' ? '/recruiter/my-jobs' : '/candidate', { replace: true });
+                }
+            } else {
+                setVerificationNotice({
+                    type: 'warning',
+                    text: "Email not verified yet. Please check your inbox (and spam/junk folder), click the verification link, and then click this button again."
+                });
+            }
+        } catch (err) {
+            console.error("[CHECK-LOGIN-VERIFICATION-ERR]", err);
+            setVerificationNotice({
+                type: 'error',
+                text: "Unable to verify status. Please check your connection and try again."
+            });
+        } finally {
+            setCheckingVerification(false);
+        }
+    };
+
+    const handleResendEmail = async () => {
+        if (resendCooldown > 0 || !verificationRequired) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationRequired.user || auth.currentUser;
+            if (!currentUser) {
+                setVerificationNotice({
+                    type: 'error',
+                    text: "Session expired. Please sign in with your credentials again to request verification."
+                });
+                return;
+            }
+
+            await reloadFirebaseUser(currentUser);
+            if (currentUser.emailVerified) {
+                await handleCheckVerification();
+                return;
+            }
+
+            await sendVerificationEmail(currentUser);
+            setVerificationNotice({
+                type: 'success',
+                text: `Verification email sent to ${verificationRequired.email}! Please check your inbox and spam folder.`
+            });
+            setResendCooldown(60);
+        } catch (err) {
+            console.error("[RESEND-LOGIN-VERIFICATION-ERR]", err);
+            let msg = "Failed to resend verification email. Please try again.";
+            if (err.code === 'auth/too-many-requests') {
+                msg = "Too many requests. Please wait a minute before requesting another email.";
+                setResendCooldown(60);
+            } else if (err.code === 'auth/network-request-failed') {
+                msg = "Network error: Unable to reach verification server. Please check your connection.";
+            }
+            setVerificationNotice({ type: 'error', text: msg });
+        } finally {
+            setCheckingVerification(false);
+        }
+    };
+
+    const renderVerificationRequired = () => {
+        const activeRole = verificationRequired?.role || role || 'candidate';
+        const isRecruiter = activeRole === 'recruiter';
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 text-center"
+            >
+                <div className="flex flex-col items-center">
+                    <div className={`w-16 h-16 rounded-2xl ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'} flex items-center justify-center mb-4`}>
+                        <Mail className="w-8 h-8 animate-bounce" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-1 text-white">Email Verification Required</h3>
+                    <p className="text-gray-400 text-xs max-w-sm mb-3">
+                        Your account requires email verification before accessing Hire1Percent.
+                    </p>
+                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-xs font-medium mb-3 max-w-full truncate">
+                        {verificationRequired?.email}
+                    </div>
+                </div>
+
+                {verificationNotice.text && (
+                    <div className={`p-3.5 rounded-2xl text-xs border text-left ${
+                        verificationNotice.type === 'success'
+                            ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                            : verificationNotice.type === 'warning'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                        {verificationNotice.text}
+                    </div>
+                )}
+
+                <div className="space-y-3">
+                    <button
+                        type="button"
+                        onClick={handleCheckVerification}
+                        disabled={checkingVerification}
+                        className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${
+                            isRecruiter
+                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
+                                : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
+                        } ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                        {checkingVerification && <Loader2 className="w-4 h-4 animate-spin" />}
+                        {checkingVerification ? "Checking Status..." : "I've Verified My Email"}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleResendEmail}
+                        disabled={checkingVerification || resendCooldown > 0}
+                        className={`w-full py-3 rounded-2xl border border-white/10 hover:bg-white/5 text-gray-300 hover:text-white transition-all text-xs font-semibold flex items-center justify-center gap-2 ${
+                            resendCooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${checkingVerification ? 'animate-spin' : ''}`} />
+                        {resendCooldown > 0
+                            ? `Resend Verification Email (${resendCooldown}s)`
+                            : "Resend Verification Email"
+                        }
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setVerificationRequired(null);
+                            setVerificationNotice({ type: '', text: '' });
+                        }}
+                        className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors pt-1"
+                    >
+                        Back to Sign In
+                    </button>
+                </div>
+            </motion.div>
+        );
+    };
+
     const renderRoleSelection = () => (
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -779,7 +1024,7 @@ const LoginPage = () => {
                 {/* Right Side: Form */}
                 <div className="lg:w-1/2 p-10 flex flex-col justify-center">
                     <div className="max-w-md mx-auto w-full">
-                        {forgotPasswordMode ? renderForgotPasswordForm() : (
+                        {forgotPasswordMode ? renderForgotPasswordForm() : verificationRequired ? renderVerificationRequired() : (
                             <>
                                 <div className="mb-6">
                                     <h3 className="text-2xl font-bold mb-1">Login to Account</h3>

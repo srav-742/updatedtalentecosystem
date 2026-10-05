@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
+import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET } from '../firebase';
+import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 
@@ -39,6 +39,21 @@ const SignupPage = () => {
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
 
+    // Email verification state for email/password signups
+    const [verificationPending, setVerificationPending] = useState(null); // { email, user, role, profileData, savedProfile }
+    const [checkingVerification, setCheckingVerification] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const [verificationNotice, setVerificationNotice] = useState({ type: '', text: '' });
+
+    // Resend cooldown timer countdown
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setResendCooldown(prev => Math.max(0, prev - 1));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
+
     // Handle Google Redirect Result (for mobile / popup-blocked browsers)
     React.useEffect(() => {
         const checkRedirect = async () => {
@@ -73,6 +88,101 @@ const SignupPage = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleCheckVerification = async () => {
+        if (!verificationPending) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationPending.user || auth.currentUser;
+            const refreshedUser = await reloadFirebaseUser(currentUser);
+
+            if (refreshedUser && refreshedUser.emailVerified) {
+                // Email is successfully verified! Establish session and navigate
+                localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
+
+                if (verificationPending.role === 'recruiter' && verificationPending.savedProfile && verificationPending.savedProfile.client) {
+                    setClientCredentials(verificationPending.savedProfile.client);
+                    setVerificationPending(null);
+                } else {
+                    if (verificationPending.role === 'admin') navigate('/recruiter/my-jobs');
+                    else if (verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
+                    else navigate('/candidate');
+                }
+            } else {
+                setVerificationNotice({
+                    type: 'warning',
+                    text: "Email not verified yet. Please check your inbox (and spam/junk folder), click the verification link, and then click this button again."
+                });
+            }
+        } catch (err) {
+            console.error("[CHECK-VERIFICATION-ERR]", err);
+            setVerificationNotice({
+                type: 'error',
+                text: "Unable to verify status. Please check your internet connection and try again."
+            });
+        } finally {
+            setCheckingVerification(false);
+        }
+    };
+
+    const handleResendEmail = async () => {
+        if (resendCooldown > 0 || !verificationPending) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationPending.user || auth.currentUser;
+            if (!currentUser) {
+                setVerificationNotice({
+                    type: 'error',
+                    text: "Session expired. Please navigate back to login to verify your email."
+                });
+                return;
+            }
+
+            // Check if already verified
+            await reloadFirebaseUser(currentUser);
+            if (currentUser.emailVerified) {
+                setVerificationNotice({
+                    type: 'success',
+                    text: "Your email is already verified! Navigating to dashboard..."
+                });
+                localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
+                setTimeout(() => {
+                    if (verificationPending.role === 'recruiter' && verificationPending.savedProfile?.client) {
+                        setClientCredentials(verificationPending.savedProfile.client);
+                        setVerificationPending(null);
+                    } else {
+                        if (verificationPending.role === 'admin' || verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
+                        else navigate('/candidate');
+                    }
+                }, 1000);
+                return;
+            }
+
+            // Send native verification email
+            await sendVerificationEmail(currentUser);
+            setVerificationNotice({
+                type: 'success',
+                text: `Verification email sent to ${verificationPending.email}! Please check your inbox and spam folder.`
+            });
+            setResendCooldown(60);
+        } catch (err) {
+            console.error("[RESEND-VERIFICATION-ERR]", err);
+            let msg = "Failed to resend verification email. Please try again.";
+            if (err.code === 'auth/too-many-requests') {
+                msg = "Too many requests. Please wait a minute before requesting another email.";
+                setResendCooldown(60);
+            } else if (err.code === 'auth/network-request-failed') {
+                msg = "Network error: Unable to reach verification server. Please check your connection.";
+            }
+            setVerificationNotice({ type: 'error', text: msg });
+        } finally {
+            setCheckingVerification(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -91,7 +201,15 @@ const SignupPage = () => {
             const userCredential = await signupWithEmail(normalizedEmail, formData.password);
             const user = userCredential.user;
 
-            // 2. Prepare Profile
+            // 2. Send Firebase Native Verification Email
+            try {
+                await sendVerificationEmail(user);
+                console.log("[SIGNUP] Verification email dispatched to:", normalizedEmail);
+            } catch (emailErr) {
+                console.warn("[SIGNUP] Initial verification email send warning:", emailErr.message);
+            }
+
+            // 3. Prepare Profile
             const profileData = {
                 uid: user.uid,
                 name: formData.name,
@@ -100,11 +218,11 @@ const SignupPage = () => {
                 createdAt: new Date().toISOString()
             };
 
-            // 3. Save to MongoDB via BOTH endpoints for maximum reliability:
+            // 4. Save to MongoDB via BOTH endpoints for maximum reliability:
             //    a) POST /api/signup — saves hashed password + UID (the critical missing piece)
             //    b) PUT /api/profile/:uid — saves full profile with upsert
             const [, savedProfile] = await Promise.all([
-                // 3a. Backend signup — persists password hash + UID to MongoDB
+                // 4a. Backend signup — persists password hash + UID to MongoDB
                 withRetry(async () => {
                     await axios.post(`${API_URL}/signup`, {
                         name: formData.name,
@@ -119,7 +237,7 @@ const SignupPage = () => {
                         }
                     });
                 }, 3, 'backendSignup'),
-                // 3b. Profile save — upserts full profile
+                // 4b. Profile save — upserts full profile
                 withRetry(
                     () => saveUserProfile(user.uid, profileData),
                     3, 'saveProfile'
@@ -131,7 +249,7 @@ const SignupPage = () => {
                 return [null, null];
             });
 
-            // 3c. Also call /users/sync for UID consistency
+            // 4c. Also call /users/sync for UID consistency
             await withRetry(async () => {
                 await apiClient.post('/users/sync', {
                     uid: user.uid,
@@ -143,23 +261,24 @@ const SignupPage = () => {
                 console.warn('[SIGNUP] Sync call failed (non-fatal):', err.message);
             });
 
-            // 4. Initialize Gateway session tokens
+            // 4d. Initialize Gateway session tokens
             await withRetry(
                 () => apiClient.initializeGatewaySession(normalizedEmail, user.uid),
                 3, 'gatewaySession'
-            );
+            ).catch(err => {
+                console.warn('[SIGNUP] Gateway session warning:', err.message);
+            });
 
-            // 5. Store and Navigate / Show Modal
-            localStorage.setItem('user', JSON.stringify(profileData));
-
-            if (role === 'recruiter' && savedProfile && savedProfile.client) {
-                setClientCredentials(savedProfile.client);
-                setLoading(false);
-            } else {
-                setMessage({ type: 'success', text: "Account created successfully!" });
-                if (role === 'admin') navigate('/recruiter/my-jobs');
-                else navigate('/candidate');
-            }
+            // 5. DO NOT navigate to dashboard yet — show verification-pending state!
+            setVerificationPending({
+                email: normalizedEmail,
+                user: user,
+                role: role,
+                profileData: profileData,
+                savedProfile: savedProfile
+            });
+            setLoading(false);
+            setResendCooldown(60);
 
         } catch (error) {
             console.error("Signup Error:", error);
@@ -530,6 +649,100 @@ const SignupPage = () => {
         );
     };
 
+    const renderVerificationPending = () => {
+        const isRecruiter = verificationPending?.role === 'recruiter';
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="max-w-xl mx-auto w-full bg-[#0c0f16] border border-white/10 rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden text-center"
+            >
+                {/* Glow accent */}
+                <div className={`absolute top-0 right-0 w-64 h-64 ${isRecruiter ? 'bg-blue-600/10' : 'bg-teal-600/10'} blur-[100px] rounded-full pointer-events-none`} />
+
+                <div className="relative z-10 flex flex-col items-center">
+                    {/* Animated Icon */}
+                    <div className={`w-20 h-20 rounded-3xl ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'} flex items-center justify-center mb-6 shadow-xl`}>
+                        <Mail className="w-10 h-10 animate-bounce" />
+                    </div>
+
+                    <h2 className="text-3xl font-bold mb-3 text-white">Check Your Email</h2>
+                    
+                    <p className="text-gray-400 text-sm mb-2 max-w-md">
+                        We've sent a verification link to:
+                    </p>
+
+                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm font-medium mb-4 max-w-full truncate">
+                        {verificationPending?.email}
+                    </div>
+
+                    <p className="text-gray-400 text-xs mb-6 max-w-md leading-relaxed">
+                        Please click the link in the email to verify your address. Once verified, click below to continue into your Hire1Percent dashboard.
+                    </p>
+
+                    {verificationNotice.text && (
+                        <div className={`w-full mb-6 p-3.5 rounded-2xl text-xs border text-left ${
+                            verificationNotice.type === 'success'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : verificationNotice.type === 'warning'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}>
+                            {verificationNotice.text}
+                        </div>
+                    )}
+
+                    <div className="w-full space-y-3">
+                        {/* Primary Button: I've Verified My Email */}
+                        <button
+                            type="button"
+                            onClick={handleCheckVerification}
+                            disabled={checkingVerification}
+                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${
+                                isRecruiter
+                                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
+                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
+                            } ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                            {checkingVerification && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {checkingVerification ? "Checking Status..." : "I've Verified My Email"}
+                        </button>
+
+                        {/* Secondary Button: Resend */}
+                        <button
+                            type="button"
+                            onClick={handleResendEmail}
+                            disabled={checkingVerification || resendCooldown > 0}
+                            className={`w-full py-3 rounded-2xl border border-white/10 hover:bg-white/5 text-gray-300 hover:text-white transition-all text-xs font-semibold flex items-center justify-center gap-2 ${
+                                resendCooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${checkingVerification ? 'animate-spin' : ''}`} />
+                            {resendCooldown > 0
+                                ? `Resend Verification Email (${resendCooldown}s)`
+                                : "Resend Verification Email"
+                            }
+                        </button>
+
+                        {/* Back / Wrong Email */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVerificationPending(null);
+                                setVerificationNotice({ type: '', text: '' });
+                            }}
+                            className="text-xs text-gray-500 hover:text-gray-300 transition-colors pt-2"
+                        >
+                            Entered wrong email? Go back
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        );
+    };
+
     return (
         <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
             {/* Background Decor */}
@@ -541,7 +754,13 @@ const SignupPage = () => {
             <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden pt-24">
                 <div className="w-full max-w-6xl h-full max-h-[800px] flex items-center justify-center">
                     <AnimatePresence mode="wait">
-                        {!role ? renderRoleSelection() : renderSignupForm()}
+                        {verificationPending ? (
+                            renderVerificationPending()
+                        ) : !role ? (
+                            renderRoleSelection()
+                        ) : (
+                            renderSignupForm()
+                        )}
                     </AnimatePresence>
                 </div>
             </main>

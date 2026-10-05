@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential, sendEmailVerification, reload } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
 
 const firebaseConfig = {
@@ -50,6 +50,18 @@ const withAuthRetry = async (fn, maxRetries = 2, delayMs = 1200) => {
 export const signupWithEmail = async (email, password) => {
     const res = await withAuthRetry(() => createUserWithEmailAndPassword(auth, email, password));
     return res;
+};
+
+export const sendVerificationEmail = async (user = auth.currentUser) => {
+    if (!user) throw new Error("No authenticated user found to send verification email.");
+    const res = await withAuthRetry(() => sendEmailVerification(user));
+    return res;
+};
+
+export const reloadFirebaseUser = async (user = auth.currentUser) => {
+    if (!user) return null;
+    await withAuthRetry(() => reload(user));
+    return auth.currentUser;
 };
 
 export const loginWithEmail = async (email, password) => {
