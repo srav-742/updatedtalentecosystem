@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential, sendEmailVerification, reload } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential, sendEmailVerification, reload, applyActionCode, checkActionCode } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
 
 const firebaseConfig = {
@@ -54,8 +54,47 @@ export const signupWithEmail = async (email, password) => {
 
 export const sendVerificationEmail = async (user = auth.currentUser) => {
     if (!user) throw new Error("No authenticated user found to send verification email.");
-    const res = await withAuthRetry(() => sendEmailVerification(user));
-    return res;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const actionCodeSettings = {
+        url: `${origin}/verify-email?status=verified`,
+        handleCodeInApp: true,
+    };
+    try {
+        const res = await withAuthRetry(() => sendEmailVerification(user, actionCodeSettings));
+        return res;
+    } catch (err) {
+        // Fallback without actionCodeSettings if domain is not whitelisted in Firebase Console
+        console.warn("[FIREBASE-AUTH] sendEmailVerification with actionCodeSettings fallback:", err.message);
+        const fallbackRes = await withAuthRetry(() => sendEmailVerification(user));
+        return fallbackRes;
+    }
+};
+
+export const verifyEmailWithActionCode = async (oobCode) => {
+    if (!oobCode) throw new Error("No verification code provided.");
+    
+    let verifiedEmail = null;
+    try {
+        const info = await checkActionCode(auth, oobCode);
+        verifiedEmail = info?.data?.email || null;
+    } catch (infoErr) {
+        console.warn("[FIREBASE-AUTH] checkActionCode check info:", infoErr.message);
+    }
+
+    await withAuthRetry(() => applyActionCode(auth, oobCode));
+
+    if (auth.currentUser) {
+        try {
+            await reload(auth.currentUser);
+        } catch (rErr) {
+            console.warn("[FIREBASE-AUTH] reload currentUser failed:", rErr.message);
+        }
+    }
+
+    return {
+        success: true,
+        email: verifiedEmail || auth.currentUser?.email || null
+    };
 };
 
 export const reloadFirebaseUser = async (user = auth.currentUser) => {

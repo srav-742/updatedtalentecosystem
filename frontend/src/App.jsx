@@ -71,6 +71,9 @@ const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
 const CandidateCareerHub = lazy(() => import('./pages/public/CandidateCareerHub'));
 
+// Email Verification landing page
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
+
 // 404 Not Found page
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -142,6 +145,7 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* Public Job Details Route — accessible without login */}
         <Route path="/job/:id" element={

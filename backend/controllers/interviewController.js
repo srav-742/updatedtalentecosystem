@@ -89,7 +89,13 @@ const mapViolationsList = (baseViolations = [], enhancedViolations = []) => {
     return mapped;
 };
 
-const fetchProctoringReportForInterview = async (jobIdStr, sessionIdStr, userId, baseViolations = [], enhancedViolations = []) => {
+const fetchProctoringReportForInterview = async (jobIdStr, sessionIdStr, userId, baseViolations = [], enhancedViolations = [], applicationId = null) => {
+    // 1. If applicationId is provided, prioritize direct application matching
+    if (applicationId) {
+        const reportByApp = await ProctoringReport.findOne({ applicationId }).sort({ updatedAt: -1 }).lean();
+        if (reportByApp) return reportByApp;
+    }
+
     const queryExamIds = [];
     if (jobIdStr && sessionIdStr) queryExamIds.push(`interview:${jobIdStr}:${sessionIdStr}`);
     if (sessionIdStr) {
@@ -107,9 +113,15 @@ const fetchProctoringReportForInterview = async (jobIdStr, sessionIdStr, userId,
     }
 
     const reportOr = [];
-    if (queryExamIds.length > 0) reportOr.push({ examId: { $in: queryExamIds } });
-    if (sessionIdStr) reportOr.push({ examId: new RegExp(sessionIdStr, 'i') });
-    if (jobIdStr) reportOr.push({ examId: new RegExp(jobIdStr, 'i') });
+    if (queryExamIds.length > 0) {
+        reportOr.push(userId ? { userId, examId: { $in: queryExamIds } } : { examId: { $in: queryExamIds } });
+    }
+    if (sessionIdStr) {
+        reportOr.push(userId ? { userId, examId: new RegExp(sessionIdStr, 'i') } : { examId: new RegExp(sessionIdStr, 'i') });
+    }
+    if (jobIdStr && userId) {
+        reportOr.push({ userId, examId: new RegExp(jobIdStr, 'i') });
+    }
 
     let proctoringReport = null;
     if (reportOr.length > 0) {
@@ -328,7 +340,8 @@ const getInterviewDetails = async (req, res) => {
             sessionIdStr,
             application.userId,
             baseViolations,
-            enhancedViolations
+            enhancedViolations,
+            application._id
         );
 
         res.json(
@@ -447,7 +460,8 @@ const getPublicInterviewDetails = async (req, res) => {
             sessionIdStr,
             application.userId,
             baseViolations,
-            enhancedViolations
+            enhancedViolations,
+            application._id
         );
 
         res.json(
@@ -541,7 +555,8 @@ const getProctoringDetails = async (req, res) => {
             sessionIdStr,
             application.userId,
             baseViolations,
-            enhancedViolations
+            enhancedViolations,
+            application._id
         );
 
         if (!proctoringReport) {
@@ -556,14 +571,21 @@ const getProctoringDetails = async (req, res) => {
             };
         }
 
+        const effectiveIntegrityScore = proctoringReport?.reviewStatus === 'DISMISSED'
+            ? 100
+            : (proctoringReport?.integrityScore ?? proctoringReport?.proctoringScore ?? application.integrityScore ?? application.proctoringScore ?? 100);
+        const effectiveRiskLevel = proctoringReport?.reviewStatus === 'DISMISSED'
+            ? 'LOW RISK'
+            : (proctoringReport?.riskLevel || application.riskLevel || (effectiveIntegrityScore < 60 ? 'HIGH RISK' : (effectiveIntegrityScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK')));
+
         res.json({
             application: {
                 id: application._id,
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
-                proctoringScore: application.proctoringScore,
-                integrityScore: application.integrityScore ?? application.proctoringScore ?? proctoringReport?.integrityScore ?? 100,
-                riskLevel: application.riskLevel || proctoringReport?.riskLevel || 'LOW RISK'
+                proctoringScore: effectiveIntegrityScore,
+                integrityScore: effectiveIntegrityScore,
+                riskLevel: effectiveRiskLevel
             },
             job: {
                 title: application.jobId?.title
@@ -574,8 +596,8 @@ const getProctoringDetails = async (req, res) => {
                 proctoringViolations: mappedViolations,
                 proctoringReport: proctoringReport,
                 proctoringSummary: {
-                    integrityScore: proctoringReport?.integrityScore ?? (application.integrityScore ?? Math.max(0, 100 - Math.round((application.integrityPenalty || 0) * 2.5))),
-                    riskLevel: proctoringReport?.riskLevel ?? (application.riskLevel || 'LOW RISK'),
+                    integrityScore: effectiveIntegrityScore,
+                    riskLevel: effectiveRiskLevel,
                     scoreVersion: proctoringReport?.scoreVersion || 'v2',
                     totalIncidents: proctoringReport?.totalIncidents ?? mappedViolations.length,
                     standardIncidents: proctoringReport?.standardIncidents ?? mappedViolations.filter(v => v.severity !== 'critical').length,

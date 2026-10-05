@@ -248,7 +248,7 @@ const PostJob = () => {
         }
 
         combined = combined.map((q, idx) => ({ ...q, order: idx + 1 }));
-        const newCount = Math.min(Math.max(1, jobData.questionCount || 5), combined.length);
+        const newCount = jobData.questionCount ? Math.max(1, jobData.questionCount) : Math.min(5, combined.length);
 
         setJobData(prev => ({
             ...prev,
@@ -286,7 +286,7 @@ const PostJob = () => {
             order: currentBank.length + 1
         };
         const updated = [...currentBank, newQ];
-        const newCount = Math.min(Math.max(1, jobData.questionCount || 1), updated.length);
+        const newCount = jobData.questionCount ? Math.max(1, jobData.questionCount) : Math.min(5, updated.length);
         setJobData(prev => ({
             ...prev,
             questionSource: 'RECRUITER_PROVIDED',
@@ -309,7 +309,7 @@ const PostJob = () => {
         const updated = currentBank
             .filter((_, i) => i !== idx)
             .map((q, i) => ({ ...q, order: i + 1 }));
-        const newCount = Math.max(1, Math.min(jobData.questionCount || 1, updated.length || 1));
+        const newCount = jobData.questionCount ? Math.max(1, jobData.questionCount) : 1;
         setJobData(prev => ({
             ...prev,
             recruiterQuestions: updated,
@@ -525,10 +525,10 @@ const PostJob = () => {
                             jobTitle: jobData.title,
                             jobDescription: jobData.description,
                             timerType,
-                            totalTime,
-                            normalTime,
-                            moderateTime,
-                            highTime
+                            totalTime: Number(totalTime) || 60,
+                            normalTime: Number(normalTime) || 15,
+                            moderateTime: Number(moderateTime) || 30,
+                            highTime: Number(highTime) || 45
                         }
                     });
                 }, 1500);
@@ -574,7 +574,7 @@ const PostJob = () => {
     }
 
     return (
-        <div className="max-w-5xl mx-auto pb-12">
+        <div className="w-full pb-12">
             {/* Executive Navbar / Header for Post a Job */}
             <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7 mb-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
@@ -850,8 +850,22 @@ const PostJob = () => {
                                     >
                                         <option value="Fresher">Fresher (0 Years)</option>
                                         <option value="0-1 Years">0-1 Years</option>
+                                        <option value="1 Year">1 Year</option>
                                         <option value="1-2 Years">1-2 Years</option>
-                                        <option value="3+ Years">3+ Years</option>
+                                        <option value="1-3 Years">1-3 Years</option>
+                                        <option value="2 Years">2 Years</option>
+                                        <option value="2-3 Years">2-3 Years</option>
+                                        <option value="2-4 Years">2-4 Years</option>
+                                        <option value="3 Years">3 Years</option>
+                                        <option value="3-5 Years">3-5 Years</option>
+                                        <option value="4-5 Years">4-5 Years</option>
+                                        <option value="5 Years">5 Years</option>
+                                        <option value="5+ Years">5+ Years</option>
+                                        <option value="5-7 Years">5-7 Years</option>
+                                        <option value="5-8 Years">5-8 Years</option>
+                                        <option value="7-10 Years">7-10 Years</option>
+                                        <option value="10+ Years">10+ Years</option>
+                                        <option value="15+ Years">15+ Years</option>
                                     </select>
                                     <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                                 </div>
@@ -1096,7 +1110,18 @@ const PostJob = () => {
                                                         min="5"
                                                         max="480"
                                                         value={totalTime}
-                                                        onChange={(e) => setTotalTime(Number(e.target.value) || 60)}
+                                                        onFocus={() => setTotalTime('')}
+                                                        onMouseDown={() => setTotalTime('')}
+                                                        onClick={() => setTotalTime('')}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setTotalTime(val === '' ? '' : (parseInt(val, 10) || 0));
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (totalTime === '' || Number(totalTime) <= 0) {
+                                                                setTotalTime(60);
+                                                            }
+                                                        }}
                                                         className="rec-input w-full px-3 py-2 text-xs font-medium"
                                                     />
                                                 </div>
@@ -1108,7 +1133,18 @@ const PostJob = () => {
                                                             type="number"
                                                             min="1"
                                                             value={normalTime}
-                                                            onChange={(e) => setNormalTime(Number(e.target.value) || 15)}
+                                                            onFocus={() => setNormalTime('')}
+                                                            onMouseDown={() => setNormalTime('')}
+                                                            onClick={() => setNormalTime('')}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setNormalTime(val === '' ? '' : (parseInt(val, 10) || 0));
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (normalTime === '' || Number(normalTime) <= 0) {
+                                                                    setNormalTime(15);
+                                                                }
+                                                            }}
                                                             className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
@@ -1118,7 +1154,18 @@ const PostJob = () => {
                                                             type="number"
                                                             min="1"
                                                             value={moderateTime}
-                                                            onChange={(e) => setModerateTime(Number(e.target.value) || 30)}
+                                                            onFocus={() => setModerateTime('')}
+                                                            onMouseDown={() => setModerateTime('')}
+                                                            onClick={() => setModerateTime('')}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setModerateTime(val === '' ? '' : (parseInt(val, 10) || 0));
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (moderateTime === '' || Number(moderateTime) <= 0) {
+                                                                    setModerateTime(30);
+                                                                }
+                                                            }}
                                                             className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
@@ -1128,7 +1175,18 @@ const PostJob = () => {
                                                             type="number"
                                                             min="1"
                                                             value={highTime}
-                                                            onChange={(e) => setHighTime(Number(e.target.value) || 45)}
+                                                            onFocus={() => setHighTime('')}
+                                                            onMouseDown={() => setHighTime('')}
+                                                            onClick={() => setHighTime('')}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setHighTime(val === '' ? '' : (parseInt(val, 10) || 0));
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (highTime === '' || Number(highTime) <= 0) {
+                                                                    setHighTime(45);
+                                                                }
+                                                            }}
                                                             className="rec-input w-full px-2 py-2 text-xs font-medium text-center"
                                                         />
                                                     </div>
@@ -1400,13 +1458,56 @@ const PostJob = () => {
                                                         <input
                                                             type="number"
                                                             min="1"
-                                                            max={Math.max(1, jobData.recruiterQuestions.length || 50)}
-                                                            value={jobData.questionCount || 1}
-                                                            onChange={(e) => {
-                                                                const maxAllowed = Math.max(1, jobData.recruiterQuestions.length || 1);
-                                                                const val = Math.max(1, Math.min(Number(e.target.value) || 1, maxAllowed));
-                                                                setJobData(prev => ({ ...prev, questionCount: val, mockInterview: { ...(prev.mockInterview || {}), questionCount: val } }));
+                                                            value={jobData.questionCount === '' ? '' : (jobData.questionCount ?? '')}
+                                                            onFocus={() => {
+                                                                setJobData(prev => ({
+                                                                    ...prev,
+                                                                    questionCount: '',
+                                                                    mockInterview: { ...(prev.mockInterview || {}), questionCount: '' }
+                                                                }));
                                                             }}
+                                                            onMouseDown={() => {
+                                                                setJobData(prev => ({
+                                                                    ...prev,
+                                                                    questionCount: '',
+                                                                    mockInterview: { ...(prev.mockInterview || {}), questionCount: '' }
+                                                                }));
+                                                            }}
+                                                            onClick={() => {
+                                                                setJobData(prev => ({
+                                                                    ...prev,
+                                                                    questionCount: '',
+                                                                    mockInterview: { ...(prev.mockInterview || {}), questionCount: '' }
+                                                                }));
+                                                            }}
+                                                            onChange={(e) => {
+                                                                const raw = e.target.value;
+                                                                if (raw === '') {
+                                                                    setJobData(prev => ({
+                                                                        ...prev,
+                                                                        questionCount: '',
+                                                                        mockInterview: { ...(prev.mockInterview || {}), questionCount: '' }
+                                                                    }));
+                                                                    return;
+                                                                }
+                                                                const parsed = parseInt(raw, 10);
+                                                                const val = isNaN(parsed) ? '' : parsed;
+                                                                setJobData(prev => ({
+                                                                    ...prev,
+                                                                    questionCount: val,
+                                                                    mockInterview: { ...(prev.mockInterview || {}), questionCount: val }
+                                                                }));
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (jobData.questionCount === '' || Number(jobData.questionCount) < 1) {
+                                                                    setJobData(prev => ({
+                                                                        ...prev,
+                                                                        questionCount: 1,
+                                                                        mockInterview: { ...(prev.mockInterview || {}), questionCount: 1 }
+                                                                    }));
+                                                                }
+                                                            }}
+                                                            placeholder="e.g. 5"
                                                             className="rec-input w-28 px-4 py-2.5 text-sm font-bold text-slate-900"
                                                         />
                                                         <span className="text-xs text-slate-500">
@@ -1590,7 +1691,7 @@ const PostJob = () => {
                                             <div className="space-y-2.5">
                                                 <div className="flex items-center justify-between text-xs font-semibold text-slate-600 px-1">
                                                     <span>Bank Questions ({jobData.recruiterQuestions.length})</span>
-                                                    <span>Asking {Math.min(jobData.questionCount || 0, jobData.recruiterQuestions.length)}</span>
+                                                    <span>Asking {Number(jobData.questionCount) || 0}</span>
                                                 </div>
 
                                                 {jobData.recruiterQuestions.length === 0 ? (

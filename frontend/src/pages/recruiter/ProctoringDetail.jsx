@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
     X,
@@ -24,7 +25,7 @@ import { API_URL, getAuthHeaders } from '../../firebase';
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-const ProctoringDetail = ({ applicationId, onClose }) => {
+const ProctoringDetail = ({ applicationId, onClose, onUpdate }) => {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
@@ -55,7 +56,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
     }, [applicationId]);
 
     const handleHumanReview = async (reviewStatus) => {
-        const examId = data?.interview?.proctoringReport?.examId;
+        const examId = data?.interview?.proctoringReport?.examId || data?.application?.recordingSessionId;
         if (!examId) {
             alert('Cannot submit review: Exam ID not available.');
             return;
@@ -63,26 +64,54 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
         setReviewSubmitting(true);
         try {
             const headers = await getAuthHeaders();
-            await axios.post(`${API_URL}/proctoring-enhanced/review/${encodeURIComponent(examId)}`, {
+            const payload = {
                 reviewStatus,
                 reviewReason: reviewReasonInput.trim() || `Recruiter marked as ${reviewStatus}`
-            }, { headers });
+            };
+
+            try {
+                await axios.post(`${API_URL}/proctoring-enhanced/review/${encodeURIComponent(examId)}`, payload, { headers });
+            } catch (postErr) {
+                // Fallback to pipeline review endpoint
+                await axios.post(`${API_URL}/proctoring-pipeline/review/${encodeURIComponent(examId)}`, payload, { headers });
+            }
             
+            const newScore = reviewStatus === 'DISMISSED' ? 100 : (data?.interview?.proctoringReport?.integrityScore ?? 100);
+            const newRisk = reviewStatus === 'DISMISSED' ? 'LOW RISK' : (reviewStatus === 'CONFIRMED_CONCERN' ? 'HIGH RISK' : (data?.interview?.proctoringReport?.riskLevel || 'LOW RISK'));
+
             // Optimistic update
             setData(prev => ({
                 ...prev,
+                application: {
+                    ...prev.application,
+                    proctoringScore: newScore,
+                    integrityScore: newScore,
+                    riskLevel: newRisk
+                },
                 interview: {
                     ...prev.interview,
                     proctoringReport: {
                         ...prev.interview?.proctoringReport,
+                        integrityScore: newScore,
+                        proctoringScore: newScore,
+                        riskLevel: newRisk,
                         reviewStatus,
                         reviewReason: reviewReasonInput.trim() || `Recruiter marked as ${reviewStatus}`,
                         reviewedAt: new Date().toISOString()
+                    },
+                    proctoringSummary: {
+                        ...prev.interview?.proctoringSummary,
+                        integrityScore: newScore,
+                        riskLevel: newRisk,
+                        reviewStatus
                     }
                 }
             }));
             setReviewReasonInput('');
             setReviewSuccessMessage(`Report audit status updated to ${reviewStatus}`);
+            if (typeof onUpdate === 'function') {
+                onUpdate();
+            }
             setTimeout(() => setReviewSuccessMessage(null), 4000);
         } catch (err) {
             console.error('Human review submission error:', err);
@@ -93,7 +122,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
     };
 
     if (loading) {
-        return (
+        const loadingContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto mb-6"></div>
@@ -102,24 +131,27 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(loadingContent, document.body) : loadingContent;
     }
 
     if (error || !data) {
-        return (
+        const errorContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1a1d24', color: '#ffffff' }}>
                     <X className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Error Loading Report</h3>
-                    <p className="text-gray-400 mb-6">{error || 'Proctoring data not found'}</p>
+                    <h3 className="text-xl font-bold mb-2" style={{ color: '#ffffff' }}>Error Loading Report</h3>
+                    <p className="text-gray-400 mb-6" style={{ color: '#94a3b8' }}>{error || 'Proctoring data not found'}</p>
                     <button
                         onClick={onClose}
-                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl border border-white/10 transition-colors"
+                        className="w-full text-gray-300 font-bold px-6 py-3 rounded-xl transition-colors cursor-pointer"
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)' }}
                     >
                         Close
                     </button>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(errorContent, document.body) : errorContent;
     }
 
     const { application, job, interview } = data;
@@ -133,7 +165,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
     const scoreFactors = report.scoreFactors || summaryData.scoreFactors || [];
     const reviewStatus = report.reviewStatus || 'UNREVIEWED';
 
-    return (
+    const modalContent = (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -142,53 +174,55 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-gray-900 via-gray-800 to-black text-white p-8 rounded-t-3xl z-10 shadow-lg">
+                <div className="sticky top-0 p-8 rounded-t-3xl z-10 shadow-lg" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-4">
-                                <ShieldAlert className="w-8 h-8 text-red-500" />
+                                <ShieldAlert className="w-8 h-8 text-red-500 shrink-0" />
                                 <div>
-                                    <h2 className="text-2xl font-black">Proctoring Integrity Report</h2>
-                                    <p className="text-xs text-gray-400 font-mono mt-0.5">Authoritative Engine {report.scoreVersion || 'v2'} • Exam ID: {report.examId || application.recordingSessionId || 'N/A'}</p>
+                                    <h2 className="text-2xl font-black" style={{ color: '#ffffff' }}>Proctoring Integrity Report</h2>
+                                    <p className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>Authoritative Engine {report.scoreVersion || 'v2'} • Exam ID: {report.examId || application.recordingSessionId || 'N/A'}</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-3xl font-black text-white">
-                                        {integrityScore} <span className="text-xs font-normal text-gray-400">/ 100</span>
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black" style={{ color: '#ffffff' }}>
+                                        {integrityScore} <span className="text-xs font-normal" style={{ color: '#94a3b8' }}>/ 100</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-1">Integrity Score</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Integrity Score</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/10">
-                                    <div className={`text-sm font-black px-2.5 py-1 rounded-lg inline-block ${
-                                        riskLevel === 'HIGH RISK' ? 'bg-red-500/30 text-red-400 border border-red-500/40' :
-                                        riskLevel === 'REVIEW REQUIRED' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' :
-                                        'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
-                                    }`}>
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-sm font-black px-2.5 py-1 rounded-lg inline-block" style={{
+                                        backgroundColor: riskLevel === 'HIGH RISK' ? 'rgba(239, 68, 68, 0.25)' : riskLevel === 'REVIEW REQUIRED' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)',
+                                        color: riskLevel === 'HIGH RISK' ? '#fca5a5' : riskLevel === 'REVIEW REQUIRED' ? '#fde68a' : '#6ee7b7',
+                                        border: `1px solid ${riskLevel === 'HIGH RISK' ? 'rgba(239, 68, 68, 0.4)' : riskLevel === 'REVIEW REQUIRED' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`
+                                    }}>
                                         {riskLevel}
                                     </div>
-                                    <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-1">Risk Classification</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Risk Classification</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-2xl font-black text-white">
-                                        <span className={criticalCount > 0 ? "text-red-400" : "text-gray-300"}>{criticalCount}</span>
-                                        <span className="text-xs text-gray-400 font-normal"> / {standardCount} std</span>
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-2xl font-black">
+                                        <span style={{ color: criticalCount > 0 ? '#f87171' : '#ffffff' }}>{criticalCount}</span>
+                                        <span className="text-xs font-normal" style={{ color: '#94a3b8' }}> / {standardCount} std</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-1">Incidents (Crit / Std)</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Incidents (Crit / Std)</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-sm font-black text-white capitalize">
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-sm font-black capitalize" style={{ color: '#ffffff' }}>
                                         {reviewStatus.replace(/_/g, ' ')}
                                     </div>
-                                    <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-1">Audit Status</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Audit Status</div>
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors shrink-0 ml-4"
+                            className="rounded-full p-3 transition-colors shrink-0 ml-4 cursor-pointer flex items-center justify-center hover:opacity-80"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', color: '#ffffff' }}
+                            title="Close Report"
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-6 h-6" style={{ color: '#ffffff' }} />
                         </button>
                     </div>
                 </div>
@@ -454,6 +488,11 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
             )}
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 };
 
 export default ProctoringDetail;

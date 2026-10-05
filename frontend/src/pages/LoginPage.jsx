@@ -812,6 +812,14 @@ const LoginPage = () => {
             }
 
             await sendVerificationEmail(currentUser);
+
+            // Also trigger backend branded email with CTA button
+            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }, {
+                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+            }).catch(e => {
+                console.warn('[LOGIN] Backend resend-verification warning (non-fatal):', e.message);
+            });
+
             setVerificationNotice({
                 type: 'success',
                 text: `Verification email sent to ${verificationRequired.email}! Please check your inbox and spam folder.`

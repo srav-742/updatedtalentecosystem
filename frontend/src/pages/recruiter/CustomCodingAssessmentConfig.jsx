@@ -366,7 +366,27 @@ const CustomCodingAssessmentConfig = () => {
                                     <input
                                         type="number"
                                         value={totalTime}
-                                        onChange={(e) => setTotalTime(parseInt(e.target.value) || 60)}
+                                        onFocus={(e) => {
+                                            if (totalTime === 60 || totalTime === '60') {
+                                                setTotalTime('');
+                                            } else {
+                                                e.target.select();
+                                            }
+                                        }}
+                                        onClick={(e) => {
+                                            if (totalTime === 60 || totalTime === '60') {
+                                                setTotalTime('');
+                                            }
+                                        }}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTotalTime(val === '' ? '' : (parseInt(val, 10) || 0));
+                                        }}
+                                        onBlur={() => {
+                                            if (totalTime === '' || Number(totalTime) <= 0) {
+                                                setTotalTime(60);
+                                            }
+                                        }}
                                         className="w-12 bg-transparent text-center text-teal-400 outline-none font-bold"
                                     />
                                     <span>min</span>

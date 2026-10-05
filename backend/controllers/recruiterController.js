@@ -231,20 +231,48 @@ const getRecruiterApplications = async (req, res) => {
         const userIdList = apps.map(app => app.userId).filter(Boolean);
         const ProctoringViolation = require('../models/ProctoringViolation');
         const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+        const ProctoringReport = require('../models/ProctoringReport');
         const { getViolationRating } = require('../utils/proctoringScoring');
 
         const applicationPenaltyMap = {};
         const applicationFlagsMap = {};
+        const reportMap = new Map();
 
         if (userIdList.length > 0) {
             const violationQuery = {
                 userId: { $in: userIdList }
             };
 
-            const [baseViolations, enhancedViolations] = await Promise.all([
+            const appIdList = apps.map(a => a._id).filter(Boolean);
+            const [baseViolations, enhancedViolations, proctoringReports] = await Promise.all([
                 ProctoringViolation.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
-                ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean()
+                ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
+                ProctoringReport.find({
+                    $or: [
+                        { applicationId: { $in: appIdList } },
+                        { userId: { $in: userIdList } }
+                    ]
+                }).sort({ updatedAt: -1 }).lean()
             ]);
+
+            proctoringReports.forEach(r => {
+                if (r.applicationId) {
+                    const appIdStr = r.applicationId.toString();
+                    if (!reportMap.has(appIdStr)) {
+                        reportMap.set(appIdStr, r);
+                    }
+                }
+                if (r.userId && r.examId) {
+                    const parts = r.examId.split(':');
+                    const jobId = parts.length >= 2 ? parts[1] : null;
+                    if (jobId) {
+                        const userJobKey = `${r.userId}_${jobId}`;
+                        if (!reportMap.has(userJobKey)) {
+                            reportMap.set(userJobKey, r);
+                        }
+                    }
+                }
+            });
 
             const addRating = (userId, examId, type, metadata, ratingFromDb) => {
                 if (!userId) return;
@@ -304,11 +332,39 @@ const getRecruiterApplications = async (req, res) => {
         const appsWithScore = apps.map((app, index) => {
             const jobIdStr = app.jobId?._id?.toString() || app.jobId?.toString();
             const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = (app.integrityPenalty !== undefined && app.integrityPenalty !== null && app.integrityPenalty > 0)
-                ? app.integrityPenalty 
-                : (applicationPenaltyMap[appKey] || 0);
-            app.integrityPenalty = rawPenalty;
-            app.proctoringScore = Math.max(0, 100 - Math.round(rawPenalty * 2.5));
+            const existingReport = (app._id && reportMap.get(app._id.toString())) || (jobIdStr && reportMap.get(`${app.userId}_${jobIdStr}`));
+            
+            if (existingReport && (existingReport.integrityScore !== undefined || existingReport.proctoringScore !== undefined)) {
+                if (existingReport.reviewStatus === 'DISMISSED') {
+                    app.proctoringScore = 100;
+                    app.integrityScore = 100;
+                    app.riskLevel = 'LOW RISK';
+                } else {
+                    app.proctoringScore = existingReport.integrityScore ?? existingReport.proctoringScore;
+                    app.integrityScore = app.proctoringScore;
+                    app.riskLevel = existingReport.riskLevel || (app.proctoringScore < 60 ? 'HIGH RISK' : (app.proctoringScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK'));
+                }
+            } else if (app.integrityScore !== undefined && app.integrityScore !== null && app.integrityScore > 0) {
+                app.proctoringScore = app.integrityScore;
+            } else if (app.proctoringScore !== undefined && app.proctoringScore !== null && app.proctoringScore > 0) {
+                // Keep positive pre-saved score
+            } else {
+                const appViolationsPenalty = applicationPenaltyMap[appKey] || 0;
+                const hasTakenAnyTest = app.assessmentScore != null || app.codingScore != null || (app.interviewScore != null && app.interviewScore > 0) || app.recordingStatus === 'uploaded';
+                
+                if (appViolationsPenalty > 0) {
+                    app.proctoringScore = Math.max(0, 100 - Math.round(appViolationsPenalty * 2.5));
+                    app.integrityScore = app.proctoringScore;
+                    app.riskLevel = app.proctoringScore < 60 ? 'HIGH RISK' : (app.proctoringScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK');
+                } else if (hasTakenAnyTest) {
+                    app.proctoringScore = 100;
+                    app.integrityScore = 100;
+                    app.riskLevel = 'LOW RISK';
+                } else {
+                    app.proctoringScore = null;
+                    app.integrityScore = null;
+                }
+            }
             
             const flags = applicationFlagsMap[appKey];
             app.proctoringFlags = flags ? Array.from(flags) : [];

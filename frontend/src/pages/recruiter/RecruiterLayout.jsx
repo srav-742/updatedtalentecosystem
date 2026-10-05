@@ -210,9 +210,17 @@ const RecruiterLayout = () => {
         <div className="recruiter-light-theme relative flex h-screen overflow-hidden bg-[#f3efe7] text-gray-900">
             <button
                 onClick={() => setIsSidebarOpen((value) => !value)}
-                className="fixed left-6 top-6 z-50 rounded-2xl border border-black/10 bg-white p-3 shadow-sm md:hidden"
+                className="fixed left-6 top-6 z-50 rounded-2xl border border-black/10 bg-white p-2.5 shadow-sm md:hidden flex items-center justify-center cursor-pointer"
+                aria-label="Toggle navigation menu"
             >
-                <Zap size={22} />
+                <img
+                    src="/logo-icon.webp"
+                    alt="hire1percent logo"
+                    width="24"
+                    height="24"
+                    onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                    className="w-6 h-6 object-contain"
+                />
             </button>
 
             <aside className={`
@@ -233,8 +241,15 @@ const RecruiterLayout = () => {
 
                 <div className={`transition-all duration-300 ${isMinimized ? 'p-3 flex justify-center' : 'px-4 py-4'}`}>
                     <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white shadow-md shadow-black/10" title="Recruiter Portal">
-                            <Zap size={18} />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black overflow-hidden shadow-md shadow-black/10 border border-black/10" title="hire1percent Recruiter Portal">
+                            <img
+                                src="/logo-icon.webp"
+                                alt="hire1percent logo"
+                                width="36"
+                                height="36"
+                                onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                                className="w-full h-full object-cover object-top scale-110"
+                            />
                         </div>
                         {!isMinimized && (
                             <div className="min-w-0 transition-opacity duration-300">

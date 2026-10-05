@@ -51,6 +51,9 @@ const userSchema = new mongoose.Schema({
     walletBalance: { type: Number, default: 0 },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

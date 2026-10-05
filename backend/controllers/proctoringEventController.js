@@ -545,20 +545,73 @@ const submitHumanReview = async (req, res) => {
             });
         }
 
+        const updateFields = {
+            reviewStatus,
+            reviewReason: reviewReason || '',
+            reviewedBy: reviewerId,
+            reviewedAt: now,
+        };
+
+        if (reviewStatus === 'DISMISSED') {
+            updateFields.riskLevel = 'LOW RISK';
+            updateFields.status = 'clean';
+            updateFields.integrityScore = 100;
+            updateFields.proctoringScore = 100;
+        } else if (reviewStatus === 'CONFIRMED_CONCERN') {
+            updateFields.riskLevel = 'HIGH RISK';
+            updateFields.status = 'critical';
+        }
+
         const updatedReport = await ProctoringReport.findOneAndUpdate(
             { examId },
             {
-                reviewStatus,
-                reviewReason: reviewReason || '',
-                reviewedBy: reviewerId,
-                reviewedAt: now,
-                ...(violationId ? { 'timeline.$[elem].reviewStatus': reviewStatus, 'timeline.$[elem].reviewReason': reviewReason || '' } : {})
+                $set: {
+                    ...updateFields,
+                    ...(violationId ? { 'timeline.$[elem].reviewStatus': reviewStatus, 'timeline.$[elem].reviewReason': reviewReason || '' } : {})
+                }
             },
             {
                 new: true,
                 arrayFilters: violationId ? [{ 'elem._id': violationId }] : undefined
             }
         );
+
+        // Also update associated Application document so UI reflects the change immediately
+        try {
+            const Application = require('../models/Application');
+            if (updatedReport && updatedReport.applicationId) {
+                const appUpdate = {
+                    riskLevel: updateFields.riskLevel || updatedReport.riskLevel
+                };
+                if (reviewStatus === 'DISMISSED') {
+                    appUpdate.proctoringScore = 100;
+                    appUpdate.integrityScore = 100;
+                    appUpdate.integrityPenalty = 0;
+                }
+                await Application.findByIdAndUpdate(updatedReport.applicationId, appUpdate);
+            } else if (examId) {
+                const parts = examId.split(':');
+                const jobId = parts.length >= 2 ? parts[1] : null;
+                if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+                    const query = { jobId: new mongoose.Types.ObjectId(jobId) };
+                    if (updatedReport?.userId) query.userId = updatedReport.userId;
+                    const foundApp = await Application.findOne(query);
+                    if (foundApp) {
+                        const appUpdate = {
+                            riskLevel: updateFields.riskLevel || updatedReport?.riskLevel || 'LOW RISK'
+                        };
+                        if (reviewStatus === 'DISMISSED') {
+                            appUpdate.proctoringScore = 100;
+                            appUpdate.integrityScore = 100;
+                            appUpdate.integrityPenalty = 0;
+                        }
+                        await Application.findByIdAndUpdate(foundApp._id, appUpdate);
+                    }
+                }
+            }
+        } catch (appUpdateErr) {
+            console.warn('[SUBMIT REVIEW APPLICATION UPDATE WARN]', appUpdateErr.message);
+        }
 
         // Invalidate Redis cache
         const cacheKey = `proctoring:report:${examId}`;

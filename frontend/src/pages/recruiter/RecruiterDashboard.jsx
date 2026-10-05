@@ -128,7 +128,16 @@ const RecruiterDashboard = () => {
             <div className="rd-hero-banner rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7 relative">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 md:gap-6 relative z-10">
                     <div className="space-y-1.5 max-w-2xl">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black text-white shadow-xs">
+                                <img 
+                                    src="/logo-icon.webp" 
+                                    alt="hire1percent" 
+                                    className="w-4 h-4 object-contain"
+                                    onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                                />
+                                <span className="text-[11px] font-extrabold tracking-tight">hire1<span className="text-slate-400">percent</span></span>
+                            </div>
                             <span className="rd-badge-dark inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 rd-pulse-dot" />
                                 <span>Hiring Hub Live</span>

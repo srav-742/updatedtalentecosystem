@@ -106,7 +106,9 @@ const Applicants = () => {
             integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : 0,
             proctoringScore: app.proctoringScore !== undefined && app.proctoringScore !== null
                 ? app.proctoringScore
-                : (app.integrityPenalty > 0 ? Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)) : null),
+                : (app.integrityScore !== undefined && app.integrityScore !== null
+                    ? app.integrityScore
+                    : (app.integrityPenalty > 0 ? Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)) : null)),
             proctoringFlags: app.proctoringFlags || [],
             status: app.status,
             teamFit: app.teamFit,
@@ -869,13 +871,28 @@ const Applicants = () => {
                                                                           : "bg-red-500/10 border-red-500/20 text-red-400")
                                                                   : "bg-gray-500/10 border-gray-500/20 text-gray-400"
                                                           }`} title={app.proctoringScore != null ? `Integrity Trust Score: ${app.proctoringScore}% | Penalty Points: ${app.integrityPenalty || 0}` : 'Proctoring data not available for this session'}>
-                                                              <span>{app.proctoringScore != null ? `${app.proctoringScore}%` : 'N/A'}</span>
+                                                              {app.proctoringScore != null ? (
+                                                                  <div className="flex items-center gap-1.5">
+                                                                      <span>{app.proctoringScore}%</span>
+                                                                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                                                          app.proctoringScore >= 80 
+                                                                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
+                                                                              : app.proctoringScore >= 50 
+                                                                                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30" 
+                                                                                  : "bg-red-500/20 text-red-300 border-red-500/30"
+                                                                      }`}>
+                                                                          {app.proctoringScore >= 80 ? "Passed" : app.proctoringScore >= 50 ? "Review" : "High Risk"}
+                                                                      </span>
+                                                                  </div>
+                                                              ) : (
+                                                                  <span>N/A</span>
+                                                              )}
                                                               <button
                                                                   onClick={(e) => {
                                                                       e.stopPropagation();
                                                                       handleViewProctoring(app.id);
                                                                   }}
-                                                                  className="p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer opacity-80 hover:opacity-100 hover:bg-white/10"
+                                                                  className="p-1 rounded-lg transition-all hover:scale-110 active:scale-95 cursor-pointer opacity-80 hover:opacity-100 hover:bg-black/10"
                                                                   title="View Proctoring Report"
                                                               >
                                                                   <Eye size={15} />
@@ -1070,6 +1087,10 @@ const Applicants = () => {
                     onClose={() => {
                         setShowProctoringDetail(false);
                         setSelectedProctoringApplicationId(null);
+                        queryClient.invalidateQueries({ queryKey: ['applicants'] });
+                    }}
+                    onUpdate={() => {
+                        queryClient.invalidateQueries({ queryKey: ['applicants'] });
                     }}
                 />
             )}

@@ -163,6 +163,14 @@ const SignupPage = () => {
 
             // Send native verification email
             await sendVerificationEmail(currentUser);
+
+            // Also trigger backend branded email with CTA button
+            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }, {
+                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+            }).catch(e => {
+                console.warn('[SIGNUP] Backend resend-verification warning (non-fatal):', e.message);
+            });
+
             setVerificationNotice({
                 type: 'success',
                 text: `Verification email sent to ${verificationPending.email}! Please check your inbox and spam folder.`
@@ -267,6 +275,13 @@ const SignupPage = () => {
                 3, 'gatewaySession'
             ).catch(err => {
                 console.warn('[SIGNUP] Gateway session warning:', err.message);
+            });
+
+            // 4e. Trigger backend branded verification email (runs alongside Firebase's native verification)
+            axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }, {
+                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+            }).catch(err => {
+                console.warn('[SIGNUP] Backend verification email warning (non-fatal):', err.message);
             });
 
             // 5. DO NOT navigate to dashboard yet — show verification-pending state!
@@ -650,96 +665,146 @@ const SignupPage = () => {
     };
 
     const renderVerificationPending = () => {
-        const isRecruiter = verificationPending?.role === 'recruiter';
-
         return (
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="max-w-xl mx-auto w-full bg-[#0c0f16] border border-white/10 rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden text-center"
-            >
-                {/* Glow accent */}
-                <div className={`absolute top-0 right-0 w-64 h-64 ${isRecruiter ? 'bg-blue-600/10' : 'bg-teal-600/10'} blur-[100px] rounded-full pointer-events-none`} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+                {/* ─── Ethereal Lavender / Purple Cloud Sky Background (Matches Screenshot) ─── */}
+                <div className="absolute inset-0 bg-[#c5b4e3] overflow-hidden pointer-events-none">
+                    <div className="absolute -top-24 -left-24 w-[600px] h-[600px] bg-gradient-to-br from-[#7c3aed]/45 via-[#6366f1]/35 to-transparent rounded-full blur-[100px] opacity-80" />
+                    <div className="absolute top-1/3 -right-24 w-[600px] h-[600px] bg-gradient-to-tl from-[#9333ea]/40 via-[#c084fc]/35 to-transparent rounded-full blur-[110px] opacity-80" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[750px] h-[750px] bg-gradient-to-r from-white/70 via-[#ede9fe]/80 to-[#ddd6fe]/70 rounded-full blur-[90px]" />
+                    <div className="absolute -bottom-24 left-1/3 w-[650px] h-[550px] bg-gradient-to-tr from-[#6366f1]/35 via-[#8b5cf6]/40 to-[#c084fc]/35 rounded-full blur-[100px] opacity-80" />
+                    <div className="absolute inset-0 opacity-25 mix-blend-soft-light bg-[radial-gradient(#ffffff_1.5px,transparent_1.5px)] [background-size:24px_24px]" />
+                </div>
 
-                <div className="relative z-10 flex flex-col items-center">
-                    {/* Animated Icon */}
-                    <div className={`w-20 h-20 rounded-3xl ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'} flex items-center justify-center mb-6 shadow-xl`}>
-                        <Mail className="w-10 h-10 animate-bounce" />
+                {/* ─── Center White Card (Exact Design from Screenshot) ─── */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-full max-w-[440px] bg-white rounded-[2.2rem] sm:rounded-[2.5rem] shadow-[0_25px_70px_-15px_rgba(79,70,229,0.22)] border border-purple-100/90 p-8 sm:p-10 text-center relative z-10"
+                >
+                    {/* Envelope with @ Badge Icon + Floating Dots */}
+                    <div className="relative w-28 h-28 mx-auto rounded-full bg-[#f3f0ff] flex items-center justify-center mb-6 shadow-inner">
+                        {/* 4 Floating dots */}
+                        <motion.span 
+                            animate={{ y: [0, -4, 0] }}
+                            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                            className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-[#6366f1]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, 3, 0] }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+                            className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#818cf8]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, -3, 0] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+                            className="absolute bottom-3 right-4 w-2 h-2 rounded-full bg-[#7c3aed]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, 4, 0] }}
+                            transition={{ duration: 2.7, repeat: Infinity, ease: 'easeInOut', delay: 0.9 }}
+                            className="absolute bottom-5 left-3 w-1.5 h-1.5 rounded-full bg-[#a855f7]"
+                        />
+
+                        {/* Envelope Illustration */}
+                        <div className="relative">
+                            <svg width="68" height="52" viewBox="0 0 68 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="6" width="64" height="42" rx="8" fill="#ffffff" stroke="#e0e7ff" strokeWidth="2" />
+                                <path d="M4 12 L34 32 L64 12" fill="#fef3c7" stroke="#fcd34d" strokeWidth="1.5" />
+                                <path d="M2 46 L26 24" stroke="#e0e7ff" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M66 46 L42 24" stroke="#e0e7ff" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+
+                            {/* Center Circular Badge with @ */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#6366f1] text-white flex items-center justify-center shadow-lg border-2 border-white">
+                                <span className="text-sm font-bold leading-none select-none">@</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <h2 className="text-3xl font-bold mb-3 text-white">Check Your Email</h2>
-                    
-                    <p className="text-gray-400 text-sm mb-2 max-w-md">
-                        We've sent a verification link to:
+                    {/* Primary Title */}
+                    <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#312E81] mb-2.5 tracking-tight">
+                        Authenticate Your Email Address
+                    </h1>
+
+                    {/* Subtitle / Email */}
+                    <p className="text-gray-500 text-sm sm:text-[15px] leading-relaxed mb-6 max-w-sm mx-auto">
+                        An email has been sent to{' '}
+                        <span className="font-semibold underline text-gray-800 break-all">
+                            {verificationPending?.email}
+                        </span>
+                        . Please check your inbox to verify your account.
                     </p>
 
-                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm font-medium mb-4 max-w-full truncate">
-                        {verificationPending?.email}
-                    </div>
-
-                    <p className="text-gray-400 text-xs mb-6 max-w-md leading-relaxed">
-                        Please click the link in the email to verify your address. Once verified, click below to continue into your Hire1Percent dashboard.
-                    </p>
-
+                    {/* Notice alert */}
                     {verificationNotice.text && (
-                        <div className={`w-full mb-6 p-3.5 rounded-2xl text-xs border text-left ${
+                        <div className={`w-full mb-4 p-3 rounded-xl text-xs border text-left ${
                             verificationNotice.type === 'success'
-                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : verificationNotice.type === 'warning'
-                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-rose-50 text-rose-800 border-rose-200'
                         }`}>
                             {verificationNotice.text}
                         </div>
                     )}
 
-                    <div className="w-full space-y-3">
-                        {/* Primary Button: I've Verified My Email */}
+                    {/* Action Buttons */}
+                    <div className="space-y-3">
+                        {/* Primary Button: Check Verification */}
                         <button
                             type="button"
                             onClick={handleCheckVerification}
                             disabled={checkingVerification}
-                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${
-                                isRecruiter
-                                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                            } ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className="w-full py-3.5 px-6 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-semibold text-sm transition-all shadow-md shadow-blue-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                         >
-                            {checkingVerification && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {checkingVerification ? "Checking Status..." : "I've Verified My Email"}
+                            {checkingVerification ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Checking verification...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>I've Verified My Email</span>
+                                </>
+                            )}
                         </button>
 
-                        {/* Secondary Button: Resend */}
-                        <button
-                            type="button"
-                            onClick={handleResendEmail}
-                            disabled={checkingVerification || resendCooldown > 0}
-                            className={`w-full py-3 rounded-2xl border border-white/10 hover:bg-white/5 text-gray-300 hover:text-white transition-all text-xs font-semibold flex items-center justify-center gap-2 ${
-                                resendCooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                        >
-                            <RefreshCw className={`w-3.5 h-3.5 ${checkingVerification ? 'animate-spin' : ''}`} />
-                            {resendCooldown > 0
-                                ? `Resend Verification Email (${resendCooldown}s)`
-                                : "Resend Verification Email"
-                            }
-                        </button>
-
-                        {/* Back / Wrong Email */}
+                        {/* Secondary Button: Update Email (Matches Screenshot "Update email") */}
                         <button
                             type="button"
                             onClick={() => {
                                 setVerificationPending(null);
                                 setVerificationNotice({ type: '', text: '' });
                             }}
-                            className="text-xs text-gray-500 hover:text-gray-300 transition-colors pt-2"
+                            className="w-full py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                            Entered wrong email? Go back
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>Update email</span>
                         </button>
                     </div>
-                </div>
-            </motion.div>
+
+                    {/* Footer Subtext with "Send it once more." link */}
+                    <p className="text-xs text-gray-500 mt-6 flex items-center justify-center gap-1">
+                        <span>Email not received?</span>
+                        <button
+                            type="button"
+                            onClick={handleResendEmail}
+                            disabled={checkingVerification || resendCooldown > 0}
+                            className={`font-semibold underline transition-colors cursor-pointer ${
+                                resendCooldown > 0
+                                    ? 'text-gray-400 cursor-not-allowed'
+                                    : 'text-[#2563eb] hover:text-[#1d4ed8]'
+                            }`}
+                        >
+                            {resendCooldown > 0 ? `Wait (${resendCooldown}s)` : 'Send it once more.'}
+                        </button>
+                    </p>
+                </motion.div>
+            </div>
         );
     };
 
