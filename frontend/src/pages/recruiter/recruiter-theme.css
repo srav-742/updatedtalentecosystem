@@ -188,6 +188,12 @@
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
+.rec-select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+}
+
 .rec-input:focus,
 .rec-select:focus,
 .rec-textarea:focus {

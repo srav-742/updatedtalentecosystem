@@ -32,9 +32,9 @@ const OnboardingKit = () => {
         roleTitle: '',
         salary: '',
         startDate: '',
-        companyName: 'Your Tech Company',
-        managerName: 'Hiring Manager',
-        effectiveDate: new Date().toLocaleDateString(),
+        companyName: '',
+        managerName: '',
+        effectiveDate: '',
     });
 
     const activeTemplate = onboardingTemplates[selectedId];
@@ -112,7 +112,7 @@ const OnboardingKit = () => {
             </head>
             <body>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 1px solid #ddd; padding-bottom: 20px;">
-                    <div style="font-size: 18pt; font-weight: 900; text-transform: uppercase;">${formData.companyName}</div>
+                    <div style="font-size: 18pt; font-weight: 900; text-transform: uppercase;">${formData.companyName?.trim() || '[COMPANY NAME]'}</div>
                     <div style="text-align: right; font-size: 9pt; color: #555;">
                         <strong>OFFICIAL DOCUMENT</strong><br/>
                         ${activeTemplate.title} Ref #GEN-${documentRef}
@@ -120,7 +120,7 @@ const OnboardingKit = () => {
                 </div>
                 ${htmlContent}
                 <div style="margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 8pt; color: #777; text-align: center;">
-                    Copyright © ${new Date().getFullYear()} ${formData.companyName} | Generated via hire1percent Zero-Admin Suite
+                    Copyright © ${new Date().getFullYear()} ${formData.companyName?.trim() || 'Company'} | Generated via hire1percent Zero-Admin Suite
                 </div>
             </body>
             </html>
@@ -235,6 +235,9 @@ const OnboardingKit = () => {
                                         {field === 'roleTitle' && <Briefcase size={12} />}
                                         {field === 'salary' && <DollarSign size={12} />}
                                         {field === 'startDate' && <Calendar size={12} />}
+                                        {field === 'effectiveDate' && <Calendar size={12} />}
+                                        {field === 'companyName' && <Briefcase size={12} />}
+                                        {field === 'managerName' && <User size={12} />}
                                         {field.replace(/([A-Z])/g, ' $1')}
                                     </label>
                                     <input
@@ -268,10 +271,12 @@ const OnboardingKit = () => {
                         <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-200">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-lg">
-                                    {formData.companyName?.[0] || 'C'}
+                                    {formData.companyName?.trim()?.[0]?.toUpperCase() || 'C'}
                                 </div>
                                 <div>
-                                    <h3 className="font-extrabold uppercase tracking-tight text-base text-slate-900">{formData.companyName}</h3>
+                                    <h3 className="font-extrabold uppercase tracking-tight text-base text-slate-900">
+                                        {formData.companyName?.trim() || 'YOUR COMPANY NAME'}
+                                    </h3>
                                     <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Confidential Document</p>
                                 </div>
                             </div>
@@ -288,7 +293,7 @@ const OnboardingKit = () => {
 
                         {/* Document Footer */}
                         <div className="mt-14 pt-6 border-t border-slate-200 text-slate-400 text-[11px] flex flex-col sm:flex-row justify-between gap-2">
-                            <span>Copyright © {new Date().getFullYear()} {formData.companyName}</span>
+                            <span>Copyright © {new Date().getFullYear()} {formData.companyName?.trim() || 'Company'}</span>
                             <span>Generated via hire1percent Recruitment Suite</span>
                         </div>
                     </motion.div>

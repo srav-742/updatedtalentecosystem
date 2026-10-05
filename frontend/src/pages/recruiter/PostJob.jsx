@@ -16,6 +16,7 @@ const PostJob = () => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+    const [isJobTypeOpen, setIsJobTypeOpen] = useState(false);
 
     useEffect(() => {
         if (!user.uid && !user._id && !user.id) {
@@ -573,25 +574,54 @@ const PostJob = () => {
     }
 
     return (
-        <div className="max-w-4xl mx-auto pb-12">
-            <div className="mb-10">
-                <h1 className="text-3xl font-bold mb-2">Post a New Job</h1>
-                <p className="text-gray-400">Define your requirements and find the best talent.</p>
-            </div>
+        <div className="max-w-5xl mx-auto pb-12">
+            {/* Executive Navbar / Header for Post a Job */}
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7 mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
+                                {editJobId ? 'Requisition Editor' : 'Requisition Hub'}
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                                AI-driven candidate screening & assessment workflow
+                            </span>
+                        </div>
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
+                            {editJobId ? 'Edit' : 'Post a'} <span className="rec-text-gradient">New Job</span>
+                        </h1>
+                        <p className="text-xs md:text-sm text-slate-600 max-w-xl font-normal">
+                            Define your requirements, configure AI evaluation criteria, and find top talent with AI precision.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/recruiter/my-jobs')}
+                            className="rec-btn-secondary px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs hover:shadow-xs transition"
+                        >
+                            <Briefcase size={14} />
+                            <span>My Jobs</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
 
             <form onSubmit={handleSubmit} className="space-y-8">
                 {/* A. Job Information */}
-                <div className="rec-card p-7 md:p-8 space-y-6">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20">
+                <div className="rec-card p-6 md:p-8 space-y-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 font-bold border border-blue-500/20">
                             A
                         </div>
                         <h2 className="text-lg font-bold text-slate-900">Job Information</h2>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="md:col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Job Title</label>
+                    <div className="space-y-4">
+                        {/* Job Title: decreased box size & removed wide stretch */}
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Job Title</label>
                             <input
                                 type="text"
                                 name="title"
@@ -599,284 +629,324 @@ const PostJob = () => {
                                 onChange={handleChange}
                                 placeholder="e.g. Senior Web3 Developer"
                                 required
-                                className="rec-input w-full px-4 py-2.5 text-xs font-medium"
+                                className="rec-input w-full max-w-sm px-3 py-1.5 text-xs font-medium rounded-xl"
                             />
                         </div>
-                        <div className="md:col-span-2">
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Job Description</label>
-                                <button
-                                    type="button"
-                                    onClick={generateAIDescription}
-                                    disabled={isGeneratingDesc || !jobData.title}
-                                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100/70 transition-colors text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                >
-                                    {isGeneratingDesc ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                                    Generate with AI
-                                </button>
+
+                        {/* Location & Job Type: decreased box size & removed wide stretch */}
+                        <div className="flex flex-wrap items-center gap-4">
+                            <div className="w-full sm:w-60">
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Location</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                    <input
+                                        type="text"
+                                        name="location"
+                                        value={jobData.location}
+                                        onChange={handleChange}
+                                        placeholder="e.g. New York or Remote"
+                                        required
+                                        className="rec-input w-full pl-8 pr-2.5 py-1.5 text-xs font-medium rounded-xl"
+                                    />
+                                </div>
                             </div>
-                            <textarea
-                                name="description"
-                                value={jobData.description}
-                                onChange={handleChange}
-                                rows="6"
-                                placeholder="Describe the role, responsibilities, and requirements..."
-                                required
-                                className="rec-input w-full px-4 py-2.5 text-xs font-medium resize-none"
-                            ></textarea>
+                            <div className="w-full sm:w-52">
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Job Type</label>
+                                <div className="relative">
+                                    <select
+                                        name="type"
+                                        value={jobData.type}
+                                        onChange={(e) => {
+                                            handleChange(e);
+                                            setIsJobTypeOpen(false);
+                                        }}
+                                        onFocus={() => setIsJobTypeOpen(true)}
+                                        onBlur={() => setIsJobTypeOpen(false)}
+                                        required
+                                        className="rec-select appearance-none w-full px-3 py-1.5 pr-8 text-xs font-medium cursor-pointer rounded-xl bg-white"
+                                        style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}
+                                    >
+                                        <option value="" disabled>Select Job Type</option>
+                                        <option value="Full-time">Full-time</option>
+                                        <option value="Internship">Internship</option>
+                                        <option value="Contract">Contract</option>
+                                        <option value="Part-time">Part-time</option>
+                                    </select>
+                                    <ChevronDown 
+                                        className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform duration-200 ${
+                                            isJobTypeOpen ? 'rotate-180' : 'rotate-0'
+                                        }`} 
+                                        size={14} 
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-blue-400 mb-2 flex items-center gap-2">
-                                <Zap size={16} /> Special Instructions for AI Agent
-                            </label>
-                            <textarea
-                                name="specialInstructions"
-                                value={jobData.specialInstructions}
-                                onChange={handleChange}
-                                rows="3"
-                                placeholder="Example:
+
+                        {/* Job Description & Special Instructions for AI Agent: Side-by-Side and Enlarged */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                            {/* Job Description */}
+                            <div className="flex flex-col">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Job Description</label>
+                                    <button
+                                        type="button"
+                                        onClick={generateAIDescription}
+                                        disabled={isGeneratingDesc || !jobData.title}
+                                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100/70 transition-colors text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        {isGeneratingDesc ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                                        Generate with AI
+                                    </button>
+                                </div>
+                                <textarea
+                                    name="description"
+                                    value={jobData.description}
+                                    onChange={handleChange}
+                                    rows="10"
+                                    placeholder="Describe the role, responsibilities, and requirements..."
+                                    required
+                                    className="rec-input w-full p-3.5 text-xs font-medium resize-y min-h-[250px] flex-1 leading-relaxed"
+                                ></textarea>
+                            </div>
+
+                            {/* Special Instructions for AI Agent */}
+                            <div className="flex flex-col">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Zap size={14} className="text-amber-500 fill-amber-500/20" /> Special Instructions for AI Agent
+                                    </label>
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-wider">
+                                        AI Evaluation
+                                    </span>
+                                </div>
+                                <textarea
+                                    name="specialInstructions"
+                                    value={jobData.specialInstructions}
+                                    onChange={handleChange}
+                                    rows="10"
+                                    placeholder="Example:
 • Prefer candidates with startup experience
 • Avoid candidates who frequently change jobs
 • Prioritize candidates with system design knowledge"
-                                className="rec-input w-full px-4 py-2.5 text-xs font-medium resize-none text-sm"
-                            ></textarea>
-                            <p className="mt-2 text-[10px] text-gray-500 italic">
-                                This information will only be used by our AI to better filter candidates. It will NOT appear in the public job description.
-                            </p>
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Location</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    name="location"
-                                    value={jobData.location}
-                                    onChange={handleChange}
-                                    placeholder="e.g. New York or Remote"
-                                    required
-                                    className="rec-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Job Type</label>
-                            <div className="relative">
-                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
-                                <select
-                                    name="type"
-                                    value={jobData.type}
-                                    onChange={handleChange}
-                                    required
-                                    className={`w-full px-5 py-3 rounded-2xl bg-[#11131a] border border-white/10 focus:border-blue-500/50 outline-none transition-all appearance-none cursor-pointer ${!jobData.type ? 'text-gray-500' : 'text-white'}`}
-                                >
-                                    <option value="" disabled>Select Job Type</option>
-                                    <option value="Full-time">Full-time</option>
-                                    <option value="Internship">Internship</option>
-                                    <option value="Contract">Contract</option>
-                                    <option value="Part-time">Part-time</option>
-                                </select>
+                                    className="rec-input w-full p-3.5 text-xs font-medium resize-y min-h-[250px] flex-1 leading-relaxed text-xs"
+                                ></textarea>
+                                <p className="mt-2 text-[10px] text-gray-500 italic">
+                                    This information will only be used by our AI to better filter candidates. It will NOT appear in the public job description.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* B. Education Details */}
-                <div className="rec-card p-7 md:p-8 space-y-6 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
-                    <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold border border-purple-500/20 shadow-lg shadow-purple-500/10">
-                                    B
-                                </div>
-                                <h2 className="text-lg font-bold text-slate-900">Education Details</h2>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleAddEducation}
-                                className="w-10 h-10 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-                                title="Add Another Education"
-                            >
-                                <Plus size={20} />
-                            </button>
-                        </div>
-
-                        <div className="space-y-6">
-                            {jobData.education.map((edu, index) => (
-                                <motion.div
-                                    key={index}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 relative group/item hover:border-indigo-200 transition-all"
-                                >
-                                    {index > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveEducation(index)}
-                                            className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all shadow-lg hover:bg-red-600"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    )}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Qualification</label>
-                                            <div className="relative">
-                                                <select
-                                                    value={edu.qualification}
-                                                    onChange={(e) => handleEducationChange(index, 'qualification', e.target.value)}
-                                                    className="rec-select w-full px-4 py-2.5 text-xs font-medium cursor-pointer"
-                                                >
-                                                    <option value="">Select Qualification</option>
-                                                    <option value="B.Tech">B.Tech</option>
-                                                    <option value="M.Tech">M.Tech</option>
-                                                    <option value="BCA">BCA</option>
-                                                    <option value="MCA">MCA</option>
-                                                    <option value="Degree">Degree</option>
-                                                    <option value="Diploma">Diploma</option>
-                                                    <option value="Other">Other</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Specialization</label>
-                                            <div className="relative">
-                                                <select
-                                                    value={edu.specialization}
-                                                    onChange={(e) => handleEducationChange(index, 'specialization', e.target.value)}
-                                                    className="rec-select w-full px-4 py-2.5 text-xs font-medium cursor-pointer"
-                                                >
-                                                    <option value="">Select Specialization</option>
-                                                    <option value="CSE">CSE</option>
-                                                    <option value="ECE">ECE</option>
-                                                    <option value="EEE">EEE</option>
-                                                    <option value="IT">IT</option>
-                                                    <option value="Mechanical">Mechanical</option>
-                                                    <option value="Civil">Civil</option>
-                                                    <option value="All Branches">All Branches Eligible</option>
-                                                    <option value="Other">Other</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                                            </div>
-                                        </div>
+                {/* B & C: Education & Work Experience Side by Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                    {/* B. Education Details */}
+                    <div className="rec-card p-6 md:p-7 space-y-5 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none" />
+                        <div className="relative z-10 flex-1 flex flex-col">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-600 font-bold border border-purple-500/20 shadow-sm">
+                                        B
                                     </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* C. Experience Requirements */}
-                <div className="rec-card p-7 md:p-8 space-y-6 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold border border-pink-500/20 shadow-lg shadow-pink-500/10">
-                                C
-                            </div>
-                            <h2 className="text-lg font-bold text-slate-900">Work Experience</h2>
-                        </div>
-
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Experience Level</label>
-                            <div className="relative group/select">
-                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-pink-500/50 group-focus-within/select:text-pink-500 transition-colors" size={20} />
-                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
-                                <select
-                                    name="experienceLevel"
-                                    value={jobData.experienceLevel}
-                                    onChange={handleChange}
-                                    className="rec-select w-full pl-10 pr-4 py-2.5 text-xs font-medium cursor-pointer"
-                                >
-                                    <option value="Fresher">Fresher (0 Years)</option>
-                                    <option value="0-1 Years">0-1 Years</option>
-                                    <option value="1-2 Years">1-2 Years</option>
-                                    <option value="3+ Years">3+ Years</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* C. Skill Requirements */}
-                <div className="rec-card p-7 md:p-8 space-y-6">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold border border-teal-500/20">
-                            D
-                        </div>
-                        <h2 className="text-lg font-bold text-slate-900">Skill Requirements</h2>
-                    </div>
-
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Skills</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={currentSkill}
-                                    onChange={(e) => setCurrentSkill(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
-                                    placeholder="Add skill (e.g. Solidity)"
-                                    className="flex-1 px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-teal-500/50 outline-none transition-all"
-                                />
+                                    <h2 className="text-base font-bold text-slate-900">Education Details</h2>
+                                </div>
                                 <button
                                     type="button"
-                                    onClick={handleAddSkill}
-                                    className="px-5 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white transition-all font-bold"
+                                    onClick={handleAddEducation}
+                                    className="w-8 h-8 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xs"
+                                    title="Add Another Education"
                                 >
-                                    <Plus size={20} />
+                                    <Plus size={16} />
                                 </button>
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-4">
-                                {jobData.skills.length > 0 ? jobData.skills.map(skill => (
-                                    <span key={skill} className="px-4 py-2 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 text-sm flex items-center gap-2">
-                                        {skill}
-                                        <button type="button" onClick={() => removeSkill(skill)}><X size={14} /></button>
-                                    </span>
-                                )) : <p className="text-xs text-gray-600 italic">No skills added yet.</p>}
+
+                            <div className="space-y-4 flex-1">
+                                {jobData.education.map((edu, index) => (
+                                    <motion.div
+                                        key={index}
+                                        initial={{ opacity: 0, y: 15 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 relative group/item hover:border-indigo-200 transition-all"
+                                    >
+                                        {index > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveEducation(index)}
+                                                className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all shadow-md hover:bg-red-600 cursor-pointer"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qualification</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={edu.qualification}
+                                                        onChange={(e) => handleEducationChange(index, 'qualification', e.target.value)}
+                                                        className="rec-select w-full px-3 py-1.5 text-xs font-medium cursor-pointer"
+                                                    >
+                                                        <option value="">Select Qualification</option>
+                                                        <option value="B.Tech">B.Tech</option>
+                                                        <option value="M.Tech">M.Tech</option>
+                                                        <option value="BCA">BCA</option>
+                                                        <option value="MCA">MCA</option>
+                                                        <option value="Degree">Degree</option>
+                                                        <option value="Diploma">Diploma</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Specialization</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={edu.specialization}
+                                                        onChange={(e) => handleEducationChange(index, 'specialization', e.target.value)}
+                                                        className="rec-select w-full px-3 py-1.5 text-xs font-medium cursor-pointer"
+                                                    >
+                                                        <option value="">Select Specialization</option>
+                                                        <option value="CSE">CSE</option>
+                                                        <option value="ECE">ECE</option>
+                                                        <option value="EEE">EEE</option>
+                                                        <option value="IT">IT</option>
+                                                        <option value="Mechanical">Mechanical</option>
+                                                        <option value="Civil">Civil</option>
+                                                        <option value="All Branches">All Branches Eligible</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* C. Experience Requirements */}
+                    <div className="rec-card p-6 md:p-7 space-y-5 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none" />
+                        <div className="relative z-10 flex-1 flex flex-col">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-9 h-9 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-600 font-bold border border-pink-500/20 shadow-sm">
+                                    C
+                                </div>
+                                <h2 className="text-base font-bold text-slate-900">Work Experience</h2>
+                            </div>
+
+                            <div className="flex-1 flex flex-col justify-center">
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Experience Level</label>
+                                <div className="relative group/select">
+                                    <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 text-pink-500/70 group-focus-within/select:text-pink-500 transition-colors" size={16} />
+                                    <select
+                                        name="experienceLevel"
+                                        value={jobData.experienceLevel}
+                                        onChange={handleChange}
+                                        className="rec-select w-full pl-10 pr-9 py-2 text-xs font-medium cursor-pointer"
+                                    >
+                                        <option value="Fresher">Fresher (0 Years)</option>
+                                        <option value="0-1 Years">0-1 Years</option>
+                                        <option value="1-2 Years">1-2 Years</option>
+                                        <option value="3+ Years">3+ Years</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                </div>
+                                <p className="mt-3 text-[11px] text-gray-500 leading-relaxed">
+                                    Filter and align candidate profiles with your desired experience level.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* D. Resume Selection Logic */}
-                <div className="rec-card p-7 md:p-8 space-y-6">
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">
-                                E
+                {/* D & E: Skills Section & Resume Logic Side by Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                    {/* D. Skill Requirements */}
+                    <div className="rec-card p-6 md:p-7 space-y-5 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-9 h-9 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-600 font-bold border border-teal-500/20">
+                                    D
+                                </div>
+                                <h2 className="text-base font-bold text-slate-900">Skill Requirements</h2>
                             </div>
-                            <h2 className="text-lg font-bold text-slate-900">Resume Selection Logic</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Required Skills</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={currentSkill}
+                                            onChange={(e) => setCurrentSkill(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
+                                            placeholder="Add skill (e.g. Solidity)"
+                                            className="rec-input flex-1 px-3 py-2 text-xs font-medium"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddSkill}
+                                            className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition-all font-bold flex items-center justify-center cursor-pointer shadow-xs"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 mt-3 min-h-[44px]">
+                                        {jobData.skills.length > 0 ? jobData.skills.map(skill => (
+                                            <span key={skill} className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold flex items-center gap-1.5">
+                                                {skill}
+                                                <button type="button" onClick={() => removeSkill(skill)} className="hover:text-red-500 transition-colors cursor-pointer"><X size={12} /></button>
+                                            </span>
+                                        )) : <p className="text-xs text-gray-400 italic py-2">No skills added yet.</p>}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => handleToggle('resumeAnalysis.enabled')}
-                            className={`w-12 h-6 rounded-full transition-all relative ${jobData.resumeAnalysis?.enabled !== false ? 'bg-emerald-500' : 'bg-gray-700'}`}
-                        >
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${jobData.resumeAnalysis?.enabled !== false ? 'left-7' : 'left-1'}`} />
-                        </button>
                     </div>
 
-                    <div className={`transition-all ${jobData.resumeAnalysis?.enabled !== false ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none'}`}>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-gray-500">Resume Match Threshold</label>
-                            <span className="text-emerald-400 font-bold text-lg">{jobData.minPercentage}/100</span>
+                    {/* E. Resume Selection Logic */}
+                    <div className="rec-card p-6 md:p-7 space-y-5 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold border border-emerald-500/20">
+                                        E
+                                    </div>
+                                    <h2 className="text-base font-bold text-slate-900">Resume Selection Logic</h2>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggle('resumeAnalysis.enabled')}
+                                    className={`w-11 h-6 rounded-full transition-all relative cursor-pointer ${jobData.resumeAnalysis?.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-xs ${jobData.resumeAnalysis?.enabled !== false ? 'left-6' : 'left-1'}`} />
+                                </button>
+                            </div>
+
+                            <div className={`transition-all ${jobData.resumeAnalysis?.enabled !== false ? 'opacity-100 pointer-events-auto' : 'opacity-40 pointer-events-none'}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-semibold text-slate-600">Resume Match Threshold</label>
+                                    <span className="text-emerald-600 font-extrabold text-base">{jobData.minPercentage}/100</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    name="minPercentage"
+                                    min="0"
+                                    max="100"
+                                    step="5"
+                                    value={jobData.minPercentage}
+                                    onChange={handleChange}
+                                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                                />
+                                <p className="mt-3 text-xs text-emerald-800 bg-emerald-50 p-3 rounded-xl border border-emerald-200 leading-relaxed font-medium">
+                                    Message: All the applicants whose resume matches with the {jobData.minPercentage}% will be eligible.
+                                </p>
+                            </div>
                         </div>
-                        <input
-                            type="range"
-                            name="minPercentage"
-                            min="0"
-                            max="100"
-                            step="5"
-                            value={jobData.minPercentage}
-                            onChange={handleChange}
-                            className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                        />
-                        <p className="mt-4 text-xs text-emerald-400 bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 leading-relaxed font-medium">
-                            Message: All the applicants whose resume matches with the {jobData.minPercentage}% will be eligible.
-                        </p>
                     </div>
                 </div>
 
