@@ -285,8 +285,24 @@ const gatewayMiddleware = async (req, res, next) => {
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'User associated with this token was not found.'
+                message: 'Your session has expired.',
+                code: 'SESSION_EXPIRED',
+                accountDeleted: true,
+                sessionExpired: true
             });
+        }
+
+        // Enforce server-side expiration check for pilot recruiters
+        if (user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your session has expired.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true,
+                    sessionExpired: true
+                });
+            }
         }
 
         req.user = user;

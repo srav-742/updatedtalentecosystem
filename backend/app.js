@@ -90,6 +90,7 @@ const searchRoutes = require('./routes/searchRoutes');
 const voiceAgentRoutes = require('./routes/voiceAgentRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const gatewayRoutes = require('./routes/gatewayRoutes');
+const adminPilotRoutes = require('./routes/adminPilotRoutes');
 
 
 
@@ -190,6 +191,7 @@ app.use('/api', gatewayMiddleware);
 app.use('/api', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', recruiterRoutes);
+app.use('/api', adminPilotRoutes);
 
 // 🚀 High-traffic read routes — wrapped with cache middleware for instant responses
 // Jobs: cache 5 min (data changes rarely, public endpoint)

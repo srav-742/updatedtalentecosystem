@@ -18,19 +18,41 @@ const authMiddleware = async (req, res, next) => {
                     const token = authHeader.split(' ')[1];
                     const decodedToken = await admin.auth().verifyIdToken(token);
 
-                    // Enforce email verification for password accounts
-                    if (decodedToken.firebase?.sign_in_provider === 'password' && !decodedToken.email_verified) {
-                        return res.status(403).json({
-                            message: "Email verification required. Please verify your email before accessing this resource.",
-                            emailUnverified: true
+                    const user = await User.findOne({ uid: decodedToken.uid });
+
+                    if (!user) {
+                        return res.status(401).json({
+                            message: "Your session has expired.",
+                            code: "SESSION_EXPIRED",
+                            accountDeleted: true,
+                            sessionExpired: true
                         });
                     }
 
-                    const user = await User.findOne({ uid: decodedToken.uid });
-                    if (user) {
-                        req.user = user;
-                        return next();
+                    // Enforce email verification for password accounts (admin-created pilot accounts are exempt)
+                    if (decodedToken.firebase?.sign_in_provider === 'password' && !decodedToken.email_verified) {
+                        const isPilot = user && user.role === 'recruiter' && user.accountType === 'pilot';
+                        if (!isPilot) {
+                            return res.status(403).json({
+                                message: "Email verification required. Please verify your email before accessing this resource.",
+                                emailUnverified: true
+                            });
+                        }
                     }
+
+                    // Enforce server-side expiration check for pilot recruiters
+                    if (user.role === 'recruiter' && user.accountType === 'pilot') {
+                        if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                            return res.status(403).json({
+                                message: "Your session has expired.",
+                                code: 'PILOT_EXPIRED',
+                                pilotExpired: true,
+                                sessionExpired: true
+                            });
+                        }
+                    }
+                    req.user = user;
+                    return next();
                 }
             } catch (fbError) {
                 // Only log if it's not a "no app" error, to keep console clean
@@ -54,6 +76,17 @@ const authMiddleware = async (req, res, next) => {
             }
             const user = await User.findOne(query);
             if (user) {
+                // Enforce server-side expiration check for pilot recruiters
+                if (user.role === 'recruiter' && user.accountType === 'pilot') {
+                    if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                        return res.status(403).json({
+                            message: "Your session has expired.",
+                            code: 'PILOT_EXPIRED',
+                            pilotExpired: true,
+                            sessionExpired: true
+                        });
+                    }
+                }
                 req.user = user;
                 return next();
             }
@@ -75,7 +108,20 @@ const authMiddleware = async (req, res, next) => {
                     query = { uid: trimmed };
                 }
                 const user = await User.findOne(query);
-                if (user) { req.user = user; return next(); }
+                if (user) {
+                    if (user.role === 'recruiter' && user.accountType === 'pilot') {
+                        if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                            return res.status(403).json({
+                                message: "Your session has expired.",
+                                code: 'PILOT_EXPIRED',
+                                pilotExpired: true,
+                                sessionExpired: true
+                            });
+                        }
+                    }
+                    req.user = user;
+                    return next();
+                }
             } catch (e) {}
         }
 

@@ -207,9 +207,36 @@ const deleteJob = async (req, res) => {
 
 const createJob = async (req, res) => {
     try {
+        // Enforce server-side expiration check for pilot recruiters
+        if (req.user && req.user.role === 'recruiter' && req.user.accountType === 'pilot') {
+            if (req.user.pilotExpiresAt && new Date() > new Date(req.user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true
+                });
+            }
+        }
+
         const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
         const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
         const jobData = { ...req.body, status: initialStatus };
+
+        if (jobData.recruiterId) {
+            const { findRecruiterUser } = require('../utils/userResolver');
+            const recruiterUser = await findRecruiterUser(jobData.recruiterId);
+            if (recruiterUser && recruiterUser.role === 'recruiter' && recruiterUser.accountType === 'pilot') {
+                if (recruiterUser.pilotExpiresAt && new Date() > new Date(recruiterUser.pilotExpiresAt)) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                        code: 'PILOT_EXPIRED',
+                        pilotExpired: true
+                    });
+                }
+            }
+        }
 
         const norm = normalizeJobRecruiterQuestions(jobData);
         if (!norm.isValid) {

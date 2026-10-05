@@ -106,6 +106,17 @@ const getUserProfile = async (req, res) => {
                 : (resumeProfile.professionalProfiles || []);
         }
 
+        if (mergedUser.accountType === 'pilot') {
+            const now = new Date();
+            const expiresAt = mergedUser.pilotExpiresAt ? new Date(mergedUser.pilotExpiresAt) : null;
+            mergedUser.isPilotExpired = expiresAt ? now > expiresAt : false;
+            if (expiresAt) {
+                const msRemaining = Math.max(0, expiresAt.getTime() - now.getTime());
+                mergedUser.daysRemaining = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
+                mergedUser.hoursRemaining = Math.floor((msRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            }
+        }
+
         res.json(mergedUser);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
@@ -204,7 +215,7 @@ const updateUserProfile = async (req, res) => {
 
 const getAnalyticsData = async (req, res) => {
     try {
-        const users = await User.find({}, 'name email role company designation skills phone isPro createdAt uid');
+        const users = await User.find({}, 'name email role company designation skills phone isPro accountType pilotExpiresAt createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
         const seekers = users.filter(u => u.role === 'candidate');
@@ -252,7 +263,7 @@ const getAnalyticsData = async (req, res) => {
             ...recruiters.map(r => 
                 Recruiter.findOneAndUpdate(
                     { userId: r._id },
-                    { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, createdAt: r.createdAt },
+                    { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, accountType: r.accountType || 'normal', pilotExpiresAt: r.pilotExpiresAt || null, createdAt: r.createdAt },
                     { upsert: true }
                 )
             ),

@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
     password: { type: String },
     uid: { type: String, unique: true, index: true, sparse: true },
     role: { type: String, enum: ['candidate', 'recruiter', 'admin'], default: 'candidate', index: true },
+    accountType: { type: String, enum: ['normal', 'pilot'], default: 'normal', index: true },
+    pilotExpiresAt: { type: Date, default: null },
     profilePic: String,
     designation: String,
     phone: String,

@@ -34,6 +34,9 @@ const LoginPage = () => {
         if (roleParam === 'recruiter' || roleParam === 'candidate' || roleParam === 'admin') {
             return roleParam;
         }
+        if (params.get('expired') === 'true' || location.state?.pilotExpired || location.state?.sessionExpired) {
+            return 'recruiter';
+        }
         
         const fromPath = location.state?.from?.pathname || '';
         if (fromPath.startsWith('/candidate')) return 'candidate';
@@ -42,7 +45,37 @@ const LoginPage = () => {
     }); // 'recruiter', 'candidate', or 'admin'
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState({ type: '', text: '' });
+    const [message, setMessage] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        if (location.state?.message) {
+            return { type: 'error', text: location.state.message };
+        }
+        const sessionMsg = sessionStorage.getItem('login_notice_msg');
+        if (sessionMsg) {
+            sessionStorage.removeItem('login_notice_msg');
+            return { type: 'error', text: sessionMsg };
+        }
+        if (params.get('expired') === 'true') {
+            return { type: 'error', text: 'Your session has expired.' };
+        }
+        return { type: '', text: '' };
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const sessionMsg = sessionStorage.getItem('login_notice_msg');
+        if (location.state?.message) {
+            setMessage({ type: 'error', text: location.state.message });
+            if (location.state?.pilotExpired || location.state?.sessionExpired) setRole('recruiter');
+        } else if (sessionMsg) {
+            sessionStorage.removeItem('login_notice_msg');
+            setMessage({ type: 'error', text: sessionMsg });
+            setRole('recruiter');
+        } else if (params.get('expired') === 'true') {
+            setMessage({ type: 'error', text: 'Your session has expired.' });
+            setRole('recruiter');
+        }
+    }, [location.search, location.state]);
 
     // Email verification states for unverified email/password logins
     const [verificationRequired, setVerificationRequired] = useState(() => {
@@ -295,19 +328,25 @@ const LoginPage = () => {
                     }
                 }
 
-                // Enforce email verification for password users
+                // Enforce email verification for password users (pilot recruiters are exempt)
                 const isPasswordAuth = user.providerData?.some(p => p.providerId === 'password');
                 if (isPasswordAuth && !user.emailVerified) {
                     await reloadFirebaseUser(user).catch(() => {});
                     if (!user.emailVerified) {
-                        setVerificationRequired({
-                            email: normalizedEmail,
-                            user: user,
-                            role: role
-                        });
-                        setResendCooldown(60);
-                        setLoading(false);
-                        return;
+                        // Check if this account is an admin-provisioned pilot recruiter before blocking
+                        const candidateProfile = await getUserProfile(normalizedEmail).catch(() => null);
+                        const isPilot = candidateProfile && candidateProfile.role === 'recruiter' && candidateProfile.accountType === 'pilot';
+
+                        if (!isPilot) {
+                            setVerificationRequired({
+                                email: normalizedEmail,
+                                user: user,
+                                role: role
+                            });
+                            setResendCooldown(60);
+                            setLoading(false);
+                            return;
+                        }
                     }
                 }
 
@@ -374,6 +413,15 @@ const LoginPage = () => {
                 const selectedIsStaff = role === 'recruiter' || role === 'admin';
                 if (profileIsStaff !== selectedIsStaff) {
                     throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                }
+            }
+
+            // Enforce expiration check for pilot recruiter accounts
+            if (profile && profile.role === 'recruiter' && profile.accountType === 'pilot') {
+                const now = new Date();
+                const expiresAt = profile.pilotExpiresAt ? new Date(profile.pilotExpiresAt) : null;
+                if (expiresAt && now > expiresAt) {
+                    throw new Error("Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.");
                 }
             }
 
@@ -903,7 +951,13 @@ const LoginPage = () => {
             className="max-w-4xl mx-auto text-center"
         >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Welcome Back</h1>
-            <p className="text-gray-400 mb-12 text-lg">Select your account type to continue your journey.</p>
+            <p className="text-gray-400 mb-8 text-lg">Select your account type to continue your journey.</p>
+
+            {message.text && (
+                <div className={`max-w-md mx-auto mb-8 p-4 rounded-2xl text-sm font-semibold text-center ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                    {message.text}
+                </div>
+            )}
 
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                 {/* Recruiter Card */}

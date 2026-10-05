@@ -243,6 +243,18 @@ const login = async (req, res) => {
             console.log(`[AUTH-LOGIN] Password mismatch: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
         }
+
+        // Enforce server-side expiration check for pilot recruiters
+        if (user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true
+                });
+            }
+        }
+
         console.log(`[AUTH-LOGIN] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
         res.json({ message: "Login successful", user });
     } catch (error) {

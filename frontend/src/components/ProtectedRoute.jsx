@@ -17,11 +17,14 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
     const [unverifiedBlocked, setUnverifiedBlocked] = useState(false);
     const [unverifiedEmail, setUnverifiedEmail] = useState('');
 
+    const isPilotAccount = user?.role === 'recruiter' && user?.accountType === 'pilot';
+
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((fbUser) => {
             if (fbUser) {
                 const isPasswordAuth = fbUser.providerData?.some(p => p.providerId === 'password');
-                if (isPasswordAuth && !fbUser.emailVerified) {
+                // Admin-created pilot accounts are exempt from email verification
+                if (isPasswordAuth && !fbUser.emailVerified && !isPilotAccount) {
                     console.warn("[ProtectedRoute] Unverified email/password user blocked:", fbUser.email);
                     try { localStorage.removeItem('user'); } catch (e) {}
                     setUnverifiedEmail(fbUser.email || '');
@@ -30,19 +33,19 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [isPilotAccount]);
 
     // Instant synchronous check if auth.currentUser is already loaded in memory
     const currentFbUser = auth.currentUser;
     if (currentFbUser) {
         const isPasswordAuth = currentFbUser.providerData?.some(p => p.providerId === 'password');
-        if (isPasswordAuth && !currentFbUser.emailVerified) {
+        if (isPasswordAuth && !currentFbUser.emailVerified && !isPilotAccount) {
             try { localStorage.removeItem('user'); } catch (e) {}
             return <Navigate to="/login" state={{ from: location, emailUnverified: true, email: currentFbUser.email }} replace />;
         }
     }
 
-    if (unverifiedBlocked) {
+    if (unverifiedBlocked && !isPilotAccount) {
         return <Navigate to="/login" state={{ from: location, emailUnverified: true, email: unverifiedEmail || user?.email }} replace />;
     }
 
@@ -54,6 +57,33 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
             return <Navigate to="/login" replace />;
         }
         return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // ─── Pilot Expiration Guard ──────────────────────────────────
+    if (isPilotAccount && user.pilotExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(user.pilotExpiresAt);
+        if (now > expiresAt) {
+            console.warn("[ProtectedRoute] Pilot account expired for user:", user.email);
+            try { 
+                localStorage.removeItem('user');
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+            } catch (e) {}
+            return (
+                <Navigate
+                    to="/login?expired=true"
+                    state={{
+                        from: location,
+                        pilotExpired: true,
+                        sessionExpired: true,
+                        message: "Your session has expired."
+                    }}
+                    replace
+                />
+            );
+        }
     }
 
     // ─── Role-Based Access Check ─────────────────────────────────

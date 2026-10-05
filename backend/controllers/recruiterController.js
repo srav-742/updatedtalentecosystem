@@ -7,10 +7,37 @@ const resolveRecruiterJobQuery = async (recruiterId) => {
     return await buildRecruiterJobQuery(recruiterId);
 };
 
+const isPilotExpired = async (recruiterId, reqUser) => {
+    if (reqUser && reqUser.role === 'recruiter' && reqUser.accountType === 'pilot') {
+        if (reqUser.pilotExpiresAt && new Date() > new Date(reqUser.pilotExpiresAt)) {
+            return true;
+        }
+    }
+    if (recruiterId) {
+        const user = await findRecruiterUser(recruiterId);
+        if (user && user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+
 const getRecruiterDashboard = async (req, res) => {
     try {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
 
         // Resolve identifiers once
         const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
@@ -125,6 +152,16 @@ const getRecruiterApplications = async (req, res) => {
     try {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
 
         const recruiterDoc = reqUser || await findRecruiterUser(recruiterId);
         const isAdmin = (reqUser && reqUser.role === 'admin') || (recruiterDoc && recruiterDoc.role === 'admin');
@@ -339,6 +376,17 @@ const getRecruiterJobs = async (req, res) => {
     try {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
         const isAdmin = reqUser && reqUser.role === 'admin';
         
         let jobQuery = {};
@@ -376,6 +424,16 @@ const getRecruiterJobs = async (req, res) => {
 const createJob = async (req, res) => {
     try {
         const { recruiterId, title } = req.body;
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, req.user)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
 
         console.log(`[JOBS] CREATE Attempt - Recruiter: ${recruiterId}, Title: "${title}"`);
 

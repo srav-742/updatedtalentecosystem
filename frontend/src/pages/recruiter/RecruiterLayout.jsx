@@ -102,13 +102,58 @@ const RecruiterLayout = () => {
             return;
         }
 
+        const handleImmediateLogout = async (msg = "Your session has expired.") => {
+            try {
+                await signOut(auth);
+            } catch (e) {}
+            localStorage.removeItem('user');
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            sessionStorage.setItem('login_notice_msg', msg);
+            navigate('/login?expired=true', {
+                state: {
+                    pilotExpired: true,
+                    sessionExpired: true,
+                    message: msg
+                },
+                replace: true
+            });
+        };
+
         const fetchProfile = async () => {
             const uid = user.uid || user._id || user.id;
             if (!uid) return;
 
+            // Immediate client-side check if trial period ended
+            if (user.accountType === 'pilot' && user.pilotExpiresAt) {
+                if (new Date() > new Date(user.pilotExpiresAt)) {
+                    console.warn("[RECRUITER-PILOT] Pilot trial period ended locally. Immediate logout.");
+                    await handleImmediateLogout("Your session has expired.");
+                    return;
+                }
+            }
+
             try {
                 const profileData = await getUserProfile(user.email || uid);
+
+                // If this is a pilot account and profileData is null, admin deleted the credentials!
+                if (user.accountType === 'pilot' && !profileData) {
+                    console.warn("[RECRUITER-PILOT] Pilot account credentials were deleted by admin. Immediate logout.");
+                    await handleImmediateLogout("Your session has expired.");
+                    return;
+                }
+
                 if (profileData) {
+                    // Check if pilot account has expired on server
+                    if (profileData.role === 'recruiter' && profileData.accountType === 'pilot') {
+                        const isExpired = (profileData.pilotExpiresAt && new Date() > new Date(profileData.pilotExpiresAt)) || profileData.isPilotExpired;
+                        if (isExpired) {
+                            console.warn("[RECRUITER-PILOT] Pilot account expired on server. Immediate logout.");
+                            await handleImmediateLogout("Your session has expired.");
+                            return;
+                        }
+                    }
+
                     setProfile(profileData);
                     // IMPORTANT: Always preserve the session role (set at login time).
                     // Never let a background DB fetch overwrite the role — if the DB has
@@ -125,9 +170,21 @@ const RecruiterLayout = () => {
             }
         };
 
-        // Call fetch in background
+        // Call fetch immediately
         fetchProfile();
-    }, [user.uid, user._id, user.id]);
+
+        // If pilot account, keep an active liveness heartbeat running every 5 seconds + on window focus
+        let intervalId = null;
+        if (user.accountType === 'pilot') {
+            intervalId = setInterval(fetchProfile, 5000);
+            window.addEventListener('focus', fetchProfile);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+            window.removeEventListener('focus', fetchProfile);
+        };
+    }, [user.uid, user._id, user.id, user.accountType, user.pilotExpiresAt, navigate]);
 
     const handleLogout = async () => {
         try {
@@ -283,8 +340,18 @@ const RecruiterLayout = () => {
                                                 <Crown size={7} className="fill-black" /> PRO
                                             </span>
                                         )}
+                                        {profile?.accountType === 'pilot' && (
+                                            <span className="flex items-center gap-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.2 text-[7px] font-black uppercase tracking-wider text-blue-600">
+                                                Pilot
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-400">{profile?.designation || 'Hiring Lead'}</p>
+                                    {profile?.accountType === 'pilot' && profile?.pilotExpiresAt && (
+                                        <p className="text-[8px] font-bold text-blue-600 mt-0.5">
+                                            {Math.max(0, Math.ceil((new Date(profile.pilotExpiresAt) - new Date()) / (1000 * 60 * 60 * 24)))} days left
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         )}

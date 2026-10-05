@@ -31,6 +31,8 @@ const syncUserToProfile = async (userOrId) => {
                     company: user.company,
                     designation: user.designation,
                     isPro: user.isPro,
+                    accountType: user.accountType || 'normal',
+                    pilotExpiresAt: user.pilotExpiresAt || null,
                     createdAt: user.createdAt || new Date()
                 },
                 { upsert: true, new: true }

@@ -68,6 +68,29 @@ axios.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    const resData = error.response?.data;
+    const status = error.response?.status;
+
+    // Check if pilot account expired or was deleted by admin
+    const isPilotExpiredOrRevoked = 
+      resData?.pilotExpired || 
+      resData?.code === 'PILOT_EXPIRED' || 
+      resData?.accountDeleted || 
+      (status === 403 && (resData?.code === 'PILOT_EXPIRED' || resData?.pilotExpired)) ||
+      (status === 401 && (resData?.accountDeleted || resData?.sessionExpired));
+
+    if (isPilotExpiredOrRevoked) {
+      console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Pilot account expired or credentials deleted. Immediate logout.');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login?expired=true';
+      }
+      return Promise.reject(error);
+    }
+
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       const errCode = error.response.data?.code;
       if (errCode === 'TOKEN_EXPIRED' || errCode === 'INVALID_TOKEN') {
@@ -102,7 +125,8 @@ axios.interceptors.response.use(
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('user');
-            window.location.href = '/login';
+            sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+            window.location.href = '/login?expired=true';
           }
         }
       } else if (errCode === 'SESSION_EXPIRED') {
@@ -114,7 +138,8 @@ axios.interceptors.response.use(
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+          sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+          window.location.href = '/login?expired=true';
         }
       }
     }
@@ -154,10 +179,28 @@ window.fetch = async function (url, options = {}) {
 
   const response = await originalFetch(url, options);
 
-  if (isTargetApi && response.headers) {
-    const newAccessToken = response.headers.get('X-New-Access-Token');
-    if (newAccessToken) {
-      localStorage.setItem('accessToken', newAccessToken);
+  if (isTargetApi && response) {
+    if (response.headers) {
+      const newAccessToken = response.headers.get('X-New-Access-Token');
+      if (newAccessToken) {
+        localStorage.setItem('accessToken', newAccessToken);
+      }
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      try {
+        const cloned = response.clone();
+        const data = await cloned.json();
+        if (data?.pilotExpired || data?.code === 'PILOT_EXPIRED' || data?.accountDeleted || data?.sessionExpired) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login?expired=true';
+          }
+        }
+      } catch (e) {}
     }
   }
 
