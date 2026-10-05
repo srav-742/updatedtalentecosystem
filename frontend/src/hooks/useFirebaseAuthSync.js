@@ -30,11 +30,6 @@ export const useFirebaseAuthSync = () => {
                 unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
                 if (!firebaseUser || isCancelled) return;
 
-                // Do not auto-sync or activate unverified email/password users
-                const isPasswordUser = firebaseUser.providerData?.some(p => p.providerId === 'password');
-                if (isPasswordUser && !firebaseUser.emailVerified) {
-                    return;
-                }
 
                 const uid = firebaseUser.uid;
                 if (syncedUids.has(uid)) return; // Already checked/synced in this session

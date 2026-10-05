@@ -77,17 +77,8 @@ const LoginPage = () => {
         }
     }, [location.search, location.state]);
 
-    // Email verification states for unverified email/password logins
-    const [verificationRequired, setVerificationRequired] = useState(() => {
-        if (location.state?.emailUnverified && location.state?.email) {
-            return {
-                email: location.state.email,
-                user: auth.currentUser,
-                role: (location.state.from?.pathname?.startsWith('/recruiter') ? 'recruiter' : 'candidate')
-            };
-        }
-        return null;
-    });
+    // Email verification state (disabled for login - email verification is signup only)
+    const [verificationRequired, setVerificationRequired] = useState(null);
     const [checkingVerification, setCheckingVerification] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
     const [verificationNotice, setVerificationNotice] = useState({ type: '', text: '' });
@@ -328,27 +319,6 @@ const LoginPage = () => {
                     }
                 }
 
-                // Enforce email verification for password users (pilot recruiters are exempt)
-                const isPasswordAuth = user.providerData?.some(p => p.providerId === 'password');
-                if (isPasswordAuth && !user.emailVerified) {
-                    await reloadFirebaseUser(user).catch(() => {});
-                    if (!user.emailVerified) {
-                        // Check if this account is an admin-provisioned pilot recruiter before blocking
-                        const candidateProfile = await getUserProfile(normalizedEmail).catch(() => null);
-                        const isPilot = candidateProfile && candidateProfile.role === 'recruiter' && candidateProfile.accountType === 'pilot';
-
-                        if (!isPilot) {
-                            setVerificationRequired({
-                                email: normalizedEmail,
-                                user: user,
-                                role: role
-                            });
-                            setResendCooldown(60);
-                            setLoading(false);
-                            return;
-                        }
-                    }
-                }
 
                 // Fetch Profile and initialize Gateway Session in parallel
                 const [fetchedProfile] = await Promise.all([

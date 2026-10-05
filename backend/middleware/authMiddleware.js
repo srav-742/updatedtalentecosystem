@@ -29,16 +29,6 @@ const authMiddleware = async (req, res, next) => {
                         });
                     }
 
-                    // Enforce email verification for password accounts (admin-created pilot accounts are exempt)
-                    if (decodedToken.firebase?.sign_in_provider === 'password' && !decodedToken.email_verified) {
-                        const isPilot = user && user.role === 'recruiter' && user.accountType === 'pilot';
-                        if (!isPilot) {
-                            return res.status(403).json({
-                                message: "Email verification required. Please verify your email before accessing this resource.",
-                                emailUnverified: true
-                            });
-                        }
-                    }
 
                     // Enforce server-side expiration check for pilot recruiters
                     if (user.role === 'recruiter' && user.accountType === 'pilot') {
