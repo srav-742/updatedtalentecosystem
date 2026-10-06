@@ -436,7 +436,7 @@ const SignupPage = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Choose Your Path</h1>
             <p className="text-gray-400 mb-12 text-lg">Are you looking to hire top talent or start your dream career?</p>
 
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                 {/* Recruiter Card */}
                 <motion.div
                     initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}

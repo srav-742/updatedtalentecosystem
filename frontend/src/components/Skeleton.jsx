@@ -301,68 +301,68 @@ export const ApplicantsSkeleton = () => (
                 <colgroup>
                     <col style={{ width: '4%' }} />
                     <col style={{ width: '18%' }} />
-                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '5%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '9%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '10%' }} />
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '15%' }} />
+                    <col style={{ width: '9%' }} />
                     <col style={{ width: '7%' }} />
                     <col style={{ width: '5%' }} />
                 </colgroup>
                 <thead>
                     <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase font-bold tracking-wider bg-white/[0.01]">
-                        <th className="pb-4 pt-4 text-center">S.No</th>
-                        <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
-                        <th className="pb-4 pt-4 text-center">Video Intro</th>
-                        <th className="pb-4 pt-4 text-center">Resume Match</th>
-                        <th className="pb-4 pt-4 text-center">Assessment</th>
-                        <th className="pb-4 pt-4 text-center">Coding</th>
-                        <th className="pb-4 pt-4 text-center">Interview</th>
-                        <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
-                        <th className="pb-4 pt-4 text-center">Final Score</th>
-                        <th className="pb-4 pt-4 text-center">Status</th>
-                        <th className="pb-4 pt-4 text-right pr-6">Action</th>
+                        <th className="pb-4 pt-4 px-2 text-center">S.No</th>
+                        <th className="pb-4 pt-4 pl-4 pr-2 text-left">Candidate Info</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Video Intro</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Resume Match</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Assessment</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Coding</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Interview</th>
+                        <th className="pb-4 pt-4 px-2 text-center text-red-400">Proctoring Score</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Final Score</th>
+                        <th className="pb-4 pt-4 px-2 text-center">Status</th>
+                        <th className="pb-4 pt-4 pr-6 pl-2 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                     {[1, 2, 3, 4, 5].map((i) => (
                         <tr key={i} className="border-b border-white/5 last:border-b-0">
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-4 w-6 mx-auto rounded" variant="dark" />
                             </td>
-                            <td className="py-5 pl-4">
+                            <td className="py-5 pl-4 pr-2">
                                 <div className="space-y-2">
                                     <Skeleton className="h-4 w-32 rounded" variant="dark" />
                                     <Skeleton className="h-3 w-40 rounded" variant="dark" />
                                 </div>
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-6 w-16 mx-auto rounded-full" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
+                                <Skeleton className="h-8 w-20 mx-auto rounded-xl" variant="dark" />
+                            </td>
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
                             </td>
-                            <td className="py-5 text-center">
-                                <Skeleton className="h-8 w-16 mx-auto rounded-xl" variant="dark" />
-                            </td>
-                            <td className="py-5 text-center">
+                            <td className="py-5 px-2 text-center">
                                 <Skeleton className="h-6 w-20 mx-auto rounded-full" variant="dark" />
                             </td>
-                            <td className="py-5 text-right pr-6">
+                            <td className="py-5 pr-6 pl-2 text-right">
                                 <Skeleton className="h-8 w-8 ml-auto rounded-xl" variant="dark" />
                             </td>
                         </tr>

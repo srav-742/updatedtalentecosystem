@@ -464,7 +464,7 @@ const Applicants = () => {
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
                         {/* Search Input */}
                         <div className="relative min-w-[190px] md:min-w-[210px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -676,29 +676,29 @@ const Applicants = () => {
                                 <colgroup>
                                     <col style={{ width: '4%' }} />
                                     <col style={{ width: '18%' }} />
-                                    <col style={{ width: '7%' }} />
+                                    <col style={{ width: '5%' }} />
                                     <col style={{ width: '9%' }} />
-                                    {showAssessment && <col style={{ width: '10%' }} />}
-                                    {showCoding && <col style={{ width: '10%' }} />}
+                                    {showAssessment && <col style={{ width: '9%' }} />}
+                                    {showCoding && <col style={{ width: '9%' }} />}
                                     {showInterview && <col style={{ width: '10%' }} />}
-                                    <col style={{ width: '10%' }} />
-                                    <col style={{ width: '10%' }} />
+                                    <col style={{ width: '15%' }} />
+                                    <col style={{ width: '9%' }} />
                                     <col style={{ width: '7%' }} />
                                     <col style={{ width: '5%' }} />
                                 </colgroup>
                                 <thead>
                                     <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold tracking-wider bg-slate-50/80">
-                                        <th className="pb-4 pt-4 text-center">S.No</th>
-                                        <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
-                                        <th className="pb-4 pt-4 text-center">Video Intro</th>
-                                        <th className="pb-4 pt-4 text-center">Resume Match</th>
-                                        {showAssessment && <th className="pb-4 pt-4 text-center">Assessment</th>}
-                                        {showCoding && <th className="pb-4 pt-4 text-center">Coding</th>}
-                                        {showInterview && <th className="pb-4 pt-4 text-center">Interview</th>}
-                                        <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
-                                        <th className="pb-4 pt-4 text-center">Final Score</th>
-                                        <th className="pb-4 pt-4 text-center">Status</th>
-                                        <th className="pb-4 pt-4 text-right pr-6">Action</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">S.No</th>
+                                        <th className="pb-4 pt-4 pl-4 pr-2 text-left">Candidate Info</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Video Intro</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Resume Match</th>
+                                        {showAssessment && <th className="pb-4 pt-4 px-2 text-center">Assessment</th>}
+                                        {showCoding && <th className="pb-4 pt-4 px-2 text-center">Coding</th>}
+                                        {showInterview && <th className="pb-4 pt-4 px-2 text-center">Interview</th>}
+                                        <th className="pb-4 pt-4 px-2 text-center text-red-400">Proctoring Score</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Final Score</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Status</th>
+                                        <th className="pb-4 pt-4 pr-6 pl-2 text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -706,10 +706,10 @@ const Applicants = () => {
                                         const interviewMeta = getInterviewMeta(app);
                                         return (
                                             <tr key={app.id} className={`group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0 ${activeMenuId === app.id ? 'relative z-50' : ''}`} style={{ verticalAlign: 'middle' }}>
-                                                <td className="py-5 text-center text-xs font-semibold text-gray-500">
+                                                <td className="py-5 px-2 text-center text-xs font-semibold text-gray-500">
                                                     {index + 1}
                                                 </td>
-                                                <td className="py-5 pl-4" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <td className="py-5 pl-4 pr-2" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-0.5">
                                                             <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">{app.name}</p>
@@ -733,7 +733,7 @@ const Applicants = () => {
                                                         <p className="text-xs text-gray-500 font-medium lowercase tracking-normal">{app.email}</p>
                                                     </div>
                                                 </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="flex items-center justify-center">
                                                         {app.isInterviewLocked ? (
                                                             <button
@@ -763,9 +763,9 @@ const Applicants = () => {
                                                         )}
                                                     </div>
                                                  </td>
-                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-base shadow-sm">
+                                                         <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-sm shadow-sm">
                                                              <span>{app.resumeScore}/10</span>
                                                              {app.isResumeLocked ? (
                                                                  <button
@@ -773,7 +773,7 @@ const Applicants = () => {
                                                                          e.stopPropagation();
                                                                          setUnlockingItem({ id: app.id, type: 'resume', cost: 3 });
                                                                      }}
-                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
                                                                      title="Unlock Candidate Resume (₹3)"
                                                                  >
                                                                      <Eye size={15} />
@@ -785,7 +785,7 @@ const Applicants = () => {
                                                                          setSelectedResumeUserId(app.userId);
                                                                          setShowGeneratedResumeModal(true);
                                                                      }}
-                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95"
                                                                      title="View AI Parsed Resume"
                                                                  >
                                                                      <Eye size={15} />
@@ -795,9 +795,9 @@ const Applicants = () => {
                                                      </div>
                                                  </td>
                                                  {showAssessment && (
-                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
-                                                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-base shadow-sm">
+                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-sm shadow-sm">
                                                               <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
                                                               {app.assessmentScore !== null && app.assessmentScore !== undefined && (
                                                                   <button
@@ -806,7 +806,7 @@ const Applicants = () => {
                                                                           e.stopPropagation();
                                                                           handleViewAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
-                                                                      className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
+                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
                                                                       title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
                                                                   >
                                                                       <Eye size={15} />
@@ -817,9 +817,9 @@ const Applicants = () => {
                                                   </td>
                                                  )}
                                                  {showCoding && (
-                                                 <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
-                                                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-teal-500/5 border border-teal-500/10 text-teal-400 font-extrabold text-base shadow-sm">
+                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-teal-500/5 border border-teal-500/10 text-teal-400 font-extrabold text-sm shadow-sm">
                                                               <span>{app.codingScore !== null && app.codingScore !== undefined ? `${app.codingScore}/100` : '-'}</span>
                                                               {app.codingScore !== null && app.codingScore !== undefined && (
                                                                   <button
@@ -828,7 +828,7 @@ const Applicants = () => {
                                                                           e.stopPropagation();
                                                                           handleViewCodingAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
-                                                                      className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-teal-400/80 hover:text-teal-300 hover:bg-teal-500/10'}`}
+                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-teal-400/80 hover:text-teal-300 hover:bg-teal-500/10'}`}
                                                                       title={app.isAssessmentLocked ? "Unlock Coding Details (₹5)" : "View Coding Details"}
                                                                   >
                                                                       <Eye size={15} />
@@ -839,9 +839,9 @@ const Applicants = () => {
                                                   </td>
                                                  )}
                                                  {showInterview && (
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${interviewMeta.pillClass} shadow-sm`}>
+                                                         <div className={`inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl border ${interviewMeta.pillClass} shadow-sm font-extrabold text-sm`}>
                                                              <span>{interviewMeta.label}</span>
                                                              {interviewMeta.canView && (
                                                                  <button
@@ -850,7 +850,7 @@ const Applicants = () => {
                                                                          e.stopPropagation();
                                                                          handleViewInterview(app.id, app.isInterviewLocked);
                                                                      }}
-                                                                     className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
+                                                                     className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
                                                                      title={app.isInterviewLocked ? "Unlock Interview Status (₹10)" : "View Interview Status"}
                                                                  >
                                                                      <Eye size={15} />
@@ -860,9 +860,9 @@ const Applicants = () => {
                                                      </div>
                                                  </td>
                                                  )}
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
-                                                          <div className={`inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl font-extrabold text-sm shadow-sm border ${
+                                                          <div className={`inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl font-extrabold text-sm shadow-sm border ${
                                                               app.proctoringScore != null
                                                                   ? (app.proctoringScore >= 80 
                                                                       ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
@@ -900,13 +900,13 @@ const Applicants = () => {
                                                           </div>
                                                       </div>
                                                  </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                    <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
                                                         {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
                                                     </div>
                                                 </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${app.status === 'SHORTLISTED'
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${app.status === 'SHORTLISTED'
                                                         ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5'
                                                         : app.status === 'REJECTED'
                                                             ? 'bg-red-500/5 text-red-400 border-red-500/20 shadow-sm shadow-red-500/5'
@@ -917,7 +917,7 @@ const Applicants = () => {
                                                         {app.status}
                                                     </span>
                                                 </td>
-                                                <td className="py-5 text-right pr-6 relative" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 text-right pr-6 pl-2 relative" style={{ whiteSpace: 'nowrap' }}>
                                                     <>
                                                         <button
                                                             onClick={(e) => {
