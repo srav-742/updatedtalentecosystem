@@ -102,7 +102,7 @@ const VerifyEmailPage = () => {
     const statusParam = searchParams.get('status');
     const verifiedParam = searchParams.get('verified');
 
-    // Page state: 'loading' | 'pending' | 'success' | 'expired' | 'invalid' | 'error'
+    // Page state: 'loading' | 'confirm' | 'pending' | 'success' | 'expired' | 'invalid' | 'error'
     const [status, setStatus] = useState('loading');
     const [message, setMessage] = useState('');
     const [verifiedEmail, setVerifiedEmail] = useState(emailParam || '');
@@ -158,61 +158,10 @@ const VerifyEmailPage = () => {
         }
 
         // Priority 1: Backend verification token (?token=...)
+        // Instead of auto-verifying, show the "confirm" screen so the user clicks a button
         if (token) {
-            try {
-                const response = await axios.get(`${API_URL}/auth/verify-email`, {
-                    params: { token },
-                    headers: {
-                        'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
-                    }
-                });
-
-                if (response.data.status === 'success') {
-                    const u = response.data.user;
-                    hasVerifiedRef.current = true;
-                    setStatus('success');
-                    setMessage('Your email was verified successfully!');
-                    setVerifiedEmail(u?.email || '');
-                    setVerifiedUser(u);
-                    markLocalUserVerified(u?.email);
-                    return;
-                }
-            } catch (error) {
-                // If token check fails, but user is already verified locally, show success!
-                const stored = localStorage.getItem('user');
-                if (stored) {
-                    try {
-                        const parsed = JSON.parse(stored);
-                        if (parsed.emailVerified) {
-                            hasVerifiedRef.current = true;
-                            setStatus('success');
-                            setVerifiedEmail(parsed.email || '');
-                            setVerifiedUser(parsed);
-                            return;
-                        }
-                    } catch {}
-                }
-
-                const data = error.response?.data;
-                const httpStatus = error.response?.status;
-
-                if (httpStatus === 410 || data?.status === 'expired') {
-                    setStatus('expired');
-                    setMessage(data?.message || 'This verification link has expired. Links expire 60 minutes after being sent.');
-                    if (data?.email) {
-                        setResendEmail(data.email);
-                        setVerifiedEmail(data.email);
-                    }
-                } else if (httpStatus === 404 || data?.status === 'invalid') {
-                    setStatus('invalid');
-                    setMessage(data?.message || 'This verification link is invalid or has already been used.');
-                } else {
-                    setStatus('error');
-                    setMessage(data?.message || 'We could not verify your email at this time. Please try again.');
-                }
-                return;
-            }
+            setStatus('confirm');
+            return;
         }
 
         // Priority 2: Firebase Action Code (?oobCode=... or mode=verifyEmail)
@@ -316,6 +265,64 @@ const VerifyEmailPage = () => {
     useEffect(() => {
         handleVerification();
     }, [handleVerification]);
+
+    // ─── Confirm Verify Handler (called when user clicks the verify button) ──
+    const confirmVerify = async () => {
+        setStatus('loading');
+
+        try {
+            const response = await axios.get(`${API_URL}/auth/verify-email`, {
+                params: { token },
+                headers: {
+                    'X-Client-ID': CLIENT_ID,
+                    'X-Client-Secret': CLIENT_SECRET
+                }
+            });
+
+            if (response.data.status === 'success') {
+                const u = response.data.user;
+                hasVerifiedRef.current = true;
+                setStatus('success');
+                setMessage('You have successfully verified your email!');
+                setVerifiedEmail(u?.email || '');
+                setVerifiedUser(u);
+                markLocalUserVerified(u?.email);
+            }
+        } catch (error) {
+            // If token check fails, but user is already verified locally, show success
+            const stored = localStorage.getItem('user');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.emailVerified) {
+                        hasVerifiedRef.current = true;
+                        setStatus('success');
+                        setVerifiedEmail(parsed.email || '');
+                        setVerifiedUser(parsed);
+                        return;
+                    }
+                } catch {}
+            }
+
+            const data = error.response?.data;
+            const httpStatus = error.response?.status;
+
+            if (httpStatus === 410 || data?.status === 'expired') {
+                setStatus('expired');
+                setMessage(data?.message || 'This verification link has expired. Links expire 60 minutes after being sent.');
+                if (data?.email) {
+                    setResendEmail(data.email);
+                    setVerifiedEmail(data.email);
+                }
+            } else if (httpStatus === 404 || data?.status === 'invalid') {
+                setStatus('invalid');
+                setMessage(data?.message || 'This verification link is invalid or has already been used.');
+            } else {
+                setStatus('error');
+                setMessage(data?.message || 'We could not verify your email at this time. Please try again.');
+            }
+        }
+    };
 
     // ─── Auto-redirect countdown on success ─────────────────────────────────
     useEffect(() => {
@@ -714,6 +721,57 @@ const VerifyEmailPage = () => {
     );
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // TEMPLATE 5: CONFIRM ("Click Here to Verify Your Email")
+    // ═══════════════════════════════════════════════════════════════════════════
+    const renderConfirmTemplate = () => (
+        <motion.div
+            key="confirm"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center"
+        >
+            {/* Envelope with @ Badge Icon + Floating Dots */}
+            <EnvelopeWithBadge type="at" badgeColor="#6366f1" />
+
+            {/* Primary Title */}
+            <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
+                Verify Your Email
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-7 max-w-xs sm:max-w-sm">
+                You're almost there! Click the button below to confirm and verify your email address.
+            </p>
+
+            {/* Big Verify Button */}
+            <motion.button
+                onClick={confirmVerify}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="w-auto min-w-[220px] px-10 py-3.5 rounded-xl bg-gradient-to-r from-[#2563eb] to-[#4f46e5] hover:from-[#1d4ed8] hover:to-[#4338ca] text-white font-bold text-[15px] transition-all shadow-lg shadow-blue-500/25 cursor-pointer flex items-center justify-center gap-2.5 mb-5"
+            >
+                <ShieldCheck className="w-5 h-5" />
+                <span>Click Here to Verify</span>
+            </motion.button>
+
+            {/* Expiry Notice */}
+            <div className="w-full bg-blue-50/80 border border-blue-100 rounded-xl px-4 py-3 mb-4">
+                <p className="text-xs text-blue-700 font-medium flex items-center justify-center gap-1.5">
+                    <span>⏰</span>
+                    <span>This verification link expires in <strong>60 minutes</strong></span>
+                </p>
+            </div>
+
+            {/* Footer Subtext */}
+            <p className="text-xs text-gray-400">
+                If you didn't create this account, you can safely ignore this page.
+            </p>
+        </motion.div>
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MAIN PAGE SHELL (Cloudy Lavender Sky Backdrop + Center Card)
     // ═══════════════════════════════════════════════════════════════════════════
     return (
@@ -749,6 +807,7 @@ const VerifyEmailPage = () => {
             <main className="w-full max-w-[420px] bg-white rounded-[2.2rem] sm:rounded-[2.6rem] shadow-[0_25px_70px_-15px_rgba(79,70,229,0.22)] border border-purple-100/90 p-8 sm:p-10 text-center relative z-10 transition-all">
                 <AnimatePresence mode="wait">
                     {status === 'loading' && renderLoadingTemplate()}
+                    {status === 'confirm' && renderConfirmTemplate()}
                     {status === 'pending' && renderPendingTemplate()}
                     {status === 'success' && renderVerifiedTemplate()}
                     {(status === 'expired' || status === 'invalid' || status === 'error') && renderNotVerifiedTemplate()}
