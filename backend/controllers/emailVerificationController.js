@@ -47,15 +47,20 @@ const buildVerificationEmailHtml = (name, verifyUrl) => {
 
                     <!-- Headline & Greeting -->
                     <tr>
+                    <!-- Headline & Greeting -->
+                    <tr>
                         <td style="padding: 12px 32px 24px 32px; text-align: center;">
                             <h1 style="margin: 0 0 12px 0; font-size: 24px; font-weight: 800; color: #1e1b4b; line-height: 1.3; letter-spacing: -0.3px;">
-                                Authenticate Your Email Address
+                                Verify your email
                             </h1>
-                            <p style="margin: 0 0 8px 0; font-size: 15px; color: #475569; line-height: 1.6;">
-                                Hi <strong style="color: #1e1b4b;">${name || 'there'}</strong>,
+                            <p style="margin: 0 0 12px 0; font-size: 15px; color: #475569; line-height: 1.6;">
+                                Hello <strong style="color: #1e1b4b;">${name || 'there'}</strong>,
+                            </p>
+                            <p style="margin: 0 0 8px 0; font-size: 15px; color: #64748b; line-height: 1.6;">
+                                Thank you for creating your Hire1Percent account.
                             </p>
                             <p style="margin: 0; font-size: 15px; color: #64748b; line-height: 1.6;">
-                                Thank you for creating an account! Please click the button below to verify your email address and activate your account.
+                                Please verify your email address to activate your account.
                             </p>
                         </td>
                     </tr>
@@ -68,8 +73,8 @@ const buildVerificationEmailHtml = (name, verifyUrl) => {
                                     <td align="center" bgcolor="#2563eb" style="border-radius: 12px; background-color: #2563eb; box-shadow: 0 6px 20px rgba(37, 99, 235, 0.25);">
                                         <a href="${verifyUrl}" 
                                            target="_blank"
-                                           style="display: inline-block; padding: 16px 48px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px; background-color: #2563eb; letter-spacing: 0.3px; border: 1px solid #2563eb;">
-                                            Verify Email Address &rarr;
+                                           style="display: inline-block; padding: 16px 48px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px; background-color: #2563eb; letter-spacing: 0.5px; border: 1px solid #2563eb;">
+                                            VERIFY MY EMAIL
                                         </a>
                                     </td>
                                 </tr>
@@ -77,21 +82,9 @@ const buildVerificationEmailHtml = (name, verifyUrl) => {
                         </td>
                     </tr>
 
-                    <!-- Fallback Direct URL -->
-                    <tr>
-                        <td style="padding: 0 36px 24px 36px; text-align: center;">
-                            <p style="margin: 0 0 8px 0; font-size: 12px; color: #94a3b8;">
-                                Button not working? Copy and paste this link into your browser:
-                            </p>
-                            <p style="margin: 0; font-size: 12px; word-break: break-all; line-height: 1.5;">
-                                <a href="${verifyUrl}" style="color: #2563eb; text-decoration: underline;">${verifyUrl}</a>
-                            </p>
-                        </td>
-                    </tr>
-
                     <!-- Expiry Notice Card -->
                     <tr>
-                        <td style="padding: 0 36px 28px 36px; text-align: center;">
+                        <td style="padding: 0 36px 24px 36px; text-align: center;">
                             <div style="padding: 12px 20px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;">
                                 <p style="margin: 0; font-size: 13px; color: #1e40af; font-weight: 500;">
                                     ⏰ This verification link expires in <strong>60 minutes</strong>.
@@ -110,10 +103,13 @@ const buildVerificationEmailHtml = (name, verifyUrl) => {
                     <!-- Footer -->
                     <tr>
                         <td style="padding: 24px 36px 36px 36px; text-align: center;">
-                            <p style="margin: 0 0 8px 0; font-size: 12px; color: #64748b; line-height: 1.5;">
-                                If you did not create an account on Hire1Percent, you can safely ignore this email.
+                            <p style="margin: 0 0 16px 0; font-size: 13px; color: #64748b; line-height: 1.5;">
+                                If you did not create this account, you can safely ignore this email.
                             </p>
-                            <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                            <p style="margin: 0 0 4px 0; font-size: 13px; color: #475569; font-weight: 600;">
+                                Thanks,<br/>Hire1Percent Team
+                            </p>
+                            <p style="margin: 12px 0 0 0; font-size: 11px; color: #94a3b8;">
                                 © ${new Date().getFullYear()} Hire1Percent — AI-Powered Talent Ecosystem
                             </p>
                         </td>
@@ -195,8 +191,7 @@ const sendVerificationEmailSMTP = async (toEmail, name, verifyUrl) => {
             isTestAccount = true;
         } catch (testErr) {
             console.warn('[EMAIL-VERIFY] Ethereal mailer fallback failed:', testErr.message);
-            console.log(`[EMAIL-VERIFY] 💡 Verification Link with button: ${verifyUrl}`);
-            return { sent: false, verifyUrl };
+            return { sent: false };
         }
     }
 
@@ -204,22 +199,20 @@ const sendVerificationEmailSMTP = async (toEmail, name, verifyUrl) => {
         const info = await transporter.sendMail({
             from: fromAddress,
             to: toEmail,
-            subject: 'Authenticate Your Email Address — Hire1Percent',
-            text: `Hi ${name || 'there'},\n\nPlease verify your email address by visiting: ${verifyUrl}\n\nThis link expires in 60 minutes.\n\n— Hire1Percent Team`,
+            subject: 'Verify your email — Hire1Percent',
+            text: `Hi ${name || 'there'},\n\nPlease verify your email address to activate your account.\n\n— Hire1Percent Team`,
             html: buildVerificationEmailHtml(name, verifyUrl)
         });
 
         let previewUrl = null;
         if (isTestAccount) {
             previewUrl = nodemailer.getTestMessageUrl(info);
-            console.log(`[EMAIL-VERIFY] ✅ Verification email with BUTTON dispatched!`);
-            console.log(`[EMAIL-VERIFY] 🌐 Open to view email & click button: ${previewUrl}`);
-            console.log(`[EMAIL-VERIFY] 💡 Direct Verify URL: ${verifyUrl}`);
+            console.log(`[EMAIL-VERIFY] ✅ Test verification email dispatched.`);
         } else {
-            console.log(`[EMAIL-VERIFY] ✅ Real verification email with BUTTON sent to ${toEmail}`);
+            console.log(`[EMAIL-VERIFY] ✅ Verification email dispatched.`);
         }
 
-        return { sent: true, previewUrl, verifyUrl };
+        return { sent: true, previewUrl };
     } catch (sendErr) {
         console.warn('[EMAIL-VERIFY] sendMail failed:', sendErr.message);
         return { sent: false, verifyUrl };
@@ -289,11 +282,6 @@ const sendVerification = async (req, res) => {
 
         if (emailResult.previewUrl) {
             responseData.previewEmailUrl = emailResult.previewUrl;
-        }
-
-        // In development, include the verify URL for instant testing
-        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-            responseData.devVerifyUrl = verifyUrl;
         }
 
         res.json(responseData);
@@ -428,10 +416,6 @@ const resendVerification = async (req, res) => {
 
         if (emailResult.previewUrl) {
             responseData.previewEmailUrl = emailResult.previewUrl;
-        }
-
-        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-            responseData.devVerifyUrl = verifyUrl;
         }
 
         res.json(responseData);
