@@ -695,7 +695,7 @@ const MyJobs = () => {
                                                             {[...Array(Math.min(job.applicantCount, 3))].map((_, i) => (
                                                                 <div 
                                                                     key={i} 
-                                                                    className="w-7 h-7 rounded-full bg-slate-800 border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-2xs"
+                                                                    className="myjobs-avatar-circle w-7 h-7 rounded-full bg-slate-800 border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-2xs"
                                                                 >
                                                                     {String.fromCharCode(65 + i)}
                                                                 </div>

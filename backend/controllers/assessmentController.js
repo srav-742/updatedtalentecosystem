@@ -49,7 +49,7 @@ const generateFullAssessment = async (req, res) => {
         const skills = job.skills || ['General'];
         const usedHashes = new Set((await QuestionLog.find({ userId }).select('hash')).map(q => q.hash));
         const seed = crypto.randomBytes(8).toString('hex');
-        // 🧠 Groq Prompt
+
         const prompt = `
 Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
 Target Role: ${job.title}
@@ -223,7 +223,7 @@ const submitAssessment = async (req, res) => {
                     isCorrect = ans.userAnswer === correctOption;
                     score = isCorrect ? 1 : 0;
                     correctAnswerField = correctOption;
-                    
+
                     return {
                         questionId: safeQId,
                         question: question.question,
@@ -266,7 +266,7 @@ Respond ONLY with a JSON object in this exact format:
                                 callGemini(prompt, 500, true),
                                 timeoutPromise
                             ]);
-                            
+
                             const parsed = safeParseAIJson(aiResponse, null);
                             if (parsed && typeof parsed.isCorrect === 'boolean') {
                                 isCorrect = parsed.isCorrect;
@@ -293,7 +293,7 @@ Respond ONLY with a JSON object in this exact format:
             });
 
             const evaluatedAnswers = await Promise.all(evalPromises);
-            
+
             evaluatedAnswers.forEach(evalAns => {
                 if (evalAns) {
                     if (evalAns.isCorrect) correctCount++;
@@ -406,7 +406,7 @@ Respond ONLY with a JSON object in this exact format:
                 score: 14,
                 message: "Assessment saved successfully"
             });
-        } catch (_) {}
+        } catch (_) { }
         res.status(500).json({ message: "Failed to submit assessment", error: error.message });
     }
 };
@@ -452,8 +452,8 @@ const getAssessmentDetails = async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
-        const submission = (application.assessmentSubmissionId 
-            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+        const submission = (application.assessmentSubmissionId
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean()
             : null)
             || await AssessmentSubmission.findOne({
                 jobId: application.jobId?._id || application.jobId,

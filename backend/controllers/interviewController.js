@@ -153,7 +153,10 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
         recordingStatus: application.recordingStatus,
         recordingPublicId: application.recordingPublicId,
         recordingUrl: application.recordingUrl,
-        recordingPlaybackUrl: application.recordingPlaybackUrl
+        recordingPlaybackUrl: application.recordingPlaybackUrl,
+        videoIntroUrl: application.videoIntroUrl,
+        assessmentRecordingUrl: application.assessmentRecordingUrl,
+        assessmentRecordingPlaybackUrl: application.assessmentRecordingPlaybackUrl
     },
     job: {
         title: application.jobId?.title,

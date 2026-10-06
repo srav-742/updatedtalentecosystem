@@ -305,7 +305,7 @@ Return ONLY a JSON response in this format:
             applicantEmail: email,
             resumeMatchPercent: score,
             finalScore: score, // matches the resume score since assessment is not started
-            status: score >= 5.5 ? 'SHORTLISTED' : 'APPLIED'
+            status: 'APPLIED'
         };
 
         if (application) {
@@ -343,7 +343,7 @@ Return ONLY a JSON response in this format:
             if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && applicationData.finalScore >= 55) {
                 applicationData.status = 'SHORTLISTED';
             } else {
-                applicationData.status = applicationData.finalScore >= 55 ? 'SHORTLISTED' : 'APPLIED';
+                applicationData.status = 'APPLIED';
             }
 
             application = await Application.findOneAndUpdate(

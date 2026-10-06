@@ -68,6 +68,8 @@ const submitApplication = async (req, res) => {
         if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && finalScore >= 55) {
             console.log(`[LEDGER] Elite Candidate Detected: ${userId} (Score: ${finalScore})`);
             targetStatus = 'SHORTLISTED';
+        } else if (targetStatus === 'SHORTLISTED' && finalScore < 55) {
+            targetStatus = 'APPLIED';
         }
         update.status = targetStatus;
 

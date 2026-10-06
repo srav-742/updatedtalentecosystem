@@ -377,8 +377,13 @@
     color: #ffffff !important;
 }
 
+.recruiter-content [class*="bg-slate-800"] {
+    color: #ffffff !important;
+}
+
 .recruiter-content .rec-dark-surface *,
 .recruiter-content [class*="bg-slate-900"] *,
+.recruiter-content [class*="bg-slate-800"] *,
 .recruiter-content [class*="bg-[#0f172a]"] * {
     color: inherit;
 }

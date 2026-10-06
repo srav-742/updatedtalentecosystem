@@ -233,36 +233,17 @@ const Applicants = () => {
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
     const [selectedVideoApplicationId, setSelectedVideoApplicationId] = useState(null);
+    const [selectedVideoCandidateName, setSelectedVideoCandidateName] = useState('');
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [shareApplicationId, setShareApplicationId] = useState(null);
     const [shareCandidateName, setShareCandidateName] = useState('');
 
     const handleShareInterview = (applicationId, candidateName) => {
         if (!applicationId) return;
-        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
         const formattedCandidate = candidateName || 'Candidate';
-
-        if (navigator.share) {
-            navigator.share({
-                title: `AI Interview Review: ${formattedCandidate}`,
-                text: `Review candidate ${formattedCandidate}'s AI interview recording on hire1percent:`,
-                url: shareUrl
-            })
-            .then(() => console.log('Native share successful'))
-            .catch((err) => {
-                // If sharing was aborted/cancelled by user, ignore. Otherwise, fall back.
-                if (err.name !== 'AbortError') {
-                    console.error('Native share failed:', err);
-                    setShareApplicationId(applicationId);
-                    setShareCandidateName(formattedCandidate);
-                    setIsShareModalOpen(true);
-                }
-            });
-        } else {
-            setShareApplicationId(applicationId);
-            setShareCandidateName(formattedCandidate);
-            setIsShareModalOpen(true);
-        }
+        setShareApplicationId(applicationId);
+        setShareCandidateName(formattedCandidate);
+        setIsShareModalOpen(true);
     };
 
     // Generated Resume Modal
@@ -751,6 +732,8 @@ const Applicants = () => {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setSelectedVideoUrl(app.videoIntroUrl);
+                                                                    setSelectedVideoApplicationId(app.id);
+                                                                    setSelectedVideoCandidateName(app.name);
                                                                     setShowVideoModal(true);
                                                                 }}
                                                                 className="w-10 h-10 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/5 group/video"
@@ -1103,16 +1086,20 @@ const Applicants = () => {
                             <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleShareInterview(selectedVideoApplicationId, applicants?.find(a => a.id === selectedVideoApplicationId)?.name)}
+                                    onClick={() => handleShareInterview(
+                                        selectedVideoApplicationId,
+                                        selectedVideoCandidateName || applicants?.find(a => a.id === selectedVideoApplicationId)?.name
+                                    )}
                                     className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Share2 size={13} />
-                                    Share Interview
+                                    Share Intro
                                 </button>
                                 <button
                                     onClick={() => {
                                         setShowVideoModal(false);
                                         setSelectedVideoApplicationId(null);
+                                        setSelectedVideoCandidateName('');
                                     }}
                                     className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
                                 >
