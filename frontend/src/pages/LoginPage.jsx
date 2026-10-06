@@ -811,9 +811,11 @@ const LoginPage = () => {
                 return;
             }
 
-            await sendVerificationEmail(currentUser);
+            // Skip Firebase native verification email (sends ugly plain-link email)
+            // Only send the backend branded email with styled verify button below
+            console.log("[LOGIN-RESEND] Skipping Firebase native email — using backend branded email only");
 
-            // Also trigger backend branded email with CTA button
+            // Trigger backend branded email with CTA button
             axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }, {
                 headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
             }).catch(e => {
