@@ -54,16 +54,16 @@ export const signupWithEmail = async (email, password) => {
 
 export const sendVerificationEmail = async (user = auth.currentUser) => {
     if (!user) throw new Error("No authenticated user found to send verification email.");
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.hire1percent.com';
     const actionCodeSettings = {
-        url: `${origin}/verify-email?status=verified`,
-        handleCodeInApp: true,
+        url: `${origin}/verify-email`,
+        handleCodeInApp: false,
     };
     try {
         const res = await withAuthRetry(() => sendEmailVerification(user, actionCodeSettings));
         return res;
     } catch (err) {
-        // Fallback without actionCodeSettings if domain is not whitelisted in Firebase Console
+        // Fallback without actionCodeSettings if custom domain is not yet whitelisted in Firebase Console
         console.warn("[FIREBASE-AUTH] sendEmailVerification with actionCodeSettings fallback:", err.message);
         const fallbackRes = await withAuthRetry(() => sendEmailVerification(user));
         return fallbackRes;
@@ -78,7 +78,7 @@ export const verifyEmailWithActionCode = async (oobCode) => {
         const info = await checkActionCode(auth, oobCode);
         verifiedEmail = info?.data?.email || null;
     } catch (infoErr) {
-        console.warn("[FIREBASE-AUTH] checkActionCode check info:", infoErr.message);
+        // Non-fatal check error; applyActionCode will perform the authoritative verification
     }
 
     await withAuthRetry(() => applyActionCode(auth, oobCode));
@@ -86,8 +86,9 @@ export const verifyEmailWithActionCode = async (oobCode) => {
     if (auth.currentUser) {
         try {
             await reload(auth.currentUser);
+            verifiedEmail = verifiedEmail || auth.currentUser.email || null;
         } catch (rErr) {
-            console.warn("[FIREBASE-AUTH] reload currentUser failed:", rErr.message);
+            // Non-fatal reload warning
         }
     }
 
