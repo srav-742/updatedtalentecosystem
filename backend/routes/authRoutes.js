@@ -18,11 +18,18 @@ router.post('/auth/reset-password', authController.resetPassword);
 
 router.post('/auth/link-password', authMiddleware, authController.linkPassword);
 
-// Email Verification Routes
+// Email Verification Routes (both with and without /auth prefix for seamless compatibility)
 const emailVerificationController = require('../controllers/emailVerificationController');
+router.post('/send-verification', emailVerificationController.sendVerification);
 router.post('/auth/send-verification', emailVerificationController.sendVerification);
+
+router.get('/verify-email', emailVerificationController.verifyEmail);
 router.get('/auth/verify-email', emailVerificationController.verifyEmail);
+
+router.post('/resend-verification', emailVerificationController.resendVerification);
 router.post('/auth/resend-verification', emailVerificationController.resendVerification);
+
+router.post('/sync-verification', emailVerificationController.syncVerificationStatus);
 router.post('/auth/sync-verification', emailVerificationController.syncVerificationStatus);
 
 module.exports = router;
