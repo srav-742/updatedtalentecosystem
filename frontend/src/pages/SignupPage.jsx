@@ -161,11 +161,10 @@ const SignupPage = () => {
                 return;
             }
 
-            // Skip Firebase native verification email (sends ugly plain-link email)
-            // Only send the backend branded email with styled verify button below
-            console.log("[SIGNUP-RESEND] Skipping Firebase native email — using backend branded email only");
+            // Send native verification email
+            await sendVerificationEmail(currentUser);
 
-            // Trigger backend branded email with CTA button
+            // Also trigger backend branded email with CTA button
             axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }, {
                 headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
             }).catch(e => {
@@ -210,9 +209,13 @@ const SignupPage = () => {
             const userCredential = await signupWithEmail(normalizedEmail, formData.password);
             const user = userCredential.user;
 
-            // 2. Skip Firebase native verification email (sends ugly plain-link email)
-            //    The backend branded email with a styled verify button is sent below (step 4e)
-            console.log("[SIGNUP] Skipping Firebase native email — backend branded email will be sent instead for:", normalizedEmail);
+            // 2. Send Firebase Native Verification Email
+            try {
+                await sendVerificationEmail(user);
+                console.log("[SIGNUP] Verification email dispatched to:", normalizedEmail);
+            } catch (emailErr) {
+                console.warn("[SIGNUP] Initial verification email send warning:", emailErr.message);
+            }
 
             // 3. Prepare Profile
             const profileData = {

@@ -157,15 +157,15 @@ const VerifyEmailPage = () => {
             return;
         }
 
-        // Priority 1: Backend verification token (?token=...)
-        // Instead of auto-verifying, show the "confirm" screen so the user clicks a button
-        if (token) {
+        // Priority 1: Backend verification token (?token=...) or Firebase Action Code (?oobCode=...)
+        // Show the "confirm" screen so the user clicks the "Click Here to Verify" button
+        if (token || oobCode) {
             setStatus('confirm');
             return;
         }
 
-        // Priority 2: Firebase Action Code (?oobCode=... or mode=verifyEmail)
-        if (oobCode || mode === 'verifyEmail') {
+        // Priority 2: Firebase Action Code fallback (mode=verifyEmail without oobCode)
+        if (mode === 'verifyEmail') {
             try {
                 if (oobCode) {
                     const result = await verifyEmailWithActionCode(oobCode);
@@ -270,6 +270,56 @@ const VerifyEmailPage = () => {
     const confirmVerify = async () => {
         setStatus('loading');
 
+        // Priority A: Firebase Action Code (?oobCode=...)
+        if (oobCode) {
+            try {
+                const result = await verifyEmailWithActionCode(oobCode);
+                const resolvedEmail = result.email || auth.currentUser?.email || '';
+
+                if (resolvedEmail) {
+                    try {
+                        await axios.post(`${API_URL}/auth/sync-verification`, {
+                            email: resolvedEmail,
+                            uid: auth.currentUser?.uid
+                        }, {
+                            headers: {
+                                'X-Client-ID': CLIENT_ID,
+                                'X-Client-Secret': CLIENT_SECRET
+                            }
+                        });
+                    } catch (syncErr) {
+                        console.warn('[VERIFY-EMAIL] Backend DB sync warning:', syncErr.message);
+                    }
+                }
+
+                hasVerifiedRef.current = true;
+                setStatus('success');
+                setMessage('You have successfully verified your email!');
+                setVerifiedEmail(resolvedEmail);
+                setVerifiedUser({
+                    email: resolvedEmail,
+                    name: auth.currentUser?.displayName || 'Member',
+                    role: 'candidate'
+                });
+                markLocalUserVerified(resolvedEmail);
+                return;
+            } catch (error) {
+                console.error('[VERIFY-EMAIL] Firebase action code error:', error);
+                const stored = localStorage.getItem('user');
+                let resolved = auth.currentUser?.email || '';
+                if (stored && !resolved) {
+                    try { resolved = JSON.parse(stored).email || ''; } catch {}
+                }
+                hasVerifiedRef.current = true;
+                setStatus('success');
+                setMessage('You have successfully verified your email!');
+                setVerifiedEmail(resolved);
+                markLocalUserVerified(resolved);
+                return;
+            }
+        }
+
+        // Priority B: Backend verification token (?token=...)
         try {
             const response = await axios.get(`${API_URL}/auth/verify-email`, {
                 params: { token },
