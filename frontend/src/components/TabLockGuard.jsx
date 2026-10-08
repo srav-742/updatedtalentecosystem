@@ -65,66 +65,8 @@ const TabLockGuard = ({
             {children}
 
             <AnimatePresence>
-                {/* Warning Modal */}
-                {showWarning && !isTerminated && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                        onClick={dismissWarning}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.9, y: 20 }}
-                            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl border border-red-100"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-[28px] mx-auto flex items-center justify-center mb-6 shadow-sm border border-red-200">
-                                <AlertTriangle size={40} />
-                            </div>
+                {/* Warning Modal hidden from candidate */}
 
-                            <h2 className="text-2xl font-black text-gray-900 mb-2 text-center">
-                                Warning!
-                            </h2>
-
-                            <p className="text-gray-600 mb-6 text-center leading-relaxed">
-                                {getViolationMessage(lastViolationType)}
-                            </p>
-
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm font-bold text-amber-900">
-                                        Violations: {warnings} / {maxWarnings}
-                                    </span>
-                                    <div className="flex gap-1">
-                                        {Array.from({ length: maxWarnings }).map((_, i) => (
-                                            <div
-                                                key={i}
-                                                className={`w-3 h-3 rounded-full ${i < warnings
-                                                        ? 'bg-red-500'
-                                                        : 'bg-amber-200'
-                                                    }`}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <p className="text-xs text-gray-500 text-center mb-6">
-                                {maxWarnings - warnings} more violation(s) will terminate your assessment.
-                            </p>
-
-                            <button
-                                onClick={dismissWarning}
-                                className="w-full py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-700 transition-all shadow-lg"
-                            >
-                                I Understand - Continue Assessment
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
 
                 {/* Terminated Screen */}
                 {isTerminated && (

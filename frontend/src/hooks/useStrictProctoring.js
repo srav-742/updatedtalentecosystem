@@ -201,16 +201,10 @@ export function useStrictProctoring({
     setViolations((previousViolations) => [...previousViolations, violation]);
     logViolation({ examId, userId, ...violation });
 
-    // Suppress warning modal/popup for AI-enhanced and tab-switch/blur/fullscreen-exit violations
-    if (!SUPPRESSED_OVERLAY_TYPES.has(type)) {
-      lockSession(
-        `Warning: ${detail}\n\nTotal warnings/flags logged: ${count}\n\nClick "Return to Exam" to continue.`,
-        "warning"
-      );
-    } else {
-      console.log(`[useStrictProctoring] Suppressed popup warning overlay for violation: ${type}`);
-    }
-  }, [examId, isActive, lockSession, userId]);
+    // Candidate-facing violation warnings and modals are suppressed per requirement.
+    // Detection, violation generation, local count/state, and backend logging continue fully.
+    console.log(`[useStrictProctoring] Violation logged (candidate-facing overlay suppressed): ${type}`);
+  }, [examId, isActive, userId]);
 
   useEffect(() => {
     if (!isActive) {

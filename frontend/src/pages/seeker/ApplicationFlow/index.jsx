@@ -14,7 +14,6 @@ import SkillAssessment from './SkillAssessment';
 import CodingAssessment from './CodingAssessment';
 import AIInterview from './InterviewWrapper';
 import CandidateDeck from './CandidateDeck';
-import GlobalProctoringToasts from '../../../components/exam/GlobalProctoringToasts';
 
 // ─── Step-Level Error Boundary ───────────────────────────────────────────────
 // Catches any rendering or runtime errors within individual steps, displaying
@@ -452,7 +451,6 @@ const ApplicationFlow = () => {
 
     return (
         <div className="application-flow-root min-h-screen bg-[#fbf8f3] flex flex-col">
-            <GlobalProctoringToasts />
             <div className="sticky top-0 z-40 border-b border-black/10 bg-[#fcfbf8]/95 backdrop-blur-md">
                 <div className="mx-auto max-w-[1320px] px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>

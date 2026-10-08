@@ -224,7 +224,7 @@ const sendVerificationEmailSMTP = async (toEmail, name, verifyUrl) => {
 const buildVerifyUrl = (rawToken) => {
     const frontendUrl = process.env.FRONTEND_URL || 
         (process.env.NODE_ENV === 'production' 
-            ? 'https://hire1percent.com' 
+            ? 'https://www.hire1percent.com' 
             : 'http://localhost:5173');
     return `${frontendUrl}/verify-email?token=${rawToken}`;
 };

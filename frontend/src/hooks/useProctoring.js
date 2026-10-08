@@ -102,24 +102,15 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
       setViolations((prev) => [...prev, violation]);
       logViolation({ examId, userId, ...violation });
 
-      if (count === 1) {
-        lockSession(
-          `Warning (1/3): ${detail}.\n\nPlease stay on this page in fullscreen mode. Click "Return to Exam" to continue.`
-        );
-      } else if (count === 2) {
-        lockSession(
-          `FINAL WARNING (2/3): ${detail}.\n\nOne more violation will automatically submit your exam. Click "Return to Exam" to continue.`
-        );
-      } else if (count >= 3) {
-        lockSession(
-          `EXAM TERMINATED: You have exceeded the maximum allowed violations (3/3).\n\nYour exam is being automatically submitted.`
-        );
+      // Candidate-facing violation warnings are suppressed.
+      // Full logging and auto-submit logic remain active.
+      if (count >= 3) {
         setTimeout(() => {
           onAutoSubmit?.(count);
-        }, 3000);
+        }, 1000);
       }
     },
-    [examId, userId, lockSession, onAutoSubmit]
+    [examId, userId, onAutoSubmit]
   );
 
   // ── 1. Tab visibility (catches switching tabs, minimizing window) ─────

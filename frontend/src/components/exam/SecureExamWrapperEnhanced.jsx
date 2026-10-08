@@ -57,7 +57,7 @@ export default function SecureExamWrapperEnhanced({
     onSecurityReset,
     aiThresholds = {},
     enableSnapshots = true,
-    showOnScreenFlags = true, // Violation flags/toasts are visible on-screen in real-time
+    showOnScreenFlags = false, // Violation flags/toasts hidden from candidate
 }) {
     const isCodingExam = typeof examId === 'string' && examId.startsWith('coding');
     const allowSnapshots = enableSnapshots !== false && !isCodingExam;
@@ -258,18 +258,10 @@ export default function SecureExamWrapperEnhanced({
     const handleAIViolation = useCallback(
         (type, detail, meta = {}) => {
             console.log(`[PROCTORING-EVENT] ✔ AI Violation detected: ${type} — ${detail}`);
-            // Local strict proctoring overlay (counts violations for UI warnings)
+            // Local strict proctoring tracking (counts violations)
             triggerViolation(type, detail);
 
-            // Trigger non-blocking visual toast notification
-            const toastId = Date.now() + Math.random();
-            setToasts((prev) => [
-                ...prev.slice(-2),
-                { id: toastId, type, detail }
-            ]);
-            setTimeout(() => {
-                setToasts((prev) => prev.filter((t) => t.id !== toastId));
-            }, 4000);
+            // Candidate-facing violation toasts suppressed per requirement (backend logging and scoring continues)
 
             const effectiveIsAnswering = meta.isAnswering !== undefined ? meta.isAnswering : isAnsweringRef.current;
             const effectiveQuestionIndex = meta.questionIndex !== undefined ? meta.questionIndex : questionIndexRef.current;
@@ -662,50 +654,8 @@ export default function SecureExamWrapperEnhanced({
                 />
             )}
 
-            {/* ── Real-time Non-blocking Toasts (bottom left) ───────────────── */}
-            {showOnScreenFlags && toasts.length > 0 && (
-                <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
-                {toasts.map((toast) => {
-                    const getToastIcon = () => {
-                        switch (toast.type) {
-                            case "PHONE_DETECTED":
-                            case "OBJECT_DETECTED":
-                                return <Smartphone className="text-red-500 shrink-0" size={18} />;
-                            case "MULTIPLE_PEOPLE":
-                            case "NO_PEOPLE":
-                                return <Users className="text-orange-500 shrink-0" size={18} />;
-                            case "EYE_LOOKING_AWAY":
-                            case "EYE_LOOKING_AWAY_WHILE_ANSWERING":
-                                return <Eye className="text-amber-500 shrink-0" size={18} />;
-                            case "HEAD_TURNED":
-                            case "HEAD_TURNED_WHILE_ANSWERING":
-                                return <Camera className="text-amber-500 shrink-0" size={18} />;
-                            default:
-                                return <AlertTriangle className="text-amber-500 shrink-0" size={18} />;
-                        }
-                    };
-                    return (
-                        <div
-                            key={toast.id}
-                            className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-amber-200/40 bg-white/70 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-300 animate-in slide-in-from-left-5 fade-in"
-                            style={{
-                                fontFamily: "'Outfit', 'Inter', sans-serif",
-                            }}
-                        >
-                            {getToastIcon()}
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">
-                                    {toast.type.replace(/_/g, " ")}
-                                </p>
-                                <p className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-700">
-                                    {toast.detail}
-                                </p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            )}
+            {/* ── Candidate-facing violation flags/toasts suppressed ── */}
+
 
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div
