@@ -59,6 +59,37 @@ const submitApplication = async (req, res) => {
             targetStatus = 'APPLIED';
         }
 
+        // 🔒 Enforce Whitelist Restriction (Listed Candidates Only)
+        if (targetStatus !== 'SAVED' && jobDoc?.isRestrictedToWhitelist) {
+            const candidateEmail = String(resolvedEmail || '').trim().toLowerCase();
+            const allowedList = (jobDoc.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+            if (!candidateEmail || !allowedList.includes(candidateEmail)) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'RESTRICTED_WHITELIST_ONLY',
+                    message: `This job is restricted to listed candidates only. "${candidateEmail || 'Your email'}" is not on the invited list.`
+                });
+            }
+        }
+
+        // 🔒 Enforce Candidate Limit (Count is never disclosed to candidates)
+        if (targetStatus !== 'SAVED' && jobDoc?.candidateLimit && Number(jobDoc.candidateLimit) > 0) {
+            const hasExistingSeat = existingApp && existingApp.status && existingApp.status !== 'SAVED';
+            if (!hasExistingSeat) {
+                const activeApplicantsCount = await Application.countDocuments({
+                    jobId: jobDoc._id,
+                    status: { $ne: 'SAVED' }
+                });
+                if (activeApplicantsCount >= Number(jobDoc.candidateLimit)) {
+                    return res.status(403).json({
+                        success: false,
+                        code: 'LIMIT_REACHED',
+                        message: 'This position is currently closed to new applicants.'
+                    });
+                }
+            }
+        }
+
         const isResumeDone = !jobDoc || jobDoc.resumeAnalysis?.enabled === false || (r !== null && r !== undefined);
         const isAssessmentDone = !jobDoc || !jobDoc.assessment?.enabled || (existingApp?.assessmentScore !== null && existingApp?.assessmentScore !== undefined) || (updateData.assessmentScore !== undefined);
         const isCodingDone = !jobDoc || !jobDoc.codingAssessment?.enabled || (existingApp?.codingScore !== null && existingApp?.codingScore !== undefined);

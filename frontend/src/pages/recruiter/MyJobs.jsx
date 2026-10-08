@@ -31,7 +31,8 @@ import {
     Filter,
     Layers,
     FileText,
-    ExternalLink
+    ExternalLink,
+    ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
@@ -543,6 +544,18 @@ const MyJobs = () => {
                                                         {job.title}
                                                     </h3>
                                                     {getStatusBadge(job)}
+                                                    {job.candidateLimit && Number(job.candidateLimit) > 0 && (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                                            <Users size={11} />
+                                                            <span>Limit: {job.candidateLimit}</span>
+                                                        </span>
+                                                    )}
+                                                    {job.isRestrictedToWhitelist && (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                                            <ShieldCheck size={11} />
+                                                            <span>Invite Only</span>
+                                                        </span>
+                                                    )}
                                                     <span className="text-[11px] font-medium text-slate-400">
                                                         {formatPostedDate(job.createdAt)}
                                                     </span>

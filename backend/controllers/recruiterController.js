@@ -451,7 +451,7 @@ const getRecruiterJobs = async (req, res) => {
         }
         
         const jobs = await Job.find(jobQuery)
-            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved')
+            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates')
             .sort({ createdAt: -1 })
             .lean();
         const jobIds = jobs.map((job) => job._id);
@@ -507,7 +507,22 @@ const createJob = async (req, res) => {
 
         if (jobData.minPercentage) jobData.minPercentage = Number(jobData.minPercentage);
         if (jobData.assessment?.totalQuestions) jobData.assessment.totalQuestions = Number(jobData.assessment.totalQuestions);
-        if (jobData.mockInterview?.passingScore) jobData.mockInterview.passingScore = Number(jobData.mockInterview.passingScore);
+        if (jobData.candidateLimit !== undefined) {
+            const parsedLimit = Number(jobData.candidateLimit);
+            jobData.candidateLimit = (!isNaN(parsedLimit) && parsedLimit > 0) ? parsedLimit : null;
+        }
+        if (jobData.candidateLimitTarget !== undefined) {
+            const validTargets = ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'];
+            jobData.candidateLimitTarget = validTargets.includes(jobData.candidateLimitTarget) ? jobData.candidateLimitTarget : 'ALL';
+        }
+        if (jobData.isRestrictedToWhitelist !== undefined) {
+            jobData.isRestrictedToWhitelist = Boolean(jobData.isRestrictedToWhitelist);
+        }
+        if (Array.isArray(jobData.allowedCandidates)) {
+            jobData.allowedCandidates = jobData.allowedCandidates
+                .map(e => String(e).trim().toLowerCase())
+                .filter(e => e.length > 0 && e.includes('@'));
+        }
 
         delete jobData._id;
         const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';

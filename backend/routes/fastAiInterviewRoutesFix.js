@@ -1192,6 +1192,29 @@ router.post('/start', async (req, res) => {
 
         // Fetch job details
         const job = await Job.findById(jobId);
+        if (!job) return res.status(404).json({ message: "Job not found" });
+
+        // 🔒 Access Gate: Whitelist Check
+        if (job.isRestrictedToWhitelist) {
+            const User = require('../models/User');
+            const candidateUser = await User.findOne({ uid: userId });
+            const candidateEmail = candidateUser?.email?.trim().toLowerCase();
+            const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+            if (!candidateEmail || !allowedList.includes(candidateEmail)) {
+                return res.status(403).json({ message: "This interview is restricted to listed candidates only." });
+        }
+
+        // 🔒 Candidate Limit Check (Count is never disclosed to candidates)
+        if (job.candidateLimit && Number(job.candidateLimit) > 0) {
+            const existingApplication = await Application.findOne({ jobId: job._id, userId, status: { $ne: 'SAVED' } });
+            if (!existingApplication) {
+                const totalApplicants = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
+                if (totalApplicants >= Number(job.candidateLimit)) {
+                    return res.status(403).json({ message: "This interview is currently closed to new attempts." });
+                }
+            }
+        }
+
         const specialInstructions = job?.specialInstructions || "";
 
         // Classify the role

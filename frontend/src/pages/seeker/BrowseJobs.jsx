@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, ChevronRight, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark, Sparkles, Building2 } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark, Sparkles, Building2, ShieldCheck, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -377,6 +377,22 @@ const BrowseJobs = () => {
                                             {job.experienceLevel || `${job.minExperience || 0}+ yrs`}
                                         </span>
                                     </div>
+
+                                    {/* Candidate Access Badge */}
+                                    {typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit ? (
+                                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                                                Applications Closed
+                                            </span>
+                                        </div>
+                                    ) : job.isRestrictedToWhitelist ? (
+                                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                                <ShieldCheck size={11} className="text-amber-600" />
+                                                Invite Only
+                                            </span>
+                                        </div>
+                                    ) : null}
 
                                     {/* Skills (compact badges) */}
                                     {job.skills && job.skills.length > 0 && (

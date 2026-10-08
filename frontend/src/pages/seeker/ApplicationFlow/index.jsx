@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2, AlertCircle } from 'lucide-react';
+import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2, AlertCircle, Lock } from 'lucide-react';
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_URL, getAuthHeaders } from '../../../firebase';
@@ -76,6 +76,7 @@ const ApplicationFlow = () => {
     const [loading, setLoading] = useState(true);
     const [job, setJob] = useState(null);
     const [user, setUser] = useState(null);
+    const [accessBlocked, setAccessBlocked] = useState(null);
 
     // Shared State
     const [resumeData, setResumeData] = useState(null);
@@ -130,14 +131,51 @@ const ApplicationFlow = () => {
                 const enabledIds = currentEnabledSteps.map(s => s.id);
 
                 // Check for existing application to resume candidate state
+                let existingApp = null;
                 try {
                     const candidateUserId = storedUser.uid || storedUser._id || storedUser.id;
                     const appsRes = await axios.get(`${API_URL}/applications/candidate/${candidateUserId}`);
-                    const existingApp = (Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || []).find(app => {
+                    existingApp = (Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || []).find(app => {
                         const appJobId = app?.jobId?._id || app?.jobId;
                         return appJobId && String(appJobId) === String(jobId);
                     });
+                } catch (e) {
+                    // Application fetch non-critical fallback
+                }
 
+                // Check Candidate Access & Quota Permissions
+                const candidateEmail = (storedUser.email || '').trim().toLowerCase();
+                const isRestricted = !!jobData?.isRestrictedToWhitelist;
+                const allowedList = Array.isArray(jobData?.allowedCandidates)
+                    ? jobData.allowedCandidates.map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+                    : [];
+                const isEmailAllowed = !isRestricted || (candidateEmail && allowedList.includes(candidateEmail));
+
+                if (!isEmailAllowed) {
+                    setAccessBlocked({
+                        type: 'WHITELIST',
+                        title: 'Invite-Only Opening',
+                        message: `This assessment and interview process is strictly reserved for pre-selected candidates. Your email (${storedUser.email || 'unregistered'}) is not on the invited list.`
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                const limit = jobData?.candidateLimit;
+                const currentCount = jobData?.applicantCount ?? 0;
+                const isLimitReached = typeof limit === 'number' && limit > 0 && currentCount >= limit;
+
+                if (!existingApp && isLimitReached) {
+                    setAccessBlocked({
+                        type: 'LIMIT_REACHED',
+                        title: 'Applications Closed',
+                        message: 'This position is currently not accepting new candidates or assessment attempts.'
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                try {
                     if (requestedStep && enabledIds.includes(requestedStep)) {
                         setStepIndex(enabledIds.indexOf(requestedStep));
                         if (existingApp) {
@@ -278,6 +316,34 @@ const ApplicationFlow = () => {
                 <div className="flex flex-col items-center gap-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Loading application workflow...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (accessBlocked) {
+        return (
+            <div className="application-flow-root min-h-screen bg-[#fbf8f3] flex flex-col items-center justify-center p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-black/10 shadow-xl text-center">
+                    <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-5 bg-amber-100 text-amber-700">
+                        <Lock className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">{accessBlocked.title}</h2>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-6">{accessBlocked.message}</p>
+                    <div className="flex flex-col gap-2.5">
+                        <button
+                            onClick={() => navigate(`/candidate/job/${jobId}`)}
+                            className="w-full py-3 px-4 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition shadow-sm"
+                        >
+                            View Job Details
+                        </button>
+                        <button
+                            onClick={() => navigate('/candidate/jobs')}
+                            className="w-full py-3 px-4 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                        >
+                            Browse Other Openings
+                        </button>
+                    </div>
                 </div>
             </div>
         );

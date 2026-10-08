@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList, Users } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -55,7 +55,8 @@ const PostJob = () => {
         questionCount: 5,
         selectionMode: 'ORDERED',
         recruiterQuestions: [],
-        specialInstructions: ''
+        specialInstructions: '',
+        candidateLimit: ''
     });
 
     const [codingLanguages, setCodingLanguages] = useState(['Python', 'Java', 'C++', 'C', 'JavaScript']);
@@ -114,6 +115,9 @@ const PostJob = () => {
     const [showAddQuestionForm, setShowAddQuestionForm] = useState(false);
     const [editingQuestionIdx, setEditingQuestionIdx] = useState(null);
 
+    // Candidate Limit state
+    const [isLimitEnabled, setIsLimitEnabled] = useState(false);
+
     useEffect(() => {
         if (editJobId) {
             const fetchJob = async () => {
@@ -129,9 +133,14 @@ const PostJob = () => {
                             ? job.recruiterQuestions
                             : (Array.isArray(mock.recruiterQuestions) ? mock.recruiterQuestions : []);
 
+                        if (job.candidateLimit && Number(job.candidateLimit) > 0) {
+                            setIsLimitEnabled(true);
+                        }
+
                         setJobData(prev => ({
                             ...prev,
                             ...job,
+                            candidateLimit: job.candidateLimit || '',
                             questionSource: qSource,
                             questionCount: qCount,
                             selectionMode: sMode,
@@ -370,6 +379,8 @@ const PostJob = () => {
         setJobData({ ...jobData, skills: jobData.skills.filter(s => s !== skillToRemove) });
     };
 
+
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name.includes('.')) {
@@ -463,11 +474,22 @@ const PostJob = () => {
             const qSource = jobData.questionSource || 'AI_GENERATED';
             const sMode = jobData.selectionMode || 'ORDERED';
 
+            const candidateLimitVal = isLimitEnabled && jobData.candidateLimit && Number(jobData.candidateLimit) > 0
+                ? Number(jobData.candidateLimit)
+                : null;
+
+            if (isLimitEnabled && (!candidateLimitVal || candidateLimitVal < 1)) {
+                alert("Please enter a valid candidate limit (at least 1), or turn off the candidate limit toggle.");
+                setLoading(false);
+                return;
+            }
+
             const dataToSave = {
                 ...jobData,
                 recruiterId: recruiterId,
                 company: jobData.company || user.company?.name || user.company || 'hire1percent Partner',
                 minPercentage: Number(jobData.minPercentage),
+                candidateLimit: candidateLimitVal,
                 questionSource: qSource,
                 questionCount: qCount,
                 selectionMode: sMode,
@@ -1819,6 +1841,99 @@ const PostJob = () => {
                     </div>
                 </div>
 
+                {/* I. Candidate Limit */}
+                <div className="rec-card p-6 md:p-8 space-y-6">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-600 font-bold border border-purple-500/20 shadow-xs">
+                                I
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                    <span>Candidate Limit</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                        Quota Control
+                                    </span>
+                                </h2>
+                                <p className="text-xs text-slate-500">
+                                    Set how many candidates can take this job's tests and interviews. This count is strictly confidential and never visible to candidates.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Candidate Limit Card */}
+                    <div className={`p-6 rounded-2xl border transition-all duration-300 ${
+                        isLimitEnabled 
+                            ? 'bg-purple-50/40 border-purple-200 shadow-xs' 
+                            : 'bg-slate-50/70 border-slate-200/80'
+                    }`}>
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                                        <Users size={16} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-900">Limit Number of Candidates</h3>
+                                        <p className="text-[11px] text-slate-500">Only the specified number of candidates will be allowed to take tests / apply</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const next = !isLimitEnabled;
+                                        setIsLimitEnabled(next);
+                                        if (!next) {
+                                            setJobData(prev => ({ ...prev, candidateLimit: '' }));
+                                        }
+                                    }}
+                                    className={`w-12 h-6 rounded-full transition-all relative cursor-pointer ${
+                                        isLimitEnabled ? 'bg-purple-600' : 'bg-slate-300'
+                                    }`}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
+                                        isLimitEnabled ? 'left-7' : 'left-1'
+                                    }`} />
+                                </button>
+                            </div>
+
+                            {isLimitEnabled ? (
+                                <div className="space-y-4 pt-3 border-t border-purple-100">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                            Number of Candidates Allowed
+                                        </label>
+                                        <div className="max-w-xs">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={jobData.candidateLimit || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setJobData(prev => ({ ...prev, candidateLimit: val }));
+                                                }}
+                                                placeholder="e.g. 20"
+                                                className="rec-input w-full px-3.5 py-2.5 text-sm font-bold rounded-xl text-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[11px] text-slate-500 leading-relaxed bg-purple-50/60 p-2.5 rounded-xl border border-purple-100">
+                                        🔒 When set (e.g. {jobData.candidateLimit || 20}), only {jobData.candidateLimit || 20} candidates can take the test or apply. Further attempts will be closed. <strong>This count is strictly confidential and is never displayed to candidates.</strong>
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="pt-2">
+                                    <p className="text-xs text-slate-500 leading-relaxed">
+                                        Currently <strong>Open to All Candidates (No Limit)</strong>. Toggle this on if you want to limit test-taking to a fixed number of candidates (e.g. 20).
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Submit */}
                 <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium flex items-start gap-3">
                     <Clock size={18} className="shrink-0 mt-0.5" />
@@ -1962,6 +2077,8 @@ const PostJob = () => {
                     </div>
                 </div>
             )}
+
+
         </div >
     );
 };

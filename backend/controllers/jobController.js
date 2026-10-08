@@ -1,4 +1,5 @@
 const Job = require('../models/Job');
+const Application = require('../models/Application');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
 const { callSkillAI } = require('../utils/aiClients');
@@ -32,12 +33,25 @@ const getAllJobs = async (req, res) => {
         }
 
         const jobs = await Job.find(queryFilter)
-            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education')
+            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates')
             .populate('recruiter', 'name company')
             .sort({ createdAt: -1 })
             .lean();
 
-        jobsCache = jobs;
+        // Calculate applicant counts for active jobs
+        const jobIds = jobs.map(j => j._id);
+        const counts = await Application.aggregate([
+            { $match: { jobId: { $in: jobIds }, status: { $ne: 'SAVED' } } },
+            { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
+        ]);
+        const countMap = new Map(counts.map(item => [String(item._id), item.applicantCount]));
+
+        const jobsWithCounts = jobs.map(job => ({
+            ...job,
+            applicantCount: countMap.get(String(job._id)) || 0
+        }));
+
+        jobsCache = jobsWithCounts;
         jobsCacheTime = Date.now();
 
         if (isLocalhost) {
@@ -45,7 +59,7 @@ const getAllJobs = async (req, res) => {
         } else {
             res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
         }
-        res.json(jobs);
+        res.json(jobsWithCounts);
     } catch (error) {
         console.error("[GET-JOBS] Failure:", error);
         res.status(500).json({ message: error.message });
@@ -73,9 +87,16 @@ const getJobById = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) return res.status(400).json({ message: "Invalid Job ID" });
         const job = await Job.findById(req.params.jobId).lean();
         if (!job) return res.status(404).json({ message: "Job not found" });
+
+        // Calculate active applicant count
+        const applicantCount = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
+
         // Individual job: cache for 2 minutes
         res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
-        res.json(job);
+        res.json({
+            ...job,
+            applicantCount
+        });
     } catch (error) {
         console.error("[GET-JOBS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -156,6 +177,25 @@ const normalizeJobRecruiterQuestions = (jobData) => {
     return { isValid: true };
 };
 
+const normalizeCandidateQuotaAndAccess = (jobData) => {
+    if (jobData.candidateLimit !== undefined) {
+        const parsedLimit = Number(jobData.candidateLimit);
+        jobData.candidateLimit = (!isNaN(parsedLimit) && parsedLimit > 0) ? parsedLimit : null;
+    }
+    if (jobData.candidateLimitTarget !== undefined) {
+        const validTargets = ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'];
+        jobData.candidateLimitTarget = validTargets.includes(jobData.candidateLimitTarget) ? jobData.candidateLimitTarget : 'ALL';
+    }
+    if (jobData.isRestrictedToWhitelist !== undefined) {
+        jobData.isRestrictedToWhitelist = Boolean(jobData.isRestrictedToWhitelist);
+    }
+    if (Array.isArray(jobData.allowedCandidates)) {
+        jobData.allowedCandidates = jobData.allowedCandidates
+            .map(e => String(e).trim().toLowerCase())
+            .filter(e => e.length > 0 && e.includes('@'));
+    }
+};
+
 const updateJob = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
@@ -170,6 +210,8 @@ const updateJob = async (req, res) => {
             jobData.status = req.body.status || 'pending_approval';
         }
         jobData.adminFeedback = { reason: '', reviewedAt: null };
+
+        normalizeCandidateQuotaAndAccess(jobData);
 
         const norm = normalizeJobRecruiterQuestions(jobData);
         if (!norm.isValid) {
@@ -237,6 +279,8 @@ const createJob = async (req, res) => {
                 }
             }
         }
+
+        normalizeCandidateQuotaAndAccess(jobData);
 
         const norm = normalizeJobRecruiterQuestions(jobData);
         if (!norm.isValid) {

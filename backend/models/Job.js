@@ -78,6 +78,16 @@ const jobSchema = new mongoose.Schema({
     },
     codingRoundId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodingRound', default: null },
     specialInstructions: { type: String, default: "" },
+    // Candidate capacity / seat limit
+    candidateLimit: { type: Number, default: null }, // e.g., 20 or null/0 for unlimited
+    candidateLimitTarget: {
+        type: String,
+        enum: ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'],
+        default: 'ALL'
+    },
+    // Whitelist / Listed candidates only
+    isRestrictedToWhitelist: { type: Boolean, default: false },
+    allowedCandidates: [{ type: String, trim: true, lowercase: true }],
     status: {
         type: String,
         enum: ['pending_approval', 'approved', 'rejected'],

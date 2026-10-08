@@ -14,7 +14,10 @@ import {
     Mail,
     Linkedin,
     Twitter,
-    Copy
+    Copy,
+    Users,
+    Lock,
+    ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -66,6 +69,13 @@ const JobDetails = () => {
 
     const loading = jobLoading || appsLoading;
     const application = userApplications.find((app) => (app.jobId?._id || app.jobId) === id);
+
+    // Whitelist access evaluation
+    const candidateEmail = user?.email?.trim().toLowerCase();
+    const isRestrictedToWhitelist = Boolean(job?.isRestrictedToWhitelist);
+    const allowedCandidates = (job?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+    const isEmailAllowed = !isRestrictedToWhitelist || (candidateEmail && allowedCandidates.includes(candidateEmail));
+    const isLimitReached = typeof job?.candidateLimit === 'number' && job.candidateLimit > 0 && (job?.applicantCount ?? 0) >= job.candidateLimit;
 
     // Mutation for toggling save state
     const toggleSaveMutation = useMutation({
@@ -250,6 +260,12 @@ const JobDetails = () => {
                                     <GraduationCap size={12} />
                                     {job.qualification || 'Any qualification'}
                                 </span>
+                                {isRestrictedToWhitelist && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 font-semibold">
+                                        <ShieldCheck size={12} />
+                                        Listed Candidates Only
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -270,9 +286,61 @@ const JobDetails = () => {
                                 </Link>
                             </div>
                         </div>
+                    ) : !isEmailAllowed ? (
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-purple-200 bg-purple-50/60 p-4.5">
+                            <div className="flex items-center gap-2 text-purple-700">
+                                <Lock size={16} />
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Restricted Access</p>
+                            </div>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Listed Candidates Only</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                This job requisition is reserved for invited candidates. Your account email <span className="font-semibold text-gray-900">({user?.email || 'Guest'})</span> is not on the candidate list.
+                            </p>
+                            <div className="mt-4 space-y-2">
+                                <button
+                                    disabled
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-100 text-purple-400 px-4 py-2.5 text-xs font-semibold cursor-not-allowed border border-purple-200"
+                                >
+                                    <Lock size={14} />
+                                    <span>Invitation Required</span>
+                                </button>
+                                <button
+                                    onClick={handleToggleSaveJob}
+                                    disabled={isSaving}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 transition"
+                                >
+                                    {application?.status === 'SAVED' ? 'Saved' : 'Save for Later'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : isLimitReached ? (
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Application status</p>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Applications Closed</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                This position is currently not accepting new applicants or assessment attempts.
+                            </p>
+                            <div className="mt-4 space-y-2">
+                                <button
+                                    disabled
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-200 text-gray-500 px-4 py-2.5 text-xs font-semibold cursor-not-allowed"
+                                >
+                                    <span>Applications Closed</span>
+                                </button>
+                                <button
+                                    onClick={handleToggleSaveJob}
+                                    disabled={isSaving}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    {application?.status === 'SAVED' ? 'Saved' : 'Save for Later'}
+                                </button>
+                            </div>
+                        </div>
                     ) : (
                         <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Start application</p>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Start application</p>
+                            </div>
                             <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Ready to apply?</h2>
                             <p className="mt-1 text-xs leading-relaxed text-gray-600">
                                 Upload your resume to begin the AI-led application process and unlock assessment stages.

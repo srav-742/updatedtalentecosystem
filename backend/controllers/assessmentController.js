@@ -28,10 +28,26 @@ const generateFullAssessment = async (req, res) => {
             return res.status(400).json({ message: "Assessment not enabled for this job" });
         }
         const user = await User.findOne({ uid: userId });
+
+        // 🔒 Whitelist check
+        if (job.isRestrictedToWhitelist) {
+            const candidateEmail = user?.email?.trim().toLowerCase();
+            const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+            if (!candidateEmail || !allowedList.includes(candidateEmail)) {
+                return res.status(403).json({ message: "This assessment is restricted to listed candidates only." });
+            }
+        }
+
         // Removed unnecessary ResumeProfile check. Application record is the source of truth.
         const application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
 
-        // Only enforce resume match if resume analysis is enabled
+        // 🔒 Candidate Limit check (Count is never disclosed to candidates)
+        if (job.candidateLimit && Number(job.candidateLimit) > 0 && (!application || application.status === 'SAVED')) {
+            const totalApplicants = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
+            if (totalApplicants >= Number(job.candidateLimit)) {
+                return res.status(403).json({ message: "This assessment is currently closed to new attempts." });
+            }
+        }
         const isResumeEnabled = job.resumeAnalysis?.enabled !== false;
         if (isResumeEnabled) {
             if (!application) {

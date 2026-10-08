@@ -13,7 +13,10 @@ import {
     Mail,
     Linkedin,
     Twitter,
-    Copy
+    Copy,
+    ShieldCheck,
+    Users,
+    Lock
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
@@ -133,6 +136,22 @@ const PublicJobDetails = () => {
         );
     }
 
+    // Check candidate access & capacity
+    const candidateEmail = (() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return (u?.email || '').trim().toLowerCase();
+        } catch (e) {
+            return '';
+        }
+    })();
+    const isRestricted = !!job.isRestrictedToWhitelist;
+    const allowedList = Array.isArray(job.allowedCandidates)
+        ? job.allowedCandidates.map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+        : [];
+    const isExplicitlyDenied = isRestricted && candidateEmail && !allowedList.includes(candidateEmail);
+    const isLimitReached = typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit;
+
     return (
         <div className="min-h-screen bg-[#f7f4ee]">
             <Navbar theme="light" />
@@ -245,6 +264,12 @@ const PublicJobDetails = () => {
                                             <GraduationCap size={12} />
                                             {job.qualification || 'Any qualification'}
                                         </span>
+                                        {job.isRestrictedToWhitelist && (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 font-medium">
+                                                <ShieldCheck size={12} className="text-amber-600" />
+                                                Listed Candidates Only
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -256,20 +281,42 @@ const PublicJobDetails = () => {
                                     Upload your resume to begin the AI-led application process and unlock assessment stages.
                                 </p>
 
-                                <div className="mt-4 space-y-2">
-                                    <button
-                                        onClick={handleResumeAnalysis}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
-                                    >
-                                        <Sparkles size={14} />
-                                        Apply
-                                    </button>
-                                    {!localStorage.getItem('user') && (
-                                        <p className="text-[11px] text-center text-gray-400">
-                                            You'll be asked to sign in before proceeding
+                                {isExplicitlyDenied ? (
+                                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+                                        <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                                        <div>
+                                            <p className="font-semibold">Listed Candidates Only</p>
+                                            <p className="mt-0.5 text-gray-600">This role is only open to pre-selected candidates. Your email ({candidateEmail}) is not on the list.</p>
+                                        </div>
+                                    </div>
+                                ) : isLimitReached ? (
+                                    <div className="mt-4 space-y-2">
+                                        <button
+                                            disabled
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-200 text-gray-500 px-4 py-2.5 text-xs font-semibold cursor-not-allowed"
+                                        >
+                                            Applications Closed
+                                        </button>
+                                        <p className="text-[11px] text-center text-gray-500">
+                                            This position is currently not accepting new applicants.
                                         </p>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : (
+                                    <div className="mt-4 space-y-2">
+                                        <button
+                                            onClick={handleResumeAnalysis}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
+                                        >
+                                            <Sparkles size={14} />
+                                            Apply
+                                        </button>
+                                        {!localStorage.getItem('user') && (
+                                            <p className="text-[11px] text-center text-gray-400">
+                                                You'll be asked to sign in before proceeding
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </header>
