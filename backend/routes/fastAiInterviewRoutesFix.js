@@ -1202,6 +1202,7 @@ router.post('/start', async (req, res) => {
             const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
             if (!candidateEmail || !allowedList.includes(candidateEmail)) {
                 return res.status(403).json({ message: "This interview is restricted to listed candidates only." });
+            }
         }
 
         // 🔒 Candidate Limit Check (Count is never disclosed to candidates)
