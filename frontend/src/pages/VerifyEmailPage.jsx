@@ -7,7 +7,9 @@ import {
     Loader2, 
     Mail, 
     ShieldCheck, 
-    Sparkles 
+    Sparkles,
+    CheckCircle2,
+    Globe
 } from 'lucide-react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -67,6 +69,8 @@ const EnvelopeWithBadge = ({ type = 'at', badgeColor = '#6366f1' }) => {
                     {type === 'check' && <Check className="w-5 h-5 stroke-[2.5]" />}
                     {type === 'alert' && <span className="text-base font-extrabold leading-none select-none">!</span>}
                     {type === 'loading' && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {type === 'shield' && <ShieldCheck className="w-5 h-5 stroke-[2.5]" />}
+                    {type === 'sparkles' && <Sparkles className="w-5 h-5 stroke-[2.5]" />}
                 </div>
             </div>
         </div>
@@ -98,11 +102,29 @@ const VerifyEmailPage = () => {
     const continueUrl = searchParams.get('continueUrl');
     const emailParam = searchParams.get('email');
 
-    // Initial state calculation: if an action code or token is present, start in 'verifying'
+    // Initial state calculation: if an action code or token is present, start in 'ready_to_verify'
     const isVerificationAction = Boolean((mode === 'verifyEmail' && oobCode) || (!mode && oobCode) || token);
 
-    // Page state: 'verifying' | 'loading' | 'pending' | 'success' | 'already_verified' | 'expired' | 'invalid' | 'error'
-    const [status, setStatus] = useState(isVerificationAction ? 'verifying' : 'loading');
+    // Initial status determination: check if user is already verified before showing 'ready_to_verify'
+    const getInitialStatus = () => {
+        if (isVerificationAction) {
+            try {
+                const stored = localStorage.getItem('user');
+                if (stored && JSON.parse(stored).emailVerified) {
+                    return 'already_verified';
+                }
+            } catch {}
+            if (auth.currentUser?.emailVerified) {
+                return 'already_verified';
+            }
+            return 'ready_to_verify';
+        }
+        return 'loading';
+    };
+
+    // Page state: 'ready_to_verify' | 'continue_step' | 'done_template' | 'verifying' | 'loading' | 'pending' | 'success' | 'already_verified' | 'expired' | 'invalid' | 'error'
+    const [status, setStatus] = useState(getInitialStatus);
+    const [actionLoading, setActionLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [verifiedEmail, setVerifiedEmail] = useState(emailParam || '');
     const [verifiedUser, setVerifiedUser] = useState(null);
@@ -133,7 +155,7 @@ const VerifyEmailPage = () => {
     }, []);
 
     // ─── Main Verification Processor ─────────────────────────────────────────
-    const executeVerification = useCallback(async () => {
+    const executeVerification = useCallback(async (isFromButtonClick = false) => {
         if (hasVerifiedRef.current) return;
 
         // Validation: If mode is specified and is NOT verifyEmail, reject arbitrary mode
@@ -146,12 +168,14 @@ const VerifyEmailPage = () => {
         // Priority 1: Firebase Action Code (?oobCode=...)
         if (oobCode) {
             hasVerifiedRef.current = true;
-            setStatus('verifying');
+            if (!isFromButtonClick) {
+                setStatus('verifying');
+            }
 
             try {
                 // Apply the Firebase action code directly
                 const result = await verifyEmailWithActionCode(oobCode);
-                const resolvedEmail = result.email || auth.currentUser?.email || '';
+                const resolvedEmail = result?.email || emailParam || auth.currentUser?.email || '';
 
                 if (resolvedEmail) {
                     markLocalUserVerified(resolvedEmail);
@@ -183,7 +207,7 @@ const VerifyEmailPage = () => {
                     role: 'candidate'
                 });
                 setMessage('Your email address has been verified successfully.');
-                setStatus('success');
+                setStatus('continue_step');
                 return;
             } catch (error) {
                 const errorCode = error?.code || '';
@@ -234,7 +258,9 @@ const VerifyEmailPage = () => {
         // Priority 2: Backend verification token fallback (?token=...)
         if (token) {
             hasVerifiedRef.current = true;
-            setStatus('verifying');
+            if (!isFromButtonClick) {
+                setStatus('verifying');
+            }
 
             try {
                 const response = await axios.get(`${API_URL}/auth/verify-email`, {
@@ -247,7 +273,7 @@ const VerifyEmailPage = () => {
 
                 if (response.data.status === 'success') {
                     const u = response.data.user;
-                    const resolvedEmail = u?.email || '';
+                    const resolvedEmail = u?.email || emailParam || '';
                     if (resolvedEmail) {
                         markLocalUserVerified(resolvedEmail);
                     }
@@ -257,7 +283,7 @@ const VerifyEmailPage = () => {
                     setVerifiedEmail(resolvedEmail);
                     setVerifiedUser(u);
                     setMessage('Your email address has been verified successfully.');
-                    setStatus('success');
+                    setStatus('continue_step');
                     return;
                 }
             } catch (error) {
@@ -327,8 +353,10 @@ const VerifyEmailPage = () => {
     }, [oobCode, mode, token, emailParam, markLocalUserVerified]);
 
     useEffect(() => {
-        executeVerification();
-    }, [executeVerification]);
+        if (!isVerificationAction) {
+            executeVerification(false);
+        }
+    }, [executeVerification, isVerificationAction]);
 
     // ─── Resend cooldown countdown ──────────────────────────────────────────
     useEffect(() => {
@@ -408,8 +436,23 @@ const VerifyEmailPage = () => {
         }
     };
 
-    // ─── Continue to Hire1Percent Destination ───────────────────────────────
-    const handleContinue = () => {
+    // ─── Actions for Multi-Step Verification Flow ────────────────────────────
+    const handleCompleteVerification = async () => {
+        if (actionLoading) return;
+        setActionLoading(true);
+        try {
+            await executeVerification(true);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleContinueToDone = () => {
+        setStatus('done_template');
+    };
+
+    // ─── Continue to Hire1Percent Destination / Website Navigation ──────────
+    const handleNavigateWebsite = () => {
         // 1. Safe internal continueUrl check
         if (continueUrl && continueUrl.startsWith('/') && !continueUrl.startsWith('//')) {
             navigate(continueUrl, { replace: true });
@@ -429,8 +472,189 @@ const VerifyEmailPage = () => {
             } catch {}
         }
 
-        // 3. Fallback to login
-        navigate('/login', { replace: true });
+        // 3. Fallback: navigate directly to website root
+        navigate('/', { replace: true });
+    };
+
+    const handleContinue = handleNavigateWebsite;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STAGE 1: COMPLETE VERIFICATION ("Complete Verification")
+    // ═══════════════════════════════════════════════════════════════════════════
+    const renderCompleteVerificationTemplate = () => {
+        const displayEmail = emailParam || verifiedEmail || auth.currentUser?.email || '';
+
+        return (
+            <motion.div
+                key="ready_to_verify"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center"
+            >
+                {/* Envelope with Shield Badge */}
+                <EnvelopeWithBadge type="shield" badgeColor="#2563eb" />
+
+                {/* Primary Title */}
+                <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
+                    Complete Verification
+                </h1>
+
+                {/* Subtitle / Description */}
+                <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-5 max-w-xs sm:max-w-sm">
+                    Click the button below to verify your email address and activate your Hire1Percent account.
+                </p>
+
+                {/* Email Address Pill Badge */}
+                {displayEmail && (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/90 border border-blue-200/70 text-blue-800 text-xs font-semibold mb-6 shadow-xs max-w-full">
+                        <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="truncate max-w-[240px] sm:max-w-[280px]">{displayEmail}</span>
+                    </div>
+                )}
+
+                {/* Primary Action Button */}
+                <button
+                    onClick={handleCompleteVerification}
+                    disabled={actionLoading}
+                    className="w-full sm:w-auto min-w-[250px] px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] mb-5 cursor-pointer uppercase flex items-center justify-center gap-2"
+                >
+                    {actionLoading ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Verifying...</span>
+                        </>
+                    ) : (
+                        <>
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>COMPLETE VERIFICATION</span>
+                        </>
+                    )}
+                </button>
+
+                {/* Footer Subtext */}
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                    <span>Having trouble?</span>
+                    <Link
+                        to="/contact"
+                        className="font-semibold underline text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer"
+                    >
+                        Contact Support &rarr;
+                    </Link>
+                </p>
+            </motion.div>
+        );
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STAGE 2: CONTINUE ("Continue")
+    // ═══════════════════════════════════════════════════════════════════════════
+    const renderContinueTemplate = () => {
+        return (
+            <motion.div
+                key="continue_step"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center"
+            >
+                {/* Envelope with Checkmark Badge */}
+                <EnvelopeWithBadge type="check" badgeColor="#10b981" />
+
+                {/* Primary Title */}
+                <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
+                    Verification Confirmed
+                </h1>
+
+                {/* Subtitle / Description */}
+                <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-6 max-w-xs sm:max-w-sm">
+                    Your email address has been successfully confirmed. Click continue to proceed.
+                </p>
+
+                {/* Primary Action Button */}
+                <button
+                    onClick={handleContinueToDone}
+                    className="w-full sm:w-auto min-w-[250px] px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] mb-5 cursor-pointer uppercase flex items-center justify-center gap-2 group"
+                >
+                    <span>CONTINUE</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </button>
+
+                {/* Footer Subtext */}
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                    <span>Almost done!</span>
+                    <button
+                        onClick={handleContinueToDone}
+                        className="font-semibold underline text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer"
+                    >
+                        Click continue &rarr;
+                    </button>
+                </p>
+            </motion.div>
+        );
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STAGE 3: DONE TEMPLATE ("Your email verification is done")
+    // ═══════════════════════════════════════════════════════════════════════════
+    const renderDoneTemplate = () => {
+        const displayEmail = verifiedEmail || emailParam || auth.currentUser?.email || 'your account';
+
+        return (
+            <motion.div
+                key="done_template"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center"
+            >
+                {/* Envelope with Check Badge */}
+                <EnvelopeWithBadge type="check" badgeColor="#10b981" />
+
+                {/* Primary Title */}
+                <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
+                    Your email verification is done
+                </h1>
+
+                {/* Subtitle / Description */}
+                <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-5 max-w-xs sm:max-w-sm">
+                    Your email verification has been completed successfully. Your account is active and ready to use.
+                </p>
+
+                {/* Status Card Pill */}
+                <div className="w-full bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-3.5 mb-6 text-center shadow-xs">
+                    <div className="flex items-center justify-center gap-2 text-emerald-800 font-semibold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Verification Status: Completed</span>
+                    </div>
+                    {displayEmail && (
+                        <p className="text-[11.5px] text-emerald-700/80 mt-1 truncate max-w-full font-medium">
+                            {displayEmail}
+                        </p>
+                    )}
+                </div>
+
+                {/* Primary Action Button: Update email (navigates to website) */}
+                <button
+                    onClick={handleNavigateWebsite}
+                    className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm tracking-wide transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] mb-3 cursor-pointer uppercase flex items-center justify-center gap-2"
+                >
+                    <span>Update email</span>
+                </button>
+
+                {/* Secondary Website Link */}
+                <button
+                    onClick={handleNavigateWebsite}
+                    className="font-semibold underline text-xs text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer flex items-center justify-center gap-1 mb-2"
+                >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Go to Website &rarr;</span>
+                </button>
+            </motion.div>
+        );
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -785,6 +1009,9 @@ const VerifyEmailPage = () => {
             {/* Center White Card */}
             <main className="w-full max-w-[440px] bg-white rounded-[2.2rem] sm:rounded-[2.6rem] shadow-[0_25px_70px_-15px_rgba(79,70,229,0.22)] border border-purple-100/90 p-8 sm:p-10 text-center relative z-10 transition-all">
                 <AnimatePresence mode="wait">
+                    {status === 'ready_to_verify' && renderCompleteVerificationTemplate()}
+                    {status === 'continue_step' && renderContinueTemplate()}
+                    {status === 'done_template' && renderDoneTemplate()}
                     {status === 'verifying' && renderVerifyingTemplate()}
                     {status === 'loading' && renderVerifyingTemplate()}
                     {status === 'pending' && renderPendingTemplate()}
