@@ -101,12 +101,16 @@ const VerifyEmailPage = () => {
     const mode = searchParams.get('mode');
     const continueUrl = searchParams.get('continueUrl');
     const emailParam = searchParams.get('email');
+    const verifiedParam = searchParams.get('verified');
 
     // Initial state calculation: if an action code or token is present, start in 'ready_to_verify'
     const isVerificationAction = Boolean((mode === 'verifyEmail' && oobCode) || (!mode && oobCode) || token);
 
     // Initial status determination: check if user is already verified before showing 'ready_to_verify'
     const getInitialStatus = () => {
+        if (verifiedParam === 'true') {
+            return 'continue_step';
+        }
         if (isVerificationAction) {
             try {
                 const stored = localStorage.getItem('user');
@@ -315,6 +319,16 @@ const VerifyEmailPage = () => {
             }
         }
 
+        // Priority 2.5: Direct verified redirect (?verified=true)
+        if (verifiedParam === 'true') {
+            const resolvedEmail = emailParam || auth.currentUser?.email || '';
+            if (resolvedEmail) markLocalUserVerified(resolvedEmail);
+            setVerifiedEmail(resolvedEmail);
+            setMessage('Your email has been verified successfully.');
+            setStatus('continue_step');
+            return;
+        }
+
         // Priority 3: No token or oobCode in URL
         // Check if user is already verified in current session/storage
         const storedUser = localStorage.getItem('user');
@@ -350,7 +364,7 @@ const VerifyEmailPage = () => {
             setResendEmail(currentTargetEmail);
         }
         setStatus('pending');
-    }, [oobCode, mode, token, emailParam, markLocalUserVerified]);
+    }, [oobCode, mode, token, emailParam, verifiedParam, markLocalUserVerified]);
 
     useEffect(() => {
         if (!isVerificationAction) {
@@ -472,8 +486,8 @@ const VerifyEmailPage = () => {
             } catch {}
         }
 
-        // 3. Fallback: navigate directly to website root
-        navigate('/', { replace: true });
+        // 3. Fallback: navigate directly to login or website root
+        navigate('/login', { replace: true });
     };
 
     const handleContinue = handleNavigateWebsite;
@@ -565,17 +579,20 @@ const VerifyEmailPage = () => {
 
                 {/* Primary Title */}
                 <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
-                    Verification Confirmed
+                    Your email has been verified
                 </h1>
 
+                {/* Subtle Divider matching the screenshot */}
+                <div className="w-full border-t border-gray-100 my-4" />
+
                 {/* Subtitle / Description */}
-                <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-6 max-w-xs sm:max-w-sm">
-                    Your email address has been successfully confirmed. Click continue to proceed.
+                <p className="text-gray-600 text-sm sm:text-[15px] leading-relaxed mb-6 max-w-xs sm:max-w-sm">
+                    You can now sign in with your new account
                 </p>
 
                 {/* Primary Action Button */}
                 <button
-                    onClick={handleContinueToDone}
+                    onClick={handleContinue}
                     className="w-full sm:w-auto min-w-[250px] px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] mb-5 cursor-pointer uppercase flex items-center justify-center gap-2 group"
                 >
                     <span>CONTINUE</span>
@@ -586,10 +603,10 @@ const VerifyEmailPage = () => {
                 <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
                     <span>Almost done!</span>
                     <button
-                        onClick={handleContinueToDone}
+                        onClick={handleContinue}
                         className="font-semibold underline text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer"
                     >
-                        Click continue &rarr;
+                        Sign in to account &rarr;
                     </button>
                 </p>
             </motion.div>
@@ -637,12 +654,12 @@ const VerifyEmailPage = () => {
                     )}
                 </div>
 
-                {/* Primary Action Button: Update email (navigates to website) */}
+                {/* Primary Action Button: Navigate to website / login */}
                 <button
                     onClick={handleNavigateWebsite}
                     className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm tracking-wide transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] mb-3 cursor-pointer uppercase flex items-center justify-center gap-2"
                 >
-                    <span>Update email</span>
+                    <span>CONTINUE TO SIGN IN</span>
                 </button>
 
                 {/* Secondary Website Link */}
@@ -691,7 +708,7 @@ const VerifyEmailPage = () => {
     );
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STATE 2: SUCCESS ("Email Verified Successfully")
+    // STATE 2: SUCCESS ("Your email has been verified")
     // ═══════════════════════════════════════════════════════════════════════════
     const renderSuccessTemplate = () => {
         return (
@@ -708,20 +725,24 @@ const VerifyEmailPage = () => {
 
                 {/* Primary Title */}
                 <h1 className="text-2xl sm:text-[27px] font-extrabold text-[#312E81] mb-2.5 tracking-tight leading-snug">
-                    Email Verified Successfully
+                    Your email has been verified
                 </h1>
 
+                {/* Subtle Divider matching the screenshot */}
+                <div className="w-full border-t border-gray-100 my-4" />
+
                 {/* Subtitle / Description */}
-                <p className="text-gray-500 text-sm sm:text-[14.5px] leading-relaxed mb-6 max-w-xs sm:max-w-sm">
-                    Your email address has been verified successfully.
+                <p className="text-gray-600 text-sm sm:text-[15px] leading-relaxed mb-6 max-w-xs sm:max-w-sm">
+                    You can now sign in with your new account
                 </p>
 
                 {/* Primary Action Button */}
                 <button
                     onClick={handleContinue}
-                    className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm tracking-wide transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] mb-5 cursor-pointer uppercase"
+                    className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm tracking-wide transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] mb-5 cursor-pointer uppercase flex items-center justify-center gap-2 group"
                 >
-                    CONTINUE TO HIRE1PERCENT
+                    <span>CONTINUE</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </button>
 
                 {/* Footer Subtext */}
@@ -731,7 +752,7 @@ const VerifyEmailPage = () => {
                         onClick={handleContinue}
                         className="font-semibold underline text-[#2563eb] hover:text-[#1d4ed8] cursor-pointer"
                     >
-                        Continue to platform &rarr;
+                        Sign in to account &rarr;
                     </button>
                 </p>
             </motion.div>

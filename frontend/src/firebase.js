@@ -55,8 +55,9 @@ export const signupWithEmail = async (email, password) => {
 export const sendVerificationEmail = async (user = auth.currentUser) => {
     if (!user) throw new Error("No authenticated user found to send verification email.");
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.hire1percent.com';
+    const emailParam = user?.email ? `&email=${encodeURIComponent(user.email)}` : '';
     const actionCodeSettings = {
-        url: `${origin}/verify-email`,
+        url: `${origin}/verify-email?verified=true${emailParam}`,
         handleCodeInApp: false,
     };
     try {
