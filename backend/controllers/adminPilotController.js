@@ -247,8 +247,8 @@ const createPilotAccount = async (req, res) => {
 
         // Clean up partial MongoDB records
         if (savedUser && savedUser._id) {
-            await User.findByIdAndDelete(savedUser._id).catch(() => {});
-            await Recruiter.deleteOne({ userId: savedUser._id }).catch(() => {});
+            await User.findByIdAndDelete(savedUser._id).catch(() => { });
+            await Recruiter.deleteOne({ userId: savedUser._id }).catch(() => { });
         }
 
         return res.status(500).json({
@@ -370,8 +370,8 @@ const deletePilotAccount = async (req, res) => {
         });
 
         const clientId = `client_${user.uid || user._id}`;
-        await Client.deleteOne({ clientId }).catch(() => {});
-        await PlaintextClientCredential.deleteOne({ clientId }).catch(() => {});
+        await Client.deleteOne({ clientId }).catch(() => { });
+        await PlaintextClientCredential.deleteOne({ clientId }).catch(() => { });
 
         const userConditions = [{ _id: user._id }];
         if (user.uid) {
