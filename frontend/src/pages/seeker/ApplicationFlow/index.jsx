@@ -115,9 +115,7 @@ const ApplicationFlow = () => {
                 }
                 setUser(storedUser);
 
-                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`, {
-                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-                });
+                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`);
                 const jobData = jobRes.data;
                 setJob(jobData);
 

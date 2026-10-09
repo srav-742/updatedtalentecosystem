@@ -46,7 +46,7 @@ const corsOptions = {
             callback(null, true); // Still allow for now to resolve the blocker
         }
     },
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'X-Client-ID', 'X-Client-Secret', 'X-Refresh-Token'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'X-Requested-With', 'Origin', 'X-Client-ID', 'X-Client-Secret', 'X-Refresh-Token', 'Cache-Control', 'Pragma', 'cache-control', 'pragma'],
     exposedHeaders: ['X-New-Access-Token'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

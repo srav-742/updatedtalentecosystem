@@ -50,9 +50,7 @@ const JobDetails = () => {
     const { data: job = null, isLoading: jobLoading } = useQuery({
         queryKey: ['job', id],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`, {
-                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-            });
+            const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`);
             return res.data;
         },
         enabled: !!id,

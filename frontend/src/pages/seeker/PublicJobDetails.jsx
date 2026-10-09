@@ -34,9 +34,7 @@ const PublicJobDetails = () => {
         const fetchJob = async (isBackground = false) => {
             if (!isBackground) setLoading(true);
             try {
-                const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`, {
-                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-                });
+                const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`);
                 setJob(res.data);
             } catch (error) {
                 console.error('Failed to fetch job details:', error);
