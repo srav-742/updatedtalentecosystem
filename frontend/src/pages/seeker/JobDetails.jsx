@@ -50,10 +50,14 @@ const JobDetails = () => {
     const { data: job = null, isLoading: jobLoading } = useQuery({
         queryKey: ['job', id],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/jobs/${id}`);
+            const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`, {
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
             return res.data;
         },
-        enabled: !!id
+        enabled: !!id,
+        staleTime: 0,
+        refetchOnWindowFocus: true
     });
 
     // Fetch seeker's applications to determine save/application status
@@ -71,7 +75,7 @@ const JobDetails = () => {
     const application = userApplications.find((app) => (app.jobId?._id || app.jobId) === id);
 
     // Whitelist access evaluation
-    const candidateEmail = user?.email?.trim().toLowerCase();
+    const candidateEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
     const isRestrictedToWhitelist = Boolean(job?.isRestrictedToWhitelist);
     const allowedCandidates = (job?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
     const isEmailAllowed = !isRestrictedToWhitelist || (candidateEmail && allowedCandidates.includes(candidateEmail));

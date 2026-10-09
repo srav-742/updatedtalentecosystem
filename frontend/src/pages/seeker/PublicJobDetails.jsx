@@ -31,18 +31,24 @@ const PublicJobDetails = () => {
     const [copiedLink, setCopiedLink] = useState(false);
 
     useEffect(() => {
-        const fetchJob = async () => {
+        const fetchJob = async (isBackground = false) => {
+            if (!isBackground) setLoading(true);
             try {
-                const res = await axios.get(`${API_URL}/jobs/${id}`);
+                const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`, {
+                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+                });
                 setJob(res.data);
             } catch (error) {
                 console.error('Failed to fetch job details:', error);
             } finally {
-                setLoading(false);
+                if (!isBackground) setLoading(false);
             }
         };
 
         fetchJob();
+        const onFocus = () => fetchJob(true);
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, [id]);
 
     useEffect(() => {
@@ -140,14 +146,14 @@ const PublicJobDetails = () => {
     const candidateEmail = (() => {
         try {
             const u = JSON.parse(localStorage.getItem('user'));
-            return (u?.email || '').trim().toLowerCase();
+            return (u?.email || u?.emailId || u?.user?.email || '').trim().toLowerCase();
         } catch (e) {
             return '';
         }
     })();
     const isRestricted = !!job.isRestrictedToWhitelist;
     const allowedList = Array.isArray(job.allowedCandidates)
-        ? job.allowedCandidates.map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+        ? job.allowedCandidates.map(e => String(e).trim().toLowerCase())
         : [];
     const isExplicitlyDenied = isRestricted && candidateEmail && !allowedList.includes(candidateEmail);
     const isLimitReached = typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit;

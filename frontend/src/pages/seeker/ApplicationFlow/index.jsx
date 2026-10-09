@@ -115,7 +115,9 @@ const ApplicationFlow = () => {
                 }
                 setUser(storedUser);
 
-                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}`);
+                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`, {
+                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+                });
                 const jobData = jobRes.data;
                 setJob(jobData);
 
@@ -144,10 +146,10 @@ const ApplicationFlow = () => {
                 }
 
                 // Check Candidate Access & Quota Permissions
-                const candidateEmail = (storedUser.email || '').trim().toLowerCase();
+                const candidateEmail = (storedUser.email || storedUser.emailId || '').trim().toLowerCase();
                 const isRestricted = !!jobData?.isRestrictedToWhitelist;
                 const allowedList = Array.isArray(jobData?.allowedCandidates)
-                    ? jobData.allowedCandidates.map(e => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+                    ? jobData.allowedCandidates.map(e => String(e).trim().toLowerCase())
                     : [];
                 const isEmailAllowed = !isRestricted || (candidateEmail && allowedList.includes(candidateEmail));
 

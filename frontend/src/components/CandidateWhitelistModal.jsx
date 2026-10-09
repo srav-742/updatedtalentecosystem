@@ -167,6 +167,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
             }
 
             const payload = {
+                ...job,
                 isRestrictedToWhitelist: isRestricted,
                 allowedCandidates: cleanList
             };

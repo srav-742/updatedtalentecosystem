@@ -27,11 +27,14 @@ const generateFullAssessment = async (req, res) => {
             console.log("[DEBUG] Assessment config:", job.assessment);
             return res.status(400).json({ message: "Assessment not enabled for this job" });
         }
-        const user = await User.findOne({ uid: userId });
+        let user = await User.findOne({ uid: userId });
+        if (!user && mongoose.Types.ObjectId.isValid(userId)) {
+            user = await User.findById(userId);
+        }
 
         // 🔒 Whitelist check
         if (job.isRestrictedToWhitelist) {
-            const candidateEmail = user?.email?.trim().toLowerCase();
+            const candidateEmail = (user?.email || req.body?.email || req.user?.email || '').trim().toLowerCase();
             const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
             if (!candidateEmail || !allowedList.includes(candidateEmail)) {
                 return res.status(403).json({ message: "This assessment is restricted to listed candidates only." });

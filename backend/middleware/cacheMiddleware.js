@@ -35,9 +35,11 @@ const cacheMiddleware = (ttlSeconds = 60, options = {}) => {
     } = options;
 
     return (req, res, next) => {
-        // Bypass cache for admin routes, recruiter routes, and non-GET requests
+        // Bypass cache for admin routes, recruiter routes, non-GET requests, or explicit client no-cache requests
         const urlLower = req.originalUrl.toLowerCase();
-        if (req.method !== 'GET' || urlLower.includes('/admin') || urlLower.includes('/recruiter')) {
+        const isNoCache = req.headers['cache-control'] && req.headers['cache-control'].includes('no-cache');
+        const hasCacheBuster = Boolean(req.query && (req.query._t || req.query.timestamp));
+        if (req.method !== 'GET' || urlLower.includes('/admin') || urlLower.includes('/recruiter') || isNoCache || hasCacheBuster) {
             return next();
         }
 

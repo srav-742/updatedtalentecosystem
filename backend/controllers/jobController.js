@@ -91,8 +91,13 @@ const getJobById = async (req, res) => {
         // Calculate active applicant count
         const applicantCount = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
 
-        // Individual job: cache for 2 minutes
-        res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+        // Individual job: fresh cache control so permissions/whitelist updates reflect immediately
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        if (isLocalhost) {
+            res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        } else {
+            res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=30');
+        }
         res.json({
             ...job,
             applicantCount
@@ -202,12 +207,17 @@ const updateJob = async (req, res) => {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
         
+        const existingJob = await Job.findById(req.params.jobId);
+        if (!existingJob) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
         const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        const jobData = { ...req.body };
+        const jobData = { ...existingJob.toObject(), ...req.body };
         if (isLocalhost) {
             jobData.status = 'approved';
         } else {
-            jobData.status = req.body.status || 'pending_approval';
+            jobData.status = req.body.status || existingJob.status || 'pending_approval';
         }
         jobData.adminFeedback = { reason: '', reviewedAt: null };
 
