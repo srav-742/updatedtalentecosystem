@@ -1016,7 +1016,8 @@ const RecruiterKnowledgeHub = () => {
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
                     <button
                         onClick={() => navigate('/recruiter/post-job')}
-                        className="px-5 py-3 rounded-xl bg-white text-slate-900 hover:bg-slate-100 text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-md"
+                        style={{ backgroundColor: '#000000', color: '#ffffff' }}
+                        className="px-5 py-3 rounded-xl bg-black hover:bg-zinc-900 border border-white/20 text-white text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-md"
                     >
                         Create New Job
                     </button>
