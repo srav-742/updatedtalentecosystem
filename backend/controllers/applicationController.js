@@ -43,10 +43,16 @@ const submitApplication = async (req, res) => {
         if (assessmentSubmissionId) {
             update.assessmentSubmissionId = assessmentSubmissionId;
         }
-        const [existingApp, jobDoc] = await Promise.all([
+        let [existingApp, jobDoc] = await Promise.all([
             Application.findOne(query).lean().catch(() => null),
             mongoose.Types.ObjectId.isValid(jobId) ? require('../models/Job').findById(jobId).lean().catch(() => null) : null
         ]);
+        if (!existingApp && resolvedEmail) {
+            existingApp = await Application.findOne({
+                jobId: new mongoose.Types.ObjectId(jobId),
+                applicantEmail: resolvedEmail.trim().toLowerCase()
+            }).lean().catch(() => null);
+        }
 
         const r = Number(updateData.resumeMatchPercent !== undefined ? updateData.resumeMatchPercent : (existingApp?.resumeMatchPercent || 0));
         const a = Number(updateData.assessmentScore !== undefined ? updateData.assessmentScore : (existingApp?.assessmentScore || 0));
@@ -60,9 +66,11 @@ const submitApplication = async (req, res) => {
         }
 
         // 🔒 Enforce Whitelist Restriction (Listed Candidates Only)
+        const candidateEmail = String(resolvedEmail || '').trim().toLowerCase();
+        const allowedList = (jobDoc?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+        const isCandidateWhitelisted = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+
         if (targetStatus !== 'SAVED' && jobDoc?.isRestrictedToWhitelist) {
-            const candidateEmail = String(resolvedEmail || '').trim().toLowerCase();
-            const allowedList = (jobDoc.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
             if (!candidateEmail || !allowedList.includes(candidateEmail)) {
                 return res.status(403).json({
                     success: false,
@@ -72,8 +80,8 @@ const submitApplication = async (req, res) => {
             }
         }
 
-        // 🔒 Enforce Candidate Limit (Count is never disclosed to candidates)
-        if (targetStatus !== 'SAVED' && jobDoc?.candidateLimit && Number(jobDoc.candidateLimit) > 0) {
+        // 🔒 Enforce Candidate Limit (Count is never disclosed to candidates; explicitly whitelisted candidates and invite-only jobs are exempt)
+        if (!isCandidateWhitelisted && !jobDoc?.isRestrictedToWhitelist && targetStatus !== 'SAVED' && jobDoc?.candidateLimit && Number(jobDoc.candidateLimit) > 0) {
             const hasExistingSeat = existingApp && existingApp.status && existingApp.status !== 'SAVED';
             if (!hasExistingSeat) {
                 const activeApplicantsCount = await Application.countDocuments({
@@ -104,7 +112,8 @@ const submitApplication = async (req, res) => {
         }
         update.status = targetStatus;
 
-        const application = await Application.findOneAndUpdate(query, { $set: update }, { new: true, upsert: true });
+        const targetQuery = existingApp ? { _id: existingApp._id } : query;
+        const application = await Application.findOneAndUpdate(targetQuery, { $set: update }, { new: true, upsert: true });
         invalidateCache('/api/applications');
         res.status(201).json(application);
     } catch (error) {
@@ -115,9 +124,17 @@ const submitApplication = async (req, res) => {
 
 const getSeekerApplications = async (req, res) => {
     try {
-        const apps = await Application.find({ userId: req.params.userId })
+        const User = require('../models/User');
+        const user = await User.findOne({ uid: req.params.userId }).lean();
+        const userEmail = user?.email || (req.params.userId.includes('@') ? req.params.userId : null);
+
+        const query = userEmail
+            ? { $or: [{ userId: req.params.userId }, { applicantEmail: userEmail.toLowerCase() }] }
+            : { userId: req.params.userId };
+
+        const apps = await Application.find(query)
             .select('-interviewAnswers -assessmentAnswers -codingAnswers -recommendationSummary')
-            .populate('jobId', 'title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved resumeAnalysis assessment codingAssessment mockInterview')
+            .populate('jobId', 'title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved resumeAnalysis assessment codingAssessment mockInterview isRestrictedToWhitelist allowedCandidates candidateLimit applicantCount')
             .sort({ appliedAt: -1 })
             .lean();
         const validApps = apps.filter(app => app.jobId);

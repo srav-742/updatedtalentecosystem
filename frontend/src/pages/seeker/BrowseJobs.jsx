@@ -57,7 +57,7 @@ const BrowseJobs = () => {
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-
+    const userEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
     const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
@@ -379,20 +379,39 @@ const BrowseJobs = () => {
                                     </div>
 
                                     {/* Candidate Access Badge */}
-                                    {typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit ? (
-                                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                            <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
-                                                Applications Closed
-                                            </span>
-                                        </div>
-                                    ) : job.isRestrictedToWhitelist ? (
-                                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                                <ShieldCheck size={11} className="text-amber-600" />
-                                                Invite Only
-                                            </span>
-                                        </div>
-                                    ) : null}
+                                    {(() => {
+                                        const isWhitelisted = Boolean(userEmail && Array.isArray(job.allowedCandidates) && job.allowedCandidates.some(e => String(e).trim().toLowerCase() === userEmail));
+                                        if (isWhitelisted) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                                        <ShieldCheck size={11} className="text-emerald-600" />
+                                                        Access Granted
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        if (job.isRestrictedToWhitelist) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                                        <ShieldCheck size={11} className="text-amber-600" />
+                                                        Invite Only
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        if (typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                                                        Applications Closed
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
 
                                     {/* Skills (compact badges) */}
                                     {job.skills && job.skills.length > 0 && (

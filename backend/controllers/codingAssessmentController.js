@@ -612,12 +612,16 @@ const submitCodingAssessment = async (req, res) => {
         const validJobId = mongoose.Types.ObjectId.isValid(rawJobId) ? new mongoose.Types.ObjectId(rawJobId) : rawJobId;
         const appQuery = { jobId: validJobId, userId: String(userId) };
 
-        const [existingApp, jobDoc] = await Promise.all([
+        let [existingApp, jobDoc] = await Promise.all([
             Application.findOne(appQuery).lean().catch(() => null),
             mongoose.Types.ObjectId.isValid(validJobId) ? Job.findById(validJobId).lean().catch(() => null) : null
         ]);
+        if (!existingApp && resolvedEmail) {
+            existingApp = await Application.findOne({ jobId: validJobId, applicantEmail: resolvedEmail.toLowerCase() }).lean().catch(() => null);
+        }
 
         const appUpdate = {
+            userId: String(userId),
             codingScore: standaloneCodingScore,
             codingDetails: assessmentTotals,
             codingAnswers: processedAnswers
@@ -651,8 +655,9 @@ const submitCodingAssessment = async (req, res) => {
             appUpdate.status = 'APPLIED';
         }
 
+        const targetQuery = existingApp ? { _id: existingApp._id } : appQuery;
         await Application.findOneAndUpdate(
-            appQuery,
+            targetQuery,
             { $set: appUpdate },
             { new: true, upsert: true }
         );

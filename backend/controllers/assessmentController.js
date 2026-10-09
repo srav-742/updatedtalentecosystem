@@ -33,26 +33,47 @@ const generateFullAssessment = async (req, res) => {
         }
 
         // 🔒 Whitelist check
+        const candidateEmail = (user?.email || req.body?.email || req.user?.email || '').trim().toLowerCase();
+        const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+        const isWhitelisted = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+
         if (job.isRestrictedToWhitelist) {
-            const candidateEmail = (user?.email || req.body?.email || req.user?.email || '').trim().toLowerCase();
-            const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
             if (!candidateEmail || !allowedList.includes(candidateEmail)) {
                 return res.status(403).json({ message: "This assessment is restricted to listed candidates only." });
             }
         }
 
-        // Removed unnecessary ResumeProfile check. Application record is the source of truth.
-        const application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
+        // Application record is the source of truth (supports shadow user fallback by email)
+        let application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
+        if (!application && candidateEmail) {
+            application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), applicantEmail: candidateEmail });
+            if (application && application.userId !== userId) {
+                application.userId = userId;
+                await application.save();
+            } else if (!application && isWhitelisted) {
+                // If candidate is whitelisted by recruiter, auto-create their application so they can immediately take the assessment
+                application = new Application({
+                    jobId: new mongoose.Types.ObjectId(jobId),
+                    userId,
+                    applicantEmail: candidateEmail,
+                    applicantName: user?.name || 'Candidate',
+                    status: 'APPLIED',
+                    resumeMatchPercent: 80,
+                    appliedAt: new Date()
+                });
+                await application.save();
+            }
+        }
 
-        // 🔒 Candidate Limit check (Count is never disclosed to candidates)
-        if (job.candidateLimit && Number(job.candidateLimit) > 0 && (!application || application.status === 'SAVED')) {
+        // 🔒 Candidate Limit check (Count is never disclosed to candidates; explicitly whitelisted candidates are exempt)
+        if (!isWhitelisted && !job.isRestrictedToWhitelist && job.candidateLimit && Number(job.candidateLimit) > 0 && (!application || application.status === 'SAVED')) {
             const totalApplicants = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
             if (totalApplicants >= Number(job.candidateLimit)) {
                 return res.status(403).json({ message: "This assessment is currently closed to new attempts." });
             }
         }
         const isResumeEnabled = job.resumeAnalysis?.enabled !== false;
-        if (isResumeEnabled) {
+        if (isResumeEnabled && !isWhitelisted) {
             if (!application) {
                 return res.status(400).json({ message: "You must apply (upload resume) first" });
             }
@@ -345,11 +366,14 @@ Respond ONLY with a JSON object in this exact format:
 
         // Query application and related details in parallel
         const appQuery = { jobId: validJobId, userId: String(userId) };
-        const [existingApp, jobDoc, seeker] = await Promise.all([
+        let [existingApp, jobDoc, seeker] = await Promise.all([
             Application.findOne(appQuery).lean().catch(() => null),
             mongoose.Types.ObjectId.isValid(validJobId) ? Job.findById(validJobId).lean().catch(() => null) : null,
             User.findOne({ uid: userId }).lean().catch(() => null)
         ]);
+        if (!existingApp && seeker?.email) {
+            existingApp = await Application.findOne({ jobId: validJobId, applicantEmail: seeker.email.toLowerCase() }).lean().catch(() => null);
+        }
 
         const resolvedName = seeker?.name || existingApp?.applicantName;
         const resolvedEmail = seeker?.email || existingApp?.applicantEmail;
@@ -373,6 +397,7 @@ Respond ONLY with a JSON object in this exact format:
         }
 
         const appUpdate = {
+            userId: String(userId),
             assessmentScore: finalScore,
             assessmentAnswers: processedAnswers,
             finalScore: calculatedFinalScore,
@@ -385,9 +410,10 @@ Respond ONLY with a JSON object in this exact format:
         if (resolvedEmail) appUpdate.applicantEmail = resolvedEmail;
         if (resolvedPic) appUpdate.applicantPic = resolvedPic;
 
-        // Atomically upsert Application without calling .save() on populated document
+        // Target existing application document if found by email, else target appQuery
+        const targetQuery = existingApp ? { _id: existingApp._id } : appQuery;
         await Application.findOneAndUpdate(
-            appQuery,
+            targetQuery,
             { $set: appUpdate },
             { new: true, upsert: true }
         );

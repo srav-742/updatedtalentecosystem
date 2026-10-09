@@ -132,24 +132,28 @@ const ApplicationFlow = () => {
 
                 // Check for existing application to resume candidate state
                 let existingApp = null;
+                const candidateEmail = (storedUser.email || storedUser.emailId || '').trim().toLowerCase();
                 try {
                     const candidateUserId = storedUser.uid || storedUser._id || storedUser.id;
                     const appsRes = await axios.get(`${API_URL}/applications/candidate/${candidateUserId}`);
-                    existingApp = (Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || []).find(app => {
+                    const candidateApps = Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || [];
+                    existingApp = candidateApps.find(app => {
                         const appJobId = app?.jobId?._id || app?.jobId;
-                        return appJobId && String(appJobId) === String(jobId);
+                        const isJobMatch = appJobId && String(appJobId) === String(jobId);
+                        const isEmailMatch = candidateEmail && app?.applicantEmail && app.applicantEmail.toLowerCase() === candidateEmail;
+                        return isJobMatch && (app.userId === candidateUserId || isEmailMatch);
                     });
                 } catch (e) {
                     // Application fetch non-critical fallback
                 }
 
                 // Check Candidate Access & Quota Permissions
-                const candidateEmail = (storedUser.email || storedUser.emailId || '').trim().toLowerCase();
                 const isRestricted = !!jobData?.isRestrictedToWhitelist;
                 const allowedList = Array.isArray(jobData?.allowedCandidates)
                     ? jobData.allowedCandidates.map(e => String(e).trim().toLowerCase())
                     : [];
-                const isEmailAllowed = !isRestricted || (candidateEmail && allowedList.includes(candidateEmail));
+                const isWhitelisted = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+                const isEmailAllowed = !isRestricted || isWhitelisted;
 
                 if (!isEmailAllowed) {
                     setAccessBlocked({
@@ -163,9 +167,10 @@ const ApplicationFlow = () => {
 
                 const limit = jobData?.candidateLimit;
                 const currentCount = jobData?.applicantCount ?? 0;
-                const isLimitReached = typeof limit === 'number' && limit > 0 && currentCount >= limit;
+                // Whitelisted candidates, invite-only jobs, and candidates with existing applications are NEVER blocked by candidate capacity limit
+                const isLimitReached = !isWhitelisted && !isRestricted && !existingApp && typeof limit === 'number' && limit > 0 && currentCount >= limit;
 
-                if (!existingApp && isLimitReached) {
+                if (isLimitReached) {
                     setAccessBlocked({
                         type: 'LIMIT_REACHED',
                         title: 'Applications Closed',
@@ -236,7 +241,7 @@ const ApplicationFlow = () => {
         };
 
         fetchData();
-    }, [jobId, navigate, requestedStep]);
+    }, [jobId, navigate, requestedStep, queryClient]);
 
     // Computed enabled steps with memoization
     const enabledSteps = useMemo(() => {
@@ -397,7 +402,7 @@ const ApplicationFlow = () => {
                         key="candidate-deck"
                         job={job}
                         user={user}
-                        onComplete={(url) => {
+                        onComplete={() => {
                             handleNext();
                         }}
                     />

@@ -70,14 +70,23 @@ const JobDetails = () => {
     });
 
     const loading = jobLoading || appsLoading;
-    const application = userApplications.find((app) => (app.jobId?._id || app.jobId) === id);
+
+    const application = userApplications.find((app) => {
+        const appJobId = app.jobId?._id || app.jobId;
+        const isJobMatch = appJobId === id || String(appJobId) === String(id);
+        const candidateEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
+        const isEmailMatch = candidateEmail && app.applicantEmail && app.applicantEmail.toLowerCase() === candidateEmail;
+        return isJobMatch && (app.userId === userId || isEmailMatch);
+    });
 
     // Whitelist access evaluation
     const candidateEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
     const isRestrictedToWhitelist = Boolean(job?.isRestrictedToWhitelist);
     const allowedCandidates = (job?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
-    const isEmailAllowed = !isRestrictedToWhitelist || (candidateEmail && allowedCandidates.includes(candidateEmail));
-    const isLimitReached = typeof job?.candidateLimit === 'number' && job.candidateLimit > 0 && (job?.applicantCount ?? 0) >= job.candidateLimit;
+    const isWhitelistedCandidate = Boolean(candidateEmail && allowedCandidates.includes(candidateEmail));
+    const isEmailAllowed = !isRestrictedToWhitelist || isWhitelistedCandidate;
+    // Whitelisted candidates, invite-only roles, and applicants with existing applications are never blocked by candidate evaluation limit
+    const isLimitReached = !isWhitelistedCandidate && !isRestrictedToWhitelist && !application && typeof job?.candidateLimit === 'number' && job.candidateLimit > 0 && (job?.applicantCount ?? 0) >= job.candidateLimit;
 
     // Mutation for toggling save state
     const toggleSaveMutation = useMutation({
@@ -275,16 +284,27 @@ const JobDetails = () => {
                     {application && application.status !== 'SAVED' ? (
                         <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Application status</p>
-                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Already Applied</h2>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">
+                                {application.status === 'APPLIED' ? 'Assessment & Interview Ready' : 'Application Active'}
+                            </h2>
                             <p className="mt-1 text-xs leading-relaxed text-gray-600">
-                                You have an active application for this role. Current status: <span className="font-bold text-gray-900 uppercase">{application.status}</span>.
+                                {application.status === 'APPLIED'
+                                    ? 'You have been granted exclusive access! Proceed to take your skill assessment and AI interview.'
+                                    : `You have an active application for this role. Current status: ${application.status}.`}
                             </p>
-                            <div className="mt-4">
+                            <div className="mt-4 space-y-2">
+                                <Link
+                                    to={`/candidate/apply/${id}`}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-xs font-semibold text-white transition shadow-sm"
+                                >
+                                    <Sparkles size={14} />
+                                    <span>Start Test & Interview</span>
+                                </Link>
                                 <Link
                                     to="/candidate/applications"
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
                                 >
-                                    Track your application
+                                    Track application
                                 </Link>
                             </div>
                         </div>

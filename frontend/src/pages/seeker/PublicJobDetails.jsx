@@ -153,8 +153,10 @@ const PublicJobDetails = () => {
     const allowedList = Array.isArray(job.allowedCandidates)
         ? job.allowedCandidates.map(e => String(e).trim().toLowerCase())
         : [];
+    const isWhitelistedCandidate = Boolean(candidateEmail && allowedList.includes(candidateEmail));
     const isExplicitlyDenied = isRestricted && candidateEmail && !allowedList.includes(candidateEmail);
-    const isLimitReached = typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit;
+    // Whitelisted candidates and invite-only roles are never blocked by public applicant count quota
+    const isLimitReached = !isWhitelistedCandidate && !isRestricted && typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit;
 
     return (
         <div className="min-h-screen bg-[#f7f4ee]">
@@ -312,13 +314,17 @@ const PublicJobDetails = () => {
                                             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
                                         >
                                             <Sparkles size={14} />
-                                            Apply
+                                            {isWhitelistedCandidate ? 'Start Assessment & Interview' : 'Apply'}
                                         </button>
-                                        {!localStorage.getItem('user') && (
+                                        {!candidateEmail && isRestricted ? (
+                                            <p className="text-[11px] text-center text-amber-700 font-medium">
+                                                Invited role: Sign in with your invited email to start assessment & interview
+                                            </p>
+                                        ) : !localStorage.getItem('user') ? (
                                             <p className="text-[11px] text-center text-gray-400">
                                                 You'll be asked to sign in before proceeding
                                             </p>
-                                        )}
+                                        ) : null}
                                     </div>
                                 )}
                             </div>

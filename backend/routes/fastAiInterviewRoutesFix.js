@@ -1195,19 +1195,45 @@ router.post('/start', async (req, res) => {
         if (!job) return res.status(404).json({ message: "Job not found" });
 
         // 🔒 Access Gate: Whitelist Check
+        const User = require('../models/User');
+        const candidateUser = await User.findOne({
+            $or: [
+                { uid: userId },
+                ...(mongoose.Types.ObjectId.isValid(userId) ? [{ _id: userId }] : [])
+            ]
+        });
+        const candidateEmail = candidateUser?.email?.trim().toLowerCase();
+        const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+        const isWhitelistedCandidate = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+
         if (job.isRestrictedToWhitelist) {
-            const User = require('../models/User');
-            const candidateUser = await User.findOne({ uid: userId });
-            const candidateEmail = candidateUser?.email?.trim().toLowerCase();
-            const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
             if (!candidateEmail || !allowedList.includes(candidateEmail)) {
                 return res.status(403).json({ message: "This interview is restricted to listed candidates only." });
             }
         }
 
-        // 🔒 Candidate Limit Check (Count is never disclosed to candidates)
-        if (job.candidateLimit && Number(job.candidateLimit) > 0) {
-            const existingApplication = await Application.findOne({ jobId: job._id, userId, status: { $ne: 'SAVED' } });
+        // 🔒 Candidate Limit Check (Count is never disclosed to candidates; explicitly whitelisted candidates and invite-only jobs are exempt)
+        let existingApplication = await Application.findOne({ jobId: job._id, userId, status: { $ne: 'SAVED' } });
+        if (!existingApplication && candidateEmail) {
+            existingApplication = await Application.findOne({ jobId: job._id, applicantEmail: candidateEmail, status: { $ne: 'SAVED' } });
+            if (existingApplication && existingApplication.userId !== userId) {
+                existingApplication.userId = userId;
+                await existingApplication.save();
+            } else if (!existingApplication && isWhitelistedCandidate) {
+                existingApplication = new Application({
+                    jobId: job._id,
+                    userId,
+                    applicantEmail: candidateEmail,
+                    applicantName: candidateUser?.name || 'Candidate',
+                    status: 'APPLIED',
+                    resumeMatchPercent: 80,
+                    appliedAt: new Date()
+                });
+                await existingApplication.save();
+            }
+        }
+
+        if (!isWhitelistedCandidate && !job.isRestrictedToWhitelist && job.candidateLimit && Number(job.candidateLimit) > 0) {
             if (!existingApplication) {
                 const totalApplicants = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
                 if (totalApplicants >= Number(job.candidateLimit)) {
