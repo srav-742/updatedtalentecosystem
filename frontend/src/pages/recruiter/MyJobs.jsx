@@ -976,6 +976,7 @@ const MyJobs = () => {
                     setSelectedJobId(null);
                 }}
                 jobId={selectedJobId}
+                job={jobs.find(j => j._id === selectedJobId)}
                 onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
             />
 

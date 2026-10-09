@@ -4,5 +4,6 @@ const recruiterUploadController = require('../controllers/recruiterUploadControl
 const { memoryUpload } = require('../middleware/upload');
 
 router.post('/recruiter/bulk-upload-candidate', memoryUpload.single('resume'), recruiterUploadController.bulkUploadCandidate);
+router.post('/recruiter/grant-candidate-access', recruiterUploadController.grantCandidateAccess);
 
 module.exports = router;

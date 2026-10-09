@@ -34,7 +34,7 @@ const getFallbackName = (text = '') => {
 
 const bulkUploadCandidate = async (req, res) => {
     try {
-        const { jobId, recruiterId } = req.body;
+        const { jobId, recruiterId, targetRound } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ message: "No file uploaded" });
@@ -142,8 +142,10 @@ ${resumeText.substring(0, 7000)}
         }
 
         // Ensure email exists, otherwise generate a dummy email
+        let isDummyEmail = false;
         let email = parsedData.basics?.email || getFallbackEmail(resumeText);
         if (!email) {
+            isDummyEmail = true;
             const randomStr = crypto.randomBytes(6).toString('hex');
             email = `candidate_${randomStr}@imported.hire1percent.com`;
         }
@@ -357,20 +359,63 @@ Return ONLY a JSON response in this format:
             await application.save();
         }
 
+        // 🔒 Candidate Email Verification & Round Access Granting
+        // Add candidate to job whitelist so ONLY uploaded candidates have access to the test/interview
+        let accessGranted = false;
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        if (!isDummyEmail && normalizedEmail && !normalizedEmail.includes('@imported.hire1percent.com')) {
+            await Job.findByIdAndUpdate(
+                job._id,
+                {
+                    $set: { isRestrictedToWhitelist: true },
+                    $addToSet: { allowedCandidates: normalizedEmail }
+                },
+                { new: true }
+            );
+            accessGranted = true;
+            console.log(`[BULK-UPLOAD] Granted exclusive access for ${normalizedEmail} to Job: ${job.title}`);
+        }
+
+        // Configure round-specific access if requested
+        const cleanTargetRound = String(targetRound || 'ALL').toUpperCase();
+        if (cleanTargetRound === 'ASSESSMENT') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.assessment = { granted: true };
+            await application.save();
+        } else if (cleanTargetRound === 'CODING') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.coding = { granted: true };
+            await application.save();
+        } else if (cleanTargetRound === 'INTERVIEW') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.interview = { granted: true };
+            await application.save();
+        }
+
         // Increment applicant count on Job model
         const appCount = await Application.countDocuments({ jobId: job._id });
         job.applicantCount = appCount;
         await job.save();
+
+        let stepQuery = '';
+        if (cleanTargetRound === 'ASSESSMENT') stepQuery = '?step=assessment';
+        else if (cleanTargetRound === 'CODING') stepQuery = '?step=coding';
+        else if (cleanTargetRound === 'INTERVIEW') stepQuery = '?step=interview';
 
         res.status(200).json({
             success: true,
             message: `Successfully processed ${name}`,
             candidate: {
                 name,
-                email,
+                email: isDummyEmail ? '' : email,
+                rawEmail: email,
+                isDummyEmail,
                 score,
                 status: application.status,
-                isNewUser
+                isNewUser,
+                accessGranted,
+                targetRound: cleanTargetRound,
+                accessLink: `/candidate/apply/${job._id}${stepQuery}`
             }
         });
 
@@ -380,4 +425,64 @@ Return ONLY a JSON response in this format:
     }
 };
 
-module.exports = { bulkUploadCandidate };
+const grantCandidateAccess = async (req, res) => {
+    try {
+        const { jobId, candidateEmail, candidateName, targetRound } = req.body;
+        if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ message: "Invalid or missing Job ID" });
+        }
+        if (!candidateEmail || !candidateEmail.includes('@')) {
+            return res.status(400).json({ message: "Valid candidate email is required" });
+        }
+
+        const normalizedEmail = candidateEmail.trim().toLowerCase();
+        const job = await Job.findByIdAndUpdate(
+            jobId,
+            {
+                $set: { isRestrictedToWhitelist: true },
+                $addToSet: { allowedCandidates: normalizedEmail }
+            },
+            { new: true }
+        );
+        if (!job) return res.status(404).json({ message: "Job not found" });
+
+        // Update application if present
+        const cleanTargetRound = String(targetRound || 'ALL').toUpperCase();
+        let app = await Application.findOne({ jobId, applicantEmail: normalizedEmail });
+        if (app) {
+            if (cleanTargetRound === 'ASSESSMENT') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.assessment = { granted: true };
+                await app.save();
+            } else if (cleanTargetRound === 'CODING') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.coding = { granted: true };
+                await app.save();
+            } else if (cleanTargetRound === 'INTERVIEW') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.interview = { granted: true };
+                await app.save();
+            }
+        }
+
+        let stepQuery = '';
+        if (cleanTargetRound === 'ASSESSMENT') stepQuery = '?step=assessment';
+        else if (cleanTargetRound === 'CODING') stepQuery = '?step=coding';
+        else if (cleanTargetRound === 'INTERVIEW') stepQuery = '?step=interview';
+
+        res.status(200).json({
+            success: true,
+            message: `Granted exclusive access to ${normalizedEmail}`,
+            candidateEmail: normalizedEmail,
+            candidateName: candidateName || app?.applicantName || 'Candidate',
+            targetRound: cleanTargetRound,
+            accessLink: `/candidate/apply/${jobId}${stepQuery}`,
+            allowedCandidates: job.allowedCandidates
+        });
+    } catch (error) {
+        console.error("[GRANT-ACCESS-CONTROLLER] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { bulkUploadCandidate, grantCandidateAccess };

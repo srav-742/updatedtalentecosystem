@@ -50,6 +50,19 @@ const getCodingRoundByJobId = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Invalid Job ID.' });
         }
+        const Job = require('../models/Job');
+        const job = await Job.findById(jobId).lean();
+        if (job && job.isRestrictedToWhitelist) {
+            const isRecruiter = req.user && ['recruiter', 'admin', 'company'].includes(req.user.role);
+            if (!isRecruiter) {
+                const candidateEmail = (req.user?.email || req.body?.email || req.headers['x-user-email'] || '').trim().toLowerCase();
+                const allowedList = (job.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+                if (!candidateEmail || !allowedList.includes(candidateEmail)) {
+                    return res.status(403).json({ success: false, message: "This coding assessment is restricted to listed candidates only." });
+                }
+            }
+        }
+
         const codingRound = await CodingRound.findOne({ jobId }).populate('questions');
         if (!codingRound) {
             return res.json({ success: false, message: 'No coding round configured for this job.' });
