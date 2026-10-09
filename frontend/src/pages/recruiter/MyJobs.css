@@ -286,6 +286,12 @@
     background-color: #eef2ff !important;
 }
 
+.myjobs-action-btn.action-whitelist:hover {
+    border-color: #9333ea !important;
+    color: #7e22ce;
+    background-color: #faf5ff !important;
+}
+
 .myjobs-action-btn.action-upload:hover {
     border-color: #3b82f6 !important;
     color: #2563eb;

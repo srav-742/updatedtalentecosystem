@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList, Users } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList, Users, ShieldCheck, Mail } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,8 +56,70 @@ const PostJob = () => {
         selectionMode: 'ORDERED',
         recruiterQuestions: [],
         specialInstructions: '',
-        candidateLimit: ''
+        candidateLimit: '',
+        isRestrictedToWhitelist: false,
+        allowedCandidates: []
     });
+
+    const [whitelistInput, setWhitelistInput] = useState('');
+    const [whitelistInputMode, setWhitelistInputMode] = useState('single'); // 'single' | 'bulk'
+    const [whitelistError, setWhitelistError] = useState('');
+
+    const handleAddWhitelistEmail = (e) => {
+        if (e) e.preventDefault();
+        setWhitelistError('');
+        const trimmed = whitelistInput.trim().toLowerCase();
+        if (!trimmed) return;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmed)) {
+            setWhitelistError(`"${trimmed}" is not a valid email address.`);
+            return;
+        }
+        const currentList = Array.isArray(jobData.allowedCandidates) ? jobData.allowedCandidates : [];
+        if (currentList.includes(trimmed)) {
+            setWhitelistError(`"${trimmed}" is already on the allowed list.`);
+            return;
+        }
+        setJobData(prev => ({
+            ...prev,
+            allowedCandidates: [trimmed, ...currentList]
+        }));
+        setWhitelistInput('');
+    };
+
+    const handleAddBulkWhitelistEmails = () => {
+        setWhitelistError('');
+        if (!whitelistInput.trim()) return;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const tokens = whitelistInput
+            .split(/[\r\n,;\t\s]+/)
+            .map(t => t.trim().toLowerCase())
+            .filter(t => t.length > 0);
+
+        const valid = tokens.filter(t => emailRegex.test(t));
+        const invalid = tokens.filter(t => !emailRegex.test(t));
+        if (valid.length === 0) {
+            setWhitelistError('No valid email addresses found.');
+            return;
+        }
+        const currentList = Array.isArray(jobData.allowedCandidates) ? jobData.allowedCandidates : [];
+        const merged = [...new Set([...currentList, ...valid])];
+        setJobData(prev => ({
+            ...prev,
+            allowedCandidates: merged
+        }));
+        setWhitelistInput('');
+        if (invalid.length > 0) {
+            setWhitelistError(`Added ${valid.length} emails. Skipped ${invalid.length} invalid items.`);
+        }
+    };
+
+    const handleRemoveWhitelistEmail = (emailToRemove) => {
+        setJobData(prev => ({
+            ...prev,
+            allowedCandidates: (prev.allowedCandidates || []).filter(e => e !== emailToRemove)
+        }));
+    };
 
     const [codingLanguages, setCodingLanguages] = useState(['Python', 'Java', 'C++', 'C', 'JavaScript']);
     const [selectedLanguage, setSelectedLanguage] = useState('Python');
@@ -141,6 +203,8 @@ const PostJob = () => {
                             ...prev,
                             ...job,
                             candidateLimit: job.candidateLimit || '',
+                            isRestrictedToWhitelist: Boolean(job.isRestrictedToWhitelist),
+                            allowedCandidates: Array.isArray(job.allowedCandidates) ? job.allowedCandidates : [],
                             questionSource: qSource,
                             questionCount: qCount,
                             selectionMode: sMode,
@@ -484,12 +548,22 @@ const PostJob = () => {
                 return;
             }
 
+            const cleanAllowedCandidates = Array.isArray(jobData.allowedCandidates)
+                ? [...new Set(
+                    jobData.allowedCandidates
+                        .map(e => String(e).trim().toLowerCase())
+                        .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+                  )]
+                : [];
+
             const dataToSave = {
                 ...jobData,
                 recruiterId: recruiterId,
                 company: jobData.company || user.company?.name || user.company || 'hire1percent Partner',
                 minPercentage: Number(jobData.minPercentage),
                 candidateLimit: candidateLimitVal,
+                isRestrictedToWhitelist: Boolean(jobData.isRestrictedToWhitelist),
+                allowedCandidates: cleanAllowedCandidates,
                 questionSource: qSource,
                 questionCount: qCount,
                 selectionMode: sMode,
@@ -1859,6 +1933,178 @@ const PostJob = () => {
                                     Set how many candidates can take this job's tests and interviews. This count is strictly confidential and never visible to candidates.
                                 </p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Candidate Email Whitelist Card (Invite-Only Assessments) */}
+                    <div className={`p-6 rounded-2xl border transition-all duration-300 mb-4 ${
+                        jobData.isRestrictedToWhitelist 
+                            ? 'bg-purple-50/50 border-purple-200 shadow-xs' 
+                            : 'bg-slate-50/70 border-slate-200/80'
+                    }`}>
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                                        <ShieldCheck size={16} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-bold text-slate-900">
+                                                Candidate Email Verification (Invite-Only)
+                                            </h3>
+                                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full uppercase">
+                                                Recommended
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500">
+                                            Only listed email accounts will be authorized to access and take assessments
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setJobData(prev => ({
+                                            ...prev,
+                                            isRestrictedToWhitelist: !prev.isRestrictedToWhitelist
+                                        }));
+                                    }}
+                                    className={`w-12 h-6 rounded-full transition-all relative cursor-pointer ${
+                                        jobData.isRestrictedToWhitelist ? 'bg-purple-600' : 'bg-slate-300'
+                                    }`}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-xs ${
+                                        jobData.isRestrictedToWhitelist ? 'left-7' : 'left-1'
+                                    }`} />
+                                </button>
+                            </div>
+
+                            {jobData.isRestrictedToWhitelist ? (
+                                <div className="space-y-4 pt-3 border-t border-purple-100">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setWhitelistInputMode('single')}
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                    whitelistInputMode === 'single'
+                                                        ? 'bg-slate-900 text-white'
+                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                Single Email
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setWhitelistInputMode('bulk')}
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                    whitelistInputMode === 'bulk'
+                                                        ? 'bg-slate-900 text-white'
+                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                Bulk Paste
+                                            </button>
+                                        </div>
+                                        <span className="text-[11px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-full">
+                                            {jobData.allowedCandidates?.length || 0} Emails Listed
+                                        </span>
+                                    </div>
+
+                                    {whitelistInputMode === 'single' ? (
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="email"
+                                                    value={whitelistInput}
+                                                    onChange={(e) => {
+                                                        setWhitelistInput(e.target.value);
+                                                        setWhitelistError('');
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            handleAddWhitelistEmail();
+                                                        }
+                                                    }}
+                                                    placeholder="candidate.email@example.com"
+                                                    className="w-full pl-10 pr-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 focus:outline-hidden focus:border-purple-600 bg-white text-slate-900"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddWhitelistEmail}
+                                                disabled={!whitelistInput.trim()}
+                                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                                            >
+                                                <Plus size={14} />
+                                                <span>Add</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <textarea
+                                                rows={3}
+                                                value={whitelistInput}
+                                                onChange={(e) => {
+                                                    setWhitelistInput(e.target.value);
+                                                    setWhitelistError('');
+                                                }}
+                                                placeholder="Paste comma or newline separated candidate emails:&#10;alice@example.com, bob@example.com"
+                                                className="w-full p-2.5 text-xs font-mono rounded-xl border border-slate-200 focus:outline-hidden focus:border-purple-600 bg-white text-slate-900"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddBulkWhitelistEmails}
+                                                disabled={!whitelistInput.trim()}
+                                                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                                            >
+                                                Parse & Add Emails
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {whitelistError && (
+                                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+                                            <AlertCircle size={14} className="shrink-0 text-rose-600" />
+                                            <span>{whitelistError}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Chip list of allowed emails */}
+                                    {jobData.allowedCandidates && jobData.allowedCandidates.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-white border border-slate-200">
+                                            {jobData.allowedCandidates.map((email) => (
+                                                <span
+                                                    key={email}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-800 border border-purple-200"
+                                                >
+                                                    <span>{email}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveWhitelistEmail(email)}
+                                                        className="text-purple-400 hover:text-rose-600 cursor-pointer"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <p className="text-[11px] text-slate-500 leading-relaxed bg-purple-50/60 p-2.5 rounded-xl border border-purple-100">
+                                        🔒 When enabled, candidate identity is strictly verified. Only candidates logged in with these email addresses can take the assessment or submit applications.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="pt-2">
+                                    <p className="text-xs text-slate-500 leading-relaxed">
+                                        Currently <strong>Open Access</strong>. Any candidate can take tests and apply. Toggle on to restrict access strictly to verified candidate email accounts.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

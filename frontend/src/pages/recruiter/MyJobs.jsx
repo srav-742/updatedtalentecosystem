@@ -38,6 +38,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import CandidateWhitelistModal from '../../components/CandidateWhitelistModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RecruiterJobCardSkeleton } from '../../components/Skeleton';
 import './recruiter-theme.css';
@@ -56,6 +57,8 @@ const MyJobs = () => {
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
+    const [whitelistModalOpen, setWhitelistModalOpen] = useState(false);
+    const [selectedWhitelistJob, setSelectedWhitelistJob] = useState(null);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
 
     const userId = user.uid || user._id || user.id;
@@ -551,10 +554,18 @@ const MyJobs = () => {
                                                         </span>
                                                     )}
                                                     {job.isRestrictedToWhitelist && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedWhitelistJob(job);
+                                                                setWhitelistModalOpen(true);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 cursor-pointer transition-colors"
+                                                            title="Click to manage candidate whitelist"
+                                                        >
                                                             <ShieldCheck size={11} />
-                                                            <span>Invite Only</span>
-                                                        </span>
+                                                            <span>Invite Only ({job.allowedCandidates?.length || 0})</span>
+                                                        </button>
                                                     )}
                                                     <span className="text-[11px] font-medium text-slate-400">
                                                         {formatPostedDate(job.createdAt)}
@@ -843,6 +854,18 @@ const MyJobs = () => {
                                                     </button>
                                                 )}
 
+                                                {/* Manage Candidate Email Whitelist */}
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedWhitelistJob(job);
+                                                        setWhitelistModalOpen(true);
+                                                    }}
+                                                    className={`myjobs-action-btn action-whitelist ${job.isRestrictedToWhitelist ? 'text-purple-600 bg-purple-50/70 border-purple-200' : ''}`}
+                                                    title="Candidate Email Verification (Whitelist)"
+                                                >
+                                                    <ShieldCheck size={15} />
+                                                </button>
+
                                                 {/* Bulk Upload Resumes */}
                                                 <button
                                                     onClick={() => {
@@ -954,6 +977,17 @@ const MyJobs = () => {
                 }}
                 jobId={selectedJobId}
                 onUploadComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
+            />
+
+            {/* 8. Candidate Whitelist Modal Component */}
+            <CandidateWhitelistModal
+                isOpen={whitelistModalOpen}
+                onClose={() => {
+                    setWhitelistModalOpen(false);
+                    setSelectedWhitelistJob(null);
+                }}
+                job={selectedWhitelistJob}
+                onUpdateComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
             />
         </div>
     );
