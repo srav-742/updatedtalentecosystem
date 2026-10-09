@@ -289,19 +289,19 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
     const getStatusTextAndStyle = (file) => {
         switch (file.status) {
             case 'queued':
-                return { text: 'Ready', class: 'text-gray-400 bg-white/5 border-white/5' };
+                return { text: 'Ready', class: '!text-gray-400 bg-white/5 border-white/5', style: { color: '#9ca3af' } };
             case 'uploading':
-                return { text: 'Uploading...', class: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
+                return { text: 'Uploading...', class: '!text-blue-400 bg-blue-500/10 border-blue-500/20', style: { color: '#60a5fa' } };
             case 'parsing':
-                return { text: 'AI Extracting Details...', class: 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
+                return { text: 'AI Extracting Details...', class: '!text-purple-400 bg-purple-500/10 border-purple-500/20', style: { color: '#c084fc' } };
             case 'analyzing':
-                return { text: 'ATS Scoring...', class: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+                return { text: 'ATS Scoring...', class: '!text-amber-400 bg-amber-500/10 border-amber-500/20', style: { color: '#fbbf24' } };
             case 'success':
-                return { text: 'Access Granted', class: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
+                return { text: 'Access Granted', class: '!text-emerald-400 bg-emerald-500/10 border-emerald-500/20', style: { color: '#34d399' } };
             case 'failed':
-                return { text: 'Failed', class: 'text-red-400 bg-red-500/10 border-red-500/20' };
+                return { text: 'Failed', class: '!text-red-400 bg-red-500/10 border-red-500/20', style: { color: '#f87171' } };
             default:
-                return { text: 'Queued', class: 'text-gray-400 bg-white/5 border-white/5' };
+                return { text: 'Queued', class: '!text-gray-400 bg-white/5 border-white/5', style: { color: '#9ca3af' } };
         }
     };
 
@@ -515,7 +515,10 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                                     </div>
 
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${statusStyle.class}`}>
+                                                        <span 
+                                                            style={statusStyle.style}
+                                                            className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${statusStyle.class}`}
+                                                        >
                                                             {statusStyle.text}
                                                         </span>
                                                         {!processing && fileObj.status === 'queued' && (
@@ -658,10 +661,11 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                     <button
                                         type="button"
                                         onClick={handleCopyLink}
-                                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                        style={{ backgroundColor: '#000000', color: '#ffffff' }}
+                                        className="px-3 py-1.5 rounded-lg bg-black hover:bg-zinc-900 border border-white/20 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
                                     >
-                                        {copiedLink ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                        <span>{copiedLink ? 'Copied Link' : 'Copy Link'}</span>
+                                        {copiedLink ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} style={{ color: '#ffffff' }} />}
+                                        <span style={{ color: '#ffffff' }}>{copiedLink ? 'Copied Link' : 'Copy Link'}</span>
                                     </button>
                                     <button
                                         type="button"
