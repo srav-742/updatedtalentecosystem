@@ -1,0 +1,519 @@
+/* ==========================================================================
+   Candidate Whitelist Modal - Scoped Design System
+   Protected against global CSS overrides and theme wipes.
+   ========================================================================== */
+
+.cwm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.cwm-modal-box {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    border-radius: 1.75rem !important;
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05) !important;
+    width: 100%;
+    max-width: 44rem;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+/* Modal Header */
+.cwm-header {
+    padding: 1.25rem 1.75rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #faf5ff 0%, #ffffff 60%) !important;
+}
+
+.cwm-header-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 1rem;
+    background: #7c3aed !important;
+    color: #ffffff !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3) !important;
+    flex-shrink: 0;
+}
+
+.cwm-header-icon * {
+    color: #ffffff !important;
+}
+
+.cwm-header-title {
+    font-size: 1.125rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    letter-spacing: -0.015em;
+    line-height: 1.3 !important;
+    margin: 0 !important;
+}
+
+.cwm-header-subtitle {
+    font-size: 0.75rem !important;
+    color: #64748b !important;
+    font-weight: 500 !important;
+    margin-top: 0.2rem !important;
+    margin-bottom: 0 !important;
+}
+
+.cwm-header-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.625rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background-color: #f3e8ff !important;
+    color: #7e22ce !important;
+    border: 1px solid rgba(147, 51, 234, 0.2) !important;
+}
+
+.cwm-close-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b !important;
+    background-color: transparent !important;
+    border: none !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cwm-close-btn:hover {
+    color: #0f172a !important;
+    background-color: #f1f5f9 !important;
+}
+
+/* Modal Body */
+.cwm-body {
+    padding: 1.5rem 1.75rem;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    background-color: #ffffff !important;
+}
+
+/* Master Toggle Card */
+.cwm-toggle-card {
+    padding: 1.125rem 1.25rem;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    transition: all 0.2s ease;
+}
+
+.cwm-toggle-card.is-active {
+    background-color: #faf5ff !important;
+    border-color: #e9d5ff !important;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.04);
+}
+
+.cwm-toggle-card.is-inactive {
+    background-color: #f8fafc !important;
+    border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+.cwm-toggle-title {
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+}
+
+.cwm-toggle-desc {
+    font-size: 0.75rem !important;
+    color: #475569 !important;
+    line-height: 1.45 !important;
+    margin: 0.25rem 0 0 0 !important;
+}
+
+.cwm-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.625rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.cwm-status-pill.pill-active {
+    background-color: #ecfdf5 !important;
+    color: #047857 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+.cwm-status-pill.pill-open {
+    background-color: #e2e8f0 !important;
+    color: #475569 !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Switch Toggle Button */
+.cwm-switch {
+    width: 3.25rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    position: relative;
+    border: none !important;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.cwm-switch.switch-on {
+    background-color: #7c3aed !important;
+}
+
+.cwm-switch.switch-off {
+    background-color: #cbd5e1 !important;
+}
+
+.cwm-switch-knob {
+    position: absolute;
+    top: 0.1875rem;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 9999px;
+    background-color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    transition: left 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cwm-switch.switch-on .cwm-switch-knob {
+    left: 1.6875rem;
+}
+
+.cwm-switch.switch-off .cwm-switch-knob {
+    left: 0.1875rem;
+}
+
+/* Tabs */
+.cwm-tab-btn {
+    padding: 0.4rem 0.85rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    border: none !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cwm-tab-btn.tab-active {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+
+.cwm-tab-btn.tab-active * {
+    color: #ffffff !important;
+}
+
+.cwm-tab-btn.tab-inactive {
+    background-color: transparent !important;
+    color: #475569 !important;
+}
+
+.cwm-tab-btn.tab-inactive:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+/* Input Fields */
+.cwm-input {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    padding-left: 2.5rem;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(15, 23, 42, 0.15) !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.cwm-input:focus {
+    border-color: #7c3aed !important;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12) !important;
+}
+
+.cwm-textarea {
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    font-size: 0.75rem !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(15, 23, 42, 0.15) !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    transition: all 0.2s ease;
+    outline: none;
+    resize: vertical;
+}
+
+.cwm-textarea:focus {
+    border-color: #7c3aed !important;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12) !important;
+}
+
+/* Action Buttons */
+.cwm-btn-purple {
+    padding: 0.65rem 1.15rem;
+    background-color: #7c3aed !important;
+    color: #ffffff !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.875rem;
+    border: none !important;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25) !important;
+    transition: all 0.2s ease;
+}
+
+.cwm-btn-purple:hover:not(:disabled) {
+    background-color: #6d28d9 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35) !important;
+}
+
+.cwm-btn-purple:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.cwm-btn-purple * {
+    color: #ffffff !important;
+}
+
+.cwm-btn-dark {
+    padding: 0.55rem 1rem;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.875rem;
+    border: none !important;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+    transition: all 0.2s ease;
+}
+
+.cwm-btn-dark:hover:not(:disabled) {
+    background-color: #1e293b !important;
+}
+
+.cwm-btn-dark:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cwm-btn-dark * {
+    color: #ffffff !important;
+}
+
+/* Candidate List */
+.cwm-candidates-box {
+    max-height: 13rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border-radius: 1rem;
+    background-color: #f8fafc !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cwm-candidate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    background-color: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.06) !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    transition: all 0.15s ease;
+}
+
+.cwm-candidate-row:hover {
+    border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+.cwm-avatar-circle {
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: 9999px;
+    background-color: #f3e8ff !important;
+    color: #7e22ce !important;
+    font-weight: 800;
+    font-size: 0.6875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.cwm-candidate-email {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cwm-delete-btn {
+    padding: 0.3rem;
+    border-radius: 0.5rem;
+    color: #94a3b8 !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cwm-delete-btn:hover {
+    color: #e11d48 !important;
+    background-color: #fff1f2 !important;
+}
+
+/* Share Link Box */
+.cwm-share-box {
+    padding: 0.85rem 1rem;
+    border-radius: 1rem;
+    background-color: #faf5ff !important;
+    border: 1px solid #f3e8ff !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.cwm-share-title {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #581c87 !important;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cwm-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.6875rem !important;
+    font-weight: 700 !important;
+    color: #6b21a8 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #e9d5ff !important;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(107, 33, 168, 0.05);
+    transition: all 0.15s ease;
+}
+
+.cwm-copy-btn:hover {
+    background-color: #f5f3ff !important;
+    color: #581c87 !important;
+    border-color: #d8b4fe !important;
+}
+
+.cwm-url-display {
+    font-size: 0.6875rem !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    color: #6b21a8 !important;
+    background-color: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid #e9d5ff !important;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.625rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Modal Footer */
+.cwm-footer {
+    padding: 1.125rem 1.75rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+    background-color: #f8fafc !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cwm-btn-cancel {
+    padding: 0.65rem 1.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(15, 23, 42, 0.15) !important;
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cwm-btn-cancel:hover:not(:disabled) {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+.cwm-btn-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Protect all headings, text, and paragraphs inside the modal from external rules */
+.cwm-modal-box h1,
+.cwm-modal-box h2,
+.cwm-modal-box h3,
+.cwm-modal-box h4 {
+    color: #0f172a !important;
+}
+
+.cwm-modal-box p {
+    color: #475569 !important;
+}
+
+.cwm-modal-box span {
+    color: inherit;
+}

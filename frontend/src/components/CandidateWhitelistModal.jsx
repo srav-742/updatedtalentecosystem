@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ShieldCheck, 
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../firebase';
+import './CandidateWhitelistModal.css';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -215,31 +217,34 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
         email.toLowerCase().includes(searchQuery.trim().toLowerCase())
     );
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    const modalContent = (
+        <div className="cwm-backdrop animate-in fade-in duration-200">
             <motion.div
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-800"
+                className="cwm-modal-box"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="cwm-title"
             >
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-purple-50/70 via-white to-white">
+                <div className="cwm-header">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+                        <div className="cwm-header-icon">
                             <ShieldCheck size={22} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                                <h2 id="cwm-title" className="cwm-header-title">
                                     Assessment Candidate Whitelist
                                 </h2>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700">
+                                <span className="cwm-header-badge">
                                     Email Verification
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            <p className="cwm-header-subtitle">
                                 {job.title} {job.company ? `• ${job.company}` : ''}
                             </p>
                         </div>
@@ -247,51 +252,48 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                     <button
                         onClick={onClose}
                         disabled={isSaving}
-                        className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                        className="cwm-close-btn"
+                        aria-label="Close modal"
+                        title="Close"
                     >
                         <X size={18} />
                     </button>
                 </div>
 
                 {/* Body Content */}
-                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                <div className="cwm-body">
                     {/* Master Whitelist Toggle Card */}
-                    <div className={`p-4.5 rounded-2xl border transition-all ${
-                        isRestricted 
-                            ? 'bg-purple-50/50 border-purple-200 shadow-xs' 
-                            : 'bg-slate-50 border-slate-200/80'
-                    }`}>
+                    <div className={`cwm-toggle-card ${isRestricted ? 'is-active' : 'is-inactive'}`}>
                         <div className="flex items-center justify-between gap-4">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-bold text-slate-900">
+                                    <h3 className="cwm-toggle-title">
                                         Restrict Assessment to Listed Emails (Invite-Only)
                                     </h3>
                                     {isRestricted ? (
-                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full uppercase">
+                                        <span className="cwm-status-pill pill-active">
                                             Active
                                         </span>
                                     ) : (
-                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full uppercase">
+                                        <span className="cwm-status-pill pill-open">
                                             Open Access
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-xs text-slate-500 leading-relaxed">
+                                <p className="cwm-toggle-desc">
                                     When enabled, only candidates logged into an account matching one of the verified email addresses below can access and submit the assessment.
                                 </p>
                             </div>
 
                             <button
                                 type="button"
+                                role="switch"
+                                aria-checked={isRestricted}
                                 onClick={() => setIsRestricted(prev => !prev)}
-                                className={`w-12 h-6 rounded-full transition-all relative shrink-0 cursor-pointer ${
-                                    isRestricted ? 'bg-purple-600' : 'bg-slate-300'
-                                }`}
+                                className={`cwm-switch ${isRestricted ? 'switch-on' : 'switch-off'}`}
+                                title={isRestricted ? 'Click to disable invite-only restriction' : 'Click to enable invite-only restriction'}
                             >
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-xs ${
-                                    isRestricted ? 'left-7' : 'left-1'
-                                }`} />
+                                <div className="cwm-switch-knob" />
                             </button>
                         </div>
                     </div>
@@ -301,26 +303,18 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                         <div className="space-y-4">
                             {/* Input Mode Tabs */}
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab('single')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            activeTab === 'single'
-                                                ? 'bg-slate-900 text-white shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                                        }`}
+                                        className={`cwm-tab-btn ${activeTab === 'single' ? 'tab-active' : 'tab-inactive'}`}
                                     >
                                         + Single Email
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab('bulk')}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            activeTab === 'bulk'
-                                                ? 'bg-slate-900 text-white shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                                        }`}
+                                        className={`cwm-tab-btn ${activeTab === 'bulk' ? 'tab-active' : 'tab-inactive'}`}
                                     >
                                         Bulk Paste / Import
                                     </button>
@@ -338,7 +332,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-700 cursor-pointer"
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                                     >
                                         <Upload size={13} />
                                         <span>Import CSV/TXT</span>
@@ -350,7 +344,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                             {activeTab === 'single' && (
                                 <form onSubmit={handleAddSingleEmail} className="flex gap-2">
                                     <div className="relative flex-1">
-                                        <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                         <input
                                             type="email"
                                             value={singleEmail}
@@ -359,13 +353,13 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                                 setErrorMessage('');
                                             }}
                                             placeholder="candidate.email@example.com"
-                                            className="w-full pl-10 pr-3.5 py-2.5 text-xs font-medium rounded-xl border border-slate-200 focus:outline-hidden focus:border-purple-600 focus:ring-2 focus:ring-purple-600/10 text-slate-900 transition-all"
+                                            className="cwm-input"
                                         />
                                     </div>
                                     <button
                                         type="submit"
                                         disabled={!singleEmail.trim()}
-                                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                        className="cwm-btn-purple shrink-0"
                                     >
                                         <Plus size={14} />
                                         <span>Add</span>
@@ -384,17 +378,17 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                             setErrorMessage('');
                                         }}
                                         placeholder="Paste candidate emails here, separated by commas, spaces, or line breaks:&#10;alice@example.com, bob@example.com&#10;charlie@example.com"
-                                        className="w-full p-3 text-xs font-mono rounded-xl border border-slate-200 focus:outline-hidden focus:border-purple-600 focus:ring-2 focus:ring-purple-600/10 text-slate-900 transition-all"
+                                        className="cwm-textarea"
                                     />
                                     <div className="flex items-center justify-between">
-                                        <p className="text-[11px] text-slate-400">
-                                            Emails are automatically deduplicated and converted to lowercase.
+                                        <p className="text-[11px] text-slate-500 font-medium">
+                                            Emails are deduplicated and formatted automatically.
                                         </p>
                                         <button
                                             type="button"
                                             onClick={handleParseBulkEmails}
                                             disabled={!bulkInput.trim()}
-                                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+                                            className="cwm-btn-dark shrink-0"
                                         >
                                             Process & Add Emails
                                         </button>
@@ -406,12 +400,12 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                             {errorMessage && (
                                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-700">
                                     <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-600" />
-                                    <span>{errorMessage}</span>
+                                    <span className="font-medium">{errorMessage}</span>
                                 </div>
                             )}
 
                             {/* Current Allowed Candidates List */}
-                            <div className="space-y-2.5 pt-2">
+                            <div className="space-y-2 pt-1">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -436,47 +430,47 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                 {/* Search bar if list is longer than 4 */}
                                 {candidates.length > 4 && (
                                     <div className="relative">
-                                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                         <input
                                             type="text"
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             placeholder="Filter candidates..."
-                                            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-700 focus:outline-hidden"
+                                            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-800 bg-white focus:outline-none focus:border-purple-600"
                                         />
                                     </div>
                                 )}
 
                                 {/* Emails Container */}
-                                <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                                <div className="cwm-candidates-box">
                                     {candidates.length === 0 ? (
                                         <div className="text-center py-6 text-slate-400">
-                                            <Users size={24} className="mx-auto mb-1 opacity-50" />
-                                            <p className="text-xs font-semibold">No candidate emails listed yet</p>
-                                            <p className="text-[11px]">Add emails above to authorize them for this assessment</p>
+                                            <Users size={24} className="mx-auto mb-1 opacity-60 text-slate-400" />
+                                            <p className="text-xs font-semibold text-slate-600">No candidate emails listed yet</p>
+                                            <p className="text-[11px] text-slate-400">Add emails above to authorize them for this assessment</p>
                                         </div>
                                     ) : filteredCandidates.length === 0 ? (
-                                        <div className="text-center py-4 text-slate-400 text-xs">
+                                        <div className="text-center py-4 text-slate-500 text-xs font-medium">
                                             No candidates match "{searchQuery}"
                                         </div>
                                     ) : (
                                         filteredCandidates.map((email) => (
                                             <div
                                                 key={email}
-                                                className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-slate-200/70 shadow-2xs hover:border-slate-300 transition-colors group"
+                                                className="cwm-candidate-row"
                                             >
                                                 <div className="flex items-center gap-2.5 min-w-0">
-                                                    <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 font-bold text-[10px] flex items-center justify-center shrink-0 uppercase">
+                                                    <div className="cwm-avatar-circle">
                                                         {email.charAt(0)}
                                                     </div>
-                                                    <span className="text-xs font-semibold text-slate-800 truncate">
+                                                    <span className="cwm-candidate-email">
                                                         {email}
                                                     </span>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemoveCandidate(email)}
-                                                    className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
+                                                    className="cwm-delete-btn"
                                                     title={`Remove ${email}`}
                                                 >
                                                     <Trash2 size={13} />
@@ -488,9 +482,9 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                             </div>
 
                             {/* Assessment Link & Invitation Share Block */}
-                            <div className="p-3.5 rounded-xl bg-purple-50/50 border border-purple-100 space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                            <div className="cwm-share-box">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="cwm-share-title">
                                         <Share2 size={14} className="text-purple-600" />
                                         <span>Candidate Invitation Link</span>
                                     </div>
@@ -498,7 +492,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                         <button
                                             type="button"
                                             onClick={handleCopyLink}
-                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white px-2.5 py-1 rounded-md border border-purple-200 shadow-2xs cursor-pointer transition-colors"
+                                            className="cwm-copy-btn"
                                         >
                                             {copiedLink ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
                                             <span>{copiedLink ? 'Copied Link' : 'Copy Link'}</span>
@@ -506,14 +500,14 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                                         <button
                                             type="button"
                                             onClick={handleCopyInviteText}
-                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white px-2.5 py-1 rounded-md border border-purple-200 shadow-2xs cursor-pointer transition-colors"
+                                            className="cwm-copy-btn"
                                         >
                                             {copiedInviteText ? <Check size={12} className="text-emerald-600" /> : <FileText size={12} />}
                                             <span>{copiedInviteText ? 'Copied Message' : 'Copy Invite Message'}</span>
                                         </button>
                                     </div>
                                 </div>
-                                <p className="text-[11px] text-purple-700/80 font-mono truncate bg-white/80 px-2.5 py-1.5 rounded-lg border border-purple-100">
+                                <p className="cwm-url-display">
                                     {shareUrl}
                                 </p>
                             </div>
@@ -522,7 +516,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                 </div>
 
                 {/* Footer Controls */}
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+                <div className="cwm-footer">
                     <div>
                         {saveSuccess && (
                             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600">
@@ -537,7 +531,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                             type="button"
                             onClick={onClose}
                             disabled={isSaving}
-                            className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                            className="cwm-btn-cancel"
                         >
                             Cancel
                         </button>
@@ -546,7 +540,7 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
                             type="button"
                             onClick={handleSave}
                             disabled={isSaving}
-                            className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer"
+                            className="cwm-btn-purple uppercase tracking-wider"
                         >
                             {isSaving ? (
                                 <>
@@ -565,6 +559,9 @@ const CandidateWhitelistModal = ({ isOpen, onClose, job, onUpdateComplete }) => 
             </motion.div>
         </div>
     );
+
+    // Render directly in document.body via Portal to prevent any parent styling leaks
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default CandidateWhitelistModal;

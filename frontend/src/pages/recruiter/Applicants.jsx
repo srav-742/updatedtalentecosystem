@@ -15,6 +15,7 @@ import BulkUploadModal from '../../components/BulkUploadModal';
 import './recruiter-theme.css';
 import TopUpModal from '../../components/TopUpModal';
 import ShareModal from '../../components/ShareModal';
+import RecruiterTranscriptPage from './RecruiterTranscriptPage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Applicants = () => {
@@ -249,6 +250,10 @@ const Applicants = () => {
     // Generated Resume Modal
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
     const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
+
+    // Candidate Evaluation Report In-Page View Modal
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [selectedReportApplicationId, setSelectedReportApplicationId] = useState(null);
 
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -960,8 +965,12 @@ const Applicants = () => {
                                                                         </button>
                                                                     )}
                                                                     <button
-                                                                        onClick={() => window.open(`/recruiter/transcript/${app.id}`, '_blank')}
-                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-indigo-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5"
+                                                                        onClick={() => {
+                                                                            setActiveMenuId(null);
+                                                                            setSelectedReportApplicationId(app.id);
+                                                                            setShowReportModal(true);
+                                                                        }}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-indigo-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5 cursor-pointer"
                                                                     >
                                                                         <FileText size={14} /> Report
                                                                     </button>
@@ -1210,6 +1219,19 @@ const Applicants = () => {
                 }}
                 currentBalance={walletBalance}
             />
+
+            {/* In-Page Candidate Evaluation Report View / Modal */}
+            {showReportModal && selectedReportApplicationId && (
+                <div className="fixed inset-0 z-[100] flex flex-col bg-gray-50 overflow-y-auto animate-in fade-in duration-200">
+                    <RecruiterTranscriptPage
+                        applicationId={selectedReportApplicationId}
+                        onClose={() => {
+                            setShowReportModal(false);
+                            setSelectedReportApplicationId(null);
+                        }}
+                    />
+                </div>
+            )}
         </div>
 
     );

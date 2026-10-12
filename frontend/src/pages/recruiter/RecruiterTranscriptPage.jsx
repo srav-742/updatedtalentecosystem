@@ -61,8 +61,9 @@ const Sec = ({ title, icon, children, grad = 'from-blue-500 to-purple-500' }) =>
   </div>
 );
 
-const CandidateTranscriptPage = () => {
-  const { applicationId } = useParams();
+const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
+  const params = useParams();
+  const applicationId = propAppId || params.applicationId;
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -131,7 +132,18 @@ const CandidateTranscriptPage = () => {
       <div className='text-center text-gray-900'>
         <XCircle size={48} className='mx-auto mb-4 text-red-500' />
         <p className='font-bold text-xl mb-4'>{error || 'No data'}</p>
-        <button onClick={() => navigate('/admin')} className='px-6 py-3 bg-black/10 rounded-xl font-bold'>Back</button>
+        <button 
+          onClick={() => {
+            if (onClose) { onClose(); return; }
+            if (window.history.length > 1) { navigate(-1); } else {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              navigate(u.role === 'admin' ? '/admin?tab=transcripts' : '/recruiter/applicants');
+            }
+          }} 
+          className='px-6 py-3 bg-black/10 hover:bg-black/20 rounded-xl font-bold cursor-pointer transition-colors'
+        >
+          Back
+        </button>
       </div>
     </div>
   );
@@ -209,16 +221,29 @@ const CandidateTranscriptPage = () => {
       <div className='no-print sticky top-0 z-50 bg-gray-50/90 backdrop-blur border-b border-black/10 px-6 py-4 flex items-center justify-between'>
         <button 
           onClick={() => {
-            sessionStorage.setItem('admin_active_tab', 'transcripts');
+            if (onClose) {
+              onClose();
+              return;
+            }
             if (window.history.length > 1) {
               navigate(-1);
             } else {
-              navigate('/admin?tab=transcripts');
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              if (u.role === 'admin') {
+                sessionStorage.setItem('admin_active_tab', 'transcripts');
+                navigate('/admin?tab=transcripts');
+              } else {
+                navigate('/recruiter/applicants');
+              }
             }
           }} 
-          className='flex items-center gap-2 text-gray-600 hover:text-gray-900 font-bold text-sm'
+          className='flex items-center gap-2 text-gray-600 hover:text-gray-900 font-bold text-sm cursor-pointer'
         >
-          <ArrowLeft size={18} />Back to Transcripts
+          <ArrowLeft size={18} />
+          {(() => {
+            const u = JSON.parse(localStorage.getItem('user') || '{}');
+            return u.role === 'admin' ? 'Back to Transcripts' : 'Back to Applicants';
+          })()}
         </button>
         <button onClick={() => window.print()} className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-md'><Printer size={15} />Download PDF</button>
       </div>
@@ -949,9 +974,9 @@ const CandidateTranscriptPage = () => {
   );
 };
 
-const CandidateTranscriptPageWithBoundary = () => (
+const CandidateTranscriptPageWithBoundary = (props) => (
   <TranscriptErrorBoundary>
-    <CandidateTranscriptPage />
+    <CandidateTranscriptPage {...props} />
   </TranscriptErrorBoundary>
 );
 
