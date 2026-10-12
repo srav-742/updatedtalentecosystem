@@ -728,11 +728,22 @@ ${questionDirective}
 ${askedQuestions}
 
 === TASK ===
-Based on the interview flow above, ask the NEXT interview question (Question ${questionNumber}).
-- CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
-- Make it flow naturally from the candidate's last answer.
-- Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
-- Return ONLY the question. Nothing else. Ensure the question is a short, concise, single complete question ending with a question mark (?). Keep it under 30 words. Do not include any trailing text, explanations, or cut off mid-sentence.
+1. CONVERSATIONAL REACTION (CRITICAL):
+   Review the candidate's last answer:
+   - If their answer was strong, specific, or technically sound: Provide ONE short sentence of concise praise (e.g., "Excellent explanation of how you handle cache invalidation.", "Great insight on the latency and consistency considerations.", "Spot on—that's a very solid approach to managing concurrency.").
+   - If their answer was weak, brief, vague, or uncertain: Provide ONE short sentence of gentle encouragement (e.g., "Good effort—that's definitely a tricky edge case to navigate.", "Fair point, that's a complex scenario with several trade-offs.", "Thanks for sharing your perspective on that—let's keep going.").
+   - Keep this reaction concise (6 to 14 words maximum). Never use empty filler like just "Good" or "Understood".
+
+2. NEXT INTERVIEW QUESTION:
+   Ask the NEXT interview question (Question ${questionNumber}).
+   - CRITICAL RULE: DO NOT REPEAT any topics/questions from the "PREVIOUSLY ASKED QUESTIONS" list. Pick a purely new topic from the Job Description.
+   - Make it flow naturally from the candidate's last answer.
+   - Match the difficulty to the experience level: ${session.experienceLevel || 'entry-level'}.
+   - Keep the question concise, single complete question ending with a question mark (?). Under 35 words.
+
+=== RESPONSE FORMAT (STRICT) ===
+REACTION: [Your single concise sentence of praise or gentle encouragement]
+QUESTION: [Your actual question to the candidate]
 `;
 }
 
@@ -1498,27 +1509,54 @@ router.post('/next-fast', async (req, res) => {
             const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
 
             nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
+        }
 
-            // Strip transition phrases
-            if (nextQuestion) {
-                const cleaned = cleanQuestionResponse(nextQuestion);
-                console.log(`[FIX-NEXT-FAST] Original: "${nextQuestion.substring(0, 80)}..." → Cleaned: "${cleaned.substring(0, 80)}..."`);
-                nextQuestion = cleaned;
-            }
+        // ─── Parse Conversational Reaction & Next Question ──────────────────
+        let reaction = "";
+        let cleanQuestion = nextQuestion;
 
-            if (!nextQuestion) {
-                if (session.roleInfo?.roleCategory === 'ai_engineer') {
-                    nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
-                } else if (session.roleInfo?.isTech) {
-                    nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
-                } else {
-                    nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+        if (nextQuestion) {
+            const reactionMatch = nextQuestion.match(/REACTION:\s*(.*?)(?=\n\s*QUESTION:|$)/is);
+            const questionMatch = nextQuestion.match(/QUESTION:\s*([\s\S]*$)/i);
+
+            if (reactionMatch && questionMatch) {
+                reaction = reactionMatch[1].replace(/[\r\n]+/g, ' ').trim();
+                cleanQuestion = cleanQuestionResponse(questionMatch[1].trim());
+            } else {
+                cleanQuestion = cleanQuestionResponse(nextQuestion);
+                if (normalizedAnswer.length >= 40) {
+                    reaction = "Good points covered there.";
+                } else if (!isEmptyAnswer) {
+                    reaction = "Good effort—let's move to the next area.";
                 }
             }
         }
 
+        // Empty answer reaction override
+        if (isEmptyAnswer) {
+            reaction = "No problem at all, take your time.";
+        }
+
+        // Fallback if AI returned nothing
+        if (!cleanQuestion) {
+            if (session.roleInfo?.roleCategory === 'ai_engineer') {
+                cleanQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
+            } else if (session.roleInfo?.isTech) {
+                cleanQuestion = "Can you elaborate on the technical implementation details of that approach?";
+            } else {
+                cleanQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+            }
+        }
+
+        // ─── Format Spoken Audio & Display Text with Breathing Pause ─────────
+        // In spoken audio: Punctuation cadence (". ... \n\n") causes neural TTS
+        // to produce a natural ~700ms human breath and pause before the question.
+        const trimmedReaction = reaction ? reaction.replace(/\.+$/, '').trim() : '';
+        const spokenText = trimmedReaction ? `${trimmedReaction}. ... \n\n${cleanQuestion}` : cleanQuestion;
+        const displayText = cleanQuestion; // UI displays only the question card text
+
         // 5. Push the new question to history and persist
-        session.history.push({ role: 'interviewer', content: nextQuestion });
+        session.history.push({ role: 'interviewer', content: cleanQuestion });
         session.currentQuestionIndex = session.history.filter(h => h.role === 'interviewer').length;
         await saveSession(sessionId, session);
 
@@ -1528,8 +1566,8 @@ router.post('/next-fast', async (req, res) => {
         try {
             const { generateSpeech } = require('../services/tts.service');
             const interviewVoice = session.interviewerVoice || 'professional_interviewer';
-            console.log(`[FIX-NEXT-FAST-TTS] Generating inline TTS | voice: ${interviewVoice} | chars: ${nextQuestion.length}`);
-            const ttsResult = await generateSpeech(nextQuestion, interviewVoice);
+            console.log(`[FIX-NEXT-FAST-TTS] Generating inline TTS with breathing pause | voice: ${interviewVoice} | chars: ${spokenText.length}`);
+            const ttsResult = await generateSpeech(spokenText, interviewVoice);
             if (ttsResult) {
                 audioBase64 = ttsResult.buffer.toString('base64');
                 audioMimeType = ttsResult.mimeType;
@@ -1542,7 +1580,9 @@ router.post('/next-fast', async (req, res) => {
         // 6. Return response
         res.json({
             hasNext: true,
-            question: nextQuestion,
+            question: cleanQuestion,
+            reaction: reaction || null,
+            rawQuestion: cleanQuestion,
             audio: audioBase64,
             audioMimeType: audioMimeType,
             currentQuestionNumber: session.history.filter(h => h.role === 'interviewer').length,
