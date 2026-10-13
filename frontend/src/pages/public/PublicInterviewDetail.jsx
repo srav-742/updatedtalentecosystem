@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
+import SEO from '../../components/SEO';
 
 const PublicInterviewDetail = () => {
     const { applicationId } = useParams();
@@ -75,6 +76,11 @@ const PublicInterviewDetail = () => {
 
     return (
         <div className="min-h-screen bg-[#0f1115] py-12 px-4 sm:px-6 lg:px-8 flex flex-col justify-center items-center">
+            <SEO 
+                title="Interview Assessment Recording | Hire1Percent" 
+                description="Secure candidate interview playback." 
+                robots="noindex, nofollow" 
+            />
             <div className="max-w-4xl w-full bg-[#1a1d24] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-8 sm:p-10 border-b border-white/10">

@@ -21,6 +21,7 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import Navbar from '../../components/Navbar';
+import SEO from '../../components/SEO';
 
 const PublicJobDetails = () => {
     const { id } = useParams();
@@ -130,6 +131,11 @@ const PublicJobDetails = () => {
     if (!job) {
         return (
             <div className="min-h-screen bg-[#f7f4ee]">
+                <SEO 
+                    title="Job Not Found | Hire1Percent" 
+                    description="This job posting could not be found or is no longer active." 
+                    robots="noindex, follow" 
+                />
                 <Navbar theme="light" />
                 <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
                     <div className="rounded-[2.5rem] border border-red-200 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
@@ -160,6 +166,12 @@ const PublicJobDetails = () => {
 
     return (
         <div className="min-h-screen bg-[#f7f4ee]">
+            <SEO 
+                title={`${job.title} | Hire1Percent`}
+                description={job.description ? job.description.substring(0, 160).replace(/[#*`_]/g, '') : `Apply for ${job.title} on Hire1Percent.`}
+                canonicalUrl={`/candidate/job/${id}`}
+                robots="index, follow"
+            />
             <Navbar theme="light" />
             <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
                 <div className="space-y-8">

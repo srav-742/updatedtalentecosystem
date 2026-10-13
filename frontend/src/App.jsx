@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
+import RouteTracker from './components/RouteTracker';
 import Navbar from './components/Navbar';
 import { GlobalPageSkeleton } from './components/Skeleton';
 
@@ -126,6 +127,7 @@ function FirebaseAuthSync() {
 function App() {
   return (
     <BrowserRouter>
+      <RouteTracker />
       <FirebaseAuthSync />
       <CookieBanner />
 

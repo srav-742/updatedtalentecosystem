@@ -5,6 +5,7 @@ import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2, AlertCircle, 
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_URL, getAuthHeaders } from '../../../firebase';
+import { trackEvent } from '../../../utils/analytics';
 
 // ─── Direct Component Imports ────────────────────────────────────────────────
 // Statically imported so transitions between steps are instantaneous and never
@@ -77,6 +78,7 @@ const ApplicationFlow = () => {
     const [job, setJob] = useState(null);
     const [user, setUser] = useState(null);
     const [accessBlocked, setAccessBlocked] = useState(null);
+    const hasTrackedApplyStartRef = useRef(false);
 
     // Shared State
     const [resumeData, setResumeData] = useState(null);
@@ -118,6 +120,12 @@ const ApplicationFlow = () => {
                 const jobRes = await axios.get(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`);
                 const jobData = jobRes.data;
                 setJob(jobData);
+
+                // Track GA4 job_apply_start (guarded to once per workflow entry)
+                if (!hasTrackedApplyStartRef.current) {
+                    hasTrackedApplyStartRef.current = true;
+                    trackEvent('job_apply_start', { job_id: jobId, job_title: jobData?.title });
+                }
 
                 // Define enabled steps sequence: Resume -> Candidate Video Deck -> Skill Assessment -> Coding Assessment -> AI Interview
                 const currentEnabledSteps = [
@@ -390,6 +398,7 @@ const ApplicationFlow = () => {
                         job={job}
                         user={user}
                         onComplete={(data) => {
+                            trackEvent('resume_analyzed', { job_id: job?._id || jobId, fit_score: data?.fitScore ?? data?.matchScore });
                             setResumeData(data);
                             handleNext();
                         }}
@@ -418,6 +427,7 @@ const ApplicationFlow = () => {
                         onBack={handleBack}
                         onSecurityReset={handleSecurityResetToResume}
                         onComplete={(score) => {
+                            trackEvent('assessment_complete', { job_id: job?._id || jobId, assessment_type: 'skill', score: typeof score === 'number' ? score : undefined });
                             setAssessmentScore(score);
                             handleNext();
                         }}
@@ -445,6 +455,7 @@ const ApplicationFlow = () => {
                         onBack={handleBack}
                         onSecurityReset={handleSecurityResetToResume}
                         onComplete={(score) => {
+                            trackEvent('assessment_complete', { job_id: job?._id || jobId, assessment_type: 'coding', score: typeof score === 'number' ? score : undefined });
                             setCodingScore(score);
                             handleNext();
                         }}
@@ -487,6 +498,7 @@ const ApplicationFlow = () => {
                                     },
                                     { headers }
                                 );
+                                trackEvent('application_submitted', { job_id: job?._id || jobId, status: 'APPLIED' });
                             } catch (e) {
                                 console.error("Could not sync final application status:", e);
                             }

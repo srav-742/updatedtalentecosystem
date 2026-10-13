@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_URL, getAuthHeaders } from '../../firebase';
+import { trackEvent } from '../../utils/analytics';
 import './recruiter-theme.css';
 
 const PostJob = () => {
@@ -605,6 +606,14 @@ const PostJob = () => {
             } else {
                 const res = await axios.post(`${API_URL}/jobs`, dataToSave, { headers });
                 targetJobId = res.data?._id || res.data?.job?._id;
+
+                // Track GA4 job_post_submit conversion event
+                trackEvent('job_post_submit', {
+                    job_id: targetJobId,
+                    job_title: jobData.title,
+                    job_type: jobData.jobType,
+                    experience_level: jobData.experienceLevel
+                });
             }
 
             queryClient.invalidateQueries({ queryKey: ['jobs'] });

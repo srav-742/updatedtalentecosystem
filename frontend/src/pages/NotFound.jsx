@@ -2,10 +2,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const NotFound = () => {
     return (
         <div className="min-h-screen bg-[#0c0f16] text-white flex flex-col">
+            <SEO 
+                title="404 - Page Not Found | Hire1Percent" 
+                description="The page you are looking for does not exist, has been moved, or is temporarily unavailable." 
+                robots="noindex, follow" 
+            />
             <Navbar />
             <main className="flex-1 flex items-center justify-center px-6">
                 <div className="text-center max-w-xl">

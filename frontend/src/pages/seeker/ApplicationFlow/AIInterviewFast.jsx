@@ -5,6 +5,7 @@ import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { trackEvent } from '../../../utils/analytics';
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -493,6 +494,14 @@ const AIInterviewFast = ({
             setCurrentQNum(1);
             setTotalQuestions(res.data.totalQuestions || 10);
             await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
+
+            // Track GA4 interview_start event
+            trackEvent('interview_start', {
+                job_id: job?._id || job?.id || '',
+                session_id: activeSessionId,
+                interview_type: 'candidate_application'
+            });
+
             setStep('interview');
             typeText(firstQuestion);
             if (res.data?.audio) {
@@ -536,6 +545,13 @@ const AIInterviewFast = ({
                 setFinalScore(nextRes.data.finalScore);
                 setOwnershipScore(nextRes.data.ownershipScore);
                 setFeedback(nextRes.data.feedback);
+
+                // Track GA4 interview_complete event
+                trackEvent('interview_complete', {
+                    job_id: job?._id || job?.id || '',
+                    interview_type: 'candidate_application'
+                });
+
                 setStep('completed');
             } else {
                 const nextQuestion = normalizeQuestionText(nextRes.data.question);

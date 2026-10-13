@@ -100,6 +100,15 @@ const ROUTES = [
     intro: 'Transform manual recruiter tasks into automated, high-velocity candidate evaluation pipelines.'
   },
   {
+    path: '/career-hub',
+    dir: 'career-hub',
+    title: 'Candidate Career Question Hub - Developer Guides, Skills, Projects & Interview Prep | Hire1Percent',
+    description: 'Public engineering career hub for tech candidates. Authoritative guides answering questions on software roles, required skills, production portfolio projects, proctored coding assessments, and job readiness.',
+    canonicalUrl: `${BASE_DOMAIN}/career-hub`,
+    heading: 'Candidate Career Question Hub',
+    intro: 'Public engineering career hub for tech candidates. Authoritative guides answering questions on software roles, required skills, production portfolio projects, proctored coding assessments, and job readiness.'
+  },
+  {
     path: '/privacy',
     dir: 'privacy',
     title: 'Privacy Policy | Hire1Percent',

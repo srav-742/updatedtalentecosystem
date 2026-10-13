@@ -6,6 +6,8 @@ import axios from 'axios';
 import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
+import SEO from '../components/SEO';
+import { trackEvent } from '../utils/analytics';
 
 // Retry wrapper for critical operations
 const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
@@ -284,6 +286,9 @@ const SignupPage = () => {
                 console.warn('[SIGNUP] Backend verification email warning (non-fatal):', err.message);
             });
 
+            // Track GA4 sign_up conversion event (zero PII)
+            trackEvent('sign_up', { method: 'email', role: role || 'candidate' });
+
             // 5. DO NOT navigate to dashboard yet — show verification-pending state!
             setVerificationPending({
                 email: normalizedEmail,
@@ -375,6 +380,9 @@ const SignupPage = () => {
 
             // 4. Store & Navigate
             localStorage.setItem('user', JSON.stringify(newProfile));
+
+            // Track GA4 sign_up conversion event (zero PII)
+            trackEvent('sign_up', { method: 'google', role: targetRole || 'candidate' });
 
             if (targetRole === 'recruiter' && savedProfile && savedProfile.client) {
                 setClientCredentials(savedProfile.client);
@@ -810,6 +818,11 @@ const SignupPage = () => {
 
     return (
         <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
+            <SEO 
+                title="Create an Account | Hire1Percent" 
+                description="Join Hire1Percent as a candidate or recruiter to access automated coding assessments and technical screening." 
+                robots="noindex, follow" 
+            />
             {/* Background Decor */}
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />

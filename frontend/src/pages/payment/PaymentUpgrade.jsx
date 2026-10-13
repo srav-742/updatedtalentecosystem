@@ -14,6 +14,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { trackEvent } from '../../utils/analytics';
 
 export default function PaymentUpgrade() {
     const navigate = useNavigate();
@@ -71,6 +72,15 @@ export default function PaymentUpgrade() {
 
             if (res.data && res.data.success) {
                 setPaymentSuccess(true);
+
+                // Track GA4 purchase event (authoritative server verification)
+                trackEvent('purchase', {
+                    transaction_id: res.data.transactionId || `wallet_${Date.now()}`,
+                    value: 10.00,
+                    currency: 'INR',
+                    payment_method: 'wallet',
+                    items: [{ item_id: 'recruiter_premium', item_name: 'Premium Recruiter Upgrade', price: 10.00, quantity: 1 }]
+                });
                 const newBal = res.data.balance;
                 const updatedUser = {
                     ...user,
@@ -127,6 +137,13 @@ export default function PaymentUpgrade() {
 
             const { orderId, amount, currency } = orderRes.data;
 
+            // Track GA4 begin_checkout event
+            trackEvent('begin_checkout', {
+                value: 10.00,
+                currency: currency || 'INR',
+                items: [{ item_id: 'recruiter_premium', item_name: 'Premium Recruiter Upgrade', price: 10.00, quantity: 1 }]
+            });
+
             // 3. Configure Razorpay checkout options
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_Sr8a8DZ72jBYCu',
@@ -149,6 +166,15 @@ export default function PaymentUpgrade() {
 
                         if (verifyRes.data && verifyRes.data.success) {
                             setPaymentSuccess(true);
+                            
+                            // Track GA4 purchase event (authoritative server verification)
+                            trackEvent('purchase', {
+                                transaction_id: response.razorpay_payment_id,
+                                value: 10.00,
+                                currency: currency || 'INR',
+                                payment_method: 'razorpay',
+                                items: [{ item_id: 'recruiter_premium', item_name: 'Premium Recruiter Upgrade', price: 10.00, quantity: 1 }]
+                            });
                             
                             // Update localStorage user record to premium
                             const updatedUser = { 

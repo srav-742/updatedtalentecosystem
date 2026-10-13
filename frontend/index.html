@@ -7,8 +7,10 @@
   <!-- DNS Prefetching & Preconnecting to speed up external assets and API handshakes -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
   <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
   <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+  <link rel="dns-prefetch" href="https://www.google-analytics.com" />
   <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
   <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
   <link rel="dns-prefetch" href="https://updatedtalentecosystem-kl0c.onrender.com" />
@@ -24,9 +26,29 @@
 
   <!-- Content Security Policy & Permissions Policy -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';" />
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';" />
   <meta http-equiv="Permissions-Policy"
     content="camera=(self), microphone=(self), display-capture=(self), geolocation=()" />
+
+  <!-- Google Analytics 4 (GA4) with Google Consent Mode v2 -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', {
+      'analytics_storage': 'denied',
+      'ad_storage': 'denied',
+      'ad_user_data': 'denied',
+      'ad_personalization': 'denied',
+      'wait_for_update': 500
+    });
+  </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-GHYJZVBMB4"></script>
+  <script>
+    gtag('js', new Date());
+    gtag('config', 'G-GHYJZVBMB4', {
+      send_page_view: false
+    });
+  </script>
 
   <!-- Non-blocking Google Fonts: loads asynchronously, swaps in after download -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"

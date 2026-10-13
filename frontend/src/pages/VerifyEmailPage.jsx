@@ -14,6 +14,7 @@ import {
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL, CLIENT_ID, CLIENT_SECRET, auth, verifyEmailWithActionCode, reloadFirebaseUser, sendVerificationEmail } from '../firebase';
+import SEO from '../components/SEO';
 
 /**
  * EnvelopeWithBadge — Recreates the circular icon from the Hire1Percent design:
@@ -1005,6 +1006,11 @@ const VerifyEmailPage = () => {
     // ═══════════════════════════════════════════════════════════════════════════
     return (
         <div className="min-h-screen w-full relative flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden bg-gradient-to-br from-[#b49fe8] via-[#9d84e0] to-[#8062cf]">
+            <SEO 
+                title="Verify Email | Hire1Percent" 
+                description="Verify your Hire1Percent account email address." 
+                robots="noindex, nofollow" 
+            />
             {/* Ethereal Lavender / Purple Cloud Sky Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="absolute -top-20 left-10 w-[500px] h-[400px] bg-white/45 rounded-full blur-[70px]" />

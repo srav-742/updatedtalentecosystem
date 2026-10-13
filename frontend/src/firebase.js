@@ -10,7 +10,7 @@ const firebaseConfig = {
     storageBucket: "practiceproject-f0b0e.firebasestorage.app",
     messagingSenderId: "409300066922",
     appId: "1:409300066922:web:0acd4a72784a1d91ede013",
-    measurementId: "G-P72KSFQ9XX"
+    measurementId: import.meta.env.VITE_GA_MEASUREMENT_ID || "G-GHYJZVBMB4"
 };
 
 const app = initializeApp(firebaseConfig);

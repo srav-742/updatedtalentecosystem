@@ -23,6 +23,7 @@ import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobDetailSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SEO from '../../components/SEO';
 
 const JobDetails = () => {
     const { id } = useParams();
@@ -164,6 +165,14 @@ const JobDetails = () => {
 
     return (
         <div className="space-y-8">
+            {job && (
+                <SEO 
+                    title={`${job.title} | Hire1Percent`}
+                    description={job.description ? job.description.substring(0, 160).replace(/[#*`_]/g, '') : `View details for ${job.title} on Hire1Percent.`}
+                    canonicalUrl={`/candidate/job/${id}`}
+                    robots="index, follow"
+                />
+            )}
             <div className="flex items-center justify-between">
                 <button
                     onClick={() => navigate(-1)}

@@ -6,6 +6,8 @@ import axios from 'axios';
 import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
+import SEO from '../components/SEO';
+import { trackEvent } from '../utils/analytics';
 
 // Retry wrapper for critical operations
 const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
@@ -401,6 +403,9 @@ const LoginPage = () => {
             // e.g. an admin email logging in as Recruiter should land on /recruiter, not /admin.
             localStorage.setItem('user', JSON.stringify({ ...profile, role: role }));
 
+            // Track GA4 login conversion event (zero PII)
+            trackEvent('login', { method: 'email', role: role || 'candidate' });
+
             // Navigate based on what the user selected, not what the DB says
             const from = location.state?.from?.pathname;
             if (from && from !== '/recruiter' && from !== '/admin') {
@@ -499,6 +504,9 @@ const LoginPage = () => {
 
             // Step 5: Store and navigate
             localStorage.setItem('user', JSON.stringify(basicProfile));
+
+            // Track GA4 login conversion event (zero PII)
+            trackEvent('login', { method: 'google', role: targetRole || 'candidate' });
             setMessage({ type: 'success', text: "Authenticated! Logging in..." });
 
             const from = location.state?.from?.pathname;
@@ -764,6 +772,9 @@ const LoginPage = () => {
                 }
 
                 localStorage.setItem('user', JSON.stringify({ ...profile, role: targetRole }));
+
+                // Track GA4 login conversion event (zero PII)
+                trackEvent('login', { method: 'email_verification', role: targetRole || 'candidate' });
 
                 const from = location.state?.from?.pathname;
                 if (from && from !== '/recruiter' && from !== '/admin') {
@@ -1162,6 +1173,11 @@ const LoginPage = () => {
 
     return (
         <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
+            <SEO 
+                title="Sign In | Hire1Percent" 
+                description="Sign in to your Hire1Percent account to access coding assessments and recruitment dashboards." 
+                robots="noindex, follow" 
+            />
             {/* Background Decor */}
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />

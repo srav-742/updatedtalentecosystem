@@ -16,7 +16,11 @@ Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard/
 Disallow: /private/
-Disallow: /login/
+Disallow: /login
+Disallow: /signup
+Disallow: /verify-email
+Disallow: /test-feedback
+Disallow: /public/interview/
 Allow: /candidate/job/
 Disallow: /candidate/
 Disallow: /recruiter/
