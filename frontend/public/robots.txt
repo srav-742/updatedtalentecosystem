@@ -22,6 +22,7 @@ Disallow: /verify-email
 Disallow: /test-feedback
 Disallow: /public/interview/
 Allow: /candidate/job/
+Allow: /candidate/jobs
 Disallow: /candidate/
 Disallow: /recruiter/
 Disallow: /seeker/
