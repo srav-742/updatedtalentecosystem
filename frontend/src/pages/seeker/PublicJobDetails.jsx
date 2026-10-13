@@ -134,7 +134,7 @@ const PublicJobDetails = () => {
                 <SEO 
                     title="Job Not Found | Hire1Percent" 
                     description="This job posting could not be found or is no longer active." 
-                    robots="noindex, follow" 
+                    robots="noindex, nofollow" 
                 />
                 <Navbar theme="light" />
                 <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">

@@ -10,7 +10,7 @@ const NotFound = () => {
             <SEO 
                 title="404 - Page Not Found | Hire1Percent" 
                 description="The page you are looking for does not exist, has been moved, or is temporarily unavailable." 
-                robots="noindex, follow" 
+                robots="noindex, nofollow" 
             />
             <Navbar />
             <main className="flex-1 flex items-center justify-center px-6">

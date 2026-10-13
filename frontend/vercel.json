@@ -10,6 +10,121 @@
             ],
             "destination": "https://www.hire1percent.com/:path*",
             "permanent": true
+        },
+        {
+            "source": "/job/:id",
+            "destination": "/candidate/job/:id",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/jobs",
+            "destination": "/candidate/jobs",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/job/:id",
+            "destination": "/candidate/job/:id",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/applications",
+            "destination": "/candidate/applications",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/profile",
+            "destination": "/candidate/profile",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/mock-interview",
+            "destination": "/candidate/mock-interview",
+            "permanent": true
+        },
+        {
+            "source": "/seeker/community",
+            "destination": "/candidate/community",
+            "permanent": true
+        },
+        {
+            "source": "/seeker",
+            "destination": "/candidate",
+            "permanent": true
+        },
+        {
+            "source": "/service",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/jobs",
+            "destination": "/candidate/jobs",
+            "permanent": true
+        },
+        {
+            "source": "/jobs/:slug*",
+            "destination": "/candidate/jobs",
+            "permanent": true
+        },
+        {
+            "source": "/company",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/company/:slug*",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/candidates",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/candidates/:slug*",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/interview",
+            "destination": "/ai-interview-platform",
+            "permanent": true
+        },
+        {
+            "source": "/interview/:slug*",
+            "destination": "/ai-interview-platform",
+            "permanent": true
+        },
+        {
+            "source": "/assessment",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/assessment/:slug*",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/assessments-home",
+            "destination": "/",
+            "permanent": true
+        },
+        {
+            "source": "/career-guide",
+            "destination": "/career-hub",
+            "permanent": true
+        },
+        {
+            "source": "/career-questions",
+            "destination": "/career-hub",
+            "permanent": true
+        },
+        {
+            "source": "/candidate-career-hub",
+            "destination": "/career-hub",
+            "permanent": true
         }
     ],
     "rewrites": [

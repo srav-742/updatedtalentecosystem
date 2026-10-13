@@ -13,12 +13,17 @@ export default function SEO({
 }) {
   const baseUrl = 'https://www.hire1percent.com';
   
-  // Ensure canonicalUrl starts with a slash if provided
-  const formattedUrl = canonicalUrl 
-    ? (canonicalUrl.startsWith('/') ? canonicalUrl : `/${canonicalUrl}`) 
-    : '';
+  // Only generate canonical URL if explicitly provided and page is not marked noindex
+  const isNoIndex = typeof robots === 'string' && robots.toLowerCase().includes('noindex');
+  const hasExplicitCanonical = Boolean(canonicalUrl && canonicalUrl.trim() !== '');
   
-  const absoluteCanonicalUrl = `${baseUrl}${formattedUrl}`;
+  const formattedUrl = hasExplicitCanonical
+    ? (canonicalUrl.startsWith('/') ? canonicalUrl : `/${canonicalUrl}`) 
+    : null;
+  
+  const absoluteCanonicalUrl = (formattedUrl && !isNoIndex) 
+    ? `${baseUrl}${formattedUrl}` 
+    : null;
 
   // Normalize schemas: array of objects or single object
   const schemaList = schema 
@@ -31,7 +36,7 @@ export default function SEO({
       {title && <title>{title}</title>}
       {description && <meta name="description" content={description} />}
       {keywords && <meta name="keywords" content={keywords} />}
-      <link rel="canonical" href={absoluteCanonicalUrl} />
+      {absoluteCanonicalUrl && <link rel="canonical" href={absoluteCanonicalUrl} />}
       {robots && <meta name="robots" content={robots} />}
 
       {/* Modern Web App Manifest & RSS Feeds */}
@@ -39,12 +44,12 @@ export default function SEO({
       <link rel="alternate" type="application/rss+xml" title="Hire1Percent Recruitment Blog" href="/rss.xml" />
 
       {/* Multi-Language & Region Hreflang Canonical Annotations */}
-      <link rel="alternate" hrefLang="en" href={absoluteCanonicalUrl} />
-      <link rel="alternate" hrefLang="x-default" href={absoluteCanonicalUrl} />
+      {absoluteCanonicalUrl && <link rel="alternate" hrefLang="en" href={absoluteCanonicalUrl} />}
+      {absoluteCanonicalUrl && <link rel="alternate" hrefLang="x-default" href={absoluteCanonicalUrl} />}
 
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={ogType} />
-      <meta property="og:url" content={absoluteCanonicalUrl} />
+      {absoluteCanonicalUrl && <meta property="og:url" content={absoluteCanonicalUrl} />}
       {title && <meta property="og:title" content={title} />}
       {description && <meta property="og:description" content={description} />}
       <meta property="og:image" content={ogImage} />
@@ -52,7 +57,7 @@ export default function SEO({
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:url" content={absoluteCanonicalUrl} />
+      {absoluteCanonicalUrl && <meta name="twitter:url" content={absoluteCanonicalUrl} />}
       {title && <meta name="twitter:title" content={title} />}
       {description && <meta name="twitter:description" content={description} />}
       <meta name="twitter:image" content={ogImage} />
