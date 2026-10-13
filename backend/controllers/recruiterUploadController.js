@@ -7,6 +7,7 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const { callSkillAI } = require('../utils/aiClients');
+const { extractCandidateText } = require('../utils/candidateFileParser');
 
 // Utility to safely sanitize and parse JSON returned by LLM
 const parseAiJson = (raw, fallback) => {
@@ -50,24 +51,24 @@ const bulkUploadCandidate = async (req, res) => {
 
         console.log(`[BULK-UPLOAD] Processing file: ${req.file.originalname} for Job: ${job.title}`);
 
-        // Step 1: PDF Extraction
+        // Step 1: Universal Candidate File Extraction (.pdf, .docx, .doc, .xlsx, .xls, .csv, .txt)
         let resumeText = '';
+        let fileMetadata = {};
         try {
-            const data = await pdf(req.file.buffer);
-            resumeText = (data?.text || "").trim();
-        } catch (pdfErr) {
-            console.warn("[BULK-UPLOAD] PDF Extraction Failed, trying fallback UTF-8 conversion:", pdfErr.message);
-            const rawString = req.file.buffer.toString('utf8');
-            if (rawString && rawString.trim().length > 10) {
-                resumeText = rawString;
-            } else {
-                console.error("[BULK-UPLOAD] PDF Extraction Failed completely:", pdfErr);
-                return res.status(400).json({ message: "Failed to extract text from PDF resume." });
-            }
+            const extractResult = await extractCandidateText(
+                req.file.buffer,
+                req.file.originalname,
+                req.file.mimetype
+            );
+            resumeText = extractResult.text;
+            fileMetadata = extractResult.metadata || {};
+        } catch (extractErr) {
+            console.error(`[BULK-UPLOAD] Extraction failed for ${req.file.originalname}:`, extractErr.message);
+            return res.status(400).json({ message: extractErr.message || "Failed to extract text from candidate file." });
         }
 
         if (!resumeText) {
-            return res.status(400).json({ message: "Uploaded resume has no extractable text." });
+            return res.status(400).json({ message: "Uploaded file has no extractable text or data." });
         }
 
         // Step 2: AI Parse Structured Details
@@ -143,15 +144,15 @@ ${resumeText.substring(0, 7000)}
 
         // Ensure email exists, otherwise generate a dummy email
         let isDummyEmail = false;
-        let email = parsedData.basics?.email || getFallbackEmail(resumeText);
+        let email = parsedData.basics?.email || fileMetadata.detectedEmail || getFallbackEmail(resumeText);
         if (!email) {
             isDummyEmail = true;
             const randomStr = crypto.randomBytes(6).toString('hex');
             email = `candidate_${randomStr}@imported.hire1percent.com`;
         }
 
-        const name = parsedData.basics?.name || getFallbackName(resumeText);
-        const phone = parsedData.basics?.phone || getFallbackPhone(resumeText);
+        const name = parsedData.basics?.name || fileMetadata.detectedName || getFallbackName(resumeText);
+        const phone = parsedData.basics?.phone || fileMetadata.detectedPhone || getFallbackPhone(resumeText);
         const location = parsedData.basics?.location || '';
 
         // Step 3: Resolve user in database or create shadow seeker

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     UploadCloud, 
     FileText, 
+    FileSpreadsheet,
     CheckCircle2, 
     XCircle, 
     Loader2, 
@@ -56,6 +57,35 @@ const ROUND_OPTIONS = [
     },
 ];
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xlsx', '.xls', '.csv', '.txt'];
+const ALLOWED_ACCEPT = '.pdf,.doc,.docx,.xlsx,.xls,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain';
+
+const isValidCandidateFile = (file) => {
+    if (!file) return false;
+    const name = (file.name || '').toLowerCase();
+    const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+    const validMimes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/csv',
+        'text/plain'
+    ];
+    return hasValidExt || validMimes.includes(file.type);
+};
+
+const getFileFormatBadge = (fileName = '') => {
+    const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
+    if (ext === '.pdf') return { label: 'PDF', bg: 'bg-rose-500/10 text-rose-300 border-rose-500/20' };
+    if (ext === '.docx' || ext === '.doc') return { label: 'DOCX', bg: 'bg-blue-500/10 text-blue-300 border-blue-500/20' };
+    if (ext === '.xlsx' || ext === '.xls') return { label: 'EXCEL', bg: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' };
+    if (ext === '.csv') return { label: 'CSV', bg: 'bg-teal-500/10 text-teal-300 border-teal-500/20' };
+    if (ext === '.txt') return { label: 'TXT', bg: 'bg-slate-500/10 text-slate-300 border-slate-500/20' };
+    return { label: 'DOC', bg: 'bg-purple-500/10 text-purple-300 border-purple-500/20' };
+};
+
 const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
     const [files, setFiles] = useState([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -107,17 +137,18 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
-        const droppedFiles = Array.from(e.dataTransfer.files).filter(
-            (file) => file.type === 'application/pdf'
-        );
+        const droppedFiles = Array.from(e.dataTransfer.files).filter(isValidCandidateFile);
+        if (droppedFiles.length === 0 && e.dataTransfer.files.length > 0) {
+            alert('Please select supported candidate files: .pdf, .docx, .doc, .xlsx, .xls, .csv, or .txt');
+            return;
+        }
         addFilesToList(droppedFiles);
     };
 
     const handleFileSelect = (e) => {
-        const selectedFiles = Array.from(e.target.files).filter(
-            (file) => file.type === 'application/pdf'
-        );
+        const selectedFiles = Array.from(e.target.files).filter(isValidCandidateFile);
         addFilesToList(selectedFiles);
+        if (e.target) e.target.value = '';
     };
 
     const addFilesToList = (newFiles) => {
@@ -420,10 +451,10 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
                             onClick={triggerSelect}
-                            className={`p-10 md:p-12 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                            className={`p-8 md:p-12 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                                 isDragging
-                                    ? 'border-blue-500 bg-blue-500/5 shadow-inner'
-                                    : 'border-white/10 bg-white/[0.01] hover:border-white/20 hover:bg-white/[0.02]'
+                                    ? 'border-blue-500 bg-blue-50/50 shadow-inner'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
                             }`}
                         >
                             <input
@@ -431,20 +462,30 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                 ref={fileInputRef}
                                 onChange={handleFileSelect}
                                 multiple
-                                accept=".pdf"
+                                accept={ALLOWED_ACCEPT}
                                 className="hidden"
                             />
-                            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-white/10 flex items-center justify-center text-blue-400 mb-4 transition-transform group-hover:scale-109 shadow-lg">
-                                <UploadCloud size={32} />
+                            <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-blue-500 mb-4 transition-transform group-hover:scale-105 shadow-sm">
+                                <UploadCloud size={30} />
                             </div>
-                            <h4 className="text-sm font-bold text-gray-200 uppercase tracking-wider mb-1">
+                            <h4 
+                                style={{ color: '#000000' }}
+                                className="text-sm md:text-base font-black text-black uppercase tracking-wider mb-2"
+                            >
                                 Drag & Drop Candidate Resumes Here
                             </h4>
-                            <p className="text-xs text-gray-500 max-w-sm leading-relaxed mb-4">
-                                Upload multiple PDF resumes. The system will automatically fetch each candidate's name & email and authorize them for the selected test/interview.
+                            <p 
+                                style={{ color: '#475569' }}
+                                className="text-xs text-slate-600 max-w-md leading-relaxed mb-6 font-medium"
+                            >
+                                Upload multiple candidate files. The system will automatically fetch each candidate's name & email and authorize them for the selected test/interview.
                             </p>
-                            <span className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer">
-                                Select PDF Files
+
+                            <span 
+                                style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
+                                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
+                            >
+                                Select Files (.pdf, .doc, .docx, .xlsx, .csv, .txt)
                             </span>
                         </div>
                     )}
@@ -454,14 +495,14 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center px-1">
                                 <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                                    Resumes in Queue ({files.length})
+                                    Candidate Files in Queue ({files.length})
                                 </span>
                                 {!processing && (
                                     <button
                                         onClick={triggerSelect}
                                         className="text-xs font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider transition-colors cursor-pointer"
                                     >
-                                        + Add More Resumes
+                                        + Add More Files
                                     </button>
                                 )}
                                 <input
@@ -469,7 +510,7 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                     ref={fileInputRef}
                                     onChange={handleFileSelect}
                                     multiple
-                                    accept=".pdf"
+                                    accept={ALLOWED_ACCEPT}
                                     className="hidden"
                                 />
                             </div>
@@ -480,6 +521,8 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                         const statusStyle = getStatusTextAndStyle(fileObj);
                                         const isDone = fileObj.status === 'success';
                                         const candidate = fileObj.candidate;
+                                        const formatBadge = getFileFormatBadge(fileObj.name);
+                                        const isSpreadsheet = fileObj.name.toLowerCase().endsWith('.xlsx') || fileObj.name.toLowerCase().endsWith('.xls') || fileObj.name.toLowerCase().endsWith('.csv');
 
                                         return (
                                             <motion.div
@@ -500,15 +543,28 @@ const BulkUploadModal = ({ isOpen, onClose, jobId, job, onUploadComplete }) => {
                                                         <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
                                                             isDone 
                                                                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                                                                : isSpreadsheet
+                                                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                                                                 : 'bg-white/5 border-white/5 text-blue-400'
                                                         }`}>
-                                                            {isDone ? <CheckCircle2 size={18} /> : <FileText size={18} />}
+                                                            {isDone ? (
+                                                                <CheckCircle2 size={18} />
+                                                            ) : isSpreadsheet ? (
+                                                                <FileSpreadsheet size={18} />
+                                                            ) : (
+                                                                <FileText size={18} />
+                                                            )}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <p className="text-xs font-bold text-gray-200 truncate pr-3">
-                                                                {fileObj.name}
-                                                            </p>
-                                                            <p className="text-[10px] text-gray-500 font-medium">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <p className="text-xs font-bold text-gray-200 truncate pr-1">
+                                                                    {fileObj.name}
+                                                                </p>
+                                                                <span className={`px-1.5 py-0.5 text-[9px] font-black rounded border shrink-0 uppercase ${formatBadge.bg}`}>
+                                                                    {formatBadge.label}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-gray-500 font-medium mt-0.5">
                                                                 {fileObj.size}
                                                             </p>
                                                         </div>
