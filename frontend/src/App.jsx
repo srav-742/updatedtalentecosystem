@@ -185,6 +185,14 @@ function App() {
 
         {/* Public Candidate Job Details — accessible without login */}
         <Route path="/candidate/job/:id" element={<PublicJobDetails />} />
+        <Route path="/candidate/jobs" element={
+          <div className="min-h-screen bg-[#f7f4ee]">
+            <Navbar theme="light" />
+            <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16 pt-28">
+              <BrowseJobs />
+            </main>
+          </div>
+        } />
 
         {/* Candidate Routes */}
         <Route path="/candidate" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>

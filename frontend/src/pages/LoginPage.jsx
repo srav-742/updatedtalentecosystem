@@ -1176,6 +1176,7 @@ const LoginPage = () => {
             <SEO 
                 title="Sign In | Hire1Percent" 
                 description="Sign in to your Hire1Percent account to access coding assessments and recruitment dashboards." 
+                canonicalUrl="/login"
                 robots="noindex, follow" 
             />
             {/* Background Decor */}

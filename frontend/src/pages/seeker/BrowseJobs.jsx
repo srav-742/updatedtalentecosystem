@@ -6,6 +6,7 @@ import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobCardSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SEO from '../../components/SEO';
 
 // Color palettes for company avatars
 const AVATAR_GRADIENTS = [
@@ -188,6 +189,12 @@ const BrowseJobs = () => {
 
     return (
         <div className="space-y-6">
+            <SEO 
+                title="Browse Jobs & Technical Opportunities | Hire1Percent"
+                description="Explore verified engineering and technical roles. Compare minimum match scores, apply with AI resume intelligence, and unlock coding assessments."
+                canonicalUrl="/candidate/jobs"
+                robots="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+            />
             <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-4 px-6 md:py-4.5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>

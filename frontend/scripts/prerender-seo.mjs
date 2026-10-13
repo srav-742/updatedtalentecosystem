@@ -109,6 +109,15 @@ const ROUTES = [
     intro: 'Public engineering career hub for tech candidates. Authoritative guides answering questions on software roles, required skills, production portfolio projects, proctored coding assessments, and job readiness.'
   },
   {
+    path: '/candidate/jobs',
+    dir: 'candidate/jobs',
+    title: 'Browse Jobs & Technical Opportunities | Hire1Percent',
+    description: 'Explore verified engineering and technical roles. Compare minimum match scores, apply with AI resume intelligence, and unlock coding assessments.',
+    canonicalUrl: `${BASE_DOMAIN}/candidate/jobs`,
+    heading: 'Browse Technical Jobs & Engineering Opportunities',
+    intro: 'Explore active engineering roles, compare match requirements, and fast-track your applications on Hire1Percent.'
+  },
+  {
     path: '/privacy',
     dir: 'privacy',
     title: 'Privacy Policy | Hire1Percent',
