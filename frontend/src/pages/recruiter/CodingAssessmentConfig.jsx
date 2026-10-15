@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Trash2, Edit3, ChevronDown, Save, Loader2, CheckCircle2, ArrowLeft, Code2, Clock, Zap, AlertCircle, GripVertical, UploadCloud, BarChart3 } from 'lucide-react';
+import { Plus, X, Trash2, Edit3, ChevronDown, Save, Loader2, CheckCircle2, ArrowLeft, Code2, Clock, Zap, AlertCircle, GripVertical, UploadCloud, BarChart3, Database } from 'lucide-react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../firebase';
 import CodingQuestionBuilder from '../../components/recruiter/CodingQuestionBuilder';
+import QuestionBankPicker from '../../components/recruiter/QuestionBankPicker';
 import {
     calculateDynamicMarks,
     getRecruiterDistributionSummary,
@@ -44,6 +45,7 @@ const CodingAssessmentConfig = () => {
 
     // UI State
     const [showQuestionBuilder, setShowQuestionBuilder] = useState(false);
+    const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false);
 
@@ -230,6 +232,19 @@ const CodingAssessmentConfig = () => {
         }
         setShowQuestionBuilder(false);
         setEditingQuestion(null);
+    };
+
+    // On questions imported from Central Question Bank
+    const handleQuestionsImported = async (result) => {
+        try {
+            const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${jobId}`);
+            if (roundRes.data?.success && roundRes.data.codingRound) {
+                setCodingRoundId(roundRes.data.codingRound._id);
+                setQuestions(roundRes.data.codingRound.questions || []);
+            }
+        } catch (err) {
+            console.error('Error reloading round after import:', err);
+        }
     };
 
     // Dynamically calculate question marks and summary normalized to exactly 100 marks
@@ -537,7 +552,15 @@ const CodingAssessmentConfig = () => {
                             <p className="text-gray-500 text-xs mt-0.5">{questions.length} question{questions.length !== 1 ? 's' : ''} added</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setShowQuestionBankPicker(true)}
+                            className="px-6 py-3 bg-indigo-600/30 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-300 hover:text-white rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer text-sm shadow-lg"
+                        >
+                            <Database size={18} className="text-indigo-400" />
+                            <span>Import from Bank</span>
+                        </button>
                         <label className="px-6 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer text-sm shadow-lg">
                             <UploadCloud size={18} className="text-teal-400" />
                             <span>Bulk Upload JSON</span>
@@ -763,6 +786,14 @@ const CodingAssessmentConfig = () => {
                     />
                 )}
             </AnimatePresence>
+
+            {/* Question Bank Picker Modal */}
+            <QuestionBankPicker
+                isOpen={showQuestionBankPicker}
+                onClose={() => setShowQuestionBankPicker(false)}
+                jobId={jobId}
+                onQuestionsImported={handleQuestionsImported}
+            />
         </div>
     );
 };

@@ -69,6 +69,7 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/candidate-career(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/coding-assessments(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/custom-coding-assessments(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/question-bank(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/upload-video-intro$/i },
     { method: '*', pattern: /^\/api\/generate-full-assessment$/i },
     { method: '*', pattern: /^\/api\/submit-assessment$/i },

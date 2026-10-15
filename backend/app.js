@@ -239,6 +239,12 @@ try {
     console.warn('[App] Skipping /api/custom-coding-assessments routes:', err.message);
 }
 
+try {
+    app.use('/api/question-bank', require('./routes/questionBankRoutes'));
+} catch (err) {
+    console.warn('[App] Skipping /api/question-bank routes:', err.message);
+}
+
 app.use('/api/voice-agent', voiceAgentRoutes);
 app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 app.use('/api/user-resumes', require('./routes/userResumeRoutes'));

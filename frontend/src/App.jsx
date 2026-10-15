@@ -39,6 +39,7 @@ const BlogEditor = lazy(() => import('./pages/recruiter/BlogEditor'));
 const BlogPosts = lazy(() => import('./pages/recruiter/BlogPosts'));
 const CodingAssessmentConfig = lazy(() => import('./pages/recruiter/CodingAssessmentConfig'));
 const CustomCodingAssessmentConfig = lazy(() => import('./pages/recruiter/CustomCodingAssessmentConfig'));
+const QuestionBank = lazy(() => import('./pages/recruiter/QuestionBank'));
 const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
 const RecruiterKnowledgeHub = lazy(() => import('./pages/recruiter/RecruiterKnowledgeHub'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
@@ -179,9 +180,12 @@ function App() {
           <Route path="blog-editor/:id" element={<BlogEditor />} />
           <Route path="coding-assessment/:jobId" element={<CodingAssessmentConfig />} />
           <Route path="custom-coding-assessment/:jobId" element={<CustomCodingAssessmentConfig />} />
+          <Route path="question-bank" element={<QuestionBank />} />
 
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
+
+        <Route path="/admin/question-bank" element={<Navigate to="/recruiter/question-bank" replace />} />
 
         {/* Public Candidate Job Details — accessible without login */}
         <Route path="/candidate/job/:id" element={<PublicJobDetails />} />
