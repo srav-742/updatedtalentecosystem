@@ -58,7 +58,7 @@ const ensureArray = (val) => {
     return [];
 };
 
-export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestionsImported }) {
+export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestionsImported, onSelectQuestions }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
@@ -69,6 +69,16 @@ export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestions
     const [importing, setImporting] = useState(false);
     const [importSuccess, setImportSuccess] = useState(null);
     const [error, setError] = useState(null);
+
+    const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
+    const storedUser = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem('user') || '{}');
+        } catch {
+            return {};
+        }
+    }, []);
+    const isAdminUser = storedUser.role === 'admin' || (storedUser.email && ADMIN_EMAILS.includes(storedUser.email.toLowerCase().trim()));
 
     // Fetch questions when modal opens
     useEffect(() => {
@@ -127,6 +137,23 @@ export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestions
     // Import selected questions into the job assessment
     const handleImport = async () => {
         if (selectedIds.size === 0) return;
+        const selectedList = questions.filter(q => selectedIds.has(q._id));
+
+        // If onSelectQuestions callback is provided (e.g., PostJob.jsx), pass the questions directly
+        if (onSelectQuestions) {
+            onSelectQuestions(selectedList);
+            setImportSuccess({ message: `${selectedList.length} question(s) selected!` });
+            setTimeout(() => {
+                onClose();
+            }, 600);
+            return;
+        }
+
+        if (!jobId) {
+            setError('Please specify a Job ID or pass onSelectQuestions callback.');
+            return;
+        }
+
         setImporting(true);
         setError(null);
         try {
@@ -182,12 +209,25 @@ export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestions
                                 </p>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {isAdminUser && (
+                                <button
+                                    type="button"
+                                    onClick={() => window.open('/admin/question-bank', '_blank')}
+                                    className="px-3 py-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    title="Open Admin Question Bank in a new tab"
+                                >
+                                    <Database size={13} />
+                                    <span>Manage in Admin ↗</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={onClose}
+                                className="p-2.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Filter & Search Bar */}

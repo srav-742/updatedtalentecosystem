@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList, Users, ShieldCheck, Mail } from 'lucide-react';
+import { FilePlus, MapPin, Briefcase, Zap, Plus, X, Loader2, CheckCircle2, Save, ChevronDown, Clock, Code2, UploadCloud, FileText, Sparkles, AlertCircle, ArrowUp, ArrowDown, Trash2, Edit3, Shuffle, ListOrdered, ClipboardList, Users, ShieldCheck, Mail, Database } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_URL, getAuthHeaders } from '../../firebase';
 import { trackEvent } from '../../utils/analytics';
+import QuestionBankPicker from '../../components/recruiter/QuestionBankPicker';
 import './recruiter-theme.css';
 
 const PostJob = () => {
@@ -18,6 +19,17 @@ const PostJob = () => {
     const [success, setSuccess] = useState(false);
     const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
     const [isJobTypeOpen, setIsJobTypeOpen] = useState(false);
+
+    const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
+    const isAdminUser = user.role === 'admin' || (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim()));
+
+    const handleNavigateToAdminQuestionBank = () => {
+        if (!isAdminUser) {
+            alert("Admin permissions required: Only platform administrators can post or manage questions in the Admin Question Bank.");
+            return;
+        }
+        navigate('/admin/question-bank');
+    };
 
     useEffect(() => {
         if (!user.uid && !user._id && !user.id) {
@@ -136,6 +148,63 @@ const PostJob = () => {
     const [normalTime, setNormalTime] = useState(15);
     const [moderateTime, setModerateTime] = useState(30);
     const [highTime, setHighTime] = useState(45);
+
+    // Central Question Bank Integration States
+    const [selectedBankQuestions, setSelectedBankQuestions] = useState([]);
+    const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
+    const [pickerTarget, setPickerTarget] = useState('coding'); // 'coding' or 'interview'
+
+    const handleBankQuestionsSelected = (importedList) => {
+        if (!importedList || importedList.length === 0) return;
+
+        if (pickerTarget === 'interview') {
+            // Append to recruiterQuestions for Mock Interview round
+            const newQuestions = importedList.map(q => ({
+                text: q.description ? `${q.title} - ${q.description.slice(0, 160)}...` : q.title,
+                category: q.topics?.[0] || 'Technical / Coding',
+                difficulty: q.difficulty === 'LOW' ? 'Easy' : q.difficulty === 'HIGH' ? 'Hard' : 'Medium',
+                timeLimit: 120,
+                source: 'QUESTION_BANK',
+                bankQuestionId: q._id
+            }));
+            setJobData(prev => {
+                const combined = [...(prev.recruiterQuestions || []), ...newQuestions];
+                return {
+                    ...prev,
+                    questionSource: 'RECRUITER_PROVIDED',
+                    recruiterQuestions: combined,
+                    questionCount: Math.min(prev.questionCount || combined.length, combined.length)
+                };
+            });
+        } else {
+            // Attach to Coding Assessment
+            setSelectedBankQuestions(prev => {
+                const existingIds = new Set(prev.map(q => q._id));
+                const filteredNew = importedList.filter(q => !existingIds.has(q._id));
+                const combined = [...prev, ...filteredNew];
+
+                // Auto update difficulty counters to reflect selected questions
+                const low = combined.filter(q => (q.difficulty || '').toUpperCase() === 'LOW').length;
+                const med = combined.filter(q => (q.difficulty || '').toUpperCase() === 'MEDIUM').length;
+                const high = combined.filter(q => (q.difficulty || '').toUpperCase() === 'HIGH').length;
+                setNormalCount(low);
+                setModerateCount(med);
+                setHighCount(high);
+
+                return combined;
+            });
+
+            // Ensure coding round toggle is switched on
+            setJobData(prev => ({
+                ...prev,
+                codingAssessment: {
+                    ...(prev.codingAssessment || {}),
+                    enabled: true
+                }
+            }));
+        }
+        setShowQuestionBankPicker(false);
+    };
 
     const handleDrag = (e) => {
         e.preventDefault();
@@ -618,11 +687,28 @@ const PostJob = () => {
 
             queryClient.invalidateQueries({ queryKey: ['jobs'] });
             setSuccess(true);
+
+            // If bank questions were chosen, link them directly to the job assessment
+            if (selectedBankQuestions.length > 0 && targetJobId) {
+                try {
+                    await axios.post(`${API_URL}/question-bank/import-to-job`, {
+                        jobId: targetJobId,
+                        questionIds: selectedBankQuestions.map(q => q._id)
+                    }, { headers });
+                } catch (importErr) {
+                    console.error('Error attaching bank questions to job:', importErr);
+                }
+            }
+
             if (dataToSave.codingAssessment?.enabled && targetJobId) {
                 setTimeout(() => {
-                    navigate(`/recruiter/custom-coding-assessment/${targetJobId}`, {
+                    const destinationRoute = selectedBankQuestions.length > 0
+                        ? `/recruiter/coding-assessment/${targetJobId}`
+                        : `/recruiter/custom-coding-assessment/${targetJobId}`;
+                    navigate(destinationRoute, {
                         state: {
                             language: selectedLanguage,
+                            importedQuestions: selectedBankQuestions,
                             normalCount,
                             moderateCount,
                             highCount,
@@ -1131,13 +1217,24 @@ const PostJob = () => {
                                     </div>
                                     <h2 className="text-base font-bold text-slate-900">Coding Rounds</h2>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handleToggle('codingAssessment.enabled')}
-                                    className={`w-12 h-6 rounded-full transition-all relative ${jobData.codingAssessment?.enabled ? 'bg-teal-500' : 'bg-gray-700'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${jobData.codingAssessment?.enabled ? 'left-7' : 'left-1'}`} />
-                                </button>
+                                <div className="flex items-center gap-2.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setPickerTarget('coding'); setShowQuestionBankPicker(true); }}
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                        title="Choose questions from Central Question Bank"
+                                    >
+                                        <Database size={13} />
+                                        <span>Question Bank {selectedBankQuestions.length > 0 ? `(${selectedBankQuestions.length})` : ''}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleToggle('codingAssessment.enabled')}
+                                        className={`w-12 h-6 rounded-full transition-all relative ${jobData.codingAssessment?.enabled ? 'bg-teal-500' : 'bg-gray-700'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${jobData.codingAssessment?.enabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
                             </div>
  
                             {jobData.codingAssessment?.enabled ? (
@@ -1412,11 +1509,84 @@ const PostJob = () => {
                                             )}
                                         </div>
                                     </div>
+                                    {/* Selected Question Bank Questions List */}
+                                    <div className="col-span-1 md:col-span-3 space-y-4">
+
+                                        {/* Display selected bank questions if any are picked */}
+                                        {selectedBankQuestions.length > 0 && (
+                                            <div className="p-4 rounded-2xl bg-black/40 border border-teal-500/30 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle2 size={15} className="text-teal-400" />
+                                                        <span className="text-xs font-bold text-white">
+                                                            {selectedBankQuestions.length} Approved Question{selectedBankQuestions.length !== 1 ? 's' : ''} Attached from Bank
+                                                        </span>
+                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-semibold">
+                                                            Live & Verified
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedBankQuestions([]); setNormalCount(0); setModerateCount(0); setHighCount(0); }}
+                                                        className="text-[11px] text-red-400 hover:text-red-300 font-semibold cursor-pointer"
+                                                    >
+                                                        Clear All
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                                                    {selectedBankQuestions.map(q => (
+                                                        <div key={q._id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-xs hover:border-teal-500/30 transition-colors">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                                        q.difficulty === 'LOW' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                                                        q.difficulty === 'HIGH' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                                                        'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                                    }`}>
+                                                                        {q.difficulty}
+                                                                    </span>
+                                                                    <span className="font-bold text-white truncate">{q.title}</span>
+                                                                </div>
+                                                                <span className="text-[10px] text-gray-400 block truncate">
+                                                                    {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} • {q.testCases?.length || 0} test cases
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updated = selectedBankQuestions.filter(x => x._id !== q._id);
+                                                                    setSelectedBankQuestions(updated);
+                                                                    setNormalCount(updated.filter(x => x.difficulty === 'LOW').length);
+                                                                    setModerateCount(updated.filter(x => x.difficulty === 'MEDIUM').length);
+                                                                    setHighCount(updated.filter(x => x.difficulty === 'HIGH').length);
+                                                                }}
+                                                                className="text-gray-500 hover:text-rose-400 p-1 cursor-pointer shrink-0 transition-colors"
+                                                                title="Remove question"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ) : (
-                                <p className="text-xs text-gray-500 leading-relaxed mt-4">
-                                    Enable coding rounds with specific challenges, language options, and timers.
-                                </p>
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                                    <p className="text-xs text-gray-500 leading-relaxed">
+                                        Enable coding rounds with specific challenges, language options, and timers. Choose vetted questions from the question bank or generate custom assessments.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setPickerTarget('coding'); setShowQuestionBankPicker(true); }}
+                                        className="px-3.5 py-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0 flex items-center gap-1.5"
+                                        title="Choose from Question Bank"
+                                    >
+                                        <Database size={13} />
+                                        <span>Question Bank</span>
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -1699,6 +1869,17 @@ const PostJob = () => {
                                                     >
                                                         <Plus size={14} />
                                                         <span>+ Add Manually</span>
+                                                    </button>
+
+                                                    {/* Central Question Bank */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setPickerTarget('interview'); setShowQuestionBankPicker(true); }}
+                                                        className="px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                                                        title="Import approved questions from Central Question Bank"
+                                                    >
+                                                        <Database size={14} />
+                                                        <span>Import from Question Bank</span>
                                                     </button>
                                                 </div>
 
@@ -2333,6 +2514,12 @@ const PostJob = () => {
                 </div>
             )}
 
+            {/* Central Question Bank Picker Modal */}
+            <QuestionBankPicker
+                isOpen={showQuestionBankPicker}
+                onClose={() => setShowQuestionBankPicker(false)}
+                onSelectQuestions={handleBankQuestionsSelected}
+            />
 
         </div >
     );

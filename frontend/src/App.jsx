@@ -43,6 +43,7 @@ const QuestionBank = lazy(() => import('./pages/recruiter/QuestionBank'));
 const RecruiterTranscriptPage = lazy(() => import('./pages/recruiter/RecruiterTranscriptPage'));
 const RecruiterKnowledgeHub = lazy(() => import('./pages/recruiter/RecruiterKnowledgeHub'));
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
+const AdminQuestionBankRedirect = lazy(() => import('./pages/admin/AdminQuestionBankRedirect'));
 
 // Candidate / Seeker pages
 const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
@@ -185,7 +186,8 @@ function App() {
           <Route path="upgrade" element={<PaymentUpgrade />} />
         </Route>
 
-        <Route path="/admin/question-bank" element={<Navigate to="/recruiter/question-bank" replace />} />
+        <Route path="/admin/question-bank" element={<AdminQuestionBankRedirect />} />
+        <Route path="/admin-question-bank" element={<AdminQuestionBankRedirect />} />
 
         {/* Public Candidate Job Details — accessible without login */}
         <Route path="/candidate/job/:id" element={<PublicJobDetails />} />

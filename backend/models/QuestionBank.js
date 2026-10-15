@@ -23,8 +23,8 @@ const bankTestCaseSchema = new mongoose.Schema({
     isHidden: { type: Boolean, default: false },
     category: {
         type: String,
-        enum: ['NORMAL', 'BOUNDARY', 'EDGE_CASE', 'PERFORMANCE', 'ALGORITHM', 'MUTATION',
-               'Normal', 'Boundary', 'Edge', 'Performance', 'Algorithm', 'Mutation'],
+        enum: ['NORMAL', 'BOUNDARY', 'EDGE_CASE', 'PERFORMANCE', 'ALGORITHM', 'MUTATION', 'BASIC', 'EDGE',
+               'Normal', 'Boundary', 'Edge', 'Performance', 'Algorithm', 'Mutation', 'Basic'],
         default: 'NORMAL'
     },
     weight: { type: Number, default: 1 },

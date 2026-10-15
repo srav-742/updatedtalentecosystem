@@ -44,6 +44,27 @@ const CustomCodingAssessmentConfig = () => {
 
     // Auto-trigger generation if config is provided via redirect state
     useEffect(() => {
+        if (location.state?.importedQuestions && location.state.importedQuestions.length > 0) {
+            const mapped = location.state.importedQuestions.map(q => ({
+                title: q.title,
+                description: q.description,
+                inputFormat: q.inputFormat || '',
+                outputFormat: q.outputFormat || '',
+                constraints: q.constraints || '',
+                difficulty: q.difficulty || 'Medium',
+                testCases: (q.testCases || []).map(tc => ({
+                    input: tc.input || '',
+                    output: tc.expectedOutput || '',
+                    hidden: tc.isHidden || false
+                })),
+                starterCode: q.starterCode ? (q.starterCode[language.toLowerCase()] || q.starterCode.python || '') : '',
+                timer: 0
+            }));
+            setQuestions(mapped);
+            setShowConfigForm(false);
+            return;
+        }
+
         if (location.state) {
             triggerAIQuestionGeneration();
         }
