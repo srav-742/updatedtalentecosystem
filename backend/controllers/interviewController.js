@@ -210,7 +210,8 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
             reviewedBy: proctoringReport?.reviewedBy || null,
             reviewedAt: proctoringReport?.reviewedAt || null,
             reviewReason: proctoringReport?.reviewReason || null
-        }
+        },
+        technicalRound: application.technicalEvaluation || null
     }
 });
 

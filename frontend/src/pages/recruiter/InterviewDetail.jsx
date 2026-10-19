@@ -17,7 +17,12 @@ import {
     AlertTriangle,
     Clock,
     Share2,
-    XCircle
+    XCircle,
+    Code2,
+    Terminal,
+    CheckCircle2,
+    Copy,
+    Check
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
@@ -42,6 +47,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     const [error, setError] = useState(null);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
+    const [copiedTechCode, setCopiedTechCode] = useState(false);
 
     const handleShareInterview = () => {
         const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
@@ -505,6 +511,140 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         );
                     })()}
                 </div>
+
+                {/* Live Technical Problem-Solving Round */}
+                {(() => {
+                    const tech = interview?.technicalRound || application?.technicalEvaluation;
+                    if (!tech) return null;
+                    const ev = tech;
+                    return (
+                        <div className="p-8 border-b border-gray-200 bg-gradient-to-r from-teal-50/50 via-emerald-50/30 to-indigo-50/40">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Code2 className="w-5 h-5 text-teal-600" />
+                                <h3 className="text-lg font-bold text-gray-800">Live Technical Problem-Solving Round</h3>
+                            </div>
+                            
+                            <div className="rounded-2xl border border-teal-200 bg-white shadow-sm overflow-hidden">
+                                <div className="p-6 bg-gradient-to-r from-teal-50 via-emerald-50 to-indigo-50 border-b border-teal-100 flex flex-wrap items-center justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+                                                {tech.category || 'Live Coding Challenge'}
+                                            </span>
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                                Difficulty: {tech.difficulty || 'Medium'}
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-gray-100 text-gray-700">
+                                                {tech.language || 'Python'}
+                                            </span>
+                                        </div>
+                                        <h4 className="text-xl font-black text-gray-900 tracking-tight">
+                                            {tech.problemTitle || 'Live Technical Challenge'}
+                                        </h4>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="text-center bg-white px-3 py-1.5 rounded-xl border border-teal-100 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Approach</span>
+                                            <span className="text-sm font-black text-teal-700">{ev.approachScore ?? '-'}%</span>
+                                        </div>
+                                        <div className="text-center bg-white px-3 py-1.5 rounded-xl border border-teal-100 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Correctness</span>
+                                            <span className="text-sm font-black text-emerald-700">{ev.correctnessScore ?? '-'}%</span>
+                                        </div>
+                                        <div className="text-center bg-white px-3 py-1.5 rounded-xl border border-teal-100 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Complexity</span>
+                                            <span className="text-sm font-black text-indigo-700">{ev.complexityScore ?? '-'}%</span>
+                                        </div>
+                                        <div className="text-center bg-white px-3 py-1.5 rounded-xl border border-teal-100 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Communication</span>
+                                            <span className="text-sm font-black text-purple-700">{ev.communicationScore ?? '-'}%</span>
+                                        </div>
+                                        <div className="text-center bg-teal-600 text-white px-4 py-2 rounded-xl shadow-md">
+                                            <span className="text-[10px] font-bold text-teal-200 uppercase tracking-wider block">Score</span>
+                                            <span className="text-lg font-black">{ev.totalScore != null ? `${ev.totalScore}/100` : 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 space-y-5">
+                                    <div>
+                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">Problem Statement</h5>
+                                        <p className="text-xs text-gray-800 p-3.5 rounded-xl bg-gray-50 border border-gray-200 whitespace-pre-wrap leading-relaxed font-sans">
+                                            {tech.statement || tech.problemStatement || 'Problem statement recorded during interview.'}
+                                        </p>
+                                    </div>
+
+                                    {tech.approachExplanation && (
+                                        <div>
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-teal-700 mb-1.5">Candidate's Initial Approach & Reasoning</h5>
+                                            <p className="text-xs text-gray-800 p-3.5 rounded-xl bg-teal-50/60 border border-teal-200 whitespace-pre-wrap leading-relaxed font-sans">
+                                                {tech.approachExplanation}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {tech.submittedCode && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
+                                                    <Terminal size={12} className="text-teal-600" /> Submitted Code ({tech.language || 'Python'})
+                                                </h5>
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(tech.submittedCode);
+                                                        setCopiedTechCode(true);
+                                                        setTimeout(() => setCopiedTechCode(false), 2000);
+                                                    }}
+                                                    className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-gray-900 px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors"
+                                                >
+                                                    {copiedTechCode ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                                                    {copiedTechCode ? 'Copied' : 'Copy Code'}
+                                                </button>
+                                            </div>
+                                            <pre className="p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner">
+                                                <code>{tech.submittedCode}</code>
+                                            </pre>
+                                        </div>
+                                    )}
+
+                                    {tech.testCasesSummary && (
+                                        <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs">
+                                            <span className="font-bold text-gray-600">Test Execution:</span>
+                                            <span className="font-black text-indigo-700">
+                                                {tech.testCasesSummary.passed || 0} / {tech.testCasesSummary.total || 0} passed
+                                            </span>
+                                            {tech.testCasesSummary.passed === tech.testCasesSummary.total && tech.testCasesSummary.total > 0 ? (
+                                                <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 ml-auto">
+                                                    <CheckCircle2 size={12} /> Passed All Test Cases
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    )}
+
+                                    {Array.isArray(tech.followUps) && tech.followUps.length > 0 && (
+                                        <div className="space-y-3 pt-2 border-t border-gray-100">
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Interviewer Follow-Up Discussion</h5>
+                                            {tech.followUps.map((fu, fIdx) => (
+                                                <div key={fIdx} className="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-1.5 text-xs">
+                                                    <div className="font-bold text-indigo-900">Q: {fu.question}</div>
+                                                    <div className="text-gray-700 font-medium">A: {fu.answer || '(No response recorded)'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {ev.summary && (
+                                        <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-emerald-800 mb-1">Evaluator Notes & Assessment</h5>
+                                            <p className="text-xs text-gray-700 leading-relaxed font-sans">{ev.summary}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Questions & Answers */}
                 <div className="p-8">

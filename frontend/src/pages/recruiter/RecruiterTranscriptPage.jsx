@@ -593,6 +593,149 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
           </Sec>
         )}
 
+        {/* ── Live Technical Problem-Solving Round Review Section ── */}
+        {(data.technicalRound || interview?.technicalRound) && (() => {
+          const tech = data.technicalRound || interview.technicalRound;
+          const ev = tech.evaluation || {};
+
+          return (
+            <Sec title="Live Technical Problem-Solving Round" icon={<Code2 size={16} />} grad="from-teal-600 to-emerald-600">
+              <div className="rounded-2xl border border-teal-200 bg-white shadow-sm overflow-hidden mb-6">
+                {/* Header with Title and Scores */}
+                <div className="p-6 bg-gradient-to-r from-teal-50 via-emerald-50 to-indigo-50 border-b border-teal-100 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+                        {tech.category || 'Live Coding Round'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Difficulty: {tech.difficulty || 'Medium'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-gray-100 text-gray-700">
+                        {tech.language || 'Python'}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                      {tech.problemTitle || 'Live Technical Challenge'}
+                    </h3>
+                  </div>
+
+                  {/* Multi-Dimensional Score Rings / Badges */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Approach</span>
+                      <span className="text-base font-black text-teal-700">{ev.approachScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Correctness</span>
+                      <span className="text-base font-black text-emerald-700">{ev.correctnessScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Complexity</span>
+                      <span className="text-base font-black text-indigo-700">{ev.complexityScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Communication</span>
+                      <span className="text-base font-black text-purple-700">{ev.communicationScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-teal-600 text-white px-4 py-2 rounded-xl shadow-md">
+                      <span className="text-[10px] font-bold text-teal-200 uppercase tracking-wider block">Total Score</span>
+                      <span className="text-lg font-black">{ev.totalScore != null ? `${ev.totalScore}/100` : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Problem Statement */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Problem Statement</h4>
+                    <p className="text-sm text-gray-800 p-4 rounded-xl bg-gray-50 border border-gray-200 whitespace-pre-wrap leading-relaxed">
+                      {tech.statement || 'Problem details recorded in live session.'}
+                    </p>
+                  </div>
+
+                  {/* Candidate Approach */}
+                  {tech.approachExplanation && (
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">Candidate's Initial Approach & Reasoning</h4>
+                      <p className="text-sm text-gray-800 p-4 rounded-xl bg-teal-50/60 border border-teal-200 whitespace-pre-wrap leading-relaxed font-sans">
+                        {tech.approachExplanation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Submitted Code */}
+                  {tech.submittedCode && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-700">Submitted Code Solution</h4>
+                        <span className="text-[11px] font-mono text-gray-500">{tech.language || 'Python'}</span>
+                      </div>
+                      <pre className="p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner">
+                        <code>{tech.submittedCode}</code>
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Test Execution Summary */}
+                  {tech.testResults && (
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-2">
+                        <Terminal size={16} className="text-teal-600" />
+                        <span className="text-xs font-bold text-gray-900">Sandbox Test Execution:</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800">
+                          {tech.testResults.passed || 0} / {tech.testResults.total || 0} Test Cases Passed
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-gray-500">
+                        Runtime: {tech.testResults.executionTime || 0}ms
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Follow-Up Discussion */}
+                  {(tech.followUpQuestion || tech.followUpAnswer) && (
+                    <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 space-y-3">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-800 flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-indigo-600" /> AI Follow-Up Question & Candidate Response
+                      </h4>
+                      {tech.followUpQuestion && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-500 block">Question Asked:</span>
+                          <p className="text-xs font-bold text-gray-900">{tech.followUpQuestion}</p>
+                        </div>
+                      )}
+                      {tech.followUpAnswer && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-500 block">Candidate Answer:</span>
+                          <p className="text-xs text-gray-800 leading-relaxed font-sans">{tech.followUpAnswer}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Evaluation Summary */}
+                  {ev.summary && (
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 space-y-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900 flex items-center gap-1.5">
+                        <CheckCircle size={12} className="text-emerald-600" /> Hiring Committee Evaluation Summary
+                      </p>
+                      <p className="text-xs text-emerald-950 font-medium leading-relaxed">
+                        {ev.summary}
+                      </p>
+                      {ev.strengths && (
+                        <p className="text-[11px] text-gray-700 pt-1">
+                          <strong>Key Strength:</strong> {ev.strengths}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Sec>
+          );
+        })()}
+
         {interview && (
           <Sec title="Security & Proctoring Audit" icon={<ShieldAlert size={16} />} grad="from-red-500 to-orange-500">
             {(() => {

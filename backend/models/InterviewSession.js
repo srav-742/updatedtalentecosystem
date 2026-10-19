@@ -35,7 +35,30 @@ const interviewSessionSchema = new mongoose.Schema(
                 feedback: String,
                 isAttempted: Boolean
             }
-        ]
+        ],
+        // ─── Live Technical Problem-Solving Round (Additive & Optional) ────
+        technicalStage: {
+            type: String,
+            enum: [
+                'NONE',
+                'PENDING',
+                'TECHNICAL_PROBLEM_INTRO',
+                'PROBLEM_PRESENTED',
+                'APPROACH_EXPLANATION',
+                'CODING_IN_PROGRESS',
+                'SOLUTION_SUBMITTED',
+                'AI_FOLLOW_UP',
+                'TECHNICAL_EVALUATION',
+                'RESUME_NORMAL_INTERVIEW',
+                'COMPLETED'
+            ],
+            default: 'NONE'
+        },
+        technicalProblem: mongoose.Schema.Types.Mixed,
+        technicalAttempts: [mongoose.Schema.Types.Mixed],
+        technicalFollowUps: [mongoose.Schema.Types.Mixed],
+        technicalEvaluation: mongoose.Schema.Types.Mixed,
+        technicalTriggerQuestionIndex: { type: Number, default: null }
     },
     { timestamps: true }
 );

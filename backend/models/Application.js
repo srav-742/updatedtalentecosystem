@@ -164,7 +164,8 @@ const applicationSchema = new mongoose.Schema({
         communication: String,
         overallSummary: String,
         calculatedAt: Date
-    }
+    },
+    technicalEvaluation: { type: mongoose.Schema.Types.Mixed, default: null }
 });
 
 // Compound index for optimized querying & sorting of recruiter applicants

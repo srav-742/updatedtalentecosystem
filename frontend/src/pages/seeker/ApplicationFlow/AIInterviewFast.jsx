@@ -6,6 +6,7 @@ import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 import { trackEvent } from '../../../utils/analytics';
+import LiveTechnicalWorkspace from '../../../components/technicalInterview/LiveTechnicalWorkspace';
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -125,6 +126,11 @@ const AIInterviewFast = ({
     const [recordingSessionId, setRecordingSessionId] = useState(sharedRecordingSessionId || null);
     const [recordingNotice, setRecordingNotice] = useState('');
 
+    // Live Technical Problem-Solving State
+    const [isTechnicalActive, setIsTechnicalActive] = useState(false);
+    const [technicalProblemData, setTechnicalProblemData] = useState(null);
+    const [technicalEvaluation, setTechnicalEvaluation] = useState(null);
+
     // Tab lock state
     const [interviewTerminated, setInterviewTerminated] = useState(false);
     const [securityResetting, setSecurityResetting] = useState(false);
@@ -132,6 +138,19 @@ const AIInterviewFast = ({
     // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
     // receives the correct stream via props and triggers a proper re-render
     const [cameraStreamState, setCameraStreamState] = useState(sharedStream || null);
+
+    // Check if technical round was active on session resume or refresh
+    useEffect(() => {
+        if (!sessionId || isTechnicalActive) return;
+        axios.get(`${API_URL}/interview/technical/state/${sessionId}`)
+            .then(res => {
+                if (res.data?.success && res.data.technicalStage && res.data.technicalStage !== 'NONE' && res.data.technicalStage !== 'COMPLETED') {
+                    setIsTechnicalActive(true);
+                    if (res.data.problem) setTechnicalProblemData(res.data.problem);
+                }
+            })
+            .catch(() => {});
+    }, [sessionId]);
 
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
@@ -554,6 +573,12 @@ const AIInterviewFast = ({
 
                 setStep('completed');
             } else {
+                if (nextRes.data.isTechnicalTrigger) {
+                    setIsTechnicalActive(true);
+                    if (nextRes.data.technicalProblem) {
+                        setTechnicalProblemData(nextRes.data.technicalProblem);
+                    }
+                }
                 const nextQuestion = normalizeQuestionText(nextRes.data.question);
                 setCurrentQuestion(nextQuestion);
                 setCurrentQNum(nextRes.data.currentQuestionNumber);
@@ -1293,7 +1318,30 @@ const AIInterviewFast = ({
                 resetLimit={4}
                 onSecurityReset={handleInterviewSecurityReset}
             >
-                <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
+                {isTechnicalActive ? (
+                    <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
+                        <LiveTechnicalWorkspace
+                            sessionId={sessionId}
+                            initialProblem={technicalProblemData}
+                            cameraStream={cameraStreamState}
+                            fetchAndPlayAudio={fetchAndPlayAudio}
+                            isAiSpeaking={coreState === 'speaking'}
+                            speechTranscript={transcript}
+                            isRecording={recording}
+                            onToggleRecording={toggleRecording}
+                            onResumeInterview={({ evaluation, resumeSpeech }) => {
+                                setIsTechnicalActive(false);
+                                if (evaluation) {
+                                    setTechnicalEvaluation(evaluation);
+                                }
+                                if (resumeSpeech) {
+                                    typeText(resumeSpeech);
+                                }
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
                     {/* Minimal Header */}
                     <div className="flex justify-between items-center mb-12 border-b border-gray-200 pb-6">
                         <div className="flex items-center gap-6">
@@ -1504,6 +1552,7 @@ const AIInterviewFast = ({
                         </div>
                     )}
                 </div>
+                )}
             </SecureExamWrapper>
         );
     }
@@ -1520,6 +1569,7 @@ const AIInterviewFast = ({
                 jobId={job?._id || job?.id || ''}
                 interviewId={sessionId}
                 recordingNotice={recordingNotice}
+                technicalEvaluation={technicalEvaluation}
                 onDone={() => onComplete({ interviewScore: finalScore })}
             />
         );

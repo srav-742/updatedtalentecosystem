@@ -434,8 +434,10 @@ const getTranscript = async (req, res) => {
                 })),
             } : null,
             coding: codingData,
+            technicalRound: application.technicalEvaluation || null,
             interview: {
                 hasInterview,
+                technicalRound: application.technicalEvaluation || null,
                 score: scoreData.interviewScore,
                 totalQuestions: application.interviewAnswers?.length || 0,
                 completedAt: hasInterview ? (application.updatedAt || null) : null,

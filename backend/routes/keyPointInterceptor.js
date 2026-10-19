@@ -85,6 +85,13 @@ async function loadSession(sessionId) {
         totalQuestions,
         history: stored.history || [],
         answerEvaluations: stored.answerEvaluations || [],
+        // Live Technical Problem-Solving State
+        technicalStage: stored.technicalStage || 'NONE',
+        technicalProblem: stored.technicalProblem || null,
+        technicalAttempts: stored.technicalAttempts || [],
+        technicalFollowUps: stored.technicalFollowUps || [],
+        technicalEvaluation: stored.technicalEvaluation || null,
+        technicalTriggerQuestionIndex: stored.technicalTriggerQuestionIndex || null,
         // In-memory only: key-point follow-up tracking (not persisted to MongoDB)
         _followUpCount: 0,
         _lastKeyPoints: null
@@ -119,7 +126,13 @@ async function saveSession(sessionId, session) {
                 currentQuestionIndex: session.currentQuestionIndex || 0,
                 totalQuestions: session.totalQuestions,
                 history: session.history || [],
-                answerEvaluations: session.answerEvaluations || []
+                answerEvaluations: session.answerEvaluations || [],
+                technicalStage: session.technicalStage || 'NONE',
+                technicalProblem: session.technicalProblem || null,
+                technicalAttempts: session.technicalAttempts || [],
+                technicalFollowUps: session.technicalFollowUps || [],
+                technicalEvaluation: session.technicalEvaluation || null,
+                technicalTriggerQuestionIndex: session.technicalTriggerQuestionIndex || null
             }
         },
         { upsert: true, setDefaultsOnInsert: true }
@@ -839,51 +852,85 @@ router.post('/next-fast', async (req, res, next) => {
 
         session._lastKeyPoints = keyPointResult;
 
-        // ─── 6. Generate Next Question (KEY-POINT-AWARE) ────────────────────
-        let nextQuestion = "";
-        const nextQuestionNumber = interviewers.length + 1;
-        const nextPrompt = buildKeyPointAwareQuestionPrompt(session, nextQuestionNumber, keyPointResult);
+        // ─── Mid-Interview Live Technical Challenge Check ──────────────────
+        const targetTotal = session.totalQuestions || MAX_INTERVIEW_QUESTIONS;
+        const triggerIndex = Math.max(2, Math.floor(targetTotal / 2));
+        const shouldTriggerTechnical = 
+            (session.technicalStage === 'NONE' || !session.technicalStage) &&
+            interviewers.length === triggerIndex &&
+            (session.roleInfo?.isTech || session.roleInfo?.roleCategory === 'ai_engineer' || (session.jobSkills && session.jobSkills.length > 0));
 
-        nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
-
-        // ─── Parse Conversational Reaction & Next Question ──────────────────
-        let reaction = "";
-        let cleanQuestion = nextQuestion;
-
-        if (nextQuestion) {
-            const reactionMatch = nextQuestion.match(/REACTION:\s*(.*?)(?=\n\s*QUESTION:|$)/is);
-            const questionMatch = nextQuestion.match(/QUESTION:\s*([\s\S]*$)/i);
-
-            if (reactionMatch && questionMatch) {
-                reaction = reactionMatch[1].replace(/[\r\n]+/g, ' ').trim();
-                cleanQuestion = cleanQuestionResponse(questionMatch[1].trim());
-            } else {
-                // If model returned clean question without tags, clean it as usual
-                cleanQuestion = cleanQuestionResponse(nextQuestion);
-                // Contextual reaction fallback
-                if (keyPointResult?.decision === 'FOLLOW_UP' && keyPointResult?.followUpTarget) {
-                    reaction = `Great insight on ${keyPointResult.followUpTarget}.`;
-                } else if (normalizedAnswer.length >= 40) {
-                    reaction = "Good points covered there.";
-                } else {
-                    reaction = "Good effort—let's move to the next area.";
-                }
+        let isTechnicalIntro = false;
+        let technicalProblemData = null;
+        if (shouldTriggerTechnical) {
+            console.log(`[KP-INTERCEPTOR] Mid-interview live technical problem triggered at question index ${interviewers.length}`);
+            session.technicalStage = 'TECHNICAL_PROBLEM_INTRO';
+            session.technicalTriggerQuestionIndex = interviewers.length;
+            isTechnicalIntro = true;
+            try {
+                const { generateTechnicalProblem } = require('../services/technicalProblemGenerator');
+                technicalProblemData = await generateTechnicalProblem({
+                    jobTitle: session.jobTitle,
+                    jobDescription: session.jobDescription,
+                    jobSkills: session.jobSkills,
+                    experienceLevel: session.experienceLevel
+                });
+                session.technicalProblem = technicalProblemData;
+            } catch (pErr) {
+                console.warn("[KP-INTERCEPTOR] Problem pre-generation failed:", pErr.message);
             }
         }
 
-        // Empty answer reaction override
-        if (isEmptyAnswer) {
-            reaction = "No problem at all, take your time.";
-        }
+        // ─── 6. Generate Next Question (KEY-POINT-AWARE or TECHNICAL INTRO) ───
+        let nextQuestion = "";
+        let reaction = "";
+        let cleanQuestion = "";
 
-        // Fallback if AI returned nothing
-        if (!cleanQuestion) {
-            if (session.roleInfo?.roleCategory === 'ai_engineer') {
-                cleanQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
-            } else if (session.roleInfo?.isTech) {
-                cleanQuestion = "Can you elaborate on the technical implementation details of that approach?";
-            } else {
-                cleanQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+        if (isTechnicalIntro) {
+            reaction = "Great job on the initial questions.";
+            cleanQuestion = "Now, let's move into a live technical problem-solving scenario. I'm presenting a coding challenge on your screen. Take a moment to read it, explain your approach, and write out your solution in the workspace.";
+        } else {
+            const nextQuestionNumber = interviewers.length + 1;
+            const nextPrompt = buildKeyPointAwareQuestionPrompt(session, nextQuestionNumber, keyPointResult);
+
+            nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
+
+            // ─── Parse Conversational Reaction & Next Question ──────────────────
+            if (nextQuestion) {
+                const reactionMatch = nextQuestion.match(/REACTION:\s*(.*?)(?=\n\s*QUESTION:|$)/is);
+                const questionMatch = nextQuestion.match(/QUESTION:\s*([\s\S]*$)/i);
+
+                if (reactionMatch && questionMatch) {
+                    reaction = reactionMatch[1].replace(/[\r\n]+/g, ' ').trim();
+                    cleanQuestion = cleanQuestionResponse(questionMatch[1].trim());
+                } else {
+                    // If model returned clean question without tags, clean it as usual
+                    cleanQuestion = cleanQuestionResponse(nextQuestion);
+                    // Contextual reaction fallback
+                    if (keyPointResult?.decision === 'FOLLOW_UP' && keyPointResult?.followUpTarget) {
+                        reaction = `Great insight on ${keyPointResult.followUpTarget}.`;
+                    } else if (normalizedAnswer.length >= 40) {
+                        reaction = "Good points covered there.";
+                    } else {
+                        reaction = "Good effort—let's move to the next area.";
+                    }
+                }
+            }
+
+            // Empty answer reaction override
+            if (isEmptyAnswer) {
+                reaction = "No problem at all, take your time.";
+            }
+
+            // Fallback if AI returned nothing
+            if (!cleanQuestion) {
+                if (session.roleInfo?.roleCategory === 'ai_engineer') {
+                    cleanQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
+                } else if (session.roleInfo?.isTech) {
+                    cleanQuestion = "Can you elaborate on the technical implementation details of that approach?";
+                } else {
+                    cleanQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+                }
             }
         }
 
@@ -929,7 +976,19 @@ router.post('/next-fast', async (req, res, next) => {
             questionSource: session.questionSource,
             isFollowUp: keyPointResult?.decision === 'FOLLOW_UP',
             followUpTarget: keyPointResult?.followUpTarget || undefined,
-            emptyAnswerWarning: isEmptyAnswer ? "No answer was detected. Please speak clearly into the microphone." : undefined
+            emptyAnswerWarning: isEmptyAnswer ? "No answer was detected. Please speak clearly into the microphone." : undefined,
+            isTechnicalTrigger: isTechnicalIntro,
+            technicalStage: session.technicalStage,
+            technicalProblem: (() => {
+                const rawProb = technicalProblemData || session.technicalProblem || null;
+                if (!rawProb) return null;
+                try {
+                    const { cleanProblemStarterCode } = require('../controllers/technicalInterviewController');
+                    return cleanProblemStarterCode(rawProb);
+                } catch (_) {
+                    return rawProb;
+                }
+            })()
         });
 
     } catch (error) {
