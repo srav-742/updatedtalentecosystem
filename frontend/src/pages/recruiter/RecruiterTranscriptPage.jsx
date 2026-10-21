@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 import { motion } from 'framer-motion';
 import { ArrowLeft, User, Mail, Phone, MapPin, CheckCircle, XCircle, Award, FileText, Code, MessageSquare, BarChart2, Printer, ExternalLink, ShieldAlert, ShieldCheck, Clock, AlertTriangle, Code2, Terminal, Sparkles, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
+import { formatExternalUrl } from '../../utils/urlUtils';
 
 // ── Error Boundary ──────────────────────────────────────────────────────
 class TranscriptErrorBoundary extends Component {
@@ -271,8 +272,8 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
               {candidate.email && <div className='flex items-center gap-3'><Mail size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.email}</span></div>}
               {candidate.phone && <div className='flex items-center gap-3'><Phone size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.phone}</span></div>}
               {candidate.location && <div className='flex items-center gap-3'><MapPin size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.location}</span></div>}
-              {candidate.linkedinUrl && <a href={candidate.linkedinUrl} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-blue-600 text-sm font-bold hover:underline'><ExternalLink size={14} />LinkedIn</a>}
-              {candidate.githubUrl && <a href={candidate.githubUrl} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-teal-600 text-sm font-bold hover:underline'><ExternalLink size={14} />GitHub</a>}
+              {formatExternalUrl(candidate.linkedinUrl) && <a href={formatExternalUrl(candidate.linkedinUrl)} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-blue-600 text-sm font-bold hover:underline'><ExternalLink size={14} />LinkedIn</a>}
+              {formatExternalUrl(candidate.githubUrl) && <a href={formatExternalUrl(candidate.githubUrl)} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-teal-600 text-sm font-bold hover:underline'><ExternalLink size={14} />GitHub</a>}
             </div>
             <div className='p-5 rounded-2xl bg-white shadow-sm border border-black/5 space-y-2 text-sm'>
               <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Application Info</p>

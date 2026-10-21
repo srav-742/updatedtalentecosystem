@@ -17,6 +17,10 @@ const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
+const SampleScorecard = lazy(() => import('./pages/SampleScorecard'));
+const ForEngineers = lazy(() => import('./pages/ForEngineers'));
+const BookDemo = lazy(() => import('./pages/BookDemo'));
+const SecurityPage = lazy(() => import('./pages/SecurityPage'));
 
 // Legal pages
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -136,6 +140,10 @@ function App() {
       <Suspense fallback={<GlobalPageSkeleton />}>
       <Routes>
         <Route path="/" element={<AssessmentsHome />} />
+        <Route path="/sample-scorecard" element={<SampleScorecard />} />
+        <Route path="/for-engineers" element={<ForEngineers />} />
+        <Route path="/book-demo" element={<BookDemo />} />
+        <Route path="/security" element={<SecurityPage />} />
         <Route path="/service" element={<LandingPage />} />
         <Route path="/assessments-home" element={<Navigate to="/" replace />} />
         <Route path="/pricing" element={<PricingPage />} />

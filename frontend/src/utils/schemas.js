@@ -3,7 +3,7 @@
  * Compliant with Schema.org specifications for AEO / GEO / SEO engines.
  */
 
-import { SOCIAL_LINKS } from '../config';
+import { SOCIAL_LINKS } from '../config.js';
 
 const BASE_URL = 'https://www.hire1percent.com';
 
@@ -65,24 +65,24 @@ export function generateSoftwareApplicationSchema() {
   return {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    'name': 'Hire1Percent Recruitment & Assessment Suite',
+    'name': 'Hire1Percent Technical Assessment Platform',
     'applicationCategory': 'BusinessApplication',
     'operatingSystem': 'Web Browser',
     'url': BASE_URL,
     'offers': {
       '@type': 'AggregateOffer',
       'priceCurrency': 'USD',
-      'lowPrice': '0',
-      'highPrice': '499',
-      'offerCount': '3'
+      'lowPrice': '7.50',
+      'highPrice': '100.00',
+      'offerCount': '4'
     },
-    'description': 'Complete technical recruitment automation software featuring AI coding assessments, asynchronous video interviews with real-time integrity monitoring, semantic resume scoring, and talent ecosystem matching.',
+    'description': 'Technical assessment platform with 4-layer anti-cheat. Assess how candidates code, adapt to live requirement changes, and defend their decisions through AI code defense.',
     'featureList': [
-      'Automated Coding Assessments in 20+ Languages',
-      'AI Video Interviews with Speech & Sentiment Analysis',
-      'Anti-Cheat Proctoring with Tab-Switch & Multi-face Detection',
-      'Semantic Resume Intelligence & ATS Matching',
-      'Predictive Candidate Scoring and Benchmark Rankings'
+      'Environment & Biometric Lock (Layer 1)',
+      'Keystroke & Code-Evolution Telemetry with AST Checkpoints (Layer 2)',
+      'AI Conversational Code Defense (Layer 3)',
+      'Mid-Assessment Constraint Updates & LLM-Signature Detection (Layer 4)',
+      'Deterministic Test Evaluation and Plain-English Recruiter Scorecards'
     ]
   };
 }

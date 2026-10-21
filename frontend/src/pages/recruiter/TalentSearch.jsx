@@ -17,6 +17,7 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import GeneratedResumeModal from './GeneratedResumeModal';
+import { formatExternalUrl } from '../../utils/urlUtils';
 import './recruiter-theme.css';
 
 const TalentSearch = () => {
@@ -182,9 +183,9 @@ const TalentSearch = () => {
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
-                                                {can.githubUrl && (
+                                                {formatExternalUrl(can.githubUrl) && (
                                                     <a 
-                                                        href={can.githubUrl} 
+                                                        href={formatExternalUrl(can.githubUrl)} 
                                                         target="_blank" 
                                                         rel="noreferrer"
                                                         className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center transition-colors"
@@ -193,9 +194,9 @@ const TalentSearch = () => {
                                                         <Github size={15} />
                                                     </a>
                                                 )}
-                                                {can.linkedinUrl && (
+                                                {formatExternalUrl(can.linkedinUrl) && (
                                                     <a 
-                                                        href={can.linkedinUrl} 
+                                                        href={formatExternalUrl(can.linkedinUrl)} 
                                                         target="_blank" 
                                                         rel="noreferrer"
                                                         className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 flex items-center justify-center transition-colors"
