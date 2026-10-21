@@ -5,7 +5,6 @@ import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import GeneratedResumeModal from '../pages/recruiter/GeneratedResumeModal';
-import { formatExternalUrl } from '../utils/urlUtils';
 
 const mockProfiles = [
     {
@@ -679,11 +678,11 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
                                 )}
 
                                 {/* Social Links & Actions */}
-                                {(formatExternalUrl(selectedProfile.linkedinUrl) || formatExternalUrl(selectedProfile.githubUrl) || selectedProfile.resumeUrl) && (
+                                {(selectedProfile.linkedinUrl || selectedProfile.githubUrl || selectedProfile.resumeUrl) && (
                                     <div className="pt-4 border-t border-white/5 flex flex-wrap gap-3">
-                                        {formatExternalUrl(selectedProfile.linkedinUrl) && (
+                                        {selectedProfile.linkedinUrl && (
                                             <a
-                                                href={formatExternalUrl(selectedProfile.linkedinUrl)}
+                                                href={selectedProfile.linkedinUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="px-4 py-2.5 rounded-xl bg-[#0077b5]/10 border border-[#0077b5]/20 text-[10px] font-bold text-[#0077b5] uppercase tracking-wider flex items-center gap-2 hover:bg-[#0077b5]/20 transition-all"
@@ -691,9 +690,9 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
                                                 LinkedIn Profile <ExternalLink className="w-3 h-3" />
                                             </a>
                                         )}
-                                        {formatExternalUrl(selectedProfile.githubUrl) && (
+                                        {selectedProfile.githubUrl && (
                                             <a
-                                                href={formatExternalUrl(selectedProfile.githubUrl)}
+                                                href={selectedProfile.githubUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2 hover:bg-white/10 transition-all"

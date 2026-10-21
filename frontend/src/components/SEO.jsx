@@ -6,34 +6,28 @@ export default function SEO({
   description = 'Hire1Percent is an enterprise AI recruitment platform with automated coding assessments, AI video interviews, proctored exams, and resume intelligence.',
   keywords = 'AI recruitment, technical assessment platform, coding interview software, video interview AI, automated proctoring, resume intelligence, developer hiring',
   canonicalUrl,
-  canonical,
   robots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
-  noindex = false,
   ogType = 'website',
   ogImage = 'https://www.hire1percent.com/favicon.ico',
-  schema,
-  schemas
+  schema
 }) {
   const baseUrl = 'https://www.hire1percent.com';
   
-  const effectiveRobots = noindex ? 'noindex, follow' : robots;
-  const isNoIndex = typeof effectiveRobots === 'string' && effectiveRobots.toLowerCase().includes('noindex');
-
-  const rawCanonical = canonical || canonicalUrl;
-  const hasExplicitCanonical = Boolean(rawCanonical && rawCanonical.trim() !== '');
+  // Only generate canonical URL if explicitly provided and page is not marked noindex
+  const isNoIndex = typeof robots === 'string' && robots.toLowerCase().includes('noindex');
+  const hasExplicitCanonical = Boolean(canonicalUrl && canonicalUrl.trim() !== '');
   
   const formattedUrl = hasExplicitCanonical
-    ? (rawCanonical.startsWith('http') ? rawCanonical : `${baseUrl}${rawCanonical.startsWith('/') ? rawCanonical : `/${rawCanonical}`}`) 
+    ? (canonicalUrl.startsWith('/') ? canonicalUrl : `/${canonicalUrl}`) 
     : null;
   
   const absoluteCanonicalUrl = (formattedUrl && !isNoIndex) 
-    ? formattedUrl 
+    ? `${baseUrl}${formattedUrl}` 
     : null;
 
   // Normalize schemas: array of objects or single object
-  const rawSchemas = schemas || schema;
-  const schemaList = rawSchemas 
-    ? (Array.isArray(rawSchemas) ? rawSchemas.filter(Boolean) : [rawSchemas]) 
+  const schemaList = schema 
+    ? (Array.isArray(schema) ? schema.filter(Boolean) : [schema]) 
     : [];
 
   return (

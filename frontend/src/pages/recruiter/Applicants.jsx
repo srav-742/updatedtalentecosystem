@@ -17,7 +17,6 @@ import TopUpModal from '../../components/TopUpModal';
 import ShareModal from '../../components/ShareModal';
 import RecruiterTranscriptPage from './RecruiterTranscriptPage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { formatExternalUrl } from '../../utils/urlUtils';
 
 const Applicants = () => {
     const navigate = useNavigate();
@@ -706,13 +705,13 @@ const Applicants = () => {
                                                                 </span>
                                                             )}
                                                             {/* ─── SOCIAL INTEGRATIONS ─── */}
-                                                            {!app.isResumeLocked && formatExternalUrl(app.githubUrl) && (
-                                                                <a href={formatExternalUrl(app.githubUrl)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
+                                                            {!app.isResumeLocked && app.githubUrl && (
+                                                                <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
                                                                     <Github size={14} />
                                                                 </a>
                                                             )}
-                                                            {!app.isResumeLocked && formatExternalUrl(app.linkedinUrl) && (
-                                                                <a href={formatExternalUrl(app.linkedinUrl)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
+                                                            {!app.isResumeLocked && app.linkedinUrl && (
+                                                                <a href={app.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-blue-400 transition-colors" title="LinkedIn Profile">
                                                                     <Linkedin size={14} />
                                                                 </a>
                                                             )}

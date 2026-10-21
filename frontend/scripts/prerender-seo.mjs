@@ -37,42 +37,6 @@ const ROUTES = [
     intro: 'Transparent, ROI-focused recruitment pricing. Choose between Managed Hiring and Direct Hire models for your engineering organization.'
   },
   {
-    path: '/sample-scorecard',
-    dir: 'sample-scorecard',
-    title: 'Sample Candidate Scorecard | Hire1Percent backend_events_v5',
-    description: 'Interactive sample assessment report for backend_events_v5. Review unit test results, interactive line highlighting for T09/T10, AI code defense transcript, and 4-layer session evidence.',
-    canonicalUrl: `${BASE_DOMAIN}/sample-scorecard`,
-    heading: 'Sample Candidate Scorecard - backend_events_v5',
-    intro: 'Review a fully interactive sample evaluation scorecard featuring deterministic unit tests, live diff view, automated code defense review, and 4-layer session telemetry.'
-  },
-  {
-    path: '/for-engineers',
-    dir: 'for-engineers',
-    title: 'Candidate Preparation Guide | Hire1Percent',
-    description: 'Everything you need to know before your Hire1Percent technical assessment. Review the 5-step process, permitted tools, live requirement update, and 3-minute code defense.',
-    canonicalUrl: `${BASE_DOMAIN}/for-engineers`,
-    heading: 'Candidate Preparation Guide - What to Expect',
-    intro: 'Transparent overview for software engineering candidates: test format, allowed resources, live scope changes, and post-coding AI defense.'
-  },
-  {
-    path: '/book-demo',
-    dir: 'book-demo',
-    title: 'Schedule a Live Demo | Hire1Percent',
-    description: "Book a 15-minute live walkthrough of Hire1Percent's technical assessment platform and 4-layer anti-cheat architecture.",
-    canonicalUrl: `${BASE_DOMAIN}/book-demo`,
-    heading: 'Book a 15-Minute Platform Walkthrough',
-    intro: 'Schedule a live demo to see how Hire1Percent eliminates assessment fraud, accelerates developer evaluations, and integrates with your hiring workflow.'
-  },
-  {
-    path: '/security',
-    dir: 'security',
-    title: 'Security & Data Privacy | Hire1Percent',
-    description: "Explore Hire1Percent's data security architecture, sensitive telemetry protection, candidate privacy policies, and encryption standards.",
-    canonicalUrl: `${BASE_DOMAIN}/security`,
-    heading: 'Hire1Percent Security & Privacy Architecture',
-    intro: 'Details on our multi-layered defense architecture, data encryption in transit and at rest, retention controls, and candidate privacy.'
-  },
-  {
     path: '/contact',
     dir: 'contact',
     title: 'Contact Us - Technical Support & Enterprise Inquiries | Hire1Percent',
@@ -251,10 +215,6 @@ function prerender() {
             <li><a href="/">Home</a></li>
             <li><a href="/about">About Us</a></li>
             <li><a href="/pricing">Pricing</a></li>
-            <li><a href="/sample-scorecard">Sample Scorecard</a></li>
-            <li><a href="/for-engineers">For Engineers</a></li>
-            <li><a href="/book-demo">Book Demo</a></li>
-            <li><a href="/security">Security</a></li>
             <li><a href="/ai-interview-platform">AI Interviews</a></li>
             <li><a href="/ai-recruitment-software">Recruitment Software</a></li>
             <li><a href="/candidate-screening">Candidate Screening</a></li>

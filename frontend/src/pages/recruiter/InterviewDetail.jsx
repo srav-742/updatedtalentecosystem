@@ -27,7 +27,6 @@ import {
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase'
 import ShareModal from '../../components/ShareModal';
-import { formatExternalUrl, getUrlDisplayLabel } from '../../utils/urlUtils';
 
 // Module-level in-memory cache for instant zero-delay reopening
 const interviewCache = new Map();
@@ -252,28 +251,28 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                         </div>
 
                         {/* ─── SOCIAL INTEGRATIONS ─── */}
-                        {formatExternalUrl(application.githubUrl) && (
+                        {application.githubUrl && (
                             <div className="flex items-center gap-3">
                                 <div className="bg-gray-100 p-3 rounded-xl">
                                     <Github className="w-5 h-5 text-gray-700" />
                                 </div>
                                 <div>
                                     <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">GitHub</div>
-                                    <a href={formatExternalUrl(application.githubUrl)} target="_blank" rel="noopener noreferrer" className="font-bold text-teal-600 hover:underline break-all">
-                                        {getUrlDisplayLabel(application.githubUrl, 'GitHub Profile')}
+                                    <a href={application.githubUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-teal-600 hover:underline break-all">
+                                        {application.githubUrl.split('/').pop()}
                                     </a>
                                 </div>
                             </div>
                         )}
-                        {formatExternalUrl(application.linkedinUrl) && (
+                        {application.linkedinUrl && (
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-50 p-3 rounded-xl">
                                     <Linkedin className="w-5 h-5 text-blue-600" />
                                 </div>
                                 <div>
                                     <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">LinkedIn</div>
-                                    <a href={formatExternalUrl(application.linkedinUrl)} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline break-all">
-                                        {getUrlDisplayLabel(application.linkedinUrl, 'LinkedIn Profile')}
+                                    <a href={application.linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline break-all">
+                                        {application.linkedinUrl.split('/').pop() || application.linkedinUrl.split('/').slice(-2, -1)[0]}
                                     </a>
                                 </div>
                             </div>

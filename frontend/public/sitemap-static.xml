@@ -7,34 +7,14 @@
       <priority>1.0</priority>
    </url>
    <url>
-      <loc>https://www.hire1percent.com/sample-scorecard</loc>
-      <changefreq>weekly</changefreq>
+      <loc>https://www.hire1percent.com/about</loc>
+      <changefreq>monthly</changefreq>
       <priority>0.9</priority>
-   </url>
-   <url>
-      <loc>https://www.hire1percent.com/for-engineers</loc>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
    </url>
    <url>
       <loc>https://www.hire1percent.com/pricing</loc>
       <changefreq>weekly</changefreq>
       <priority>0.9</priority>
-   </url>
-   <url>
-      <loc>https://www.hire1percent.com/book-demo</loc>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-   </url>
-   <url>
-      <loc>https://www.hire1percent.com/security</loc>
-      <changefreq>monthly</changefreq>
-      <priority>0.7</priority>
-   </url>
-   <url>
-      <loc>https://www.hire1percent.com/about</loc>
-      <changefreq>monthly</changefreq>
-      <priority>0.8</priority>
    </url>
    <url>
       <loc>https://www.hire1percent.com/contact</loc>
@@ -76,7 +56,7 @@
    <url>
       <loc>https://www.hire1percent.com/career-hub</loc>
       <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
+      <priority>0.9</priority>
    </url>
    <url>
       <loc>https://www.hire1percent.com/candidate/jobs</loc>
