@@ -1390,13 +1390,23 @@ export default function BlogPostDetailsPage() {
                             
                             {/* Author avatar & designation */}
                             <div className="flex items-center gap-3">
-                                {post.authorId?.profilePic ? (
-                                    <img src={post.authorId.profilePic} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${t.cardBorder}` }} />
-                                ) : (
-                                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: t.accentBg, color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px' }}>
-                                        H
-                                    </div>
-                                )}
+                                <div 
+                                    className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shrink-0 transition-transform"
+                                    style={{ 
+                                        background: isDark ? '#0c0f16' : '#f8fafc',
+                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
+                                        boxShadow: isDark ? '0 4px 12px rgba(59,130,246,0.15)' : '0 2px 6px rgba(0,0,0,0.06)'
+                                    }}
+                                >
+                                    <img 
+                                        src="/logo-icon.webp" 
+                                        alt="Hire1Percent" 
+                                        width="36"
+                                        height="36"
+                                        onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transform: 'scale(1.1)' }}
+                                    />
+                                </div>
                                 <div className="text-left">
                                     <p style={{ fontSize: '12px', fontWeight: 900, color: t.headingText, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>Hire1Percent Team</p>
                                     <p style={{ fontSize: '9px', color: t.mutedText, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Editorial board</p>
@@ -1617,7 +1627,20 @@ export default function BlogPostDetailsPage() {
                                         </div>
                                         <div className="flex items-center justify-between pt-3 mt-3" style={{ borderTop: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}` }}>
                                             <div className="flex items-center gap-2">
-                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: t.accentBg, color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '10px' }}>H</div>
+                                                <div 
+                                                    className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center shrink-0"
+                                                    style={{ 
+                                                        background: isDark ? '#0c0f16' : '#f8fafc',
+                                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`
+                                                    }}
+                                                >
+                                                    <img 
+                                                        src="/logo-icon.webp" 
+                                                        alt="Hire1Percent" 
+                                                        onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transform: 'scale(1.1)' }}
+                                                    />
+                                                </div>
                                                 <span className="truncate max-w-[120px]" style={{ fontSize: '11px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>Hire1Percent Team</span>
                                             </div>
                                             <ArrowRight size={14} style={{ color: t.accentText }} className="group-hover:translate-x-1 transition-transform" />

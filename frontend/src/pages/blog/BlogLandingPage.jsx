@@ -722,13 +722,20 @@ export default function BlogLandingPage() {
                                         {/* Footer */}
                                         <div style={{ marginTop: 'auto', paddingTop: '0.85rem', borderTop: `1px solid ${t.footerBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                {post.authorId?.profilePic ? (
-                                                    <img src={post.authorId.profilePic} alt="" style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${t.cardBorder}` }} />
-                                                ) : (
-                                                    <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: t.authorBg, border: `1px solid ${t.authorBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
-                                                        <User size={12} />
-                                                    </div>
-                                                )}
+                                                <div 
+                                                    className="w-[30px] h-[30px] rounded-lg overflow-hidden flex items-center justify-center shrink-0"
+                                                    style={{ 
+                                                        background: isDark ? '#0c0f16' : '#f8fafc',
+                                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`
+                                                    }}
+                                                >
+                                                    <img 
+                                                        src="/logo-icon.webp" 
+                                                        alt="Hire1Percent" 
+                                                        onError={(e) => { e.currentTarget.src = '/logo.png'; }}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transform: 'scale(1.1)' }}
+                                                    />
+                                                </div>
                                                 <span style={{ fontSize: '12px', fontWeight: 600, color: t.authorText }}>Hire1Percent Team</span>
                                             </div>
 
