@@ -1,5 +1,5 @@
-import React, { useState, useEffect, Component } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, Component } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 import { motion } from 'framer-motion';
@@ -74,6 +74,11 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
 
+  // Detect ?autoprint=true for auto-triggering print after data loads
+  const location = useLocation();
+  const autoPrint = new URLSearchParams(location.search).get('autoprint') === 'true';
+  const autoPrintFired = useRef(false);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -117,6 +122,15 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
     };
     loadSummary();
   }, [applicationId, data]);
+
+  // Auto-print after data and summary are fully loaded (when opened via ?autoprint=true)
+  useEffect(() => {
+    if (!autoPrint || loading || !data || loadingSummary || autoPrintFired.current) return;
+    autoPrintFired.current = true;
+    // Give the browser a moment to finish rendering all DOM updates
+    const timer = setTimeout(() => window.print(), 1200);
+    return () => clearTimeout(timer);
+  }, [autoPrint, loading, data, loadingSummary]);
 
   if (loading) return (
     <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
@@ -178,42 +192,120 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
     : { l: 'Not Recommended', c: 'text-red-600', b: 'bg-red-50 border-red-200' };
 
   return (
-    <div className='min-h-screen bg-gray-50 text-gray-900 relative overflow-hidden'>
+    <div className='candidate-transcript-root min-h-screen w-full bg-gray-50 text-gray-900 relative'>
       <style>{`
         .min-h-screen, .bg-white, .bg-orange-50, .bg-purple-50, .bg-blue-50, .bg-emerald-50, .bg-red-50, .bg-blue-50\\/70, .bg-purple-50\\/70, .bg-amber-50, .bg-emerald-50\\/70, .bg-teal-50, .bg-indigo-50, .bg-indigo-50\\/70, .bg-amber-50\\/70 {
           background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczNTAnIGhlaWdodD0nMzUwJyB2aWV3Qm94PScwIDAgMzUwIDM1MCc+PHRleHQgeD0nNTAlJyB5PSc1MCUnIGZpbGw9JyNlY2VjZWMnIGZvbnQtc2l6ZT0nMjQnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtZmFtaWx5PSdzYW5zLXNlcmlmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyB0cmFuc2Zvcm09J3JvdGF0ZSgtNDUgMTc1IDE3NSknPkhJUkUgT05FIFBFUkNFTlQ8L3RleHQ+PC9zdmc+") !important;
           background-repeat: repeat !important;
         }
         @media print {
-          .no-print { display: none !important; }
+          /* 1. Hide all layout chrome from RecruiterLayout and top bar */
+          .no-print,
+          aside,
+          nav,
+          button[aria-label="Toggle navigation menu"],
+          .recruiter-light-theme > button,
+          .recruiter-light-theme > aside,
+          .recruiter-light-theme > div[class*="fixed"],
+          .recruiter-light-theme > div[class*="backdrop"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
+          }
+
+          /* 2. Reset RecruiterLayout & outer wrapper scroll constraints */
+          html,
+          body,
+          #root,
+          .recruiter-light-theme,
+          main,
+          .recruiter-content,
+          .recruiter-content > div {
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background-color: #f9fafb !important;
+            background-image: none !important;
+            position: static !important;
+          }
+
           body { 
-            background-color: #f3f4f6 !important; 
+            background-color: #f9fafb !important; 
             -webkit-print-color-adjust: exact !important; 
             print-color-adjust: exact !important;
             color: #111827 !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          .min-h-screen { background-color: #f3f4f6 !important; min-height: auto !important; }
-          .max-w-5xl { max-width: 100% !important; padding: 0 !important; margin: 0 auto !important; }
+
           * { 
             -webkit-print-color-adjust: exact !important; 
             print-color-adjust: exact !important; 
           }
-          .bg-gradient-to-br, .bg-gradient-to-r {
-            background-image: inherit !important;
+
+          /* 3. Report container & watermark */
+          .candidate-transcript-root {
+            width: 100% !important;
+            min-height: auto !important;
+            background-color: #f9fafb !important;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczNTAnIGhlaWdodD0nMzUwJyB2aWV3Qm94PScwIDAgMzUwIDM1MCc+PHRleHQgeD0nNTAlJyB5PSc1MCUnIGZpbGw9JyNlY2VjZWMnIGZvbnQtc2l6ZT0nMjQnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtZmFtaWx5PSdzYW5zLXNlcmlmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyB0cmFuc2Zvcm09J3JvdGF0ZSgtNDUgMTc1IDE3NSknPkhJUkUgT05FIFBFUkNFTlQ8L3RleHQ+PC9zdmc+") !important;
+            background-repeat: repeat !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
-          .mb-8, .mb-10, .rounded-3xl, .rounded-2xl, .p-8, .p-5, .p-4 {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            display: block !important;
+
+          .candidate-transcript-container {
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 4px !important;
+            margin: 0 auto !important;
           }
-          .sticky { position: relative !important; top: 0 !important; }
+
+          /* 4. Enforce desktop side-by-side layout in print (overrides 700px mobile fallback) */
+          .transcript-header-flex {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            flex-wrap: nowrap !important;
+            gap: 1.5rem !important;
+          }
+
+          .transcript-profile-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 1rem !important;
+          }
+
           .grid { display: grid !important; }
           .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
           .md\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+          /* 5. Page break control - avoid broken cards across pages */
+          .mb-8, .mb-10, .rounded-3xl, .rounded-2xl, .rounded-xl, .p-8, .p-6, .p-5, .p-4 {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .bg-gradient-to-br, .bg-gradient-to-r {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
         @page {
-          size: auto;
-          margin: 15mm 10mm;
+          size: A4 portrait;
+          margin: 10mm 12mm;
         }
       `}</style>
       
@@ -245,12 +337,23 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
             return u.role === 'admin' ? 'Back to Transcripts' : 'Back to Applicants';
           })()}
         </button>
-        <button onClick={() => window.print()} className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-md'><Printer size={15} />Download PDF</button>
+        <button onClick={() => {
+          // When rendered as a modal (onClose is set), open the dedicated
+          // transcript route in a new tab with ?autoprint=true so the page
+          // auto-triggers print AFTER all data has finished loading.
+          if (onClose) {
+            const url = `${window.location.origin}/recruiter/transcript/${applicationId}?autoprint=true`;
+            window.open(url, '_blank');
+            return;
+          }
+          // When used as a standalone page, print directly
+          window.print();
+        }} className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-md'><Printer size={15} />Download PDF</button>
       </div>
       
-      <div className='max-w-5xl mx-auto px-4 md:px-6 py-10 relative z-10'>
+      <div className='candidate-transcript-container max-w-5xl mx-auto px-4 md:px-6 py-10 relative z-10'>
         <div className='mb-10 p-8 rounded-3xl bg-white border border-black/10 shadow-sm'>
-          <div className='flex items-start justify-between flex-wrap gap-6'>
+          <div className='transcript-header-flex flex items-start justify-between flex-wrap gap-6'>
             <div>
               <div className='text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-2'>Hire1Percent - Candidate Evaluation Report</div>
               <h1 className='text-4xl font-black text-gray-900 mb-1'>{candidate.name}</h1>
@@ -266,7 +369,7 @@ const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
         </div>
 
         <Sec title='Candidate Profile' icon={<User size={16} />} grad='from-blue-500 to-cyan-500'>
-          <div className='grid md:grid-cols-2 gap-4'>
+          <div className='transcript-profile-grid grid md:grid-cols-2 gap-4'>
             <div className='space-y-3'>
               {candidate.email && <div className='flex items-center gap-3'><Mail size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.email}</span></div>}
               {candidate.phone && <div className='flex items-center gap-3'><Phone size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.phone}</span></div>}
