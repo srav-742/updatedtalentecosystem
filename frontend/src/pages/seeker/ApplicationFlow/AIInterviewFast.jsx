@@ -96,6 +96,8 @@ const AIInterviewFast = ({
     onSecurityReset,
     sharedStream,
     setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
     sharedRecorder,
     setSharedRecorder,
     sharedSessionId,
@@ -160,6 +162,26 @@ const AIInterviewFast = ({
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
     const fullSessionStreamRef = useRef(sharedStream || null);
+
+    useEffect(() => {
+        if (sharedStream && !fullSessionStreamRef.current) {
+            fullSessionStreamRef.current = sharedStream;
+            setCameraStreamState(sharedStream);
+        }
+        if (sharedScreenStream) {
+            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
+            if (screenTrack && screenTrack.readyState === 'live') {
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
+                if (!existing) {
+                    fullSessionStreamRef.current.addTrack(screenTrack);
+                    setCameraStreamState(fullSessionStreamRef.current);
+                }
+            }
+        }
+    }, [sharedStream, sharedScreenStream]);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -1256,6 +1278,7 @@ const AIInterviewFast = ({
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    setSharedScreenStream?.(screenStream);
                                     // Update React state so SecureExamWrapper receives the real stream
                                     setCameraStreamState(fullSessionStreamRef.current);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);

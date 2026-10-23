@@ -35,6 +35,8 @@ const CodingAssessment = ({
     onSecurityReset,
     sharedStream,
     setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
     sharedRecorder,
     setSharedRecorder,
     sharedSessionId,
@@ -352,7 +354,7 @@ const CodingAssessment = ({
                         cachedCode = localStorage.getItem(codeCacheKey);
                     } catch (_) {}
                     initialAnswers[q._id] = {
-                        code: (typeof cachedCode === 'string' && cachedCode.length > 0) ? cachedCode : getStarterTemplate(q.title, defaultLang),
+                        code: (typeof cachedCode === 'string' && cachedCode.length > 0) ? cachedCode : getStarterTemplate(q, defaultLang),
                         language: defaultLang
                     };
                 });
@@ -413,12 +415,67 @@ const CodingAssessment = ({
         }
     }, [currentQIndex, started, roundConfig, questions]);
 
-    const getStarterTemplate = (title, language) => {
-        const lang = (language || '').toLowerCase();
+    const inferFunctionParameters = (q) => {
+        if (!q) return ['arg1'];
+
+        // 1. If explicit functionSignature is defined (e.g. "def solution(nums, target):" or "solution(nums, target)")
+        if (q.functionSignature && typeof q.functionSignature === 'string') {
+            const match = q.functionSignature.match(/\(([^)]*)\)/);
+            if (match && match[1]) {
+                const parsed = match[1].split(',').map(p => p.trim().split(':')[0].trim()).filter(Boolean);
+                if (parsed.length > 0) return parsed;
+            }
+        }
+
+        // 2. Check sample input from test cases or examples
+        const sampleInput = (q.testCases?.[0]?.input || q.examples?.[0]?.input || '').trim();
+        if (sampleInput) {
+            // 2a. Check for named assignments: "nums = [2, 7, 11, 15], target = 9"
+            const namedMatches = [...sampleInput.matchAll(/(?:^|[,\n])\s*([a-zA-Z_]\w*)\s*=/g)];
+            if (namedMatches.length > 1) {
+                return namedMatches.map(m => m[1]);
+            }
+
+            // 2b. Check for multi-line inputs: each line is an argument
+            const lines = sampleInput.split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length > 1) {
+                return lines.map((_, i) => `arg${i + 1}`);
+            }
+
+            // 2c. Check for comma-separated items on a single line outside brackets/quotes
+            const commaCount = (sampleInput.match(/,(?![^[]*\])/g) || []).length;
+            if (commaCount >= 1) {
+                return Array.from({ length: commaCount + 1 }, (_, i) => `arg${i + 1}`);
+            }
+        }
+
+        return ['arg1'];
+    };
+
+    const getStarterTemplate = (questionOrTitle, language) => {
+        const q = (typeof questionOrTitle === 'object' && questionOrTitle !== null)
+            ? questionOrTitle
+            : (questions.find(item => item.title === questionOrTitle) || currentQuestion);
+
+        const lang = (language || 'python').toLowerCase();
+
+        // Check if question has preconfigured starterCode for this language
+        if (q?.starterCode) {
+            const configuredCode = (q.starterCode instanceof Map)
+                ? q.starterCode.get(lang)
+                : q.starterCode[lang];
+            if (typeof configuredCode === 'string' && configuredCode.trim().length > 0) {
+                return configuredCode;
+            }
+        }
+
+        const params = inferFunctionParameters(q);
+        const paramStr = params.join(', ');
+
         if (lang === 'python') {
-            return `def solution():\n    # Write your solution here\n    pass\n`;
+            return `def solution(${paramStr}):\n    # Write your solution here\n    pass\n`;
         } else if (lang === 'javascript') {
-            return `function solution() {\n    // Write your solution here\n    \n}\n`;
+            return `function solution(${paramStr}) {\n    // Write your solution here\n    \n}\n`;
         } else if (lang === 'java') {
             return `public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        \n    }\n}\n`;
         } else if (lang === 'c++') {
@@ -491,7 +548,7 @@ const CodingAssessment = ({
         setAnswers(prev => ({
             ...prev,
             [currentQuestion._id]: {
-                code: getStarterTemplate(currentQuestion.title, lang),
+                code: getStarterTemplate(currentQuestion, lang),
                 language: lang
             }
         }));
@@ -751,7 +808,7 @@ const CodingAssessment = ({
         const q = questions[currentQIndex];
         if (!q) return;
         const defaultLang = answers[q._id]?.language || q.allowedLanguages?.[0] || roundConfig?.languages?.[0] || 'Python';
-        const starter = getStarterTemplate(q.title, defaultLang);
+        const starter = getStarterTemplate(q, defaultLang);
         handleCodeChange(starter);
     };
 
@@ -892,7 +949,9 @@ const CodingAssessment = ({
             examId={`coding:${job?._id || job?.id || ''}`}
             userId={user?.uid || user?._id || user?.id || ''}
             isActive={started && !securityResetting}
-            requireScreenShare={true}
+            requireScreenShare={false}
+            screenStream={sharedScreenStream}
+            preserveScreenOnUnmount={true}
             requireCamera={true}
             cameraStream={sharedStream}
             showWebcamPreview={true}

@@ -39,6 +39,9 @@ export default function SecureExamWrapperMultiLayer({
     requireScreenShare = true,
     requireCamera = true,
     cameraStream = null,
+    screenStream = null,
+    onScreenShareStart = null,
+    preserveScreenOnUnmount = false,
     showWebcamPreview = true,
     warningLimit = 3,
     resetLimit = 4,
@@ -71,6 +74,9 @@ export default function SecureExamWrapperMultiLayer({
 
     const { isSharing, error: screenShareError, startScreenShare, clearError } = useScreenShare({
         onStopped: handleScreenShareStopped,
+        externalStream: screenStream,
+        preserveOnUnmount: preserveScreenOnUnmount,
+        onStarted: onScreenShareStart,
     });
 
     const handleShare = useCallback(async () => {

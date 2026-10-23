@@ -28,6 +28,8 @@ const SkillAssessment = ({
     onSecurityReset,
     sharedStream,
     setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
     sharedRecorder,
     setSharedRecorder,
     sharedSessionId,
@@ -659,6 +661,9 @@ const SkillAssessment = ({
                 requireScreenShare={true}
                 requireCamera={true}
                 cameraStream={sharedStream}
+                screenStream={sharedScreenStream}
+                onScreenShareStart={setSharedScreenStream}
+                preserveScreenOnUnmount={true}
                 isAnswering={false}
                 warningLimit={3}
                 resetLimit={4}
@@ -754,6 +759,9 @@ const SkillAssessment = ({
             requireScreenShare={true}
             requireCamera={true}
             cameraStream={sharedStream}
+            screenStream={sharedScreenStream}
+            onScreenShareStart={setSharedScreenStream}
+            preserveScreenOnUnmount={true}
             isAnswering={started && !securityResetting}
             questionIndex={currentQIndex}
             questionId={question?._id || question?.id || null}

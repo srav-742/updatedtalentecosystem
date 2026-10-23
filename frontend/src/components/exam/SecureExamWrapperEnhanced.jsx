@@ -48,6 +48,9 @@ export default function SecureExamWrapperEnhanced({
     requireScreenShare = true,
     requireCamera = false,
     cameraStream = null,
+    screenStream = null,
+    onScreenShareStart = null,
+    preserveScreenOnUnmount = false,
     showWebcamPreview = true,
     isAnswering = false,
     questionIndex = null,
@@ -137,9 +140,15 @@ export default function SecureExamWrapperEnhanced({
     const {
         isSharing,
         error: screenShareError,
+        stream: activeScreenStream,
         startScreenShare,
         clearError,
-    } = useScreenShare({ onStopped: handleScreenShareStopped });
+    } = useScreenShare({
+        onStopped: handleScreenShareStopped,
+        externalStream: screenStream,
+        preserveOnUnmount: preserveScreenOnUnmount,
+        onStarted: onScreenShareStart,
+    });
 
     // ── Security reset ──────────────────────────────────────────────────────
     const handleSecurityReset = useCallback(async (violation) => {

@@ -323,13 +323,15 @@ function prepareRunnableCode(rawCode, language, input) {
 
             // Strip type annotations from params: "arr: List[int]" -> "arr"
             const cleanParams = params.map(p => p.split(':')[0].trim()).filter(Boolean);
-            const numParams = cleanParams.length;
+            const hasVarArgs = cleanParams.some(p => p.startsWith('*') && !p.startsWith('**'));
+            const positionalParams = cleanParams.filter(p => !p.startsWith('*'));
+            const numParams = positionalParams.length;
 
             const callInvocation = isClassMethod ? `_sol_inst.${funcName}` : funcName;
             const instInit = isClassMethod ? `_sol_inst = Solution()\n        ` : '';
 
             const wrapper = `
-import sys, json, ast, traceback
+import sys, json, ast, re, traceback
 
 ${trimmed}
 
@@ -337,11 +339,9 @@ def _parse_value(s):
     """Parse a single value: try JSON, then Python literal, then integer/float, then keep string."""
     if s is None or s == '':
         return ''
-    trimmed = s.strip()
-    try:
-        return json.loads(s)
-    except Exception:
-        pass
+    trimmed = str(s).strip()
+    # Strip variable assignment prefix if present: e.g. "nums = [1, 2]" -> "[1, 2]"
+    trimmed = re.sub(r'^[a-zA-Z_]\\w*\\s*=\\s*', '', trimmed)
     try:
         return json.loads(trimmed)
     except Exception:
@@ -356,7 +356,7 @@ def _parse_value(s):
         return int(trimmed)
     except Exception:
         pass
-    return s
+    return trimmed
 
 def _format_result(res):
     """Format result for stdout output."""
@@ -369,6 +369,60 @@ def _format_result(res):
     else:
         print(res)
 
+def _extract_arguments(raw_in, num_params, has_varargs):
+    """Dynamically parses and extracts N parameters from stdin across multi-line and single-line formats."""
+    if raw_in is None or raw_in.strip() == '':
+        return []
+    trimmed = raw_in.strip()
+    lines = [l for l in trimmed.splitlines() if l.strip() != '']
+
+    # 1. Multi-line input where count of lines matches or exceeds expected parameters
+    if len(lines) > 1:
+        # Check if line 0 is a count (e.g. N = array length) and lines count is num_params + 1
+        if num_params > 0 and len(lines) == num_params + 1 and lines[0].strip().isdigit():
+            return [_parse_value(l) for l in lines[1:]]
+        return [_parse_value(l) for l in lines]
+
+    # 2. Single-line input
+    single_line = lines[0].strip() if lines else trimmed
+
+    # 2a. Check for named assignments: e.g. "nums = [2, 7, 11, 15], target = 9"
+    # or comma-separated multiple arguments: "[2, 7, 11, 15], 9"
+    norm_line = re.sub(r'(?:^|[,\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*', ',', single_line)
+    if norm_line.startswith(','):
+        norm_line = norm_line[1:].strip()
+
+    if ',' in norm_line:
+        try:
+            tup = ast.literal_eval(f"({norm_line})")
+            if isinstance(tup, (tuple, list)):
+                return list(tup)
+        except Exception:
+            pass
+        try:
+            arr = json.loads(f"[{norm_line}]")
+            if isinstance(arr, list):
+                return arr
+        except Exception:
+            pass
+
+    # 2b. Try ast.literal_eval or json directly on single_line
+    try:
+        val = _parse_value(single_line)
+        # If val is a tuple/list and function expects multiple parameters matching length
+        if isinstance(val, (tuple, list)) and (len(val) == num_params or (num_params > 1 and len(val) >= num_params)):
+            return list(val)
+        return [val]
+    except Exception:
+        pass
+
+    # 2c. Try space-separated tokens if function expects multiple parameters
+    tokens = single_line.split()
+    if num_params > 1 and len(tokens) == num_params:
+        return [_parse_value(t) for t in tokens]
+
+    return [_parse_value(single_line)]
+
 if __name__ == '__main__':
     try:
         ${instInit}raw_stdin = sys.stdin.read()
@@ -380,78 +434,73 @@ if __name__ == '__main__':
             raw_in = raw_stdin
 
         num_params = ${numParams}
-        if num_params == 0:
+        has_varargs = ${hasVarArgs ? 'True' : 'False'}
+
+        if num_params == 0 and not has_varargs:
             res = ${callInvocation}()
             _format_result(res)
         elif raw_in == '':
             if num_params == 1:
                 res = ${callInvocation}('')
-                _format_result(res)
             else:
                 res = ${callInvocation}()
-                _format_result(res)
+            _format_result(res)
         else:
-            lines = raw_in.splitlines()
-            parsed_lines = [_parse_value(l) for l in lines]
-            
-            # Strategy 1: If we have exactly the right number of parsed lines, use them directly
-            if len(parsed_lines) == num_params:
-                res = ${callInvocation}(*parsed_lines)
-                _format_result(res)
-            # Strategy 2: Single line input for single-param function
-            elif num_params == 1:
-                val = parsed_lines[0] if len(parsed_lines) > 0 else raw_in
-                if len(parsed_lines) == 2 and isinstance(parsed_lines[1], (list, tuple)):
-                    val = parsed_lines[1]
-                elif len(parsed_lines) > 1 and not isinstance(parsed_lines[0], (list, tuple, dict)):
-                    try:
-                        combined = []
-                        for pl in parsed_lines:
-                            if isinstance(pl, (list, tuple)):
-                                combined.extend(pl)
-                            else:
-                                combined.append(pl)
-                        val = combined
-                    except Exception:
-                        val = parsed_lines[0]
-                res = ${callInvocation}(val)
-                _format_result(res)
-            # Strategy 3: More lines than params — try combining
-            elif len(parsed_lines) > num_params:
+            args = _extract_arguments(raw_in, num_params, has_varargs)
+            called = False
+
+            # If function accepts *args, unpack all extracted arguments
+            if has_varargs:
                 try:
-                    res = ${callInvocation}(*parsed_lines[:num_params])
+                    res = ${callInvocation}(*args)
+                    _format_result(res)
+                    called = True
+                except TypeError:
+                    pass
+
+            # Exact match: number of extracted arguments matches num_params
+            if not called and len(args) == num_params:
+                try:
+                    res = ${callInvocation}(*args)
+                    _format_result(res)
+                    called = True
+                except TypeError:
+                    pass
+
+            # More arguments than params: pass first num_params
+            if not called and len(args) > num_params and num_params > 0:
+                try:
+                    res = ${callInvocation}(*args[:num_params])
+                    _format_result(res)
+                    called = True
+                except TypeError:
+                    pass
+
+            # Single-parameter function: pass single value or args array
+            if not called and num_params == 1:
+                try:
+                    val = args[0] if len(args) == 1 else args
+                    res = ${callInvocation}(val)
+                    _format_result(res)
+                    called = True
+                except TypeError:
+                    pass
+
+            # Fallback cascade: try unpacking all, then single arg, then raw_in
+            if not called:
+                try:
+                    res = ${callInvocation}(*args)
                     _format_result(res)
                 except TypeError:
                     try:
                         res = ${callInvocation}(raw_in)
                         _format_result(res)
                     except Exception:
-                        res = ${callInvocation}(*parsed_lines[:num_params])
-                        _format_result(res)
-            # Strategy 4: Fewer lines than params — try unpacking list or splitting space-separated tokens
-            elif len(parsed_lines) < num_params:
-                if len(parsed_lines) == 1 and isinstance(parsed_lines[0], (list, tuple)) and len(parsed_lines[0]) == num_params:
-                    res = ${callInvocation}(*parsed_lines[0])
-                    _format_result(res)
-                else:
-                    all_tokens = []
-                    for l in lines:
-                        tokens = l.strip().split()
-                        all_tokens.extend(tokens)
-                    if len(all_tokens) == num_params:
-                        parsed_tokens = [_parse_value(t) for t in all_tokens]
-                        res = ${callInvocation}(*parsed_tokens)
-                        _format_result(res)
-                    else:
-                        try:
-                            res = ${callInvocation}(raw_in)
+                        if args:
+                            res = ${callInvocation}(args[0])
                             _format_result(res)
-                        except Exception:
-                            res = ${callInvocation}(*parsed_lines)
-                            _format_result(res)
-            else:
-                res = ${callInvocation}(raw_in)
-                _format_result(res)
+                        else:
+                            raise
     except Exception as ex:
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
@@ -462,7 +511,7 @@ if __name__ == '__main__':
     }
 
     if (lang === 'javascript') {
-        if (/readline|readFileSync|process\\.stdin/i.test(trimmed)) {
+        if (/readline|readFileSync|process\.stdin/i.test(trimmed)) {
             return trimmed;
         }
 
@@ -471,8 +520,8 @@ if __name__ == '__main__':
         let isJsClass = false;
 
         // Check for class Solution
-        if (/class\\s+Solution\\b/.test(trimmed)) {
-            const m = trimmed.match(/class\\s+Solution[\\s\\S]*?([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(([^)]*)\\)/);
+        if (/class\s+Solution\b/.test(trimmed)) {
+            const m = trimmed.match(/class\s+Solution[\s\S]*?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
             if (m && m[1] !== 'constructor') {
                 jsFuncName = m[1];
                 jsParams = m[2].split(',').map(p => p.trim()).filter(Boolean);
@@ -483,7 +532,7 @@ if __name__ == '__main__':
         if (!jsFuncName) {
             // Match function declaration, arrow function, or function expression
             const fnMatches = [
-                ...trimmed.matchAll(/(?:function\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(([^)]*)\\)|(?:const|let|var)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*(?:async\\s*)?(?:function\\s*\\(([^)]*)\\)|\\(([^)]*)\\)\\s*=>|([a-zA-Z_][a-zA-Z0-9_]*)\\s*=>))/g)
+                ...trimmed.matchAll(/(?:function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)|(?:const|let|var)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(?:async\s*)?(?:function\s*\(?([^)]*)\)?|\(?([^)]*)\)?\s*=>|([a-zA-Z_][a-zA-Z0-9_]*)\s*=>))/g)
             ];
             if (fnMatches.length > 0) {
                 const selected = fnMatches.find(m => /^(solution|solve|main)$/i.test(m[1] || m[3])) || fnMatches[fnMatches.length - 1];
@@ -494,7 +543,10 @@ if __name__ == '__main__':
         }
 
         if (jsFuncName) {
-            const jsNumParams = jsParams.length;
+            const hasJsVarArgs = jsParams.some(p => p.startsWith('...'));
+            const cleanJsParams = jsParams.filter(p => !p.startsWith('...'));
+            const jsNumParams = cleanJsParams.length;
+
             const wrapper = `
 const fs = require('fs');
 
@@ -502,13 +554,13 @@ ${trimmed}
 
 function _parseValue(s) {
     if (s === undefined || s === null || s === '') return '';
-    const trimmed = s.trim();
-    try { return JSON.parse(s); } catch (e) {}
+    let trimmed = String(s).trim();
+    trimmed = trimmed.replace(/^[a-zA-Z_]\\w*\\s*=\\s*/, '');
     try { return JSON.parse(trimmed); } catch (e) {}
     if (!isNaN(trimmed) && trimmed !== '') {
         return trimmed.includes('.') ? parseFloat(trimmed) : parseInt(trimmed, 10);
     }
-    return s;
+    return trimmed;
 }
 
 function _formatResult(res) {
@@ -520,6 +572,47 @@ function _formatResult(res) {
     }
 }
 
+function _extractArguments(rawIn, numParams, hasVarArgs) {
+    if (!rawIn || !rawIn.trim()) return [];
+    const trimmed = rawIn.trim();
+    const lines = trimmed.split('\\n').map(l => l.trim()).filter(Boolean);
+
+    // 1. Multi-line input
+    if (lines.length > 1) {
+        if (numParams > 0 && lines.length === numParams + 1 && /^\\d+$/.test(lines[0])) {
+            return lines.slice(1).map(_parseValue);
+        }
+        return lines.map(_parseValue);
+    }
+
+    // 2. Single-line input
+    const singleLine = lines[0] || trimmed;
+    let norm = singleLine.replace(/(?:^|[,\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*/g, ',');
+    if (norm.startsWith(',')) norm = norm.slice(1).trim();
+
+    if (norm.includes(',')) {
+        try {
+            const parsed = JSON.parse('[' + norm + ']');
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
+    }
+
+    try {
+        const val = _parseValue(singleLine);
+        if (Array.isArray(val) && (val.length === numParams || (numParams > 1 && val.length >= numParams))) {
+            return val;
+        }
+        return [val];
+    } catch (e) {}
+
+    const tokens = singleLine.split(/\\s+/).filter(Boolean);
+    if (numParams > 1 && tokens.length === numParams) {
+        return tokens.map(_parseValue);
+    }
+
+    return [_parseValue(singleLine)];
+}
+
 try {
     const rawStdin = fs.readFileSync(0, 'utf-8');
     let rawIn = rawStdin;
@@ -528,53 +621,59 @@ try {
 
     const _invokeTarget = ${isJsClass ? `(new Solution()).${jsFuncName}` : `(typeof ${jsFuncName} !== 'undefined' ? ${jsFuncName} : null)`};
     const numParams = ${jsNumParams};
+    const hasVarArgs = ${hasJsVarArgs ? 'true' : 'false'};
 
-    if (numParams === 0) {
-        const res = typeof _invokeTarget === 'function' ? _invokeTarget() : null;
+    if (typeof _invokeTarget !== 'function') {
+        throw new Error('Solution function "${jsFuncName}" is not defined.');
+    }
+
+    if (numParams === 0 && !hasVarArgs) {
+        const res = _invokeTarget();
         _formatResult(res);
     } else if (rawIn === '') {
-        const res = numParams === 1 ? (typeof _invokeTarget === 'function' ? _invokeTarget('') : null) : (typeof _invokeTarget === 'function' ? _invokeTarget() : null);
+        const res = numParams === 1 ? _invokeTarget('') : _invokeTarget();
         _formatResult(res);
     } else {
-        const lines = rawIn.split('\\n');
-        const parsedLines = lines.map(l => _parseValue(l));
+        const args = _extractArguments(rawIn, numParams, hasVarArgs);
         let res;
-        
-        if (parsedLines.length === numParams) {
-            // Exact match: one line per parameter
-            res = _invokeTarget(...parsedLines);
-        } else if (numParams === 1) {
-            // Single param function: try first parsed value, or the array if 2 lines (N then array)
-            let val = parsedLines[0];
-            if (parsedLines.length === 2 && Array.isArray(parsedLines[1])) {
-                val = parsedLines[1];
-            } else if (parsedLines.length > 1 && !Array.isArray(parsedLines[0])) {
-                // Multiple scalar lines for single-param function: combine into array
-                val = parsedLines;
-            }
-            res = _invokeTarget(val);
-        } else if (parsedLines.length > numParams) {
-            // More lines than params: try first N parsed values
+        let called = false;
+
+        if (hasVarArgs) {
             try {
-                res = _invokeTarget(...parsedLines.slice(0, numParams));
-            } catch (e) {
-                res = _invokeTarget(rawIn);
-            }
-        } else {
-            // Fewer lines than params: try unpacking array or splitting space-separated tokens
-            if (parsedLines.length === 1 && Array.isArray(parsedLines[0]) && parsedLines[0].length === numParams) {
-                res = _invokeTarget(...parsedLines[0]);
-            } else {
-                const allTokens = [];
-                lines.forEach(l => l.trim().split(/\\s+/).forEach(t => { if (t) allTokens.push(t); }));
-                if (allTokens.length === numParams) {
-                    res = _invokeTarget(...allTokens.map(t => _parseValue(t)));
-                } else {
-                    try {
-                        res = _invokeTarget(rawIn);
-                    } catch (e2) {
-                        res = _invokeTarget(...parsedLines);
-                    }
+                res = _invokeTarget(...args);
+                called = true;
+            } catch (e) {}
+        }
+
+        if (!called && args.length === numParams) {
+            try {
+                res = _invokeTarget(...args);
+                called = true;
+            } catch (e) {}
+        }
+
+        if (!called && args.length > numParams && numParams > 0) {
+            try {
+                res = _invokeTarget(...args.slice(0, numParams));
+                called = true;
+            } catch (e) {}
+        }
+
+        if (!called && numParams === 1) {
+            try {
+                res = _invokeTarget(args.length === 1 ? args[0] : args);
+                called = true;
+            } catch (e) {}
+        }
+
+        if (!called) {
+            try {
+                res = _invokeTarget(...args);
+            } catch (e1) {
+                try {
+                    res = _invokeTarget(rawIn);
+                } catch (e2) {
+                    res = _invokeTarget(args[0]);
                 }
             }
         }

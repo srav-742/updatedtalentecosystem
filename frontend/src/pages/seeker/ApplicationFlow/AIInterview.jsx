@@ -71,7 +71,16 @@ const VoiceVisualizer = ({ isRecording }) => {
     );
 };
 
-const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
+const AIInterview = ({
+    job,
+    user,
+    onComplete,
+    onSecurityReset,
+    sharedStream = null,
+    sharedScreenStream = null,
+    setSharedScreenStream = null,
+    ...rest
+}) => {
     const [step, setStep] = useState('ready');
     const [sessionId, setSessionId] = useState(null);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -95,7 +104,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
     // receives the correct stream via props and triggers a proper re-render
-    const [cameraStreamState, setCameraStreamState] = useState(null);
+    const [cameraStreamState, setCameraStreamState] = useState(sharedStream || null);
 
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
@@ -104,7 +113,27 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
-    const fullSessionStreamRef = useRef(null);
+    const fullSessionStreamRef = useRef(sharedStream || null);
+
+    useEffect(() => {
+        if (sharedStream && !fullSessionStreamRef.current) {
+            fullSessionStreamRef.current = sharedStream;
+            setCameraStreamState(sharedStream);
+        }
+        if (sharedScreenStream) {
+            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
+            if (screenTrack && screenTrack.readyState === 'live') {
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
+                if (!existing) {
+                    fullSessionStreamRef.current.addTrack(screenTrack);
+                    setCameraStreamState(fullSessionStreamRef.current);
+                }
+            }
+        }
+    }, [sharedStream, sharedScreenStream]);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -1017,6 +1046,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
+                                    setSharedScreenStream?.(screenStream);
                                     // Update React state so SecureExamWrapper receives the real stream
                                     setCameraStreamState(fullSessionStreamRef.current);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);

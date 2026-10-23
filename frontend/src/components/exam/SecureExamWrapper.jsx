@@ -29,6 +29,9 @@ export default function SecureExamWrapper({
   children,
   isActive = true,
   requireScreenShare = true,
+  screenStream = null,
+  onScreenShareStart = null,
+  preserveScreenOnUnmount = false,
   warningLimit = 3,
   resetLimit = 4,
   onSecurityReset,
@@ -48,7 +51,12 @@ export default function SecureExamWrapper({
     error: screenShareError,
     startScreenShare,
     clearError,
-  } = useScreenShare({ onStopped: handleScreenShareStopped });
+  } = useScreenShare({
+    onStopped: handleScreenShareStopped,
+    externalStream: screenStream,
+    preserveOnUnmount: preserveScreenOnUnmount,
+    onStarted: onScreenShareStart,
+  });
 
   const handleSecurityReset = useCallback(async (violation) => {
     if (resetInFlightRef.current) {

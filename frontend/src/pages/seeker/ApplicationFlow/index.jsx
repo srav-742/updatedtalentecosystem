@@ -89,6 +89,7 @@ const ApplicationFlow = () => {
 
     // Shared continuous recording state (between Skill Assessment and AI Interview)
     const [sharedStream, setSharedStream] = useState(null);
+    const [sharedScreenStream, setSharedScreenStream] = useState(null);
     const [sharedRecorder, setSharedRecorder] = useState(null);
     const [sharedSessionId, setSharedSessionId] = useState(null);
     const [sharedRecordingSessionId, setSharedRecordingSessionId] = useState(null);
@@ -104,8 +105,13 @@ const ApplicationFlow = () => {
                     sharedStream.getTracks().forEach((t) => t.stop());
                 } catch (e) {}
             }
+            if (sharedScreenStream) {
+                try {
+                    sharedScreenStream.getTracks().forEach((t) => t.stop());
+                } catch (e) {}
+            }
         };
-    }, [sharedStream]);
+    }, [sharedStream, sharedScreenStream]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -292,6 +298,12 @@ const ApplicationFlow = () => {
             } catch (e) {}
             setSharedStream(null);
         }
+        if (sharedScreenStream) {
+            try {
+                sharedScreenStream.getTracks().forEach((t) => t.stop());
+            } catch (e) {}
+            setSharedScreenStream(null);
+        }
         setSharedRecorder(null);
         setSharedSessionId(null);
         setSharedRecordingSessionId(null);
@@ -433,6 +445,8 @@ const ApplicationFlow = () => {
                         }}
                         sharedStream={sharedStream}
                         setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
                         sharedRecorder={sharedRecorder}
                         setSharedRecorder={setSharedRecorder}
                         sharedSessionId={sharedSessionId}
@@ -461,6 +475,8 @@ const ApplicationFlow = () => {
                         }}
                         sharedStream={sharedStream}
                         setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
                         sharedRecorder={sharedRecorder}
                         setSharedRecorder={setSharedRecorder}
                         sharedSessionId={sharedSessionId}
@@ -507,6 +523,8 @@ const ApplicationFlow = () => {
                         }}
                         sharedStream={sharedStream}
                         setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
                         sharedRecorder={sharedRecorder}
                         setSharedRecorder={setSharedRecorder}
                         sharedSessionId={sharedSessionId}
