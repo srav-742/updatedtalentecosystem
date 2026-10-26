@@ -265,6 +265,7 @@ const LoginPage = () => {
             } else {
                 const normalizedEmail = formData.email.toLowerCase().trim();
                 let user;
+                let backendUser = null;
                 try {
                     // 1. Firebase Auth Login for others
                     const userCredential = await loginWithEmail(normalizedEmail, formData.password);
@@ -285,6 +286,7 @@ const LoginPage = () => {
                             });
                             
                             if (backendRes.data && backendRes.data.user) {
+                                backendUser = backendRes.data.user;
                                 // Password matched in backend! 
                                 // Try to silently create the Firebase account to migrate them
                                 try {
@@ -340,7 +342,7 @@ const LoginPage = () => {
                     })
                 ]);
 
-                profile = fetchedProfile;
+                profile = fetchedProfile || backendUser;
 
                 if (!profile) {
                     // Auto-create profile from Firebase data

@@ -213,9 +213,15 @@ const login = async (req, res) => {
             return res.status(400).json({ message: "Email and password are required." });
         }
 
+        // Build query — if role is provided, query by email and role; otherwise by email
+        const query = { email: normalizedEmail };
+        if (role) {
+            query.role = role;
+        }
+
         // Find user with retry
-        const user = await withRetry(
-            () => User.findOne({ email: normalizedEmail, role }),
+        let user = await withRetry(
+            () => User.findOne(query),
             { label: `login:findUser(${normalizedEmail})` }
         );
 
@@ -225,11 +231,19 @@ const login = async (req, res) => {
                 { label: `login:findAnyRole(${normalizedEmail})` }
             );
             if (existingUserAnyRole) {
-                console.log(`[AUTH-LOGIN] Role mismatch: ${normalizedEmail} tried ${role} but is ${existingUserAnyRole.role}`);
-                return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in with that role.` });
+                // Allow recruiter and admin to cross-login smoothly
+                const isExistingStaff = existingUserAnyRole.role === 'recruiter' || existingUserAnyRole.role === 'admin';
+                const isRequestedStaff = role === 'recruiter' || role === 'admin';
+                if (isExistingStaff && isRequestedStaff) {
+                    user = existingUserAnyRole;
+                } else {
+                    console.log(`[AUTH-LOGIN] Role mismatch: ${normalizedEmail} tried ${role} but is ${existingUserAnyRole.role}`);
+                    return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in as a ${existingUserAnyRole.role}.` });
+                }
+            } else {
+                console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
+                return res.status(401).json({ message: "Invalid credentials" });
             }
-            console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
-            return res.status(401).json({ message: "Invalid credentials" });
         }
 
         // If user has no password in MongoDB (signup bug), hash and save it now (self-healing)
@@ -238,7 +252,17 @@ const login = async (req, res) => {
             return res.status(401).json({ message: "Invalid credentials. Please use your original sign-in method." });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
+        let isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch && password && password.length > 0) {
+            // First-character case toggle (handles common mobile/keyboard auto-capitalization e.g. Kirti@123 vs kirti@123)
+            const toggledFirstChar = password[0] === password[0].toUpperCase()
+                ? password[0].toLowerCase() + password.slice(1)
+                : password[0].toUpperCase() + password.slice(1);
+            if (await bcrypt.compare(toggledFirstChar, user.password)) {
+                isMatch = true;
+            }
+        }
+
         if (!isMatch) {
             console.log(`[AUTH-LOGIN] Password mismatch: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
