@@ -121,7 +121,7 @@ const AssessmentsHome = () => {
                         <a href="#anti-cheat" onClick={(e) => { e.preventDefault(); scrollToSection('anti-cheat'); }}>4-layer anti-cheat</a>
                         <a href="#report-preview" onClick={(e) => { e.preventDefault(); scrollToReport(); }}>Sample report</a>
                         <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>Candidate experience</a>
-                        <Link to="/pricing" onClick={() => setMenuOpen(false)}>Pricing</Link>
+                        <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
                     </nav>
 
                     <div className="nav-actions">
@@ -494,7 +494,7 @@ const AssessmentsHome = () => {
                 </section>
 
                 {/* Pricing & Demo Section */}
-                <section className="section section-white" id="pricing-and-demo">
+                <section className="section section-white" id="pricing">
                     <div className="wrap">
                         <div className="section-head">
                             <div className="eyebrow">Candidate assessment packages &amp; ROI</div>
@@ -636,7 +636,7 @@ const AssessmentsHome = () => {
                         <nav className="footer-links" aria-label="Explore">
                             <h4>Explore</h4>
                             <button type="button" onClick={scrollToReport}>Sample report</button>
-                            <Link to="/pricing">Pricing</Link>
+                            <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
                             <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>For engineers</a>
                         </nav>
                         <nav className="footer-links" aria-label="Company and support">
