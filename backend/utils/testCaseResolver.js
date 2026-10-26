@@ -302,14 +302,27 @@ function getMutationTestCases(testCases = []) {
         return [];
     }
 
-    const mutationCases = testCases.filter(tc => tc.category === 'MUTATION');
+    const mutationCases = testCases.filter(tc => String(tc.category).toUpperCase() === 'MUTATION');
     if (mutationCases.length > 0) {
         return mutationCases;
     }
 
-    // Fallback: select performance, boundary, or hidden tests
-    const fallbackCases = testCases.filter(tc => tc.isHidden || tc.category === 'PERFORMANCE' || tc.category === 'BOUNDARY');
-    return fallbackCases.length > 0 ? fallbackCases : testCases;
+    // Fallback: select performance, boundary, or hidden tests and tag them as MUTATION for Stage-2
+    const fallbackCases = testCases.filter(tc => tc.isHidden || String(tc.category).toUpperCase() === 'PERFORMANCE' || String(tc.category).toUpperCase() === 'BOUNDARY');
+    if (fallbackCases.length > 0) {
+        return fallbackCases.map(tc => ({
+            ...(tc.toObject ? tc.toObject() : tc),
+            category: 'MUTATION',
+            explanation: tc.explanation || 'Evaluated under mutated runtime constraints.'
+        }));
+    }
+
+    // If only standard test cases exist, adapt them into Stage-2 MUTATION tests
+    return testCases.map(tc => ({
+        ...(tc.toObject ? tc.toObject() : tc),
+        category: 'MUTATION',
+        explanation: tc.explanation || 'Evaluated under mutated runtime constraints.'
+    }));
 }
 
 /**

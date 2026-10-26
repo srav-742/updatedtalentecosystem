@@ -331,12 +331,12 @@ function prepareRunnableCode(rawCode, language, input) {
             const instInit = isClassMethod ? `_sol_inst = Solution()\n        ` : '';
 
             const wrapper = `
-import sys, json, ast, re, traceback
+import sys, json, ast, re, traceback, inspect
 
 ${trimmed}
 
 def _parse_value(s):
-    """Parse a single value: try JSON, then Python literal, then integer/float, then keep string."""
+    """Parse a single value: try JSON, then Python literal, numeric list, int/float, then keep string."""
     if s is None or s == '':
         return ''
     trimmed = str(s).strip()
@@ -350,6 +350,16 @@ def _parse_value(s):
         return ast.literal_eval(trimmed)
     except Exception:
         pass
+    # Try space-separated numeric sequence e.g. "1 2 3 4 5"
+    if ' ' in trimmed and not (trimmed.startswith('[') or trimmed.startswith('{') or trimmed.startswith('(')):
+        parts = trimmed.split()
+        try:
+            if all(re.match(r'^-?\\d+$', p) for p in parts):
+                return [int(p) for p in parts]
+            if all(re.match(r'^-?\\d+(\\.\\d+)?$', p) for p in parts):
+                return [float(p) for p in parts]
+        except Exception:
+            pass
     try:
         if '.' in trimmed:
             return float(trimmed)
@@ -369,6 +379,56 @@ def _format_result(res):
     else:
         print(res)
 
+def _split_top_level_arguments(s):
+    """Splits a single string into top-level arguments respecting quotes, brackets [], {}, ()."""
+    if not s:
+        return []
+    tokens = []
+    current = []
+    depth = 0
+    in_quote = None
+    escape = False
+
+    for ch in s:
+        if escape:
+            current.append(ch)
+            escape = False
+            continue
+        if ch == '\\\\':
+            current.append(ch)
+            escape = True
+            continue
+        if in_quote:
+            current.append(ch)
+            if ch == in_quote:
+                in_quote = None
+            continue
+        if ch in ('"', "'"):
+            in_quote = ch
+            current.append(ch)
+            continue
+        if ch in ('[', '{', '('):
+            depth += 1
+            current.append(ch)
+            continue
+        if ch in (']', '}', ')'):
+            depth = max(0, depth - 1)
+            current.append(ch)
+            continue
+        if depth == 0 and (ch == ',' or ch == ';' or (ch.isspace() and current and current[-1] in (']', '}', ')', '"', "'"))):
+            token = ''.join(current).strip()
+            if token:
+                tokens.append(token)
+            current = []
+            continue
+        current.append(ch)
+
+    if current:
+        token = ''.join(current).strip()
+        if token:
+            tokens.append(token)
+    return tokens
+
 def _extract_arguments(raw_in, num_params, has_varargs):
     """Dynamically parses and extracts N parameters from stdin across multi-line and single-line formats."""
     if raw_in is None or raw_in.strip() == '':
@@ -387,11 +447,19 @@ def _extract_arguments(raw_in, num_params, has_varargs):
     single_line = lines[0].strip() if lines else trimmed
 
     # 2a. Check for named assignments: e.g. "nums = [2, 7, 11, 15], target = 9"
-    # or comma-separated multiple arguments: "[2, 7, 11, 15], 9"
+    named_parts = [p.strip() for p in re.split(r'(?:^|[,;\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*', single_line) if p.strip()]
+    if len(named_parts) > 1:
+        return [_parse_value(p) for p in named_parts]
+
+    # 2b. Bracket/quote-aware splitting for multiple top-level arguments
+    top_tokens = _split_top_level_arguments(single_line)
+    if len(top_tokens) > 1:
+        return [_parse_value(t) for t in top_tokens]
+
+    # 2c. Direct tuple or list evaluation e.g. "([1, 2, 3], 2)"
     norm_line = re.sub(r'(?:^|[,\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*', ',', single_line)
     if norm_line.startswith(','):
         norm_line = norm_line[1:].strip()
-
     if ',' in norm_line:
         try:
             tup = ast.literal_eval(f"({norm_line})")
@@ -406,17 +474,22 @@ def _extract_arguments(raw_in, num_params, has_varargs):
         except Exception:
             pass
 
-    # 2b. Try ast.literal_eval or json directly on single_line
+    # 2d. Try _parse_value directly on single_line
     try:
         val = _parse_value(single_line)
-        # If val is a tuple/list and function expects multiple parameters matching length
         if isinstance(val, (tuple, list)) and (len(val) == num_params or (num_params > 1 and len(val) >= num_params)):
             return list(val)
+        if isinstance(val, dict) and num_params > 1:
+            return list(val.values())
+        if num_params > 1 and isinstance(val, str):
+            parts = val.split()
+            if len(parts) == num_params:
+                return [_parse_value(p) for p in parts]
         return [val]
     except Exception:
         pass
 
-    # 2c. Try space-separated tokens if function expects multiple parameters
+    # 2e. Space-separated fallback
     tokens = single_line.split()
     if num_params > 1 and len(tokens) == num_params:
         return [_parse_value(t) for t in tokens]
@@ -435,72 +508,100 @@ if __name__ == '__main__':
 
         num_params = ${numParams}
         has_varargs = ${hasVarArgs ? 'True' : 'False'}
+        fn = ${callInvocation}
 
-        if num_params == 0 and not has_varargs:
-            res = ${callInvocation}()
-            _format_result(res)
-        elif raw_in == '':
-            if num_params == 1:
-                res = ${callInvocation}('')
+        if raw_in == '':
+            if num_params == 0:
+                res = fn()
+            elif num_params == 1:
+                res = fn('')
             else:
-                res = ${callInvocation}()
+                res = fn()
             _format_result(res)
         else:
             args = _extract_arguments(raw_in, num_params, has_varargs)
+            
+            try:
+                sig = inspect.signature(fn)
+                pos_params = [p for p in sig.parameters.values() if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+                min_req = sum(1 for p in pos_params if p.default is inspect.Parameter.empty)
+                max_pos = len(pos_params)
+                fn_has_varargs = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values())
+            except Exception:
+                min_req = num_params
+                max_pos = num_params
+                fn_has_varargs = has_varargs
+
             called = False
+            res = None
 
-            # If function accepts *args, unpack all extracted arguments
-            if has_varargs:
+            # 1. Varargs function: unpack all
+            if fn_has_varargs:
                 try:
-                    res = ${callInvocation}(*args)
-                    _format_result(res)
+                    res = fn(*args)
                     called = True
                 except TypeError:
                     pass
 
-            # Exact match: number of extracted arguments matches num_params
-            if not called and len(args) == num_params:
+            # 2. Exact match within allowed parameter bounds
+            if not called and min_req <= len(args) <= max_pos:
                 try:
-                    res = ${callInvocation}(*args)
-                    _format_result(res)
+                    res = fn(*args)
                     called = True
                 except TypeError:
                     pass
 
-            # More arguments than params: pass first num_params
-            if not called and len(args) > num_params and num_params > 0:
+            # 3. More arguments than max_pos: slice to max_pos
+            if not called and len(args) > max_pos and max_pos > 0:
                 try:
-                    res = ${callInvocation}(*args[:num_params])
-                    _format_result(res)
+                    res = fn(*args[:max_pos])
                     called = True
                 except TypeError:
                     pass
 
-            # Single-parameter function: pass single value or args array
-            if not called and num_params == 1:
-                try:
-                    val = args[0] if len(args) == 1 else args
-                    res = ${callInvocation}(val)
-                    _format_result(res)
-                    called = True
-                except TypeError:
-                    pass
-
-            # Fallback cascade: try unpacking all, then single arg, then raw_in
-            if not called:
-                try:
-                    res = ${callInvocation}(*args)
-                    _format_result(res)
-                except TypeError:
+            # 4. If fewer arguments than min_req, check if args[0] is an unpackable collection
+            if not called and len(args) < min_req and len(args) == 1 and isinstance(args[0], (list, tuple)):
+                sub_args = list(args[0])
+                if min_req <= len(sub_args) <= max_pos:
                     try:
-                        res = ${callInvocation}(raw_in)
-                        _format_result(res)
-                    except Exception:
-                        if args:
-                            res = ${callInvocation}(args[0])
-                            _format_result(res)
-                        else:
-                            raise
+                        res = fn(*sub_args)
+                        called = True
+                    except TypeError:
+                        pass
+                elif len(sub_args) > max_pos and max_pos > 0:
+                    try:
+                        res = fn(*sub_args[:max_pos])
+                        called = True
+                    except TypeError:
+                        pass
+
+            # 5. Single-parameter function
+            if not called and max_pos == 1:
+                try:
+                    res = fn(args[0] if len(args) == 1 else args)
+                    called = True
+                except TypeError:
+                    pass
+
+            # 6. Fallback cascade respecting multi-parameter signature
+            if not called:
+                if min_req > 1:
+                    if len(args) >= min_req:
+                        res = fn(*args[:max_pos])
+                    elif len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) >= min_req:
+                        res = fn(*args[0][:max_pos])
+                    else:
+                        res = fn(*args)
+                else:
+                    try:
+                        res = fn(*args)
+                    except TypeError:
+                        try:
+                            res = fn(args[0] if args else raw_in)
+                        except Exception:
+                            res = fn(raw_in)
+
+            _format_result(res)
     except Exception as ex:
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
@@ -557,6 +658,9 @@ function _parseValue(s) {
     let trimmed = String(s).trim();
     trimmed = trimmed.replace(/^[a-zA-Z_]\\w*\\s*=\\s*/, '');
     try { return JSON.parse(trimmed); } catch (e) {}
+    if (/^-?\\d+(\\s+-?\\d+)+$/.test(trimmed)) {
+        return trimmed.split(/\\s+/).map(Number);
+    }
     if (!isNaN(trimmed) && trimmed !== '') {
         return trimmed.includes('.') ? parseFloat(trimmed) : parseInt(trimmed, 10);
     }
@@ -570,6 +674,62 @@ function _formatResult(res) {
     } else {
         console.log(res);
     }
+}
+
+function _splitTopLevelArguments(s) {
+    if (!s) return [];
+    const tokens = [];
+    let current = [];
+    let depth = 0;
+    let inQuote = null;
+    let escape = false;
+
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (escape) {
+            current.push(ch);
+            escape = false;
+            continue;
+        }
+        if (ch === '\\\\') {
+            current.push(ch);
+            escape = true;
+            continue;
+        }
+        if (inQuote) {
+            current.push(ch);
+            if (ch === inQuote) inQuote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            current.push(ch);
+            continue;
+        }
+        if (ch === '[' || ch === '{' || ch === '(') {
+            depth++;
+            current.push(ch);
+            continue;
+        }
+        if (ch === ']' || ch === '}' || ch === ')') {
+            depth = Math.max(0, depth - 1);
+            current.push(ch);
+            continue;
+        }
+        if (depth === 0 && (ch === ',' || ch === ';' || (/\\s/.test(ch) && current.length > 0 && /[\\]\\}\\)\"\\']/.test(current[current.length - 1])))) {
+            const token = current.join('').trim();
+            if (token) tokens.push(token);
+            current = [];
+            continue;
+        }
+        current.push(ch);
+    }
+
+    if (current.length > 0) {
+        const token = current.join('').trim();
+        if (token) tokens.push(token);
+    }
+    return tokens;
 }
 
 function _extractArguments(rawIn, numParams, hasVarArgs) {
@@ -587,9 +747,22 @@ function _extractArguments(rawIn, numParams, hasVarArgs) {
 
     // 2. Single-line input
     const singleLine = lines[0] || trimmed;
+
+    // 2a. Check for named assignments e.g. "nums = [1, 2], k = 3"
+    const namedParts = singleLine.split(/(?:^|[,;\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*/).map(p => p.trim()).filter(Boolean);
+    if (namedParts.length > 1) {
+        return namedParts.map(_parseValue);
+    }
+
+    // 2b. Bracket/quote-aware splitting for multiple top-level arguments e.g. "[1, 2, 3], 2"
+    const topTokens = _splitTopLevelArguments(singleLine);
+    if (topTokens.length > 1) {
+        return topTokens.map(_parseValue);
+    }
+
+    // 2c. Array wrap JSON check
     let norm = singleLine.replace(/(?:^|[,\\n])\\s*[a-zA-Z_]\\w*\\s*=\\s*/g, ',');
     if (norm.startsWith(',')) norm = norm.slice(1).trim();
-
     if (norm.includes(',')) {
         try {
             const parsed = JSON.parse('[' + norm + ']');
@@ -597,10 +770,18 @@ function _extractArguments(rawIn, numParams, hasVarArgs) {
         } catch (e) {}
     }
 
+    // 2d. Direct parse check
     try {
         const val = _parseValue(singleLine);
         if (Array.isArray(val) && (val.length === numParams || (numParams > 1 && val.length >= numParams))) {
             return val;
+        }
+        if (typeof val === 'object' && val !== null && numParams > 1) {
+            return Object.values(val);
+        }
+        if (numParams > 1 && typeof val === 'string') {
+            const parts = val.split(/\\s+/);
+            if (parts.length === numParams) return parts.map(_parseValue);
         }
         return [val];
     } catch (e) {}
@@ -627,11 +808,13 @@ try {
         throw new Error('Solution function "${jsFuncName}" is not defined.');
     }
 
-    if (numParams === 0 && !hasVarArgs) {
+    const expectedLength = typeof _invokeTarget.length === 'number' ? _invokeTarget.length : numParams;
+
+    if (numParams === 0 && !hasVarArgs && expectedLength === 0) {
         const res = _invokeTarget();
         _formatResult(res);
     } else if (rawIn === '') {
-        const res = numParams === 1 ? _invokeTarget('') : _invokeTarget();
+        const res = expectedLength === 1 ? _invokeTarget('') : _invokeTarget();
         _formatResult(res);
     } else {
         const args = _extractArguments(rawIn, numParams, hasVarArgs);
@@ -645,21 +828,28 @@ try {
             } catch (e) {}
         }
 
-        if (!called && args.length === numParams) {
+        if (!called && args.length === expectedLength) {
             try {
                 res = _invokeTarget(...args);
                 called = true;
             } catch (e) {}
         }
 
-        if (!called && args.length > numParams && numParams > 0) {
+        if (!called && args.length > expectedLength && expectedLength > 0) {
             try {
-                res = _invokeTarget(...args.slice(0, numParams));
+                res = _invokeTarget(...args.slice(0, expectedLength));
                 called = true;
             } catch (e) {}
         }
 
-        if (!called && numParams === 1) {
+        if (!called && expectedLength > 1 && args.length === 1 && Array.isArray(args[0])) {
+            try {
+                res = _invokeTarget(...args[0].slice(0, expectedLength));
+                called = true;
+            } catch (e) {}
+        }
+
+        if (!called && expectedLength === 1) {
             try {
                 res = _invokeTarget(args.length === 1 ? args[0] : args);
                 called = true;
@@ -667,13 +857,23 @@ try {
         }
 
         if (!called) {
-            try {
-                res = _invokeTarget(...args);
-            } catch (e1) {
+            if (expectedLength > 1) {
+                if (args.length >= expectedLength) {
+                    res = _invokeTarget(...args.slice(0, expectedLength));
+                } else if (args.length === 1 && Array.isArray(args[0]) && args[0].length >= expectedLength) {
+                    res = _invokeTarget(...args[0].slice(0, expectedLength));
+                } else {
+                    res = _invokeTarget(...args);
+                }
+            } else {
                 try {
-                    res = _invokeTarget(rawIn);
-                } catch (e2) {
-                    res = _invokeTarget(args[0]);
+                    res = _invokeTarget(...args);
+                } catch (e1) {
+                    try {
+                        res = _invokeTarget(args[0] !== undefined ? args[0] : rawIn);
+                    } catch (e2) {
+                        res = _invokeTarget(rawIn);
+                    }
                 }
             }
         }

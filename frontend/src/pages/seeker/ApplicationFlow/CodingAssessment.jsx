@@ -427,11 +427,18 @@ const CodingAssessment = ({
             }
         }
 
-        // 2. Check sample input from test cases or examples
-        const sampleInput = (q.testCases?.[0]?.input || q.examples?.[0]?.input || '').trim();
+        // 2. Find first available visible test case or example with input (not just index 0 which may be hidden)
+        const visibleTestCase = Array.isArray(q.testCases)
+            ? q.testCases.find(tc => tc && tc.input !== undefined && tc.input !== null && !tc.isHidden && String(tc.input).trim())
+            : null;
+        const visibleExample = Array.isArray(q.examples)
+            ? q.examples.find(ex => ex && ex.input !== undefined && ex.input !== null && String(ex.input).trim())
+            : null;
+
+        const sampleInput = (visibleTestCase?.input || visibleExample?.input || q.testCases?.[0]?.input || '').trim();
         if (sampleInput) {
             // 2a. Check for named assignments: "nums = [2, 7, 11, 15], target = 9"
-            const namedMatches = [...sampleInput.matchAll(/(?:^|[,\n])\s*([a-zA-Z_]\w*)\s*=/g)];
+            const namedMatches = [...sampleInput.matchAll(/(?:^|[,\n;])\s*([a-zA-Z_]\w*)\s*=/g)];
             if (namedMatches.length > 1) {
                 return namedMatches.map(m => m[1]);
             }
@@ -439,14 +446,70 @@ const CodingAssessment = ({
             // 2b. Check for multi-line inputs: each line is an argument
             const lines = sampleInput.split('\n').map(l => l.trim()).filter(Boolean);
             if (lines.length > 1) {
-                return lines.map((_, i) => `arg${i + 1}`);
+                // If line 0 is a count indicator e.g. "5", and line 1 is array, line 2 is k
+                if (lines.length === 3 && /^\d+$/.test(lines[0])) {
+                    return ['nums', 'k'];
+                }
+                return lines.map((_, i) => (i === 0 && (lines[0].startsWith('[') || lines[0].includes(' '))) ? 'nums' : `arg${i + 1}`);
             }
 
-            // 2c. Check for comma-separated items on a single line outside brackets/quotes
-            const commaCount = (sampleInput.match(/,(?![^[]*\])/g) || []).length;
-            if (commaCount >= 1) {
-                return Array.from({ length: commaCount + 1 }, (_, i) => `arg${i + 1}`);
+            // 2c. Check for top-level bracket/quote-aware separated items on a single line
+            const splitTopLevel = (str) => {
+                const tokens = [];
+                let curr = [];
+                let depth = 0;
+                let inQuote = null;
+                for (let i = 0; i < str.length; i++) {
+                    const ch = str[i];
+                    if (inQuote) {
+                        curr.push(ch);
+                        if (ch === inQuote) inQuote = null;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        inQuote = ch;
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (ch === '[' || ch === '{' || ch === '(') {
+                        depth++;
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (ch === ']' || ch === '}' || ch === ')') {
+                        depth = Math.max(0, depth - 1);
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (depth === 0 && (ch === ',' || ch === ';' || (/\s/.test(ch) && curr.length > 0 && /[\]\}\)\"\']/.test(curr[curr.length - 1])))) {
+                        const tok = curr.join('').trim();
+                        if (tok) tokens.push(tok);
+                        curr = [];
+                        continue;
+                    }
+                    curr.push(ch);
+                }
+                if (curr.length > 0) {
+                    const tok = curr.join('').trim();
+                    if (tok) tokens.push(tok);
+                }
+                return tokens;
+            };
+
+            const topTokens = splitTopLevel(sampleInput);
+            if (topTokens.length > 1) {
+                return topTokens.map((t, idx) => {
+                    if (idx === 0 && (t.startsWith('[') || t.includes(' '))) return 'nums';
+                    if (idx === 1 && !isNaN(Number(t))) return 'k';
+                    return `arg${idx + 1}`;
+                });
             }
+        }
+
+        // 3. Fallback: inspect inputFormat for mention of multiple parameters
+        const formatText = `${q.inputFormat || ''} ${q.description || ''}`;
+        if (/\bnums\b.*\b(k|target)\b/i.test(formatText)) {
+            return ['nums', 'k'];
         }
 
         return ['arg1'];
@@ -1354,7 +1417,9 @@ const CodingAssessment = ({
                                                                     <X size={13} className="text-red-400 shrink-0" />
                                                                 )}
                                                                 <span className="truncate">
-                                                                    {tc.isHidden ? `Hidden ${idx + 1}` : `Case ${idx + 1}`}
+                                                                    {tc.category === 'MUTATION' || currentResult?.isMutationRun
+                                                                        ? `Constraint ${idx + 1}`
+                                                                        : (tc.isHidden ? `Hidden ${idx + 1}` : `Case ${idx + 1}`)}
                                                                 </span>
                                                             </div>
                                                             <span className={`text-[10px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -1377,7 +1442,9 @@ const CodingAssessment = ({
                                                                     <FileLock2 size={24} className="text-teal-400" />
                                                                 </div>
                                                                 <div>
-                                                                    <div className="text-sm font-bold text-gray-200">Hidden Test Case</div>
+                                                                    <div className="text-sm font-bold text-gray-200">
+                                                                        {tc.category === 'MUTATION' ? 'Mutated Constraint Test (Confidential)' : 'Hidden Test Case'}
+                                                                    </div>
                                                                     <p className="text-xs text-gray-500 mt-1 max-w-sm">
                                                                         Test inputs and expected outputs are confidential to ensure assessment fairness and integrity.
                                                                     </p>
@@ -1397,7 +1464,7 @@ const CodingAssessment = ({
                                                         <div className="space-y-3">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="text-gray-400 font-bold uppercase text-[10px] tracking-wider">
-                                                                    Test Case {selectedTestCaseIdx + 1} ({tc.category || 'NORMAL'})
+                                                                    {tc.category === 'MUTATION' || currentResult?.isMutationRun ? 'Mutated Constraint Test' : 'Test Case'} {selectedTestCaseIdx + 1} ({tc.category || (currentResult?.isMutationRun ? 'MUTATION' : 'NORMAL')})
                                                                 </span>
                                                                 <span className={`text-[11px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
                                                                     {tc.status} {tc.executionTime ? `• ${tc.executionTime}s` : ''}

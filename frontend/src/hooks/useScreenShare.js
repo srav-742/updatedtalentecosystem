@@ -33,17 +33,6 @@ export function useScreenShare(options = {}) {
     setIsSharing(false);
   }, []);
 
-  useEffect(() => {
-    if (externalStream) {
-      const track = externalStream.getVideoTracks?.()[0];
-      if (track && track.readyState === "live") {
-        streamRef.current = externalStream;
-        setIsSharing(true);
-        track.addEventListener("ended", handleTrackEnded, { once: true });
-      }
-    }
-  }, [externalStream, handleTrackEnded]);
-
   const handleTrackEnded = useCallback(() => {
     const shouldNotify = !silentStopRef.current;
     silentStopRef.current = false;
@@ -55,6 +44,20 @@ export function useScreenShare(options = {}) {
       callbacksRef.current.onStopped?.();
     }
   }, [clearCurrentStream]);
+
+  useEffect(() => {
+    if (externalStream) {
+      const track = externalStream.getVideoTracks?.()[0];
+      if (track && track.readyState === "live") {
+        streamRef.current = externalStream;
+        setIsSharing(true);
+        track.addEventListener("ended", handleTrackEnded, { once: true });
+        return () => {
+          track.removeEventListener("ended", handleTrackEnded);
+        };
+      }
+    }
+  }, [externalStream, handleTrackEnded]);
 
   const stopScreenShare = useCallback((options = {}) => {
     const { silent = false } = options;

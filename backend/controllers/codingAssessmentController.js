@@ -1360,7 +1360,15 @@ const runDMCEMutation = async (req, res) => {
             });
         }
 
-        // If no question-specific mutation cases exist, do not run generic infrastructure benchmarks against candidate
+        // If no question-specific mutation cases were found, fall back to active mutation contract test suite
+        if (!testCasesToRun || testCasesToRun.length === 0) {
+            const { getMutationContract } = require('../services/dmce/mutationRegistry');
+            const contract = getMutationContract(session.mutation?.mutationId);
+            if (contract && Array.isArray(contract.mutationTests) && contract.mutationTests.length > 0) {
+                testCasesToRun = contract.mutationTests;
+            }
+        }
+
         if (!testCasesToRun || testCasesToRun.length === 0) {
             return res.json({
                 success: true,
