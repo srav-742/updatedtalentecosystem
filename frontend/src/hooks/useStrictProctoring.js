@@ -141,6 +141,11 @@ export function useStrictProctoring({
       return;
     }
 
+    // Browsers reject requestFullscreen if not initiated by a user gesture
+    if (navigator.userActivation && !navigator.userActivation.isActive) {
+      return;
+    }
+
     const element = document.documentElement;
     const request =
       element.requestFullscreen
@@ -152,7 +157,12 @@ export function useStrictProctoring({
       return;
     }
 
-    Promise.resolve(request.call(element)).catch(() => null);
+    try {
+      const p = request.call(element);
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => null);
+      }
+    } catch (_) {}
   }, []);
 
   const lockSession = useCallback((message, mode = "warning") => {
@@ -211,7 +221,21 @@ export function useStrictProctoring({
       return;
     }
 
-    requestFullscreen();
+    if (!document.fullscreenElement && navigator.userActivation?.isActive) {
+      requestFullscreen();
+    }
+
+    // On user's first click anywhere on screen, smoothly enter fullscreen
+    const handleUserInteraction = () => {
+      if (!document.fullscreenElement) {
+        requestFullscreen();
+      }
+    };
+
+    window.addEventListener("click", handleUserInteraction, { capture: true, once: true });
+    return () => {
+      window.removeEventListener("click", handleUserInteraction, { capture: true });
+    };
   }, [isActive, requestFullscreen]);
 
   useEffect(() => {

@@ -48,6 +48,7 @@ export default function SecureExamWrapperEnhanced({
     requireScreenShare = true,
     requireCamera = false,
     cameraStream = null,
+    onCameraReady = null,
     screenStream = null,
     onScreenShareStart = null,
     preserveScreenOnUnmount = false,
@@ -193,7 +194,8 @@ export default function SecureExamWrapperEnhanced({
     const activeStream = cameraStream || localCameraStream;
 
     useEffect(() => {
-        if (!requireCamera || !proctoringIsActive || cameraStream) return;
+        const hasLivePropCamera = Boolean(cameraStream?.getVideoTracks?.().some(t => t.readyState === 'live' && !(t.getSettings?.().displaySurface)));
+        if (!requireCamera || !proctoringIsActive || hasLivePropCamera) return;
 
         let cancelled = false;
 
@@ -205,6 +207,7 @@ export default function SecureExamWrapperEnhanced({
                 });
                 if (!cancelled) {
                     setLocalCameraStream(stream);
+                    onCameraReady?.(stream);
                 }
             } catch (err) {
                 console.warn("[SecureExamWrapperEnhanced] Camera access denied:", err);
@@ -216,7 +219,7 @@ export default function SecureExamWrapperEnhanced({
         return () => {
             cancelled = true;
         };
-    }, [requireCamera, proctoringIsActive, cameraStream]);
+    }, [requireCamera, proctoringIsActive, cameraStream, onCameraReady]);
 
     // Pipe stream to video element
     // CRITICAL FIX: Only create a new MediaStream when the underlying video track
@@ -226,10 +229,16 @@ export default function SecureExamWrapperEnhanced({
     useEffect(() => {
         if (videoRef.current && activeStream) {
             const videoTracks = activeStream.getVideoTracks?.() || [];
-            const videoTrack = videoTracks.find(t => 
-                !(t.label || '').toLowerCase().includes('screen') && 
-                !(t.label || '').toLowerCase().includes('monitor')
-            ) || videoTracks[0];
+            const isDisplay = (t) => {
+                if (!t) return false;
+                const s = t.getSettings ? t.getSettings() : {};
+                if (s.displaySurface) return true;
+                const l = (t.label || '').toLowerCase();
+                return l.includes('screen') || l.includes('monitor') || l.includes('window') || l.includes('display');
+            };
+            const videoTrack = videoTracks.find(t => !isDisplay(t) && t.readyState === 'live') ||
+                               videoTracks.find(t => !isDisplay(t)) ||
+                               videoTracks[0];
 
             if (videoTrack) {
                 // Only reassign if the track actually changed

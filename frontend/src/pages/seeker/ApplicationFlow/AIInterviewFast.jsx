@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -7,6 +7,30 @@ import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
 import { trackEvent } from '../../../utils/analytics';
 import LiveTechnicalWorkspace from '../../../components/technicalInterview/LiveTechnicalWorkspace';
+
+const isDisplayTrack = (t) => {
+    if (!t) return false;
+    const settings = t.getSettings ? t.getSettings() : {};
+    if (settings.displaySurface) return true;
+    const label = (t.label || '').toLowerCase();
+    return label.includes('screen') || label.includes('monitor') || label.includes('window') || label.includes('display');
+};
+
+const isCameraTrack = (t) => {
+    if (!t || t.kind !== 'video') return false;
+    if (isDisplayTrack(t)) return false;
+    return t.readyState === 'live';
+};
+
+const getCameraTrack = (stream) => {
+    if (!stream) return null;
+    const tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+    const liveCam = tracks.find(isCameraTrack);
+    if (liveCam) return liveCam;
+    const nonDisplay = tracks.find(t => t.readyState === 'live' && !(t.getSettings?.().displaySurface));
+    if (nonDisplay) return nonDisplay;
+    return tracks.find(t => t.readyState === 'live') || null;
+};
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -163,25 +187,7 @@ const AIInterviewFast = ({
     const fullSessionRecorderRef = useRef(null);
     const fullSessionStreamRef = useRef(sharedStream || null);
 
-    useEffect(() => {
-        if (sharedStream && !fullSessionStreamRef.current) {
-            fullSessionStreamRef.current = sharedStream;
-            setCameraStreamState(sharedStream);
-        }
-        if (sharedScreenStream) {
-            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
-            if (screenTrack && screenTrack.readyState === 'live') {
-                if (!fullSessionStreamRef.current) {
-                    fullSessionStreamRef.current = new MediaStream();
-                }
-                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
-                if (!existing) {
-                    fullSessionStreamRef.current.addTrack(screenTrack);
-                    setCameraStreamState(fullSessionStreamRef.current);
-                }
-            }
-        }
-    }, [sharedStream, sharedScreenStream]);
+    const miniCamVideoRef = useRef(null);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -200,14 +206,124 @@ const AIInterviewFast = ({
     // so the full answer is never lost when the API auto-restarts
     const confirmedTranscriptRef = useRef('');
 
+    useEffect(() => {
+        if (sharedStream && !fullSessionStreamRef.current) {
+            fullSessionStreamRef.current = sharedStream;
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
+        }
+        if (sharedScreenStream) {
+            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
+            if (screenTrack && screenTrack.readyState === 'live') {
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
+                if (!existing) {
+                    fullSessionStreamRef.current.addTrack(screenTrack);
+                }
+            }
+        }
+    }, [sharedStream, sharedScreenStream]);
+
     // Keep camera stream state synced with the sharedStream prop so the
     // video preview never goes blank when transitioning from SkillAssessment
     useEffect(() => {
         if (sharedStream) {
             fullSessionStreamRef.current = sharedStream;
-            setCameraStreamState(sharedStream);
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
         }
     }, [sharedStream]);
+
+    const cameraAcquiringRef = useRef(false);
+
+    // Auto-acquire / maintain candidate webcam feed if missing or inactive
+    useEffect(() => {
+        let isMounted = true;
+
+        const ensureCameraActive = async () => {
+            const currentCam = getCameraTrack(cameraStreamState);
+            if (currentCam && currentCam.readyState === 'live') {
+                return;
+            }
+
+            const sharedCam = getCameraTrack(sharedStream);
+            if (sharedCam && sharedCam.readyState === 'live') {
+                if (isMounted) {
+                    setCameraStreamState(sharedStream);
+                }
+                return;
+            }
+
+            if (cameraAcquiringRef.current) return;
+            cameraAcquiringRef.current = true;
+
+            try {
+                let stream = null;
+                // 1. First try requesting video + audio
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+                } catch (audioVideoErr) {
+                    // 2. If microphone is in use or audio constraint fails, fall back to video only
+                    console.warn("[AIInterviewFast] Video+audio getUserMedia failed, retrying video only:", audioVideoErr);
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: false
+                    });
+                }
+
+                if (!stream) return;
+
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                stream.getTracks().forEach(track => {
+                    const existing = fullSessionStreamRef.current.getTracks().some(t => t.id === track.id);
+                    if (!existing) {
+                        fullSessionStreamRef.current.addTrack(track);
+                    }
+                });
+
+                if (isMounted) {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }
+            } catch (err) {
+                console.warn("[AIInterviewFast] Camera auto-init error:", err);
+            } finally {
+                cameraAcquiringRef.current = false;
+            }
+        };
+
+        ensureCameraActive();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [cameraStreamState, sharedStream, setSharedStream, step]);
+
+    // Keep mini webcam preview bound and playing
+    useEffect(() => {
+        const videoEl = miniCamVideoRef.current;
+        if (!videoEl) return;
+
+        const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+        if (camTrack && camTrack.readyState === 'live') {
+            const currentTrackId = videoEl.srcObject?.getVideoTracks?.()[0]?.id;
+            if (currentTrackId !== camTrack.id) {
+                videoEl.srcObject = new MediaStream([camTrack]);
+            }
+            videoEl.play().catch(() => {});
+        }
+    }, [cameraStreamState, sharedStream, step]);
 
 
     const normalizeQuestionText = (text = '') =>
@@ -350,7 +466,7 @@ const AIInterviewFast = ({
                 : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
 
             const recordTracks = [];
-            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+            const camVideoTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
             const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
 
             let recordingAudioTrack = audioTrack;
@@ -1190,8 +1306,8 @@ const AIInterviewFast = ({
     }
 
     if (step === 'lobby') {
-        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+        const hasCamera = Boolean(getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState));
+        const hasScreen = Boolean(fullSessionStreamRef.current?.getVideoTracks().some(isDisplayTrack) || sharedScreenStream?.getVideoTracks().some(isDisplayTrack));
 
         return (
             <div className="max-w-4xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl">
@@ -1206,9 +1322,9 @@ const AIInterviewFast = ({
                                     muted 
                                     playsInline 
                                     ref={el => { 
-                                        if(el && fullSessionStreamRef.current) {
-                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                            if (camTrack) {
+                                        if(el) {
+                                            const camTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
+                                            if (camTrack && camTrack.readyState === 'live') {
                                                 const stream = new MediaStream([camTrack]);
                                                 if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
                                                     el.srcObject = stream;
@@ -1238,7 +1354,7 @@ const AIInterviewFast = ({
                                     }
                                     camStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
                                     // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
+                                    setCameraStreamState(camStream);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Camera access denied."); }
                             }}
@@ -1257,7 +1373,7 @@ const AIInterviewFast = ({
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+                                            const screenTrack = fullSessionStreamRef.current?.getVideoTracks().find(isDisplayTrack) || sharedScreenStream?.getVideoTracks().find(isDisplayTrack);
                                             if (screenTrack) el.srcObject = new MediaStream([screenTrack]);
                                         }
                                     }}
@@ -1279,8 +1395,6 @@ const AIInterviewFast = ({
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
                                     setSharedScreenStream?.(screenStream);
-                                    // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Screen share denied."); }
                             }}
@@ -1333,6 +1447,10 @@ const AIInterviewFast = ({
                 requireScreenShare={false}
                 requireCamera={true}
                 cameraStream={cameraStreamState}
+                onCameraReady={(stream) => {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }}
                 showWebcamPreview={false}
                 isAnswering={coreState === 'listening'}
                 questionIndex={currentQNum - 1}
@@ -1383,21 +1501,21 @@ const AIInterviewFast = ({
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            if(el && cameraStreamState) {
-                                                const camTrack = cameraStreamState.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                                if (camTrack) {
-                                                    const stream = new MediaStream([camTrack]);
-                                                    if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
-                                                        el.srcObject = stream;
-                                                        el.play().catch(() => {});
+                                            miniCamVideoRef.current = el;
+                                            if (el) {
+                                                const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+                                                if (camTrack && camTrack.readyState === 'live') {
+                                                    if (!el.srcObject || el.srcObject.getVideoTracks?.()[0]?.id !== camTrack.id) {
+                                                        el.srcObject = new MediaStream([camTrack]);
                                                     }
+                                                    el.play().catch(() => {});
                                                 }
                                             }
                                         }}
                                         className="w-full h-full object-cover"
                                         style={{ transform: "scaleX(-1)" }}
                                     />
-                                    {!cameraStreamState && (
+                                    {!(getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current)) && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>

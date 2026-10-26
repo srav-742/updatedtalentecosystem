@@ -257,7 +257,13 @@ const LiveTechnicalWorkspace = ({
                                 playsInline
                                 ref={(el) => {
                                     if (el && cameraStream) {
-                                        el.srcObject = cameraStream;
+                                        const camTrack = cameraStream.getVideoTracks().find(t => !(t.getSettings?.().displaySurface)) || cameraStream.getVideoTracks()[0];
+                                        if (camTrack) {
+                                            if (!el.srcObject || el.srcObject.getVideoTracks?.()[0]?.id !== camTrack.id) {
+                                                el.srcObject = new MediaStream([camTrack]);
+                                            }
+                                            el.play().catch(() => {});
+                                        }
                                     }
                                 }}
                                 className="w-full h-full object-cover"

@@ -98,20 +98,25 @@ const ApplicationFlow = () => {
     const sharedChunkUploadsRef = useRef([]);
 
     // Stop streams on unmount
+    const sharedStreamRef = useRef(sharedStream);
+    sharedStreamRef.current = sharedStream;
+    const sharedScreenStreamRef = useRef(sharedScreenStream);
+    sharedScreenStreamRef.current = sharedScreenStream;
+
     useEffect(() => {
         return () => {
-            if (sharedStream) {
+            if (sharedStreamRef.current) {
                 try {
-                    sharedStream.getTracks().forEach((t) => t.stop());
+                    sharedStreamRef.current.getTracks().forEach((t) => t.stop());
                 } catch (e) {}
             }
-            if (sharedScreenStream) {
+            if (sharedScreenStreamRef.current) {
                 try {
-                    sharedScreenStream.getTracks().forEach((t) => t.stop());
+                    sharedScreenStreamRef.current.getTracks().forEach((t) => t.stop());
                 } catch (e) {}
             }
         };
-    }, [sharedStream, sharedScreenStream]);
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
