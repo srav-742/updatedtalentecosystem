@@ -69,6 +69,11 @@ const CodingAssessment = ({
     const [selectedTestCaseIdx, setSelectedTestCaseIdx] = useState(0);
     const [consoleOpen, setConsoleOpen] = useState(false);
 
+    // Synchronous state snapshots & evaluation versioning to prevent stale/out-of-order execution overwrites
+    const answersRef = useRef({});
+    const evaluationSeqRef = useRef(0);
+    const activeEvaluationsRef = useRef({}); // { [questionId]: evaluationId }
+
     const timerRef = useRef(null);
 
     const currentQuestion = questions[currentQIndex] || null;
@@ -358,6 +363,7 @@ const CodingAssessment = ({
                         language: defaultLang
                     };
                 });
+                answersRef.current = initialAnswers;
                 setAnswers(initialAnswers);
             } else {
                 setError(res.data?.message || 'No coding round configured for this job.');
@@ -588,19 +594,29 @@ const CodingAssessment = ({
 
     const handleCodeChange = (codeValue) => {
         if (!currentQuestion) return;
-        const prevCode = answers[currentQuestion._id]?.code || '';
+        const qId = currentQuestion._id;
+        const prevCode = answersRef.current[qId]?.code || answers[qId]?.code || '';
         const isDelete = codeValue.length < prevCode.length;
         recordTelemetry(isDelete ? 'DELETE' : 'KEY_PRESS', { line: 1, column: 1 });
 
         const targetJobId = job?._id || job?.id || 'job';
         try {
-            localStorage.setItem(`dmce_code_${targetJobId}_${currentQuestion._id}`, codeValue);
+            localStorage.setItem(`dmce_code_${targetJobId}_${qId}`, codeValue);
         } catch (_) {}
+
+        // Keep synchronous ref snapshot updated immediately
+        answersRef.current = {
+            ...answersRef.current,
+            [qId]: {
+                ...(answersRef.current[qId] || {}),
+                code: codeValue
+            }
+        };
 
         setAnswers(prev => ({
             ...prev,
-            [currentQuestion._id]: {
-                ...prev[currentQuestion._id],
+            [qId]: {
+                ...prev[qId],
                 code: codeValue
             }
         }));
@@ -608,10 +624,19 @@ const CodingAssessment = ({
 
     const handleLanguageChange = (lang) => {
         if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const starter = getStarterTemplate(currentQuestion, lang);
+        answersRef.current = {
+            ...answersRef.current,
+            [qId]: {
+                code: starter,
+                language: lang
+            }
+        };
         setAnswers(prev => ({
             ...prev,
-            [currentQuestion._id]: {
-                code: getStarterTemplate(currentQuestion, lang),
+            [qId]: {
+                code: starter,
                 language: lang
             }
         }));
@@ -620,7 +645,7 @@ const CodingAssessment = ({
     const handleRunCode = async () => {
         if (!currentQuestion) return;
         const qId = currentQuestion._id;
-        const currentAns = answers[qId];
+        const currentAns = answersRef.current[qId] || answers[qId];
         const code = currentAns?.code || '';
         const language = currentAns?.language || 'python';
 
@@ -628,6 +653,11 @@ const CodingAssessment = ({
             setError('Please write some code before running tests.');
             return;
         }
+
+        // Generate unique monotonic evaluation ID for this run
+        const seq = ++evaluationSeqRef.current;
+        const evaluationId = `eval_${qId}_${Date.now()}_${seq}`;
+        activeEvaluationsRef.current[qId] = evaluationId;
 
         recordTelemetry('RUN', { line: 1, column: 1 });
         setRunningCode(true);
@@ -650,8 +680,15 @@ const CodingAssessment = ({
                     sessionId: currentSid,
                     questionId: qId,
                     code,
-                    language
+                    language,
+                    evaluationId
                 }, { headers });
+
+                // Guard against stale or superseded responses
+                if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                    console.warn(`[CodingAssessment] Discarding superseded mutation response for ${qId}`);
+                    return;
+                }
 
                 if (res.data?.success) {
                     const isAllPassed = res.data.status === 'ALL_PASSED' || res.data.mutationStatus === 'ALL_PASSED' || res.data.mutationStatus === 'PASSED' || (res.data.total > 0 && res.data.passed === res.data.total);
@@ -661,6 +698,9 @@ const CodingAssessment = ({
                     setExecutionResults(prev => ({
                         ...prev,
                         [qId]: {
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now(),
                             status: computedStatus,
                             passed: res.data.passed,
                             failed: res.data.failed,
@@ -680,7 +720,10 @@ const CodingAssessment = ({
                     setExecutionResults(prev => ({
                         ...prev,
                         [qId]: {
-                            status: res.data?.code || 'EXECUTION_ERROR',
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now(),
+                            status: res.data?.code || res.data?.status || 'EXECUTION_ERROR',
                             passed: 0,
                             failed: 0,
                             total: 0,
@@ -695,8 +738,15 @@ const CodingAssessment = ({
                     sessionId: currentSid,
                     questionId: qId,
                     code,
-                    language
+                    language,
+                    evaluationId
                 }, { headers });
+
+                // Guard against stale or superseded responses
+                if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                    console.warn(`[CodingAssessment] Discarding superseded baseline response for ${qId}`);
+                    return;
+                }
 
                 if (res.data?.success && res.data.execution) {
                     const exec = res.data.execution;
@@ -704,6 +754,9 @@ const CodingAssessment = ({
                     const isPartiallyPassed = !isAllPassed && (exec.status === 'PARTIALLY_PASSED' || exec.passed > 0);
                     const normalizedExec = {
                         ...exec,
+                        evaluationId,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
                         status: isAllPassed ? 'ALL_PASSED' : (isPartiallyPassed ? 'PARTIALLY_PASSED' : (exec.status || 'FAILED'))
                     };
                     setExecutionResults(prev => ({
@@ -717,9 +770,8 @@ const CodingAssessment = ({
                         triggerMutationAlert(res.data.mutationTriggered, qId);
                     }
                 } else {
-                    // Do NOT fall back to legacy runner; present the actual execution or configuration error
                     const execData = res.data?.execution || {
-                        status: res.data?.code || 'TEST_CONFIGURATION_ERROR',
+                        status: res.data?.code || res.data?.status || 'TEST_CONFIGURATION_ERROR',
                         passed: 0,
                         failed: 0,
                         total: 0,
@@ -728,17 +780,28 @@ const CodingAssessment = ({
                     };
                     setExecutionResults(prev => ({
                         ...prev,
-                        [qId]: execData
+                        [qId]: {
+                            ...execData,
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now()
+                        }
                     }));
                 }
             }
         } catch (runErr) {
+            if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                return; // Discard error from superseded run
+            }
             console.error('[CodingAssessment] Run code error:', runErr.message);
             const errData = runErr.response?.data;
             setExecutionResults(prev => ({
                 ...prev,
                 [qId]: {
-                    status: errData?.code || 'EXECUTION_ERROR',
+                    evaluationId,
+                    submittedCode: code,
+                    submittedAt: Date.now(),
+                    status: errData?.code || errData?.status || 'EXECUTION_ERROR',
                     passed: 0,
                     failed: 0,
                     total: 0,
@@ -747,7 +810,9 @@ const CodingAssessment = ({
                 }
             }));
         } finally {
-            setRunningCode(false);
+            if (activeEvaluationsRef.current[qId] === evaluationId) {
+                setRunningCode(false);
+            }
         }
     };
 
@@ -757,13 +822,16 @@ const CodingAssessment = ({
         if (timerRef.current) clearInterval(timerRef.current);
 
         try {
-            // Format solutions array with correlated DMCE sessions
-            const solutions = questions.map(q => ({
-                questionId: q._id,
-                code: answers[q._id]?.code || '',
-                language: answers[q._id]?.language || 'python',
-                sessionId: dmceSessions[q._id] || undefined
-            }));
+            // Format solutions array with correlated DMCE sessions from exact latest editor snapshots
+            const solutions = questions.map(q => {
+                const ans = answersRef.current[q._id] || answers[q._id] || {};
+                return {
+                    questionId: q._id,
+                    code: ans.code || '',
+                    language: ans.language || 'python',
+                    sessionId: dmceSessions[q._id] || undefined
+                };
+            });
 
             const headers = await getAuthHeaders().catch(() => ({}));
             if (user?.uid || user?._id || user?.id) {
@@ -825,6 +893,7 @@ const CodingAssessment = ({
             console.error('Failed to reset coding application:', error);
         }
 
+        answersRef.current = {};
         setAnswers({});
         setSecurityResetting(false);
         onSecurityReset({
@@ -1359,6 +1428,11 @@ const CodingAssessment = ({
                                                     {currentResult.executionTime !== undefined && (
                                                         <span className="text-[11px] text-gray-500 font-mono">
                                                             • {currentResult.executionTime}s
+                                                        </span>
+                                                    )}
+                                                    {currentResult.submittedCode !== undefined && (answers[currentQuestion?._id]?.code || '') !== currentResult.submittedCode && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-300 font-mono">
+                                                            Modified
                                                         </span>
                                                     )}
                                                 </div>

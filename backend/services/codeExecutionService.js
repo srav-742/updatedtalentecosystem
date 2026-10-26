@@ -431,8 +431,10 @@ def _split_top_level_arguments(s):
 
 def _extract_arguments(raw_in, num_params, has_varargs):
     """Dynamically parses and extracts N parameters from stdin across multi-line and single-line formats."""
-    if raw_in is None or raw_in.strip() == '':
+    if raw_in is None:
         return []
+    if raw_in.strip() == '':
+        return [raw_in] if num_params == 1 else []
     trimmed = raw_in.strip()
     lines = [l for l in trimmed.splitlines() if l.strip() != '']
 
@@ -578,7 +580,7 @@ if __name__ == '__main__':
             # 5. Single-parameter function
             if not called and max_pos == 1:
                 try:
-                    res = fn(args[0] if len(args) == 1 else args)
+                    res = fn(args[0] if len(args) == 1 else (raw_in if len(args) == 0 else args))
                     called = True
                 except TypeError:
                     pass

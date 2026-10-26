@@ -499,22 +499,12 @@ const submitCodingAssessment = async (req, res) => {
             let executionResult = null;
             let realExecutionMetrics = null;
 
-            const hasTestCases = Array.isArray(question.testCases) && question.testCases.length > 0;
-            const hasExamples = Array.isArray(question.examples) && question.examples.length > 0;
-
-            if (hasTestCases || hasExamples) {
-                const testCasesToRun = hasTestCases
-                    ? question.testCases
-                    : question.examples.map(ex => ({
-                        input: ex.input || '',
-                        expectedOutput: ex.output || '',
-                        isHidden: false,
-                        category: 'NORMAL'
-                    }));
-
+            // Resolve test cases using canonical shared pipeline
+            const resolved = resolveTestCasesForQuestion(question);
+            if (resolved.success && Array.isArray(resolved.testCases) && resolved.testCases.length > 0) {
                 try {
                     // Do not mask hidden details for backend evaluation and recruiter review
-                    executionResult = await executeAgainstTestCases(ans.code, ans.language, testCasesToRun, { maskHiddenDetails: false });
+                    executionResult = await executeAgainstTestCases(ans.code, ans.language, resolved.testCases, { maskHiddenDetails: false });
                     realExecutionMetrics = {
                         status: executionResult.status,
                         passed: executionResult.passed,
@@ -542,6 +532,13 @@ const submitCodingAssessment = async (req, res) => {
             const targetSid = ans.sessionId || req.body.sessionId || ans.dmceSessionId;
             if (targetSid) {
                 try {
+                    const session = mutationEngine.getSession(targetSid);
+                    if (session) {
+                        if (session.mutation?.activated) {
+                            session.snapshots.postMutationCode = ans.code;
+                        }
+                        session.snapshots.finalSubmittedCode = ans.code;
+                    }
                     dmceData = mutationEngine.submitAndAnalyze(targetSid, ans.code, ans.language);
                 } catch (dmceErr) {
                     console.warn(`[DMCE-SUBMIT] submitAndAnalyze warning for ${targetSid}:`, dmceErr.message);
@@ -893,20 +890,21 @@ const reEvaluateCodingAnswer = async (req, res) => {
  */
 const runCandidateCode = async (req, res) => {
     try {
-        const { questionId, code, language, customInput, userId } = req.body;
+        const { questionId, code, language, customInput, userId, evaluationId } = req.body;
+        const execId = evaluationId || (new mongoose.Types.ObjectId()).toString();
 
         // Authorization check if userId is provided
         const authedUser = req.user?.uid || req.user?._id || req.headers['x-user-id'];
         if (userId && authedUser && String(userId) !== String(authedUser)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: Unauthorized execution request.' });
+            return res.status(403).json({ success: false, evaluationId: execId, message: 'Forbidden: Unauthorized execution request.' });
         }
 
         if (!code || typeof code !== 'string') {
-            return res.status(400).json({ success: false, message: 'Source code is required.' });
+            return res.status(400).json({ success: false, evaluationId: execId, message: 'Source code is required.' });
         }
 
         if (!language || typeof language !== 'string') {
-            return res.status(400).json({ success: false, message: 'Programming language is required.' });
+            return res.status(400).json({ success: false, evaluationId: execId, message: 'Programming language is required.' });
         }
 
         let testCases = [];
@@ -929,6 +927,9 @@ const runCandidateCode = async (req, res) => {
             } else {
                 return res.status(200).json({
                     success: false,
+                    evaluationId: execId,
+                    submittedCode: code,
+                    timestamp: Date.now(),
                     status: 'TEST_CONFIGURATION_ERROR',
                     message: resolved.message || 'No validated test suite exists for this question.',
                     passed: 0,
@@ -948,6 +949,9 @@ const runCandidateCode = async (req, res) => {
         if (testCases.length === 0) {
             return res.status(200).json({
                 success: false,
+                evaluationId: execId,
+                submittedCode: code,
+                timestamp: Date.now(),
                 status: 'TEST_CONFIGURATION_ERROR',
                 message: 'No validated test suite exists for this question.',
                 passed: 0,
@@ -972,6 +976,9 @@ const runCandidateCode = async (req, res) => {
 
         return res.json({
             success: true,
+            evaluationId: execId,
+            submittedCode: code,
+            timestamp: Date.now(),
             status: executionResult.status,
             passed: executionResult.passed,
             failed: executionResult.failed,
@@ -987,6 +994,9 @@ const runCandidateCode = async (req, res) => {
         console.error('[CODING-ASSESSMENT] Run Code Error:', error);
         return res.status(200).json({
             success: false,
+            evaluationId: req.body?.evaluationId,
+            submittedCode: req.body?.code,
+            timestamp: Date.now(),
             status: 'EXECUTION_ERROR',
             message: 'Unable to execute the code at this moment. Please try again.',
             error: error.message
@@ -1116,9 +1126,10 @@ const heartbeatDMCESession = async (req, res) => {
 
 const runDMCEBaseline = async (req, res) => {
     try {
-        const { sessionId, questionId, code, language } = req.body;
+        const { sessionId, questionId, code, language, evaluationId } = req.body;
+        const execId = evaluationId || (new mongoose.Types.ObjectId()).toString();
         if (!sessionId || !code) {
-            return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
+            return res.status(400).json({ success: false, evaluationId: execId, message: 'sessionId and code are required.' });
         }
 
         const session = mutationEngine.getSession(sessionId);
@@ -1243,6 +1254,9 @@ const runDMCEBaseline = async (req, res) => {
 
         res.json({
             success: true,
+            evaluationId: execId,
+            submittedCode: code,
+            timestamp: Date.now(),
             execution: baselineResult.execution,
             logicValidation: { valid: true, reason: intentCheck.reason },
             baselinePassed: baselineResult.baselinePassed,
@@ -1304,9 +1318,10 @@ const activateDMCEMutation = async (req, res) => {
 
 const runDMCEMutation = async (req, res) => {
     try {
-        const { sessionId, questionId, code, language } = req.body;
+        const { sessionId, questionId, code, language, evaluationId } = req.body;
+        const execId = evaluationId || (new mongoose.Types.ObjectId()).toString();
         if (!sessionId || !code) {
-            return res.status(400).json({ success: false, message: 'sessionId and code are required.' });
+            return res.status(400).json({ success: false, evaluationId: execId, message: 'sessionId and code are required.' });
         }
 
         const session = mutationEngine.getSession(sessionId);
@@ -1385,6 +1400,9 @@ const runDMCEMutation = async (req, res) => {
         const mutationResult = await mutationEngine.runMutationTests(sessionId, code, language, testCasesToRun);
         res.json({
             success: true,
+            evaluationId: execId,
+            submittedCode: code,
+            timestamp: Date.now(),
             ...mutationResult
         });
     } catch (err) {

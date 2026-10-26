@@ -165,7 +165,19 @@ async function runBaseline(sessionId, code, language, testCases = []) {
         });
     }
 
-    const overallStatus = failedCount === 0 ? 'ALL_PASSED' : (passedCount > 0 ? 'PARTIALLY_PASSED' : 'FAILED');
+    const hasCompilationError = results.some(r => r.status === 'COMPILATION_ERROR');
+    const hasTimeoutError = results.some(r => r.status === 'TIME_LIMIT_EXCEEDED');
+    const hasRuntimeError = results.some(r => r.status === 'RUNTIME_ERROR');
+
+    const overallStatus = failedCount === 0
+        ? 'ALL_PASSED'
+        : hasCompilationError
+            ? 'COMPILATION_ERROR'
+            : hasTimeoutError
+                ? 'TIME_LIMIT_EXCEEDED'
+                : hasRuntimeError
+                    ? 'RUNTIME_ERROR'
+                    : (passedCount > 0 ? 'PARTIALLY_PASSED' : 'FAILED');
 
     const executionSummary = {
         status: overallStatus,
@@ -177,6 +189,7 @@ async function runBaseline(sessionId, code, language, testCases = []) {
         hiddenPassed: results.filter(r => r.isHidden && r.passed).length,
         hiddenTotal: hiddenTests.length,
         executionTime: Math.round(totalTime * 100) / 100,
+        errorMessage: results.find(r => r.errorMessage)?.errorMessage || undefined,
         results
     };
 
@@ -325,6 +338,11 @@ async function runMutationTests(sessionId, code, language, testCasesOverride = n
         mutationTests = contract.mutationTests;
     }
 
+    // Ensure sandbox is clamped to mutated constraints (e.g. 16MB) for this execution
+    if (contract) {
+        applyResourceMutation(sessionId, contract);
+    }
+
     // Execute under mutated constraints (16 MB clamped heap)
     const testResults = await executeMutationTests(sessionId, code, language, mutationTests);
 
@@ -336,10 +354,17 @@ async function runMutationTests(sessionId, code, language, testCasesOverride = n
     resetToOriginalConstraints(sessionId);
 
     const isAllPassed = testResults.passed === testResults.total && testResults.total > 0;
-    const finalStatus = isAllPassed ? 'ALL_PASSED' : (session.mutation.status === 'PASSED' ? 'ALL_PASSED' : session.mutation.status);
+    const hasMemoryExceeded = (testResults.results || []).some(r => r.status === 'MEMORY_LIMIT_EXCEEDED');
+    const execStatus = isAllPassed
+        ? 'ALL_PASSED'
+        : (testResults.passed > 0
+            ? 'PARTIALLY_PASSED'
+            : (hasMemoryExceeded ? 'MEMORY_LIMIT_EXCEEDED' : (testResults.status || 'FAILED')));
+    const mutationStatus = isAllPassed ? 'PASSED' : (testResults.passed > 0 ? 'PARTIALLY_PASSED' : (hasMemoryExceeded ? 'MEMORY_LIMIT_EXCEEDED' : 'FAILED'));
+
     return {
-        status: finalStatus,
-        mutationStatus: finalStatus,
+        status: execStatus,
+        mutationStatus,
         passed: testResults.passed,
         failed: testResults.failed,
         total: testResults.total,

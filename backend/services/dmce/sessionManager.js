@@ -138,6 +138,11 @@ function recordBaselineExecution(sessionId, code, language, executionResult) {
     const session = sessions.get(sessionId);
     if (!session) return null;
 
+    if (typeof language === 'object' && executionResult === undefined) {
+        executionResult = language;
+        language = session.language || 'python';
+    }
+
     session.lastActivityAt = Date.now();
     session.executions.push({
         type: 'BASELINE_RUN',
@@ -149,15 +154,16 @@ function recordBaselineExecution(sessionId, code, language, executionResult) {
 
     const isAllPassed = executionResult.status === 'ALL_PASSED' || (executionResult.passed === executionResult.total && executionResult.total > 0);
 
+    session.baselineExecution = executionResult;
+    session.snapshots.baselineCode = code;
+    if (!session.snapshots.preMutationCode) {
+        session.snapshots.preMutationCode = code;
+    }
+
     if (isAllPassed) {
         session.baselinePassed = true;
         session.baselineScore = 100;
-        session.baselinePassedAt = Date.now();
-        session.baselineExecution = executionResult;
-        session.snapshots.baselineCode = code;
-        if (!session.snapshots.preMutationCode) {
-            session.snapshots.preMutationCode = code;
-        }
+        session.baselinePassedAt = session.baselinePassedAt || Date.now();
 
         if (session.state === LIFECYCLE_STATES.STARTED || session.state === LIFECYCLE_STATES.BASELINE_BUILD) {
             session.state = LIFECYCLE_STATES.BASELINE_VALIDATED;
@@ -166,6 +172,11 @@ function recordBaselineExecution(sessionId, code, language, executionResult) {
                 timestamp: Date.now(),
                 message: `Baseline tests passed (${executionResult.passed}/${executionResult.total})`
             });
+        }
+    } else {
+        if (!session.mutation?.activated) {
+            session.baselinePassed = false;
+            session.baselineScore = Math.round(((executionResult.passed || 0) / (executionResult.total || 1)) * 100);
         }
     }
 
