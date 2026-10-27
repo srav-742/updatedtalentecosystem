@@ -568,11 +568,15 @@ const submitCodingAssessment = async (req, res) => {
                 mutation: dmceData?.mutation || ans.mutation || null,
                 forensics: dmceData?.forensics || ans.forensics || null,
                 snapshots: dmceData?.snapshots || ans.snapshots || {
-                    baselineCode: ans.code,
-                    preMutationCode: ans.code,
-                    postMutationCode: ans.code,
-                    finalSubmittedCode: ans.code
+                    baselineCode: ans.stage1Code || ans.code,
+                    preMutationCode: ans.stage1Code || ans.code,
+                    postMutationCode: ans.stage2Code || ans.code,
+                    finalSubmittedCode: ans.stage2Code || ans.code
                 },
+                stage1Code: ans.stage1Code || ans.code,
+                stage2Code: ans.stage2Code || ans.code,
+                stage1SubmittedAt: ans.stage1SubmittedAt || null,
+                stage2SubmittedAt: ans.stage2SubmittedAt || null,
                 sandboxSessionId: targetSid || null
             });
         }

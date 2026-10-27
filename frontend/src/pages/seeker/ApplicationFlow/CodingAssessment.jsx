@@ -78,6 +78,56 @@ const CodingAssessment = ({
 
     const currentQuestion = questions[currentQIndex] || null;
 
+    // ── Two-Stage Progressive Assessment State ──────────────────────────
+    // questionStages: { [questionId]: 'STAGE_1' | 'STAGE_2' | 'COMPLETED' }
+    const [questionStages, setQuestionStages] = useState(() => {
+        try {
+            const targetJobId = job?._id || job?.id || 'job';
+            const saved = sessionStorage.getItem(`dmce_q_stages_${targetJobId}`);
+            return saved ? JSON.parse(saved) : {};
+        } catch (_) {
+            return {};
+        }
+    });
+
+    // stageSubmissions: { [questionId]: { stage1Code: string, stage1SubmittedAt: number, stage2Code: string, stage2SubmittedAt: number } }
+    const [stageSubmissions, setStageSubmissions] = useState(() => {
+        try {
+            const targetJobId = job?._id || job?.id || 'job';
+            const saved = sessionStorage.getItem(`dmce_stage_subs_${targetJobId}`);
+            return saved ? JSON.parse(saved) : {};
+        } catch (_) {
+            return {};
+        }
+    });
+
+    const [submittingStage1, setSubmittingStage1] = useState(false);
+    const [submittingStage2, setSubmittingStage2] = useState(false);
+
+    const updateQuestionStage = (qId, stage, extraData = {}) => {
+        const targetJobId = job?._id || job?.id || 'job';
+        setQuestionStages(prev => {
+            const next = { ...prev, [qId]: stage };
+            try {
+                sessionStorage.setItem(`dmce_q_stages_${targetJobId}`, JSON.stringify(next));
+            } catch (_) {}
+            return next;
+        });
+
+        if (Object.keys(extraData).length > 0) {
+            setStageSubmissions(prev => {
+                const next = {
+                    ...prev,
+                    [qId]: { ...(prev[qId] || {}), ...extraData }
+                };
+                try {
+                    sessionStorage.setItem(`dmce_stage_subs_${targetJobId}`, JSON.stringify(next));
+                } catch (_) {}
+                return next;
+            });
+        }
+    };
+
     // DMCE Dedicated Sandbox & Dynamic Mutation State
     const [dmceSessions, setDmceSessions] = useState({}); // { [questionId]: sessionId }
     const [dmceMutations, setDmceMutations] = useState({}); // { [questionId]: mutationPayload }
@@ -164,6 +214,7 @@ const CodingAssessment = ({
                     return prev;
                 });
 
+                updateQuestionStage(qId, 'STAGE_2');
                 setShowMutationModal(false);
             } else {
                 setMutationActivationError(res.data?.message || 'Failed to activate mutation constraint.');
@@ -227,6 +278,7 @@ const CodingAssessment = ({
                                 const mut = statusRes.data.mutation;
                                 if (mut.activated) {
                                     setDmceMutations(prev => ({ ...prev, [qId]: { ...mut, activated: true, triggered: true } }));
+                                    updateQuestionStage(qId, 'STAGE_2');
                                 } else if (mut.triggered) {
                                     triggerMutationAlert(mut, qId);
                                 }
@@ -816,6 +868,147 @@ const CodingAssessment = ({
         }
     };
 
+    // ── Stage 1: Initial Submission & Constraint Reveal ───
+    const handleSubmitStage1 = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write some code before submitting your initial solution.');
+            return;
+        }
+
+        setSubmittingStage1(true);
+        setConsoleOpen(true);
+        setError(null);
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/run-baseline`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language,
+                isInitialSubmission: true
+            }, { headers });
+
+            if (res.data?.success) {
+                const exec = res.data.execution;
+                const isPassed = res.data.baselinePassed || (exec && exec.total > 0 && exec.passed === exec.total);
+
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...exec,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
+                        status: isPassed ? 'ALL_PASSED' : (exec?.status || 'PARTIALLY_PASSED')
+                    }
+                }));
+
+                if (isPassed) {
+                    const fallbackMutation = {
+                        mutationId: 'mut_mem_opt_14mb',
+                        headline: 'Scale Constraint: Maximum Heap Clamped to 14 MB',
+                        description: 'Input stream throughput has scaled 10x. Available runtime heap is clamped to 14 MB. Adapt your solution to process input in-place using iterators without buffering entire arrays.',
+                        resourceConstraints: { memoryLimitMb: 14, timeoutMs: 4000 }
+                    };
+                    const activeMut = res.data.mutationTriggered || fallbackMutation;
+
+                    setDmceMutations(prev => ({
+                        ...prev,
+                        [qId]: { ...activeMut, activated: true, triggered: true }
+                    }));
+
+                    updateQuestionStage(qId, 'STAGE_2', {
+                        stage1Code: code,
+                        stage1SubmittedAt: Date.now()
+                    });
+
+                    triggerMutationAlert(activeMut, qId);
+                } else {
+                    setError(`Initial solution passed ${exec?.passed || 0} of ${exec?.total || 0} sample tests. All baseline tests must pass before progressive constraints unlock.`);
+                }
+            } else {
+                setError(res.data?.message || 'Initial solution validation failed. Please check your logic.');
+            }
+        } catch (err) {
+            console.error('Stage 1 submission error:', err);
+            setError(err.response?.data?.message || 'Failed to submit initial solution. Please retry.');
+        } finally {
+            setSubmittingStage1(false);
+        }
+    };
+
+    // ── Stage 2: Adapted Submission Under Constraint ───
+    const handleSubmitStage2 = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write your adapted solution before submitting.');
+            return;
+        }
+
+        setSubmittingStage2(true);
+        setConsoleOpen(true);
+        setError(null);
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language,
+                isFinalQuestionSubmission: true
+            }, { headers });
+
+            if (res.data?.success) {
+                const isAllPassed = res.data.status === 'ALL_PASSED' || res.data.mutationStatus === 'ALL_PASSED' || res.data.mutationStatus === 'PASSED' || (res.data.total > 0 && res.data.passed === res.data.total);
+
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...res.data,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
+                        isMutationRun: true
+                    }
+                }));
+
+                updateQuestionStage(qId, 'COMPLETED', {
+                    stage2Code: code,
+                    stage2SubmittedAt: Date.now(),
+                    stage2Passed: isAllPassed
+                });
+            } else {
+                setError(res.data?.message || 'Adapted solution failed under the active constraint. Please refine your code.');
+            }
+        } catch (err) {
+            console.error('Stage 2 submission error:', err);
+            setError(err.response?.data?.message || 'Failed to submit adapted solution. Please retry.');
+        } finally {
+            setSubmittingStage2(false);
+        }
+    };
+
     const handleSubmitSolutions = async () => {
         setSaving(true);
         setError(null);
@@ -825,11 +1018,16 @@ const CodingAssessment = ({
             // Format solutions array with correlated DMCE sessions from exact latest editor snapshots
             const solutions = questions.map(q => {
                 const ans = answersRef.current[q._id] || answers[q._id] || {};
+                const sub = stageSubmissions[q._id] || {};
                 return {
                     questionId: q._id,
                     code: ans.code || '',
                     language: ans.language || 'python',
-                    sessionId: dmceSessions[q._id] || undefined
+                    sessionId: dmceSessions[q._id] || undefined,
+                    stage1Code: sub.stage1Code || ans.code || '',
+                    stage2Code: sub.stage2Code || ans.code || '',
+                    stage1SubmittedAt: sub.stage1SubmittedAt || undefined,
+                    stage2SubmittedAt: sub.stage2SubmittedAt || undefined
                 };
             });
 
@@ -865,11 +1063,24 @@ const CodingAssessment = ({
 
     const handleNextChallenge = () => {
         const qId = currentQuestion?._id;
+        const stage = questionStages[qId] || 'STAGE_1';
+
+        if (stage === 'STAGE_1') {
+            setError('Please submit your initial code (Stage 1) before moving to the next challenge.');
+            return;
+        }
+
+        if (stage === 'STAGE_2') {
+            setError('Please adapt your solution under the revealed constraint and submit Stage 2 before proceeding.');
+            return;
+        }
+
         if (dmceMutations[qId]?.triggered && !dmceMutations[qId]?.activated) {
             setActiveMutationAlert(dmceMutations[qId]);
             setShowMutationModal(true);
             return;
         }
+        setError(null);
         setCurrentQIndex(prev => prev + 1);
     };
 
@@ -1246,13 +1457,93 @@ const CodingAssessment = ({
                                 </div>
                             )}
 
-                            {/* Constraints */}
-                            {currentQuestion?.constraints && (
-                                <div className="space-y-1.5 bg-[#161b22] border border-[#30363d] p-3.5 rounded-xl">
-                                    <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider">Constraints</h4>
-                                    <p className="text-xs text-gray-300 font-mono">{currentQuestion.constraints}</p>
-                                </div>
-                            )}
+                            {/* Progressive Constraints Block */}
+                            {(() => {
+                                const qId = currentQuestion?._id;
+                                const currentStage = questionStages[qId] || 'STAGE_1';
+                                const isStage2OrDone = currentStage === 'STAGE_2' || currentStage === 'COMPLETED' || dmceMutations[qId]?.activated;
+                                const activeMutation = dmceMutations[qId] || activeMutationAlert;
+
+                                return (
+                                    <div className="space-y-2.5 bg-[#161b22] border border-[#30363d] p-4 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Layers size={13} className="text-teal-400" />
+                                                <span>Constraints</span>
+                                            </h4>
+
+                                            {/* Stage Status Badge */}
+                                            {currentStage === 'STAGE_2' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                                                    <Zap size={11} className="text-amber-400" />
+                                                    <span>Stage 2 Constraint Unlocked</span>
+                                                </span>
+                                            )}
+                                            {currentStage === 'COMPLETED' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                                    <CheckCircle2 size={11} className="text-emerald-400" />
+                                                    <span>Constraint Satisfied</span>
+                                                </span>
+                                            )}
+                                            {currentStage === 'STAGE_1' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 bg-gray-800/80 border border-gray-700">
+                                                    Stage 1 of 2
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Baseline / Problem Constraints */}
+                                        {currentQuestion?.constraints && (
+                                            <div className="text-xs text-gray-300 font-mono bg-[#0d1117] p-2.5 rounded-lg border border-[#21262d]">
+                                                {currentQuestion.constraints}
+                                            </div>
+                                        )}
+
+                                        {/* Stage 1 Helper Notice */}
+                                        {currentStage === 'STAGE_1' && (
+                                            <div className="p-2.5 rounded-lg bg-teal-500/5 border border-teal-500/20 text-[11px] text-teal-300/80 flex items-center gap-2">
+                                                <Clock3 size={13} className="shrink-0 text-teal-400" />
+                                                <span>
+                                                    <strong>Stage 1 of 2:</strong> Solve the baseline requirements first. Submit your initial code to unlock the progressive scale constraint.
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Stage 2 Revealed Scale Constraint Card */}
+                                        {isStage2OrDone && (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.98, y: -4 }}
+                                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                className="p-3.5 rounded-xl bg-gradient-to-br from-amber-500/15 via-[#161b22] to-amber-950/20 border-2 border-amber-500/40 space-y-2.5"
+                                            >
+                                                <div className="flex items-center gap-2 text-amber-300 font-extrabold text-xs">
+                                                    <Cpu size={15} className="text-amber-400 animate-pulse shrink-0" />
+                                                    <span>
+                                                        {activeMutation?.headline || 'Scale Constraint: Clamped Memory & In-Place Iteration'}
+                                                    </span>
+                                                </div>
+
+                                                <p className="text-xs text-amber-100/90 leading-relaxed font-sans">
+                                                    {activeMutation?.description ||
+                                                        `Peak stream volume exceeded. Runtime heap is clamped to ${activeMutation?.resourceConstraints?.memoryLimitMb || 14} MB. Adapt your solution to process data in-place using iterators without buffering full arrays in RAM.`}
+                                                </p>
+
+                                                <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center gap-2 text-[10px] font-mono text-amber-300">
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Heap Limit: {activeMutation?.resourceConstraints?.memoryLimitMb || activeMutation?.memoryLimitMb || 14} MB
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Time Limit: {((activeMutation?.resourceConstraints?.timeoutMs || 4000) / 1000).toFixed(1)}s
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Auxiliary Space: O(1) In-Place
+                                                    </span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
                             {/* Examples */}
                             {currentQuestion?.examples && currentQuestion.examples.length > 0 && (
@@ -1613,9 +1904,9 @@ const CodingAssessment = ({
                                 <button
                                     type="button"
                                     onClick={handleRunCode}
-                                    disabled={runningCode}
+                                    disabled={runningCode || submittingStage1 || submittingStage2}
                                     className={`px-5 py-2.5 rounded-xl active:scale-95 font-extrabold text-xs transition-all border flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
-                                        dmceMutations[currentQuestion?._id]?.triggered
+                                        (questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered)
                                             ? 'bg-amber-500/15 border-amber-500/50 text-amber-300 hover:bg-amber-500/25 shadow-lg shadow-amber-500/10'
                                             : 'bg-[#21262d] hover:bg-[#30363d] text-teal-300 border-teal-500/30 hover:border-teal-500'
                                     }`}
@@ -1627,13 +1918,13 @@ const CodingAssessment = ({
                                         </>
                                     ) : (
                                         <>
-                                            {dmceMutations[currentQuestion?._id]?.triggered ? (
+                                            {(questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered) ? (
                                                 <Zap size={13} className="text-amber-400 fill-amber-400" />
                                             ) : (
                                                 <Play size={13} className="text-teal-400 fill-teal-400" />
                                             )}
                                             <span>
-                                                {dmceMutations[currentQuestion?._id]?.triggered
+                                                {(questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered)
                                                     ? 'Run Mutation Tests'
                                                     : 'Run Code'}
                                             </span>
@@ -1641,34 +1932,93 @@ const CodingAssessment = ({
                                     )}
                                 </button>
 
-                                {currentQIndex < questions.length - 1 ? (
-                                    <button
-                                        onClick={handleNextChallenge}
-                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
-                                    >
-                                        <CheckCircle2 size={14} />
-                                        <span>Submit & Next Challenge</span>
-                                        <ArrowRight size={13} />
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={handleSubmitSolutions}
-                                        disabled={saving}
-                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <Loader2 size={14} className="animate-spin" />
-                                                <span>Submitting...</span>
-                                            </>
-                                        ) : (
-                                            <>
+                                {(() => {
+                                    const qId = currentQuestion?._id;
+                                    const stage = questionStages[qId] || 'STAGE_1';
+
+                                    if (stage === 'STAGE_1') {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmitStage1}
+                                                disabled={submittingStage1 || runningCode}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
+                                                {submittingStage1 ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Validating Stage 1...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <CheckCircle2 size={14} />
+                                                        <span>Submit Initial Code (Stage 1)</span>
+                                                        <ArrowRight size={13} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        );
+                                    }
+
+                                    if (stage === 'STAGE_2') {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmitStage2}
+                                                disabled={submittingStage2 || runningCode}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
+                                                {submittingStage2 ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Verifying Constraint...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Zap size={14} className="text-black fill-black" />
+                                                        <span>Submit Adapted Solution (Stage 2)</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        );
+                                    }
+
+                                    // Stage is COMPLETED
+                                    if (currentQIndex < questions.length - 1) {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleNextChallenge}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
                                                 <CheckCircle2 size={14} />
-                                                <span>Submit Final Solutions</span>
-                                            </>
-                                        )}
-                                    </button>
-                                )}
+                                                <span>Next Challenge</span>
+                                                <ArrowRight size={13} />
+                                            </button>
+                                        );
+                                    }
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={handleSubmitSolutions}
+                                            disabled={saving}
+                                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                        >
+                                            {saving ? (
+                                                <>
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                    <span>Submitting All...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle2 size={14} />
+                                                    <span>Submit Final Solutions</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
