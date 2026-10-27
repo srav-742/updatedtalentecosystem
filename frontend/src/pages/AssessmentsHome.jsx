@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SEO from '../components/SEO';
 import './AssessmentsHome.css';
 
@@ -7,6 +7,7 @@ import './AssessmentsHome.css';
 const CalibrationModal = lazy(() => import('../components/CalibrationModal'));
 
 const AssessmentsHome = () => {
+    const navigate = useNavigate();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [activeFaqs, setActiveFaqs] = useState({});
@@ -54,14 +55,7 @@ const AssessmentsHome = () => {
 
     const scrollToReport = () => {
         setMenuOpen(false);
-        const el = document.getElementById('report-preview');
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.classList.add('report-highlight');
-            setTimeout(() => {
-                el.classList.remove('report-highlight');
-            }, 2200);
-        }
+        navigate('/sample-report');
     };
 
     const faqs = [
@@ -119,7 +113,7 @@ const AssessmentsHome = () => {
                     <nav className={`navlinks ${menuOpen ? 'mobile-open' : ''}`} id="navlinks" aria-label="Main navigation">
                         <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollToSection('how-it-works'); }}>How it works</a>
                         <a href="#anti-cheat" onClick={(e) => { e.preventDefault(); scrollToSection('anti-cheat'); }}>4-layer anti-cheat</a>
-                        <a href="#report-preview" onClick={(e) => { e.preventDefault(); scrollToReport(); }}>Sample report</a>
+                        <Link to="/sample-report" onClick={() => setMenuOpen(false)}>Sample report</Link>
                         <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>Candidate experience</a>
                         <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
                     </nav>
@@ -156,9 +150,9 @@ const AssessmentsHome = () => {
                                 <button className="btn" type="button" onClick={() => setIsModalOpen(true)}>
                                     Book a 15-minute demo <span>↗</span>
                                 </button>
-                                <button className="btn btn-light" type="button" onClick={scrollToReport}>
+                                <Link className="btn btn-light" to="/sample-report">
                                     Explore an assessment report <span>↗</span>
-                                </button>
+                                </Link>
                             </div>
                             <div className="support">
                                 <b>✓</b> Review the task, test failures &amp; explanation transcript — no signup required.
@@ -278,7 +272,7 @@ const AssessmentsHome = () => {
 
                             <div className="sheet-footer">
                                 <span><b>ASSESSMENT SNAPSHOT</b> · Coding, adaptation &amp; authorship evidence</span>
-                                <button type="button" onClick={scrollToReport}>View full report ↗</button>
+                                <Link to="/sample-report">View full report ↗</Link>
                             </div>
                         </aside>
                     </div>
@@ -433,7 +427,7 @@ const AssessmentsHome = () => {
                                         <span className="tag">Code-specific prompt</span>
                                         <span className="tag">Searchable transcript</span>
                                     </div>
-                                    <button className="text-link" type="button" onClick={scrollToReport}>See the code-specific explanation →</button>
+                                    <Link className="text-link" to="/sample-report">See the code-specific explanation →</Link>
                                 </div>
                             </article>
                             <article className="protocol">
@@ -452,7 +446,7 @@ const AssessmentsHome = () => {
                         </div>
                         <p className="note">AST (Abstract Syntax Tree) is a structural map of code. It tracks how functions, loops, and conditions evolve over time rather than simply counting characters.</p>
                         <div style={{ textAlign: 'center', marginTop: '28px' }}>
-                            <button className="btn" type="button" onClick={scrollToReport}>Explore all 4 layers in the sample report ↗</button>
+                            <Link className="btn" to="/sample-report">Explore all 4 layers in the sample report ↗</Link>
                         </div>
                     </div>
                 </section>
@@ -597,14 +591,13 @@ const AssessmentsHome = () => {
                                 <button className="btn btn-lime" type="button" onClick={() => setIsModalOpen(true)}>
                                     Book a 15-minute demo ↗
                                 </button>
-                                <button 
+                                <Link 
                                     className="btn" 
-                                    type="button"
                                     style={{ background: 'transparent', borderColor: '#ffffff70' }} 
-                                    onClick={scrollToReport}
+                                    to="/sample-report"
                                 >
                                     Explore an assessment report
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     </div>
@@ -635,7 +628,7 @@ const AssessmentsHome = () => {
                         </div>
                         <nav className="footer-links" aria-label="Explore">
                             <h4>Explore</h4>
-                            <button type="button" onClick={scrollToReport}>Sample report</button>
+                            <Link to="/sample-report">Sample report</Link>
                             <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
                             <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>For engineers</a>
                         </nav>

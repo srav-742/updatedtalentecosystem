@@ -17,6 +17,7 @@ const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
+const SampleReportPage = lazy(() => import('./pages/SampleReportPage'));
 
 // Legal pages
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -142,6 +143,7 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/sample-report" element={<SampleReportPage />} />
         <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
 
         {/* Legal Routes */}

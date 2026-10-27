@@ -18,6 +18,7 @@ const ROUTE_IMPORT_MAP = {
   '/service': () => import('../pages/LandingPage'),
   '/about': () => import('../pages/AboutPage'),
   '/pricing': () => import('../pages/PricingPage'),
+  '/sample-report': () => import('../pages/SampleReportPage'),
   '/signup': () => import('../pages/SignupPage'),
   '/login': () => import('../pages/LoginPage'),
   '/blog': () => import('../pages/blog/BlogLandingPage'),
