@@ -368,7 +368,8 @@ const CodingAssessment = ({
                 setError('Job reference is missing. Please refresh the page.');
                 return;
             }
-            const res = await axios.get(`${API_URL}/coding-assessments/round/${targetJobId}`, { headers });
+            headers['Cache-Control'] = 'no-cache';
+            const res = await axios.get(`${API_URL}/coding-assessments/round/${targetJobId}?_t=${Date.now()}`, { headers });
             if (res.data?.success && res.data.codingRound) {
                 const round = res.data.codingRound;
                 if (!round.questions || round.questions.length === 0) {

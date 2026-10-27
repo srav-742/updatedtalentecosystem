@@ -63,9 +63,20 @@ const getCodingRoundByJobId = async (req, res) => {
             }
         }
 
-        const codingRound = await CodingRound.findOne({ jobId }).populate('questions');
+        let codingRound = await CodingRound.findOne({ jobId }).populate('questions');
         if (!codingRound) {
             return res.json({ success: false, message: 'No coding round configured for this job.' });
+        }
+
+        // Clean up any null / deleted questions from populate
+        if (Array.isArray(codingRound.questions)) {
+            const validQuestions = codingRound.questions.filter(Boolean);
+            if (validQuestions.length !== codingRound.questions.length) {
+                codingRound.questions = validQuestions;
+                await CodingRound.findByIdAndUpdate(codingRound._id, {
+                    questions: validQuestions.map(q => q._id)
+                });
+            }
         }
 
         // Apply dynamic score calculations to questions
@@ -73,6 +84,7 @@ const getCodingRoundByJobId = async (req, res) => {
             const dynamicCalcs = calculateDynamicMarks(codingRound.questions);
             const calcsById = new Map(dynamicCalcs.map(c => [c.id ? c.id.toString() : '', c]));
             codingRound.questions.forEach(q => {
+                if (!q) return;
                 const c = calcsById.get(q._id ? q._id.toString() : '');
                 if (c) {
                     q.marks = c.maximumMarks;
@@ -112,7 +124,7 @@ const getCodingRoundByJobId = async (req, res) => {
 
 const createOrUpdateCodingRound = async (req, res) => {
     try {
-        const { jobId, totalTime, timerType, languages, instructions, status, dynamicMutation } = req.body;
+        const { jobId, totalTime, timerType, languages, instructions, status, dynamicMutation, questionIds, questions } = req.body;
 
         if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Valid Job ID is required.' });
@@ -208,7 +220,32 @@ const createOrUpdateCodingRound = async (req, res) => {
                 }
             });
         }
+
+        // Synchronize questions if questionIds or questions array is provided
+        const rawQuestionList = Array.isArray(questionIds)
+            ? questionIds
+            : (Array.isArray(questions) ? questions.map(q => q?._id || q?.id || q).filter(Boolean) : null);
+
+        if (rawQuestionList && Array.isArray(rawQuestionList)) {
+            const validQuestionIds = rawQuestionList
+                .map(id => (id && typeof id === 'object' && id._id) ? String(id._id) : String(id || ''))
+                .filter(id => mongoose.Types.ObjectId.isValid(id))
+                .map(id => new mongoose.Types.ObjectId(id));
+
+            codingRound.questions = validQuestionIds;
+
+            // Remove CodingQuestions belonging to this round that are no longer referenced
+            await CodingQuestion.deleteMany({
+                codingRoundId: codingRound._id,
+                _id: { $nin: validQuestionIds }
+            });
+        }
+
         await codingRound.save();
+
+        if (rawQuestionList && Array.isArray(rawQuestionList)) {
+            await syncRoundQuestionMarks(codingRound._id);
+        }
 
         // Sync with Job
         await Job.findByIdAndUpdate(jobId, {
@@ -221,7 +258,8 @@ const createOrUpdateCodingRound = async (req, res) => {
 
         invalidateCache('/api/jobs');
 
-        res.json({ success: true, codingRound });
+        const populatedRound = await CodingRound.findById(codingRound._id).populate('questions');
+        res.json({ success: true, codingRound: populatedRound || codingRound });
     } catch (error) {
         console.error('[CODING-ROUND] Create/Update Error:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -404,10 +442,13 @@ const updateCodingQuestion = async (req, res) => {
 
 const deleteCodingQuestion = async (req, res) => {
     try {
-        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
-        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
-        if (!isPrimaryAdmin) {
-            return res.status(403).json({ success: false, message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete coding questions." });
+        const isAuthorized = req.user && (
+            req.user.role === 'admin' ||
+            req.user.role === 'recruiter' ||
+            (req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com')
+        );
+        if (!isAuthorized) {
+            return res.status(403).json({ success: false, message: "Forbidden: You are not authorized to delete coding questions." });
         }
 
         const { questionId } = req.params;
@@ -416,13 +457,20 @@ const deleteCodingQuestion = async (req, res) => {
         }
 
         const question = await CodingQuestion.findByIdAndDelete(questionId);
-        if (question) {
-            await CodingRound.findByIdAndUpdate(question.codingRoundId, {
-                $pull: { questions: questionId }
-            });
-            // Recalculate dynamic marks for remaining questions in this round
-            await syncRoundQuestionMarks(question.codingRoundId);
+        const qObjId = mongoose.Types.ObjectId.isValid(questionId) ? new mongoose.Types.ObjectId(questionId) : null;
+        const pullTargets = [questionId, qObjId].filter(Boolean);
+
+        // Remove from all referencing rounds
+        await CodingRound.updateMany(
+            { questions: { $in: pullTargets } },
+            { $pull: { questions: { $in: pullTargets } } }
+        );
+
+        const roundId = question ? question.codingRoundId : null;
+        if (roundId) {
+            await syncRoundQuestionMarks(roundId);
         }
+        invalidateCache('/api/jobs');
         res.json({ success: true, message: 'Question deleted successfully.' });
     } catch (error) {
         console.error('[CODING-QUESTION] Delete Error:', error);

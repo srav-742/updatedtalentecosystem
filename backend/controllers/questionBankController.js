@@ -626,12 +626,12 @@ const deleteQuestion = async (req, res) => {
  */
 const importToJob = async (req, res) => {
     try {
-        const { jobId, questionIds } = req.body;
+        const { jobId, questionIds, syncQuestions, replaceExisting } = req.body;
 
         if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
             return res.status(400).json({ success: false, message: 'Valid jobId is required.' });
         }
-        if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
+        if (!Array.isArray(questionIds)) {
             return res.status(400).json({ success: false, message: 'questionIds array is required.' });
         }
 
@@ -645,6 +645,47 @@ const importToJob = async (req, res) => {
         const userId = req.user.uid || req.user._id.toString();
         if (!userIsAdmin && job.recruiterId !== userId) {
             return res.status(403).json({ success: false, message: 'You do not own this job.' });
+        }
+
+        // Get or create coding round for the job
+        let codingRound = await CodingRound.findOne({ jobId });
+        if (!codingRound) {
+            codingRound = new CodingRound({
+                jobId,
+                totalTime: 60,
+                timerType: 'overall',
+                languages: ['python', 'javascript'],
+                instructions: '',
+                status: 'draft',
+                questions: []
+            });
+            await codingRound.save();
+
+            // Link coding round to job
+            await Job.findByIdAndUpdate(jobId, {
+                codingRoundId: codingRound._id,
+                'codingAssessment.enabled': true
+            });
+        }
+
+        // Handle empty questionIds when syncing (user deleted all questions)
+        if (questionIds.length === 0) {
+            if (syncQuestions || replaceExisting) {
+                await CodingQuestion.deleteMany({ codingRoundId: codingRound._id });
+                codingRound.questions = [];
+                await codingRound.save();
+                try {
+                    const { invalidateCache } = require('../middleware/cacheMiddleware');
+                    invalidateCache('/api/jobs');
+                } catch (_) {}
+                return res.json({
+                    success: true,
+                    message: 'All questions removed from coding round.',
+                    imported: 0,
+                    codingRoundId: codingRound._id
+                });
+            }
+            return res.status(400).json({ success: false, message: 'questionIds array cannot be empty.' });
         }
 
         // Fetch bank questions — only approved ones
@@ -672,24 +713,16 @@ const importToJob = async (req, res) => {
             }
         }
 
-        // Get or create coding round for the job
-        let codingRound = await CodingRound.findOne({ jobId });
-        if (!codingRound) {
-            codingRound = new CodingRound({
-                jobId,
-                totalTime: 60,
-                timerType: 'overall',
-                languages: ['python', 'javascript'],
-                instructions: '',
-                status: 'draft'
-            });
-            await codingRound.save();
-
-            // Link coding round to job
-            await Job.findByIdAndUpdate(jobId, {
-                codingRoundId: codingRound._id,
-                'codingAssessment.enabled': true
-            });
+        // If syncQuestions/replaceExisting is requested, remove questions not in bankQuestions
+        if (syncQuestions || replaceExisting) {
+            const requestedTitles = new Set(bankQuestions.map(b => b.title));
+            const existingRoundQuestions = await CodingQuestion.find({ codingRoundId: codingRound._id });
+            const toDelete = existingRoundQuestions.filter(eq => !requestedTitles.has(eq.title));
+            if (toDelete.length > 0) {
+                const toDeleteIds = toDelete.map(d => d._id);
+                await CodingQuestion.deleteMany({ _id: { $in: toDeleteIds } });
+                codingRound.questions = codingRound.questions.filter(qid => !toDeleteIds.some(dId => dId.toString() === qid.toString()));
+            }
         }
 
         // Create CodingQuestion documents (existing model) from bank questions
@@ -721,16 +754,22 @@ const importToJob = async (req, res) => {
                     output: ex.output || '',
                     explanation: ex.explanation || ''
                 })),
-                testCases: (bq.testCases || []).map(tc => ({
-                    input: tc.input || '',
-                    expectedOutput: tc.expectedOutput || '',
-                    isHidden: tc.isHidden || false,
-                    category: tc.category || 'NORMAL',
-                    explanation: tc.explanation || '',
-                    validationStatus: tc.validationStatus || 'VALIDATED',
-                    source: 'QUESTION_BANK',
-                    timeoutMs: tc.timeoutMs || 6000
-                })),
+                testCases: (bq.testCases || []).map(tc => {
+                    let cat = tc.category || 'NORMAL';
+                    const catUpper = String(cat).toUpperCase();
+                    if (catUpper === 'BASIC') cat = 'NORMAL';
+                    else if (catUpper === 'EDGE') cat = 'EDGE_CASE';
+                    return {
+                        input: tc.input || '',
+                        expectedOutput: tc.expectedOutput || '',
+                        isHidden: tc.isHidden || false,
+                        category: cat,
+                        explanation: tc.explanation || '',
+                        validationStatus: tc.validationStatus || 'VALIDATED',
+                        source: 'QUESTION_BANK',
+                        timeoutMs: tc.timeoutMs || 6000
+                    };
+                }),
                 difficulty: bq.difficulty,
                 difficultyWeight: bq.difficultyWeight || 2,
                 marks: bq.marks || 10,
@@ -751,7 +790,28 @@ const importToJob = async (req, res) => {
             await QuestionBank.findByIdAndUpdate(bq._id, { $inc: { usageCount: 1 } });
         }
 
+        // Deduplicate and filter valid ObjectIds in codingRound.questions
+        const currentRoundDocs = await CodingQuestion.find({ codingRoundId: codingRound._id });
+        codingRound.questions = currentRoundDocs.map(d => d._id);
         await codingRound.save();
+
+        // Calculate dynamic marks distribution so remaining questions have updated marks
+        const { calculateDynamicMarks } = require('../utils/codingScoreCalculator');
+        if (currentRoundDocs.length > 0) {
+            const calcs = calculateDynamicMarks(currentRoundDocs);
+            for (const c of calcs) {
+                await CodingQuestion.findByIdAndUpdate(c.id, {
+                    difficulty: c.difficulty,
+                    difficultyWeight: c.difficultyWeight,
+                    marks: c.maximumMarks
+                });
+            }
+        }
+
+        try {
+            const { invalidateCache } = require('../middleware/cacheMiddleware');
+            invalidateCache('/api/jobs');
+        } catch (_) {}
 
         res.json({
             success: true,

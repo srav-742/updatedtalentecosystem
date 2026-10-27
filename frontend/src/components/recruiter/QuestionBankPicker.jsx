@@ -58,7 +58,7 @@ const ensureArray = (val) => {
     return [];
 };
 
-export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestionsImported, onSelectQuestions }) {
+export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestionsImported, onSelectQuestions, initialSelectedIds }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
@@ -88,6 +88,12 @@ export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestions
             setImportSuccess(null);
             setError(null);
             return;
+        }
+
+        if (initialSelectedIds && (initialSelectedIds.size > 0 || initialSelectedIds.length > 0)) {
+            setSelectedIds(new Set(Array.from(initialSelectedIds).map(String)));
+        } else {
+            setSelectedIds(new Set());
         }
 
         const fetchQuestions = async () => {

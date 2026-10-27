@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Trash2, Edit3, ChevronDown, Save, Loader2, CheckCircle2, ArrowLeft, Code2, Clock, Zap, AlertCircle, GripVertical, UploadCloud, BarChart3, Database } from 'lucide-react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import CodingQuestionBuilder from '../../components/recruiter/CodingQuestionBuilder';
 import QuestionBankPicker from '../../components/recruiter/QuestionBankPicker';
 import {
@@ -98,14 +98,29 @@ const CodingAssessmentConfig = () => {
         if (jobId) fetchData();
     }, [jobId]);
 
+    // Helper to obtain authentication headers
+    const getRequestHeaders = async () => {
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            return headers;
+        } catch {
+            return {};
+        }
+    };
+
     // Save round configuration
     const handleSaveConfig = async () => {
         setSaving(true);
         try {
+            const headers = await getRequestHeaders();
             const res = await axios.post(`${API_URL}/coding-assessments/round`, {
                 jobId,
-                ...roundConfig
-            });
+                ...roundConfig,
+                questionIds: questions.map(q => q._id || q.id).filter(Boolean)
+            }, { headers });
             if (res.data?.success) {
                 setCodingRoundId(res.data.codingRound._id);
                 setQuestions(res.data.codingRound.questions || []);
@@ -124,14 +139,19 @@ const CodingAssessmentConfig = () => {
     const handlePublish = async () => {
         setSaving(true);
         try {
+            const headers = await getRequestHeaders();
             const newStatus = roundConfig.status === 'published' ? 'draft' : 'published';
             const res = await axios.post(`${API_URL}/coding-assessments/round`, {
                 jobId,
                 ...roundConfig,
-                status: newStatus
-            });
+                status: newStatus,
+                questionIds: questions.map(q => q._id || q.id).filter(Boolean)
+            }, { headers });
             if (res.data?.success) {
                 setRoundConfig(prev => ({ ...prev, status: newStatus }));
+                if (res.data.codingRound?.questions) {
+                    setQuestions(res.data.codingRound.questions);
+                }
                 setSaved(true);
                 setTimeout(() => setSaved(false), 2500);
             }
@@ -179,6 +199,7 @@ const CodingAssessmentConfig = () => {
                 }
 
                 setSaving(true);
+                const headers = await getRequestHeaders();
                 const promises = validQuestions.map(q => {
                     return axios.post(`${API_URL}/coding-assessments/questions`, {
                         codingRoundId,
@@ -193,7 +214,7 @@ const CodingAssessmentConfig = () => {
                         marks: Number(q.marks) || 10,
                         allowedLanguages: Array.isArray(q.allowedLanguages) ? q.allowedLanguages : roundConfig.languages,
                         timer: Number(q.timer) || 0
-                    });
+                    }, { headers });
                 });
 
                 const results = await Promise.all(promises);
@@ -215,7 +236,8 @@ const CodingAssessmentConfig = () => {
     const handleDeleteQuestion = async (questionId) => {
         if (!window.confirm('Are you sure you want to delete this question?')) return;
         try {
-            await axios.delete(`${API_URL}/coding-assessments/questions/${questionId}`);
+            const headers = await getRequestHeaders();
+            await axios.delete(`${API_URL}/coding-assessments/questions/${questionId}`, { headers });
             setQuestions(prev => prev.filter(q => (q._id || q.id) !== questionId));
         } catch (error) {
             console.error('Error deleting question:', error);
@@ -237,7 +259,8 @@ const CodingAssessmentConfig = () => {
     // On questions imported from Central Question Bank
     const handleQuestionsImported = async (result) => {
         try {
-            const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${jobId}`);
+            const headers = await getRequestHeaders();
+            const roundRes = await axios.get(`${API_URL}/coding-assessments/round/${jobId}?_t=${Date.now()}`, { headers });
             if (roundRes.data?.success && roundRes.data.codingRound) {
                 setCodingRoundId(roundRes.data.codingRound._id);
                 setQuestions(roundRes.data.codingRound.questions || []);

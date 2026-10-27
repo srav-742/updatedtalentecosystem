@@ -179,17 +179,18 @@ const PostJob = () => {
         } else {
             // Attach to Coding Assessment
             setSelectedBankQuestions(prev => {
-                const existingIds = new Set(prev.map(q => q._id));
-                const filteredNew = importedList.filter(q => !existingIds.has(q._id));
+                const existingIds = new Set(prev.map(q => String(q._id || q.id || '')));
+                const filteredNew = importedList.filter(q => !existingIds.has(String(q._id || q.id || '')));
                 const combined = [...prev, ...filteredNew];
 
                 // Auto update difficulty counters to reflect selected questions
-                const low = combined.filter(q => (q.difficulty || '').toUpperCase() === 'LOW').length;
-                const med = combined.filter(q => (q.difficulty || '').toUpperCase() === 'MEDIUM').length;
-                const high = combined.filter(q => (q.difficulty || '').toUpperCase() === 'HIGH').length;
-                setNormalCount(low);
-                setModerateCount(med);
-                setHighCount(high);
+                const isLow = (d) => ['LOW', 'EASY'].includes(String(d || '').toUpperCase());
+                const isMed = (d) => ['MEDIUM', 'MODERATE'].includes(String(d || '').toUpperCase());
+                const isHigh = (d) => ['HIGH', 'HARD'].includes(String(d || '').toUpperCase());
+
+                setNormalCount(combined.filter(x => isLow(x.difficulty)).length);
+                setModerateCount(combined.filter(x => isMed(x.difficulty)).length);
+                setHighCount(combined.filter(x => isHigh(x.difficulty)).length);
 
                 return combined;
             });
@@ -204,6 +205,36 @@ const PostJob = () => {
             }));
         }
         setShowQuestionBankPicker(false);
+    };
+
+    // Safely remove a single bank question from coding assessment
+    const handleRemoveBankQuestion = (targetQuestion, index, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const targetId = String(targetQuestion?._id || targetQuestion?.id || '');
+
+        setSelectedBankQuestions(prev => {
+            const updated = prev.filter((item, idx) => {
+                const itemId = String(item?._id || item?.id || '');
+                if (targetId && itemId) {
+                    return itemId !== targetId;
+                }
+                return idx !== index;
+            });
+
+            // Recalculate difficulty counters accurately
+            const isLow = (d) => ['LOW', 'EASY'].includes(String(d || '').toUpperCase());
+            const isMed = (d) => ['MEDIUM', 'MODERATE'].includes(String(d || '').toUpperCase());
+            const isHigh = (d) => ['HIGH', 'HARD'].includes(String(d || '').toUpperCase());
+
+            setNormalCount(updated.filter(x => isLow(x.difficulty)).length);
+            setModerateCount(updated.filter(x => isMed(x.difficulty)).length);
+            setHighCount(updated.filter(x => isHigh(x.difficulty)).length);
+
+            return updated;
+        });
     };
 
     const handleDrag = (e) => {
@@ -298,6 +329,15 @@ const PostJob = () => {
                         }
                         if (round.timerType) setTimerType(round.timerType);
                         if (round.totalTime) setTotalTime(round.totalTime);
+                        if (Array.isArray(round.questions) && round.questions.length > 0) {
+                            setSelectedBankQuestions(round.questions);
+                            const isLow = (d) => ['LOW', 'EASY'].includes(String(d || '').toUpperCase());
+                            const isMed = (d) => ['MEDIUM', 'MODERATE'].includes(String(d || '').toUpperCase());
+                            const isHigh = (d) => ['HIGH', 'HARD'].includes(String(d || '').toUpperCase());
+                            setNormalCount(round.questions.filter(x => isLow(x.difficulty)).length);
+                            setModerateCount(round.questions.filter(x => isMed(x.difficulty)).length);
+                            setHighCount(round.questions.filter(x => isHigh(x.difficulty)).length);
+                        }
                     }
                 } catch (error) {
                     console.error('Error fetching job for edit:', error);
@@ -689,11 +729,12 @@ const PostJob = () => {
             setSuccess(true);
 
             // If bank questions were chosen, link them directly to the job assessment
-            if (selectedBankQuestions.length > 0 && targetJobId) {
+            if (targetJobId && (selectedBankQuestions.length > 0 || (editJobId && dataToSave.codingAssessment?.enabled))) {
                 try {
                     await axios.post(`${API_URL}/question-bank/import-to-job`, {
                         jobId: targetJobId,
-                        questionIds: selectedBankQuestions.map(q => q._id)
+                        questionIds: selectedBankQuestions.map(q => q?._id || q?.id).filter(Boolean),
+                        syncQuestions: true
                     }, { headers });
                 } catch (importErr) {
                     console.error('Error attaching bank questions to job:', importErr);
@@ -1527,46 +1568,53 @@ const PostJob = () => {
                                                     </div>
                                                     <button
                                                         type="button"
-                                                        onClick={() => { setSelectedBankQuestions([]); setNormalCount(0); setModerateCount(0); setHighCount(0); }}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setSelectedBankQuestions([]);
+                                                            setNormalCount(0);
+                                                            setModerateCount(0);
+                                                            setHighCount(0);
+                                                        }}
                                                         className="text-[11px] text-red-400 hover:text-red-300 font-semibold cursor-pointer"
                                                     >
                                                         Clear All
                                                     </button>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                                                    {selectedBankQuestions.map(q => (
-                                                        <div key={q._id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-xs hover:border-teal-500/30 transition-colors">
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                                                        q.difficulty === 'LOW' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                                                                        q.difficulty === 'HIGH' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
-                                                                        'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                                                    }`}>
-                                                                        {q.difficulty}
+                                                    {selectedBankQuestions.map((q, idx) => {
+                                                        const qKey = String(q?._id || q?.id || `bank_q_${idx}`);
+                                                        const isLow = ['LOW', 'EASY'].includes(String(q?.difficulty || '').toUpperCase());
+                                                        const isHigh = ['HIGH', 'HARD'].includes(String(q?.difficulty || '').toUpperCase());
+
+                                                        return (
+                                                            <div key={qKey} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-xs hover:border-teal-500/30 transition-colors">
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                                            isLow ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                                                            isHigh ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                                                            'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                                        }`}>
+                                                                            {q.difficulty}
+                                                                        </span>
+                                                                        <span className="font-bold text-white truncate">{q.title}</span>
+                                                                    </div>
+                                                                    <span className="text-[10px] text-gray-400 block truncate">
+                                                                        {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} • {q.testCases?.length || 0} test cases
                                                                     </span>
-                                                                    <span className="font-bold text-white truncate">{q.title}</span>
                                                                 </div>
-                                                                <span className="text-[10px] text-gray-400 block truncate">
-                                                                    {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} • {q.testCases?.length || 0} test cases
-                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => handleRemoveBankQuestion(q, idx, e)}
+                                                                    className="text-gray-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 cursor-pointer shrink-0 transition-all"
+                                                                    title="Remove question"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const updated = selectedBankQuestions.filter(x => x._id !== q._id);
-                                                                    setSelectedBankQuestions(updated);
-                                                                    setNormalCount(updated.filter(x => x.difficulty === 'LOW').length);
-                                                                    setModerateCount(updated.filter(x => x.difficulty === 'MEDIUM').length);
-                                                                    setHighCount(updated.filter(x => x.difficulty === 'HIGH').length);
-                                                                }}
-                                                                className="text-gray-500 hover:text-rose-400 p-1 cursor-pointer shrink-0 transition-colors"
-                                                                title="Remove question"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
@@ -2519,6 +2567,7 @@ const PostJob = () => {
                 isOpen={showQuestionBankPicker}
                 onClose={() => setShowQuestionBankPicker(false)}
                 onSelectQuestions={handleBankQuestionsSelected}
+                initialSelectedIds={selectedBankQuestions.map(q => q?._id || q?.id).filter(Boolean)}
             />
 
         </div >
