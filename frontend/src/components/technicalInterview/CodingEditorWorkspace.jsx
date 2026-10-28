@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, RotateCcw, CheckCircle, XCircle, Terminal, Loader2, Send, Code2, AlertTriangle, Clock } from 'lucide-react';
+import { Play, RotateCcw, CheckCircle, XCircle, Terminal, Loader2, Send, Code2, AlertTriangle, Clock, FileLock2, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 
@@ -214,7 +214,17 @@ const CodingEditorWorkspace = ({
     const [activeTab, setActiveTab] = useState(0);
     const [consoleOpen, setConsoleOpen] = useState(true);
     const [errorNotice, setErrorNotice] = useState(null);
+    const [clipboardNotice, setClipboardNotice] = useState(null);
+    const clipboardNoticeTimeoutRef = useRef(null);
     const textareaRef = useRef(null);
+
+    const triggerClipboardNotice = (msg = 'Copy and paste are disabled during the coding session.') => {
+        setClipboardNotice(msg);
+        if (clipboardNoticeTimeoutRef.current) clearTimeout(clipboardNoticeTimeoutRef.current);
+        clipboardNoticeTimeoutRef.current = setTimeout(() => {
+            setClipboardNotice(null);
+        }, 3000);
+    };
 
     const initializedProblemIdRef = useRef(null);
 
@@ -260,8 +270,26 @@ const CodingEditorWorkspace = ({
         }
     };
 
-    // Support Tab key indentation in textarea
+    // Support Tab key indentation in textarea & block copy-paste shortcuts
     const handleKeyDown = (e) => {
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        const key = e.key ? e.key.toLowerCase() : '';
+
+        // Block copy, paste, cut shortcuts
+        if (isCtrlOrCmd && (key === 'c' || key === 'v' || key === 'x')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
+        if ((e.shiftKey && e.key === 'Insert') || (e.ctrlKey && e.key === 'Insert')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
         if (e.key === 'Tab') {
             e.preventDefault();
             const start = e.target.selectionStart;
@@ -440,15 +468,47 @@ const CodingEditorWorkspace = ({
                 </div>
 
                 {/* Textarea */}
-                <textarea
-                    ref={textareaRef}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Write your code solution here..."
-                    spellCheck={false}
-                    className="flex-1 w-full h-full bg-[#05080f] text-emerald-300 p-4 font-mono text-sm leading-6 outline-none resize-none border-none overflow-y-auto custom-scrollbar focus:ring-0 selection:bg-teal-500/30 selection:text-white"
-                />
+                <div className="flex-1 relative flex flex-col h-full overflow-hidden">
+                    {clipboardNotice && (
+                        <div className="absolute top-3 right-3 z-30 bg-red-950/95 border border-red-500/50 text-red-200 text-xs font-bold px-3 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-sm pointer-events-none animate-bounce">
+                            <ShieldAlert size={14} className="text-red-400 shrink-0" />
+                            <span>{clipboardNotice}</span>
+                        </div>
+                    )}
+                    <textarea
+                        ref={textareaRef}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onCopy={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            triggerClipboardNotice('Copying is disabled during the coding round.');
+                        }}
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            triggerClipboardNotice('Pasting is disabled during the coding round.');
+                        }}
+                        onCut={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            triggerClipboardNotice('Cutting text is disabled during the coding round.');
+                        }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            triggerClipboardNotice('Right-click context menu is disabled during the coding round.');
+                        }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
+                        placeholder="Write your code solution here..."
+                        spellCheck={false}
+                        className="flex-1 w-full h-full bg-[#05080f] text-emerald-300 p-4 font-mono text-sm leading-6 outline-none resize-none border-none overflow-y-auto custom-scrollbar focus:ring-0 selection:bg-teal-500/30 selection:text-white"
+                    />
+                </div>
             </div>
 
             {/* Test Results Console Panel */}

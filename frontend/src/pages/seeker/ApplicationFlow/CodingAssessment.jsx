@@ -107,6 +107,90 @@ const CodingAssessment = ({
     const [hintLoading, setHintLoading] = useState(false);
     const [targetedHints, setTargetedHints] = useState({});
 
+    // ── Copy / Paste Restriction State & Notice ─────────────────────────
+    const [clipboardNotice, setClipboardNotice] = useState(null);
+    const clipboardNoticeTimeoutRef = useRef(null);
+
+    const triggerClipboardBlockedNotice = (msg = 'Copy and paste are disabled during the coding assessment.') => {
+        setClipboardNotice(msg);
+        if (clipboardNoticeTimeoutRef.current) clearTimeout(clipboardNoticeTimeoutRef.current);
+        clipboardNoticeTimeoutRef.current = setTimeout(() => {
+            setClipboardNotice(null);
+        }, 3000);
+    };
+
+    // Global listener to disable copy, paste, cut shortcuts and clipboard operations
+    useEffect(() => {
+        if (!started) return;
+
+        const handleGlobalKeyDown = (e) => {
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            const key = e.key ? e.key.toLowerCase() : '';
+
+            // Block Ctrl+C, Cmd+C (Copy), Ctrl+V, Cmd+V (Paste), Ctrl+X, Cmd+X (Cut)
+            if (isCtrlOrCmd && (key === 'c' || key === 'v' || key === 'x')) {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+                return false;
+            }
+
+            // Block Shift+Insert (Paste) and Ctrl+Insert (Copy)
+            if ((e.shiftKey && e.key === 'Insert') || (e.ctrlKey && e.key === 'Insert')) {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+                return false;
+            }
+        };
+
+        const handleGlobalCopy = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copying is disabled during the coding round.');
+            if (e.clipboardData) {
+                e.clipboardData.clearData();
+            }
+        };
+
+        const handleGlobalPaste = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Pasting is disabled during the coding round.');
+        };
+
+        const handleGlobalCut = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Cutting text is disabled during the coding round.');
+            if (e.clipboardData) {
+                e.clipboardData.clearData();
+            }
+        };
+
+        const handleContextMenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Right-click context menu is disabled during the coding round.');
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+        window.addEventListener('copy', handleGlobalCopy, { capture: true });
+        window.addEventListener('paste', handleGlobalPaste, { capture: true });
+        window.addEventListener('cut', handleGlobalCut, { capture: true });
+        document.addEventListener('contextmenu', handleContextMenu, { capture: true });
+
+        return () => {
+            window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+            window.removeEventListener('copy', handleGlobalCopy, { capture: true });
+            window.removeEventListener('paste', handleGlobalPaste, { capture: true });
+            window.removeEventListener('cut', handleGlobalCut, { capture: true });
+            document.removeEventListener('contextmenu', handleContextMenu, { capture: true });
+            if (clipboardNoticeTimeoutRef.current) clearTimeout(clipboardNoticeTimeoutRef.current);
+        };
+    }, [started]);
+
+
     const handleRequestTargetedHint = async () => {
         if (!currentQuestion) return;
         const qId = currentQuestion._id;
@@ -1112,26 +1196,10 @@ const CodingAssessment = ({
     };
 
     const handleNextChallenge = () => {
-        const qId = currentQuestion?._id;
-        const stage = questionStages[qId] || 'STAGE_1';
-
-        if (stage === 'STAGE_1') {
-            setError('Please submit your initial code (Stage 1) before moving to the next challenge.');
-            return;
-        }
-
-        if (stage === 'STAGE_2') {
-            setError('Please adapt your solution under the revealed constraint and submit Stage 2 before proceeding.');
-            return;
-        }
-
-        if (dmceMutations[qId]?.triggered && !dmceMutations[qId]?.activated) {
-            setActiveMutationAlert(dmceMutations[qId]);
-            setShowMutationModal(true);
-            return;
-        }
         setError(null);
-        setCurrentQIndex(prev => prev + 1);
+        if (currentQIndex < questions.length - 1) {
+            setCurrentQIndex(prev => prev + 1);
+        }
     };
 
     const handleCodingSecurityReset = async (violation) => {
@@ -1182,6 +1250,24 @@ const CodingAssessment = ({
     };
 
     const handleKeyDown = (e) => {
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        const key = e.key ? e.key.toLowerCase() : '';
+
+        // Disable copy and paste keys inside the editor
+        if (isCtrlOrCmd && (key === 'c' || key === 'v' || key === 'x')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
+        if ((e.shiftKey && e.key === 'Insert') || (e.ctrlKey && e.key === 'Insert')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
         if (e.key === 'Tab') {
             e.preventDefault();
             const start = e.target.selectionStart;
@@ -1379,8 +1465,10 @@ const CodingAssessment = ({
                                 return (
                                     <button
                                         key={q._id || idx}
-                                        onClick={() => setCurrentQIndex(idx)}
-                                        disabled={roundConfig?.timerType === 'individual'}
+                                        onClick={() => {
+                                            setError(null);
+                                            setCurrentQIndex(idx);
+                                        }}
                                         title={`Jump to Challenge ${idx + 1}`}
                                         className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                                             isCurrent
@@ -1708,10 +1796,13 @@ const CodingAssessment = ({
                         {/* Question Footer Navigation */}
                         <div className="p-4 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between shrink-0">
                             <button
-                                onClick={() => setCurrentQIndex(prev => Math.max(prev - 1, 0))}
-                                disabled={currentQIndex === 0 || roundConfig?.timerType === 'individual'}
+                                onClick={() => {
+                                    setError(null);
+                                    setCurrentQIndex(prev => Math.max(prev - 1, 0));
+                                }}
+                                disabled={currentQIndex === 0}
                                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                                    currentQIndex === 0 || roundConfig?.timerType === 'individual'
+                                    currentQIndex === 0
                                         ? 'text-gray-600 bg-[#0d1117] border border-[#21262d] cursor-not-allowed'
                                         : 'text-gray-200 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] cursor-pointer'
                                 }`}
@@ -1725,10 +1816,13 @@ const CodingAssessment = ({
                             </span>
 
                             <button
-                                onClick={() => setCurrentQIndex(prev => Math.min(prev + 1, questions.length - 1))}
-                                disabled={currentQIndex === questions.length - 1 || roundConfig?.timerType === 'individual'}
+                                onClick={() => {
+                                    setError(null);
+                                    setCurrentQIndex(prev => Math.min(prev + 1, questions.length - 1));
+                                }}
+                                disabled={currentQIndex === questions.length - 1}
                                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                                    currentQIndex === questions.length - 1 || roundConfig?.timerType === 'individual'
+                                    currentQIndex === questions.length - 1
                                         ? 'text-gray-600 bg-[#0d1117] border border-[#21262d] cursor-not-allowed'
                                         : 'text-gray-200 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] cursor-pointer'
                                 }`}
@@ -1799,11 +1893,41 @@ const CodingAssessment = ({
 
                         {/* Editor Textarea / Notepad Area */}
                         <div className="flex-1 relative flex flex-col bg-[#05080f] overflow-hidden min-h-[220px]">
+                            {clipboardNotice && (
+                                <div className="absolute top-3 right-3 z-30 bg-red-950/95 border border-red-500/50 text-red-200 text-xs font-bold px-3 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-sm pointer-events-none animate-bounce">
+                                    <ShieldAlert size={14} className="text-red-400 shrink-0" />
+                                    <span>{clipboardNotice}</span>
+                                </div>
+                            )}
                             <textarea
                                 className="flex-1 w-full h-full bg-[#05080f] text-emerald-300 p-6 font-mono text-sm leading-6 outline-none resize-none border-none overflow-y-auto focus:ring-0 selection:bg-teal-500/30 selection:text-white"
                                 value={answers[currentQuestion?._id]?.code || ''}
                                 onChange={(e) => handleCodeChange(e.target.value)}
                                 onKeyDown={handleKeyDown}
+                                onCopy={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Copying is disabled during the coding round.');
+                                }}
+                                onPaste={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Pasting is disabled during the coding round.');
+                                }}
+                                onCut={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Cutting text is disabled during the coding round.');
+                                }}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Right-click context menu is disabled during the coding round.');
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }}
                                 placeholder="Write your code solution here..."
                                 spellCheck={false}
                             />
