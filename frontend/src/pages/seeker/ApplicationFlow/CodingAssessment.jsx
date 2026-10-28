@@ -765,6 +765,7 @@ const CodingAssessment = ({
                             executionTime: res.data.executionTime || 0.1,
                             isMutationRun: true,
                             mutationId: dmceMutations[qId]?.mutationId,
+                            errorMessage: res.data.errorMessage,
                             results: res.data.results || []
                         }
                     }));
@@ -962,6 +963,13 @@ const CodingAssessment = ({
             return;
         }
 
+        // Validate that candidate has adapted their code since Stage 1
+        const stage1Code = stageSubmissions[qId]?.stage1Code;
+        if (stage1Code && code.trim() === stage1Code.trim()) {
+            setError('Your code is unchanged from Stage 1. Please adapt your solution to satisfy the newly revealed constraint before submitting.');
+            return;
+        }
+
         setSubmittingStage2(true);
         setConsoleOpen(true);
         setError(null);
@@ -994,11 +1002,15 @@ const CodingAssessment = ({
                     }
                 }));
 
-                updateQuestionStage(qId, 'COMPLETED', {
-                    stage2Code: code,
-                    stage2SubmittedAt: Date.now(),
-                    stage2Passed: isAllPassed
-                });
+                if (isAllPassed) {
+                    updateQuestionStage(qId, 'COMPLETED', {
+                        stage2Code: code,
+                        stage2SubmittedAt: Date.now(),
+                        stage2Passed: true
+                    });
+                } else {
+                    setError(res.data?.errorMessage || 'Adapted solution failed under the active constraint. Please refine your code to satisfy the constraint.');
+                }
             } else {
                 setError(res.data?.message || 'Adapted solution failed under the active constraint. Please refine your code.');
             }
@@ -1464,6 +1476,7 @@ const CodingAssessment = ({
                                 const currentStage = questionStages[qId] || 'STAGE_1';
                                 const isStage2OrDone = currentStage === 'STAGE_2' || currentStage === 'COMPLETED' || dmceMutations[qId]?.activated;
                                 const activeMutation = dmceMutations[qId] || activeMutationAlert;
+                                const memMb = activeMutation?.resourceConstraints?.memoryLimitMb || activeMutation?.memoryLimitMb || 14;
 
                                 return (
                                     <div className="space-y-2.5 bg-[#161b22] border border-[#30363d] p-4 rounded-xl">
@@ -1477,7 +1490,7 @@ const CodingAssessment = ({
                                             {currentStage === 'STAGE_2' && (
                                                 <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
                                                     <Zap size={11} className="text-amber-400" />
-                                                    <span>Stage 2 Constraint Unlocked</span>
+                                                    <span>Stage 2: Constraint Mutated</span>
                                                 </span>
                                             )}
                                             {currentStage === 'COMPLETED' && (
@@ -1495,8 +1508,23 @@ const CodingAssessment = ({
 
                                         {/* Baseline / Problem Constraints */}
                                         {currentQuestion?.constraints && (
-                                            <div className="text-xs text-gray-300 font-mono bg-[#0d1117] p-2.5 rounded-lg border border-[#21262d]">
-                                                {currentQuestion.constraints}
+                                            <div className={`text-xs font-mono p-2.5 rounded-lg border ${
+                                                isStage2OrDone
+                                                    ? 'bg-[#0d1117]/60 border-[#21262d] text-gray-400'
+                                                    : 'bg-[#0d1117] border-[#21262d] text-gray-300'
+                                            }`}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400">Baseline Constraint:</span>
+                                                    {isStage2OrDone && (
+                                                        <span className="text-[10px] text-teal-400 flex items-center gap-1 font-sans font-semibold">
+                                                            <CheckCircle2 size={11} />
+                                                            <span>Stage 1 Satisfied</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className={isStage2OrDone ? 'opacity-75' : ''}>
+                                                    {currentQuestion.constraints}
+                                                </div>
                                             </div>
                                         )}
 
@@ -1517,27 +1545,43 @@ const CodingAssessment = ({
                                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                                 className="p-3.5 rounded-xl bg-gradient-to-br from-amber-500/15 via-[#161b22] to-amber-950/20 border-2 border-amber-500/40 space-y-2.5"
                                             >
-                                                <div className="flex items-center gap-2 text-amber-300 font-extrabold text-xs">
-                                                    <Cpu size={15} className="text-amber-400 animate-pulse shrink-0" />
-                                                    <span>
-                                                        {activeMutation?.headline || 'Scale Constraint: Clamped Memory & In-Place Iteration'}
-                                                    </span>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 text-amber-300 font-extrabold text-xs">
+                                                        <Cpu size={15} className="text-amber-400 animate-pulse shrink-0" />
+                                                        <span>
+                                                            {activeMutation?.headline || `System Scale Mutation: Memory Cap Clamped to ${memMb} MB`}
+                                                        </span>
+                                                    </div>
+                                                    {currentStage === 'STAGE_2' && (
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/25 text-amber-300 border border-amber-500/50 animate-pulse">
+                                                            ⚠️ Adapt Code
+                                                        </span>
+                                                    )}
+                                                    {currentStage === 'COMPLETED' && (
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                                            <CheckCircle2 size={10} />
+                                                            <span>Satisfied</span>
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <p className="text-xs text-amber-100/90 leading-relaxed font-sans">
                                                     {activeMutation?.description ||
-                                                        `Peak stream volume exceeded. Runtime heap is clamped to ${activeMutation?.resourceConstraints?.memoryLimitMb || 14} MB. Adapt your solution to process data in-place using iterators without buffering full arrays in RAM.`}
+                                                        `Peak stream volume exceeded. Runtime heap is clamped to ${memMb} MB. Adapt your solution to process data in-place using iterators without buffering full arrays in RAM.`}
                                                 </p>
 
                                                 <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center gap-2 text-[10px] font-mono text-amber-300">
                                                     <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
-                                                        Heap Limit: {activeMutation?.resourceConstraints?.memoryLimitMb || activeMutation?.memoryLimitMb || 14} MB
+                                                        Heap Limit: {memMb} MB
                                                     </span>
                                                     <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
                                                         Time Limit: {((activeMutation?.resourceConstraints?.timeoutMs || 4000) / 1000).toFixed(1)}s
                                                     </span>
                                                     <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
                                                         Auxiliary Space: O(1) In-Place
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Scale: N = 100,000
                                                     </span>
                                                 </div>
                                             </motion.div>
@@ -1751,11 +1795,17 @@ const CodingAssessment = ({
                                             <Loader2 size={24} className="animate-spin text-teal-400" />
                                             <span className="text-xs font-medium">Executing code against test cases in isolated sandbox...</span>
                                         </div>
-                                    ) : currentResult?.status === 'COMPILATION_ERROR' || currentResult?.errorMessage ? (
+                                    ) : currentResult?.status === 'COMPILATION_ERROR' || (currentResult?.errorMessage && (!currentResult?.results || currentResult?.results.length === 0)) ? (
                                         <div className="flex-1 p-4 overflow-y-auto font-mono text-xs bg-red-950/20 text-red-300 space-y-1">
                                             <div className="flex items-center gap-1.5 text-red-400 font-bold mb-2">
                                                 <AlertCircle size={14} />
-                                                <span>Compilation / Syntax Output</span>
+                                                <span>
+                                                    {currentResult?.status === 'MEMORY_LIMIT_EXCEEDED'
+                                                        ? 'Memory Limit Exceeded'
+                                                        : currentResult?.status === 'COMPILATION_ERROR'
+                                                            ? 'Compilation / Syntax Output'
+                                                            : 'Execution Output'}
+                                                </span>
                                             </div>
                                             <pre className="whitespace-pre-wrap">{currentResult.errorMessage || currentResult.results?.[0]?.errorMessage || 'Error executing program.'}</pre>
                                         </div>

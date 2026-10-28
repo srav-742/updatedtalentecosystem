@@ -47,6 +47,11 @@ router.post('/session/run-mutation', optionalAuth, codingAssessmentController.ru
 router.post('/session/telemetry', optionalAuth, codingAssessmentController.ingestDMCETelemetry);
 router.get('/session/status/:sessionId', optionalAuth, codingAssessmentController.getDMCESessionStatus);
 
+// ─── Revision Tracking & AI Integrity Analysis ───────────
+router.get('/revisions/:assessmentId/:questionId', optionalAuth, codingAssessmentController.getQuestionRevisionHistory);
+router.get('/integrity-analysis/:assessmentId/:questionId', optionalAuth, codingAssessmentController.getIntegrityAnalysis);
+router.post('/revisions/checkpoint', optionalAuth, codingAssessmentController.recordRevisionCheckpoint);
+
 // ─── AI Re-evaluation ────────────────────────────────────
 router.post('/re-evaluate/:applicationId/:questionIndex', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.reEvaluateCodingAnswer);
 

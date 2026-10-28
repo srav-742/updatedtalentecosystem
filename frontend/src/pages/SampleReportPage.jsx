@@ -161,8 +161,18 @@ const SampleReportPage = () => {
                                     </tr>
                                     <tr>
                                         <td>Live adaptation</td>
-                                        <td>Responded to a follow-up constraint with a workable adjustment.</td>
+                                        <td>Responded to 14MB memory constraint with streaming generator pattern.</td>
                                         <td className="status good">Positive</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Revision integrity</td>
+                                        <td>Immutable sequence verified (4 revisions, monotonic hashes, zero tampering).</td>
+                                        <td className="status good">Verified</td>
+                                    </tr>
+                                    <tr>
+                                        <td>AI code change analysis</td>
+                                        <td>Gemini verified algorithm adaptation relevant to clamped memory constraint.</td>
+                                        <td className="status good">Consistent</td>
                                     </tr>
                                     <tr>
                                         <td>Edge-case handling</td>

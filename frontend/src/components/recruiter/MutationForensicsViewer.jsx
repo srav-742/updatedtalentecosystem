@@ -15,7 +15,8 @@ import {
     Info,
     ChevronDown,
     ChevronUp,
-    ShieldCheck
+    ShieldCheck,
+    Sparkles
 } from 'lucide-react';
 
 const MutationForensicsViewer = ({ questionAnswer, language }) => {
@@ -238,6 +239,72 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                                     Forensic telemetry signals (CAS, AST Volatility, Spatial Locality) are provided as architectural evaluation evidence. In accordance with DMCE core principles, high AST volatility is expected when candidates rewrite data structures to operate under memory clamping (e.g. replacing buffered arrays with streaming generators) and does not automatically penalize or disqualify candidates.
                                 </p>
                             </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* AI Code Change Analysis & Assessment Integrity (Gemini Evaluation) */}
+            {questionAnswer.integrityAnalysis && (
+                <div className="p-4 rounded-2xl bg-[#0a101d] border border-indigo-500/30 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                            <Sparkles size={16} className="text-indigo-400" />
+                            <h4 className="text-xs font-black uppercase tracking-wider text-indigo-200">
+                                AI Code Change Analysis & Integrity Detection (Gemini 2.5)
+                            </h4>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-mono">
+                            <span className="px-2.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                                Confidence: {questionAnswer.integrityAnalysis.confidence ?? 85}%
+                            </span>
+                            {questionAnswer.integrityAnalysis.requiresHumanReview ? (
+                                <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                    Human Review Recommended
+                                </span>
+                            ) : (
+                                <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                                    Integrity Verified
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                        <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Constraint Relevance</span>
+                            <span className="font-mono font-bold text-teal-300 mt-0.5 block capitalize">
+                                {questionAnswer.integrityAnalysis.constraintRelevance || 'Relevant'}
+                            </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Algorithm Preserved</span>
+                            <span className="font-mono font-bold text-slate-200 mt-0.5 block capitalize">
+                                {questionAnswer.integrityAnalysis.algorithmPreserved || 'Adapted'}
+                            </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Behavior Change</span>
+                            <span className="font-mono font-bold text-slate-200 mt-0.5 block capitalize">
+                                {questionAnswer.integrityAnalysis.behaviorChange || 'Expected'}
+                            </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Analysis Status</span>
+                            <span className="font-mono font-bold text-emerald-400 mt-0.5 block capitalize">
+                                {questionAnswer.integrityAnalysis.analysisStatus || 'Completed'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {Array.isArray(questionAnswer.integrityAnalysis.evidence) && questionAnswer.integrityAnalysis.evidence.length > 0 && (
+                        <div className="pt-2 border-t border-white/5 space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Technical Evidence & Reasoning:</span>
+                            <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
+                                {questionAnswer.integrityAnalysis.evidence.map((ev, i) => (
+                                    <li key={i}>{ev}</li>
+                                ))}
+                            </ul>
                         </div>
                     )}
                 </div>
