@@ -43,6 +43,7 @@ router.post('/session/start', optionalAuth, codingAssessmentController.startDMCE
 router.post('/session/heartbeat', optionalAuth, codingAssessmentController.heartbeatDMCESession);
 router.post('/session/run-baseline', optionalAuth, codingAssessmentController.runDMCEBaseline);
 router.post('/session/activate-mutation', optionalAuth, codingAssessmentController.activateDMCEMutation);
+router.post('/session/generate-hint', optionalAuth, codingAssessmentController.generateDMCETargetedHint);
 router.post('/session/run-mutation', optionalAuth, codingAssessmentController.runDMCEMutation);
 router.post('/session/telemetry', optionalAuth, codingAssessmentController.ingestDMCETelemetry);
 router.get('/session/status/:sessionId', optionalAuth, codingAssessmentController.getDMCESessionStatus);

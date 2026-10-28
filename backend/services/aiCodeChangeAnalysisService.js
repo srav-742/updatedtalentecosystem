@@ -29,12 +29,14 @@ function computeDiffSummary(oldCode = '', newCode = '') {
     const newLines = newCode.split('\n');
     const added = newLines.filter(l => !oldLines.includes(l)).length;
     const removed = oldLines.filter(l => !newLines.includes(l)).length;
+    const ratio = added / (newLines.length || 1);
     return {
         linesBefore: oldLines.length,
         linesAfter: newLines.length,
         linesAddedEstimate: added,
         linesRemovedEstimate: removed,
-        isCompleteRewrite: oldCode.trim() !== '' && newCode.trim() !== '' && (added / (newLines.length || 1) >= 0.65)
+        percentChanged: Math.round(ratio * 100),
+        isCompleteRewrite: oldCode.trim() !== '' && newCode.trim() !== '' && ratio >= 0.65
     };
 }
 
@@ -98,7 +100,33 @@ function validateAIAnalysisResponse(parsed, context) {
         ? parsed.limitations.map(String)
         : [];
 
-    const requiresHumanReview = Boolean(parsed.requiresHumanReview || riskIndicators.length > 0);
+    // Hint Adherence & Integrity Verdict Logic:
+    const effectiveHint = context.hintGiven || (Array.isArray(context.hintsDelivered) && context.hintsDelivered.length > 0 ? context.hintsDelivered[context.hintsDelivered.length - 1] : null);
+    const hasHint = Boolean(effectiveHint);
+
+    let cheatingDetected = Boolean(parsed.cheatingDetected);
+    let integrityVerdict = ['AUTHENTIC_ADAPTATION', 'CHEATING_SUSPECTED', 'STANDARD_ADAPTATION', 'UNADAPTED_SUBMISSION'].includes(parsed.integrityVerdict)
+        ? parsed.integrityVerdict
+        : (cheatingDetected ? 'CHEATING_SUSPECTED' : (hasHint ? 'AUTHENTIC_ADAPTATION' : 'STANDARD_ADAPTATION'));
+
+    let hintAdherence = ['followed', 'disregarded', 'no_hint_requested', 'none'].includes(parsed.hintAdherence)
+        ? parsed.hintAdherence
+        : (hasHint ? (cheatingDetected ? 'disregarded' : 'followed') : 'none');
+
+    const diffStats = context.diffStats || context.diffSummary;
+    if (hasHint && diffStats?.isCompleteRewrite) {
+        cheatingDetected = true;
+        integrityVerdict = 'CHEATING_SUSPECTED';
+        hintAdherence = 'disregarded';
+        if (!riskIndicators.includes('FULL_CODE_REPLACEMENT_AFTER_TARGETED_HINT')) {
+            riskIndicators.push('FULL_CODE_REPLACEMENT_AFTER_TARGETED_HINT');
+        }
+        if (!riskIndicators.includes('EXTERNAL_CODE_SUBSTITUTION_SUSPECTED')) {
+            riskIndicators.push('EXTERNAL_CODE_SUBSTITUTION_SUSPECTED');
+        }
+    }
+
+    const requiresHumanReview = Boolean(parsed.requiresHumanReview || riskIndicators.length > 0 || cheatingDetected);
 
     return {
         assessmentId,
@@ -109,6 +137,15 @@ function validateAIAnalysisResponse(parsed, context) {
         constraintRelevance,
         algorithmPreserved,
         behaviorChange,
+        hintGiven: hasHint,
+        hintDelivered: effectiveHint || null,
+        hintsDelivered: Array.isArray(context.hintsDelivered) ? context.hintsDelivered : (effectiveHint ? [effectiveHint] : []),
+        hintAdherence,
+        cheatingDetected,
+        integrityVerdict,
+        cheatingExplanation: cheatingDetected
+            ? 'Candidate was provided a targeted line hint, but completely replaced their codebase with an external solution instead of adapting their original implementation.'
+            : 'Candidate authentically adapted their implementation under the active constraint.',
         riskIndicators,
         evidence,
         confidence,
@@ -124,6 +161,10 @@ function validateAIAnalysisResponse(parsed, context) {
  * Creates a standardized fallback analysis record when evidence is insufficient or model fails.
  */
 function createFallbackAnalysis(context, status = 'insufficient_evidence', limitations = []) {
+    const hasHint = !!context.hintGiven;
+    const isRewrite = !!context.diffStats?.isCompleteRewrite;
+    const fallbackCheated = hasHint && isRewrite;
+
     return {
         assessmentId: String(context.assessmentId || ''),
         questionId: String(context.questionId || ''),
@@ -133,10 +174,17 @@ function createFallbackAnalysis(context, status = 'insufficient_evidence', limit
         constraintRelevance: 'unknown',
         algorithmPreserved: 'unknown',
         behaviorChange: 'unknown',
-        riskIndicators: [],
+        hintDelivered: context.hintGiven || null,
+        hintAdherence: hasHint ? (fallbackCheated ? 'disregarded' : 'followed') : 'no_hint_requested',
+        cheatingDetected: fallbackCheated,
+        integrityVerdict: hasHint ? (fallbackCheated ? 'CHEATING_SUSPECTED' : 'AUTHENTIC_ADAPTATION') : 'STANDARD_ADAPTATION',
+        cheatingExplanation: fallbackCheated
+            ? 'Candidate was provided a targeted line hint, but completely replaced their codebase with an external solution instead of adapting their original implementation.'
+            : 'Candidate authentically adapted their implementation under the active constraint.',
+        riskIndicators: fallbackCheated ? ['FULL_CODE_REPLACEMENT_AFTER_TARGETED_HINT'] : [],
         evidence: [],
         confidence: 50,
-        requiresHumanReview: false,
+        requiresHumanReview: fallbackCheated,
         limitations: limitations.length > 0 ? limitations : ['Automated analysis completed with fallback state'],
         analyzedAt: new Date(),
         model: 'gemini-2.5-flash-fallback',
@@ -161,14 +209,19 @@ async function analyzeCodeChange({
     activeConstraint = null,
     previousConstraint = null,
     executionResults = null,
-    analyzedRevisionId = ''
+    analyzedRevisionId = '',
+    hintsDelivered = [],
+    hintGiven = null
 }) {
+    const effectiveHint = hintGiven || (Array.isArray(hintsDelivered) && hintsDelivered.length > 0 ? hintsDelivered[hintsDelivered.length - 1] : null);
+
     const context = {
         assessmentId,
         candidateId,
         questionId,
         constraintId: activeConstraint?.mutationId || 'mut_mem_opt_14mb',
-        analyzedRevisionId: analyzedRevisionId || (new Date()).getTime().toString()
+        analyzedRevisionId: analyzedRevisionId || (new Date()).getTime().toString(),
+        hintGiven: effectiveHint
     };
 
     // Edge Case: Check for completely missing code
@@ -182,6 +235,7 @@ async function analyzeCodeChange({
     }
 
     const diffStats = computeDiffSummary(effectiveBaseline, effectiveFinal);
+    context.diffStats = diffStats;
 
     // Build untrusted delimited input blocks
     const cleanBaseline = sanitizeCandidateCode(effectiveBaseline);
@@ -190,21 +244,21 @@ async function analyzeCodeChange({
     const systemPrompt = `You are an expert technical code integrity and algorithmic adaptation analyzer for Hire1Percent technical assessments.
 Your task is to analyze how a candidate adapted their software solution when a new computational or resource constraint was introduced during a live coding assessment.
 
-MANDATORY FAIRNESS & ANTI-BIAS RULES:
-1. A COMPLETE REWRITE OF THE SOLUTION IS 100% LEGITIMATE. In high-performance engineering, changing constraints (such as streaming data or clamped memory) frequently requires discarding array-based algorithms in favor of generator or iterative streaming patterns. NEVER flag a complete rewrite as cheating.
-2. Changes in coding style, variable names, or algorithmic paradigm are normal engineering decisions.
+MANDATORY FAIRNESS & INTEGRITY RULES:
+1. If NO targeted hint was delivered: Complete rewrites are legitimate autonomous engineering strategy changes. Set cheatingDetected=false, integrityVerdict="STANDARD_ADAPTATION".
+2. If a TARGETED LINE HINT was delivered to the candidate:
+   - If candidate followed the targeted line hint by surgically adapting the indicated bottleneck while maintaining continuity with their Stage 1 code:
+     "cheatingDetected": false,
+     "integrityVerdict": "AUTHENTIC_ADAPTATION",
+     "hintAdherence": "followed"
+   - If candidate IGNORED the targeted hint and completely replaced their entire solution with an external pasted implementation (>65% lines replaced):
+     "cheatingDetected": true,
+     "integrityVerdict": "CHEATING_SUSPECTED",
+     "hintAdherence": "disregarded",
+     "riskIndicators": ["FULL_CODE_REPLACEMENT_AFTER_TARGETED_HINT", "EXTERNAL_CODE_SUBSTITUTION_SUSPECTED"]
 3. Rapid typing or short editing intervals indicate fluency and preparedness, NOT dishonesty.
 4. Fixing an error or failing test case is expected technical adaptation.
 5. You must output STRICT, VALID JSON ONLY conforming exactly to the requested schema. No conversational preamble or trailing commentary.
-
-Evaluate these technical questions:
-1. What technical adaptations were made?
-2. Did the change address the active constraint (e.g. Memory clamp, in-place iteration, streaming)?
-3. Was the algorithm preserved, adapted, or replaced?
-4. Did data structures change (e.g. array/list replaced with generator, iterator, pointers, or stream)?
-5. Does the adapted code plausibly satisfy the constraint without unexplained side effects?
-6. Is the execution evidence consistent with the code?
-7. Is human review warranted?
 
 OUTPUT JSON SCHEMA:
 {
@@ -216,6 +270,10 @@ OUTPUT JSON SCHEMA:
   "constraintRelevance": "relevant | partially_relevant | unrelated | unknown",
   "algorithmPreserved": "yes | partially | no | unknown",
   "behaviorChange": "none | expected | unexpected | unknown",
+  "hintAdherence": "followed | disregarded | no_hint_requested",
+  "cheatingDetected": false,
+  "integrityVerdict": "AUTHENTIC_ADAPTATION | CHEATING_SUSPECTED | STANDARD_ADAPTATION",
+  "cheatingExplanation": "string",
   "riskIndicators": ["string"],
   "evidence": ["string"],
   "confidence": 85,
@@ -233,6 +291,13 @@ Headline: ${activeConstraint?.headline || 'Resource Constraint Clamped'}
 Description: ${activeConstraint?.description || 'Clamp memory usage to process dataset in-place using iterators / streams.'}
 Memory Cap: ${activeConstraint?.resourceConstraints?.memoryLimitMb || 14} MB
 
+TARGETED HINT DELIVERED TO CANDIDATE:
+${effectiveHint ? `
+- Line Number: ${effectiveHint.targetLineNumber}
+- Target Snippet: "${effectiveHint.targetCodeSnippet}"
+- Hint Guidance: "${effectiveHint.hintText}"
+` : 'NO HINT REQUESTED BY CANDIDATE'}
+
 CANDIDATE CODE EVOLUTION:
 
 --- ORIGINAL BASELINE CODE (STAGE 1) ---
@@ -249,7 +314,7 @@ EXECUTION EVIDENCE:
 - Tests Passed: ${executionResults?.passed ?? 'N/A'} of ${executionResults?.total ?? 'N/A'}
 - Execution Status: ${executionResults?.status || 'EXECUTED'}
 - Estimated Diff Added: ${diffStats.linesAddedEstimate} lines, Removed: ${diffStats.linesRemovedEstimate} lines
-- Full Rewrite Detected: ${diffStats.isCompleteRewrite ? 'YES (Valid engineering strategy)' : 'NO'}
+- Full Rewrite Detected: ${diffStats.isCompleteRewrite ? 'YES' : 'NO'}
 
 Analyze this adaptation and respond ONLY with the strict JSON schema.`;
 

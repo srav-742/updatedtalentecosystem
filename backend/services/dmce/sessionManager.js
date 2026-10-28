@@ -111,6 +111,7 @@ function initSession({
         // Telemetry Frames & Forensics
         telemetryEvents: [],
         executions: [],
+        hints: [],
         forensics: null,
         astVolatility: null,
         timeline: [
@@ -349,6 +350,33 @@ function finalizeSession(sessionId, finalCode, language) {
 }
 
 /**
+ * Records a targeted adaptation hint delivered to the candidate.
+ */
+function recordSessionHint(sessionId, hint) {
+    const session = sessions.get(sessionId);
+    if (!session || !hint) return null;
+
+    if (!Array.isArray(session.hints)) {
+        session.hints = [];
+    }
+    const hintRecord = {
+        targetLineNumber: Number(hint.targetLineNumber) || 1,
+        targetCodeSnippet: String(hint.targetCodeSnippet || ''),
+        hintTitle: String(hint.hintTitle || 'Constraint Hint'),
+        hintText: String(hint.hintText || ''),
+        deliveredAt: Date.now()
+    };
+    session.hints.push(hintRecord);
+    session.timeline.push({
+        event: 'HINT_DELIVERED',
+        timestamp: Date.now(),
+        lineNumber: hintRecord.targetLineNumber,
+        message: `Line hint provided: Line ${hintRecord.targetLineNumber} - ${hintRecord.hintTitle}`
+    });
+    return hintRecord;
+}
+
+/**
  * Destroys session and cleans associated sandbox.
  */
 function cleanupSession(sessionId) {
@@ -365,6 +393,7 @@ module.exports = {
     recordBaselineExecution,
     activateMutation,
     recordMutationExecution,
+    recordSessionHint,
     ingestTelemetryBatch,
     finalizeSession,
     cleanupSession,

@@ -398,6 +398,7 @@ function submitAndAnalyze(sessionId, finalCode, language) {
             adaptationDurationSec: finalized.mutation.adaptationDurationSec
         },
         snapshots: finalized.snapshots,
+        hints: finalized.hints || [],
         forensics: finalized.forensics,
         astVolatility: finalized.astVolatility,
         timeline: finalized.timeline

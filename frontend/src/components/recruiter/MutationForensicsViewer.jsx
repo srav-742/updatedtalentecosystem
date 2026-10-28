@@ -16,6 +16,8 @@ import {
     ChevronDown,
     ChevronUp,
     ShieldCheck,
+    ShieldAlert,
+    Lightbulb,
     Sparkles
 } from 'lucide-react';
 
@@ -296,6 +298,85 @@ const MutationForensicsViewer = ({ questionAnswer, language }) => {
                             </span>
                         </div>
                     </div>
+
+                    {/* Cheating Detection / Authentic Adaptation Verdict */}
+                    {questionAnswer.integrityAnalysis.cheatingDetected ? (
+                        <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-500/50 flex items-start gap-2.5">
+                            <ShieldAlert size={18} className="text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-black uppercase tracking-wider text-red-300">
+                                        🚨 Cheating Suspected (External Code Substitution)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                        VERDICT: CHEATING_SUSPECTED
+                                    </span>
+                                </div>
+                                <p className="text-xs text-red-200/90 mt-1 leading-relaxed">
+                                    Candidate was provided with a targeted line-level bottleneck hint, but discarded their original code and replaced the entire codebase with an external or pre-generated solution instead of adapting their original implementation.
+                                </p>
+                            </div>
+                        </div>
+                    ) : questionAnswer.integrityAnalysis.hintGiven ? (
+                        <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-start gap-2.5">
+                            <ShieldCheck size={18} className="text-emerald-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                                        ✅ Authentic Adaptation (Hint Followed)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        VERDICT: AUTHENTIC_ADAPTATION
+                                    </span>
+                                </div>
+                                <p className="text-xs text-emerald-200/90 mt-1 leading-relaxed">
+                                    Candidate successfully adapted their existing algorithm by surgically addressing the highlighted bottleneck without replacing their original codebase.
+                                </p>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* Hint Delivery Details if provided */}
+                    {questionAnswer.integrityAnalysis.hintsDelivered && questionAnswer.integrityAnalysis.hintsDelivered.length > 0 && (
+                        <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                                    <Lightbulb size={14} className="text-amber-400" />
+                                    <span>Targeted Line Hint Delivered During Stage 2</span>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold border ${
+                                    questionAnswer.integrityAnalysis.hintAdherence === 'followed'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                        : 'bg-red-500/20 text-red-300 border-red-500/30'
+                                }`}>
+                                    Adherence: {questionAnswer.integrityAnalysis.hintAdherence || 'disregarded'}
+                                </span>
+                            </div>
+                            {questionAnswer.integrityAnalysis.hintsDelivered.map((h, i) => (
+                                <div key={i} className="text-xs text-slate-300 space-y-1">
+                                    {h.targetCodeSnippet && (
+                                        <div className="p-2 rounded bg-black/50 border border-white/5 font-mono text-[11px] text-teal-300">
+                                            <span className="text-slate-500 mr-2">Line {h.targetLineNumber}:</span>
+                                            <code>{h.targetCodeSnippet}</code>
+                                        </div>
+                                    )}
+                                    <p className="text-[11px] text-slate-300">{h.hintText}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Risk Indicators */}
+                    {Array.isArray(questionAnswer.integrityAnalysis.riskIndicators) && questionAnswer.integrityAnalysis.riskIndicators.length > 0 && (
+                        <div className="pt-2 border-t border-white/5 flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Risk Indicators:</span>
+                            {questionAnswer.integrityAnalysis.riskIndicators.map((risk, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-500/10 border border-red-500/30 text-red-300">
+                                    {risk}
+                                </span>
+                            ))}
+                        </div>
+                    )}
 
                     {Array.isArray(questionAnswer.integrityAnalysis.evidence) && questionAnswer.integrityAnalysis.evidence.length > 0 && (
                         <div className="pt-2 border-t border-white/5 space-y-1">

@@ -20,6 +20,7 @@ import {
     Zap,
     Cpu,
     Layers,
+    Lightbulb,
     ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
@@ -103,6 +104,42 @@ const CodingAssessment = ({
 
     const [submittingStage1, setSubmittingStage1] = useState(false);
     const [submittingStage2, setSubmittingStage2] = useState(false);
+    const [hintLoading, setHintLoading] = useState(false);
+    const [targetedHints, setTargetedHints] = useState({});
+
+    const handleRequestTargetedHint = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        setHintLoading(true);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            const res = await axios.post(`${API_URL}/coding-assessments/session/generate-hint`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language
+            }, { headers });
+
+            if (res.data?.success && res.data.hint) {
+                setTargetedHints(prev => ({
+                    ...prev,
+                    [qId]: res.data.hint
+                }));
+            }
+        } catch (err) {
+            console.warn('[CodingAssessment] Hint request warning:', err.message);
+        } finally {
+            setHintLoading(false);
+        }
+    };
 
     const updateQuestionStage = (qId, stage, extraData = {}) => {
         const targetJobId = job?._id || job?.id || 'job';
@@ -1584,6 +1621,65 @@ const CodingAssessment = ({
                                                         Scale: N = 100,000
                                                     </span>
                                                 </div>
+
+                                                {/* Targeted Adaptation Hint Section */}
+                                                {targetedHints[qId] ? (
+                                                    <div className="mt-3 p-3 rounded-lg bg-[#0d1117] border border-amber-500/40 space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                                                                <Lightbulb size={14} className="text-amber-400 shrink-0" />
+                                                                <span>{targetedHints[qId].hintTitle || `Targeted Line Hint (Line ${targetedHints[qId].targetLineNumber || '?'})`}</span>
+                                                            </div>
+                                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                                Adaptation Hint
+                                                            </span>
+                                                        </div>
+
+                                                        {targetedHints[qId].targetCodeSnippet && (
+                                                            <div className="p-2 rounded bg-black/50 border border-gray-800 font-mono text-[11px] text-teal-300 overflow-x-auto">
+                                                                <span className="text-gray-500 select-none mr-2">Line {targetedHints[qId].targetLineNumber}:</span>
+                                                                <code>{targetedHints[qId].targetCodeSnippet}</code>
+                                                            </div>
+                                                        )}
+
+                                                        <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                                                            {targetedHints[qId].hintText}
+                                                        </p>
+
+                                                        <div className="p-2 rounded bg-red-950/30 border border-red-500/30 text-[10px] text-red-300/90 flex items-start gap-1.5">
+                                                            <ShieldCheck size={13} className="text-red-400 shrink-0 mt-0.5" />
+                                                            <span>
+                                                                <strong>Integrity Monitor:</strong> Make targeted adaptations to your existing logic. Discarding your code entirely and pasting an external solution will trigger an AI cheating detection flag for recruiter review.
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    currentStage === 'STAGE_2' && (
+                                                        <div className="mt-2 pt-2 border-t border-amber-500/15 flex items-center justify-between">
+                                                            <span className="text-[11px] text-amber-200/70 font-sans">
+                                                                Stuck adapting to the scale constraint?
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                disabled={hintLoading}
+                                                                onClick={handleRequestTargetedHint}
+                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 transition-all cursor-pointer disabled:opacity-50"
+                                                            >
+                                                                {hintLoading ? (
+                                                                    <>
+                                                                        <Loader2 size={12} className="animate-spin text-amber-400" />
+                                                                        <span>Analyzing Bottleneck...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Lightbulb size={12} className="text-amber-400" />
+                                                                        <span>Get Targeted Line Hint</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                )}
                                             </motion.div>
                                         )}
                                     </div>

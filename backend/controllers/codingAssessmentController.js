@@ -661,6 +661,7 @@ const submitCodingAssessment = async (req, res) => {
                         postMutationCode: dmceData?.snapshots?.postMutationCode || ans.stage2Code || ans.code,
                         finalCode: ans.code,
                         activeConstraint: dmceData?.mutation || ans.mutation,
+                        hintsDelivered: dmceData?.hints || [],
                         executionResults: realExecutionMetrics || evalResult,
                         analyzedRevisionId: finalRev?.revisionId
                     });
@@ -1462,6 +1463,72 @@ const activateDMCEMutation = async (req, res) => {
     }
 };
 
+const generateDMCETargetedHint = async (req, res) => {
+    try {
+        const { sessionId, questionId, code, language } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'sessionId is required.' });
+        }
+
+        const session = mutationEngine.getSession(sessionId);
+        if (!session) {
+            return res.status(404).json({ success: false, message: `Session ${sessionId} not found.` });
+        }
+
+        // Hints are provided under progressive constraint mutations
+        const activeConstraint = session.mutation;
+        const targetCode = (code || session.snapshots?.baselineCode || session.snapshots?.preMutationCode || '').trim();
+        const targetQId = questionId || session.questionId;
+        let question = null;
+        if (targetQId && mongoose.Types.ObjectId.isValid(targetQId)) {
+            question = await CodingQuestion.findById(targetQId);
+        }
+
+        const { generateTargetedHint } = require('../services/dmce/targetedHintService');
+        const hint = await generateTargetedHint({
+            code: targetCode,
+            language: language || session.language || 'python',
+            activeConstraint: activeConstraint || { resourceConstraints: { memoryLimitMb: 14 } },
+            questionTitle: question?.title || '',
+            questionDescription: question?.description || ''
+        });
+
+        // Record hint in session manager
+        const { recordSessionHint } = require('../services/dmce/sessionManager');
+        const recordedHint = recordSessionHint(sessionId, hint);
+
+        // Additive Hook: Record CHECKPOINT revision marking that hint was requested
+        if (isConstraintMutationAnalysisEnabled()) {
+            try {
+                const targetAssessmentId = session.jobId || 'job';
+                const targetCandidateId = session.candidateId || req.user?.uid || 'candidate';
+                await revisionTracker.recordRevision({
+                    assessmentId: String(targetAssessmentId),
+                    candidateId: String(targetCandidateId),
+                    questionId: targetQId || 'q',
+                    code: targetCode,
+                    language: language || session.language || 'python',
+                    revisionType: 'CHECKPOINT',
+                    constraintId: session.mutation?.mutationId || 'mut_mem_opt_14mb',
+                    metadata: {
+                        event: 'HINT_DELIVERED',
+                        targetLineNumber: hint.targetLineNumber,
+                        hintTitle: hint.hintTitle
+                    }
+                });
+            } catch (_) {}
+        }
+
+        res.json({
+            success: true,
+            hint: recordedHint || hint
+        });
+    } catch (err) {
+        console.error('[DMCE-CONTROLLER] generateDMCETargetedHint Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 const runDMCEMutation = async (req, res) => {
     try {
         const { sessionId, questionId, code, language, evaluationId } = req.body;
@@ -1885,6 +1952,7 @@ module.exports = {
     heartbeatDMCESession,
     runDMCEBaseline,
     activateDMCEMutation,
+    generateDMCETargetedHint,
     runDMCEMutation,
     ingestDMCETelemetry,
     getDMCESessionStatus,
