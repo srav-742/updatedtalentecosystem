@@ -92,7 +92,6 @@ const LazyBlogShell = lazy(() => import('./pages/blog/BlogThemeContext').then(mo
     const { isDark } = useBlogTheme();
     return (
       <div className="min-h-screen" style={{ background: isDark ? '#0e121e' : '#F8F8FA' }}>
-        <Navbar theme={isDark ? 'dark' : 'light'} />
         {children}
       </div>
     );

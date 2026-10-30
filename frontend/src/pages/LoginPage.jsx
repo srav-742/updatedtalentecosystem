@@ -4,7 +4,6 @@ import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldChec
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
-import Navbar from '../components/Navbar';
 import apiClient from '../utils/apiClient';
 import SEO from '../components/SEO';
 import { trackEvent } from '../utils/analytics';
@@ -1164,8 +1163,6 @@ const LoginPage = () => {
             {/* Background Decor matching homepage hero warmth */}
             <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-[#C99A45]/10 blur-[130px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[550px] h-[550px] bg-[#20263A]/5 blur-[130px] rounded-full pointer-events-none" />
-
-            <Navbar theme="light" />
 
             <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-24 sm:py-28">
                 <div className="w-full max-w-5xl flex items-center justify-center my-auto">
