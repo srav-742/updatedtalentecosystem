@@ -69,76 +69,88 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/90 backdrop-blur-md"
+                        className="fixed inset-0 bg-[#20263A]/60 backdrop-blur-md"
                     />
 
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 40 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 40 }}
-                        className={`relative w-full ${isSubmitted ? 'max-w-5xl' : 'max-w-lg'} bg-[#0c0f16] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.15)] transition-all duration-700 my-auto`}
+                        exit={{ opacity: 0, scale: 0.95, y: 30 }}
+                        className={`relative w-full ${isSubmitted ? 'max-w-5xl' : 'max-w-lg'} bg-white border border-[#E3E5EC] rounded-[2rem] overflow-hidden shadow-[0_25px_70px_rgba(32,38,58,0.2)] transition-all duration-500 my-auto`}
                     >
-                        <div className={isSubmitted ? "p-4" : "p-10 md:p-12"}>
+                        <div className={isSubmitted ? "p-6 sm:p-8" : "p-8 sm:p-10"}>
                             <button
                                 onClick={onClose}
-                                className="absolute top-8 right-8 z-10 p-2 text-gray-500 hover:text-white transition-colors bg-white/5 rounded-full"
+                                className="absolute top-6 right-6 z-20 p-2 text-[#5E6577] hover:text-[#20263A] bg-[#F8F8FA] hover:bg-[#E3E5EC] rounded-full transition-colors cursor-pointer border border-[#E3E5EC]/60"
+                                aria-label="Close modal"
                             >
-                                <X className="w-6 h-6" />
+                                <X className="w-5 h-5" />
                             </button>
 
                             {!isSubmitted ? (
                                 <>
-                                    <div className="mb-8 text-center">
-                                        <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-6 mx-auto border border-blue-500/20">
-                                            <Calendar className="w-8 h-8 text-blue-500" />
+                                    <div className="mb-8 text-center relative">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 text-[#C99A45] text-[11px] font-bold uppercase tracking-wider mb-4">
+                                            15-Minute Demo
                                         </div>
-                                        <h3 className="text-3xl font-bold text-white mb-2">Talent Calibration Call</h3>
-                                        <p className="text-gray-400 text-base leading-relaxed max-w-sm mx-auto">
-                                            Align your hiring intelligence, role clarity, and candidate quality.
+                                        <div className="w-16 h-16 bg-[#20263A] text-[#E6BC6B] rounded-2xl flex items-center justify-center mb-4 mx-auto shadow-md border border-[#D4AC5F]/30">
+                                            <Calendar className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-2xl sm:text-3xl font-extrabold text-[#20263A] mb-2 tracking-tight">
+                                            Book a 15-Minute Demo
+                                        </h3>
+                                        <p className="text-[#5E6577] text-sm leading-relaxed max-w-sm mx-auto">
+                                            Align your hiring intelligence, role parameters, and candidate quality.
                                         </p>
                                     </div>
 
                                     <form onSubmit={handleSubmit} className="space-y-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-400 ml-1">Full Name</label>
-                                            <div className="relative">
-                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 z-10" />
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-[#5E6577] uppercase tracking-wider ml-1 block">
+                                                Full Name
+                                            </label>
+                                            <div className="relative group">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors z-10" />
                                                 <input
                                                     type="text"
                                                     required
                                                     placeholder="John Doe"
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
+                                                    className="w-full bg-[#F8F8FA] border border-[#E3E5EC] rounded-xl py-3.5 pl-12 pr-4 text-[#20263A] placeholder:text-[#9AA0B2] focus:outline-none focus:bg-white focus:border-[#20263A] focus:ring-2 focus:ring-[#20263A]/10 transition-all text-sm font-medium"
                                                     value={formData.name}
                                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-400 ml-1">Work Email</label>
-                                            <div className="relative">
-                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 z-10" />
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-[#5E6577] uppercase tracking-wider ml-1 block">
+                                                Work Email
+                                            </label>
+                                            <div className="relative group">
+                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors z-10" />
                                                 <input
                                                     type="email"
                                                     required
                                                     placeholder="john@company.com"
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
+                                                    className="w-full bg-[#F8F8FA] border border-[#E3E5EC] rounded-xl py-3.5 pl-12 pr-4 text-[#20263A] placeholder:text-[#9AA0B2] focus:outline-none focus:bg-white focus:border-[#20263A] focus:ring-2 focus:ring-[#20263A]/10 transition-all text-sm font-medium"
                                                     value={formData.email}
                                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-400 ml-1">Phone Number</label>
-                                            <div onFocus={requestLocationAccess} onClick={requestLocationAccess}>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-[#5E6577] uppercase tracking-wider ml-1 block">
+                                                Phone Number
+                                            </label>
+                                            <div onFocus={requestLocationAccess} onClick={requestLocationAccess} className="group">
                                                 <PhoneInput
                                                     key={detectedCountry}
                                                     defaultCountry={detectedCountry}
                                                     value={formData.phone}
                                                     onChange={(phone) => setFormData({ ...formData, phone })}
                                                     className="w-full"
-                                                    inputClassName="!w-full !bg-white/5 !border-white/10 !rounded-xl !py-7 !pl-12 !text-white !placeholder:text-gray-600 !focus:outline-none !focus:ring-2 !focus:ring-blue-500/50 !transition-all !h-auto !text-base"
+                                                    inputClassName="!w-full !bg-[#F8F8FA] !border-[#E3E5EC] !rounded-xl !py-3.5 !pl-12 !text-[#20263A] !placeholder:text-[#9AA0B2] !focus:outline-none !focus:bg-white !focus:border-[#20263A] !focus:ring-2 !focus:ring-[#20263A]/10 !transition-all !h-auto !text-sm !font-medium"
                                                     countrySelectorStyleProps={{
                                                         buttonClassName: "!bg-transparent !border-none !left-2 !absolute !top-1/2 !-translate-y-1/2 !flex !items-center !justify-center !z-20",
                                                     }}
@@ -146,30 +158,34 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-400 ml-1">Company Name</label>
-                                            <div className="relative">
-                                                <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-[#5E6577] uppercase tracking-wider ml-1 block">
+                                                Company Name
+                                            </label>
+                                            <div className="relative group">
+                                                <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors z-10" />
                                                 <input
                                                     type="text"
                                                     required
                                                     placeholder="Your Company"
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                    className="w-full bg-[#F8F8FA] border border-[#E3E5EC] rounded-xl py-3.5 pl-12 pr-4 text-[#20263A] placeholder:text-[#9AA0B2] focus:outline-none focus:bg-white focus:border-[#20263A] focus:ring-2 focus:ring-[#20263A]/10 transition-all text-sm font-medium"
                                                     value={formData.company}
                                                     onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-400 ml-1">Role for Hiring</label>
-                                            <div className="relative">
-                                                <Target className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-[#5E6577] uppercase tracking-wider ml-1 block">
+                                                Role for Hiring
+                                            </label>
+                                            <div className="relative group">
+                                                <Target className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors z-10" />
                                                 <input
                                                     type="text"
                                                     required
                                                     placeholder="e.g. Senior AI Engineer"
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                    className="w-full bg-[#F8F8FA] border border-[#E3E5EC] rounded-xl py-3.5 pl-12 pr-4 text-[#20263A] placeholder:text-[#9AA0B2] focus:outline-none focus:bg-white focus:border-[#20263A] focus:ring-2 focus:ring-[#20263A]/10 transition-all text-sm font-medium"
                                                     value={formData.roleForHiring}
                                                     onChange={(e) => setFormData({ ...formData, roleForHiring: e.target.value })}
                                                 />
@@ -179,28 +195,36 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                                         <button
                                             type="submit"
                                             disabled={loading || !formData.name || !formData.email || !formData.phone || !formData.company || !formData.roleForHiring}
-                                            className="w-full py-5 bg-gradient-to-r from-blue-600 to-teal-500 text-white font-bold rounded-2xl mt-4 flex items-center justify-center group disabled:opacity-50 transition-all shadow-xl shadow-blue-500/20"
+                                            className="w-full py-4 bg-[#20263A] hover:bg-[#151A2D] text-white font-bold rounded-xl mt-5 flex items-center justify-center gap-2 group disabled:opacity-50 transition-all shadow-[0_6px_20px_rgba(32,38,58,0.18)] hover:-translate-y-0.5 active:translate-y-0 text-sm cursor-pointer"
                                         >
                                             {loading ? (
-                                                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                             ) : (
                                                 <>
-                                                    Continue to Calibration
-                                                    <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                                    Continue to Demo Scheduling
+                                                    <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-1 transition-transform" />
                                                 </>
                                             )}
                                         </button>
                                     </form>
                                 </>
                             ) : (
-                                <div className="relative w-full h-[600px] md:h-[800px] overflow-y-auto rounded-3xl bg-white mt-4 border-8 border-[#0c0f16] shadow-2xl custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
-                                    <iframe
-                                        src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
-                                        className="w-full h-[1200px] border-none"
-                                        scrolling="no"
-                                        title="Booking Calendar"
-                                        style={{ marginTop: '-45px', marginBottom: '-115px', display: 'block' }}
-                                    />
+                                <div>
+                                    <div className="flex items-center justify-between pb-4 border-b border-[#E3E5EC] mb-3 px-1">
+                                        <div>
+                                            <h4 className="text-lg font-bold text-[#20263A]">Select Your Demo Time</h4>
+                                            <p className="text-xs text-[#5E6577]">Choose a 15-minute slot that works best for your team.</p>
+                                        </div>
+                                    </div>
+                                    <div className="relative w-full h-[600px] md:h-[750px] overflow-y-auto rounded-2xl bg-white border border-[#E3E5EC] shadow-sm custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
+                                        <iframe
+                                            src={`https://cal.com/sravya-dhadi-ccq7oo/technical-calibration-call?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}&embed=true`}
+                                            className="w-full h-[1200px] border-none"
+                                            scrolling="no"
+                                            title="Booking Calendar"
+                                            style={{ marginTop: '-45px', marginBottom: '-115px', display: 'block' }}
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>

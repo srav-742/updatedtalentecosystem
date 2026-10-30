@@ -4,13 +4,14 @@ const BlogThemeContext = createContext();
 
 export function BlogThemeProvider({ children }) {
     const [isDark, setIsDark] = useState(() => {
-        const saved = localStorage.getItem('blog-theme');
-        // Default to dark mode
-        return saved !== null ? saved === 'dark' : true;
+        const saved = localStorage.getItem('blog-theme-v2');
+        if (saved !== null) return saved === 'dark';
+        // Default to Light mode to match the homepage Navy & Gold theme
+        return false;
     });
 
     useEffect(() => {
-        localStorage.setItem('blog-theme', isDark ? 'dark' : 'light');
+        localStorage.setItem('blog-theme-v2', isDark ? 'dark' : 'light');
     }, [isDark]);
 
     const toggleTheme = () => setIsDark(prev => !prev);

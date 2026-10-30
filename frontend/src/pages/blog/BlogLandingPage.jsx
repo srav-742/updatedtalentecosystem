@@ -39,79 +39,87 @@ export default function BlogLandingPage() {
     const [newsMsg, setNewsMsg] = useState({ text: '', type: '' });
     const [allPostsCache, setAllPostsCache] = useState([]);
 
-    // ─── Theme-aware color tokens ───
+    // ─── Theme-aware color tokens (Homepage Navy & Gold Theme) ───
     const t = isDark ? {
-        pageBg: '#0c0f16',
-        pageText: '#e2e8f0',
-        cardBg: '#151922',
-        cardBorder: '#1e2535',
-        cardHoverShadow: 'rgba(59,130,246,0.12)',
-        navBg: '#151922',
-        navBorder: '#1e2535',
+        pageBg: '#0e121e',
+        pageText: '#cbd5e1',
+        cardBg: '#151928',
+        cardBorder: '#232b40',
+        cardHoverShadow: 'rgba(201,154,69,0.15)',
+        navBg: '#151928',
+        navBorder: '#232b40',
         tabText: '#94a3b8',
-        tabActiveText: '#60a5fa',
-        tabHoverText: '#60a5fa',
-        headingText: '#f1f5f9',
+        tabActiveText: '#E6BC6B',
+        tabActiveBg: 'rgba(201,154,69,0.15)',
+        tabHoverText: '#E6BC6B',
+        headingText: '#f8fafc',
         subText: '#94a3b8',
         mutedText: '#64748b',
-        accentText: '#60a5fa',
-        accentHover: '#3b82f6',
-        borderColor: '#1e2535',
-        sectionBorder: '#1e2535',
-        skeletonBg: '#1e2535',
-        skeletonShimmer: 'linear-gradient(90deg, #1e2535 0%, #2a3348 50%, #1e2535 100%)',
-        emptyBg: '#151922',
-        emptyBorder: '#1e2535',
-        paginationBorder: '#1e2535',
-        paginationBg: '#151922',
+        accentText: '#E6BC6B',
+        accentHover: '#D5A54F',
+        borderColor: '#232b40',
+        sectionBorder: '#232b40',
+        skeletonBg: '#1c2235',
+        skeletonShimmer: 'linear-gradient(90deg, #1c2235 0%, #28324e 50%, #1c2235 100%)',
+        emptyBg: '#151928',
+        emptyBorder: '#232b40',
+        paginationBorder: '#232b40',
+        paginationBg: '#151928',
         paginationText: '#94a3b8',
-        paginationHoverBorder: '#3b82f6',
-        paginationHoverText: '#60a5fa',
-        authorBg: '#1e2535',
-        authorBorder: '#2a3348',
-        authorText: '#e2e8f0',
-        footerBorder: '#1e2535',
-        readMoreText: '#60a5fa',
+        paginationHoverBorder: '#E6BC6B',
+        paginationHoverText: '#E6BC6B',
+        authorBg: '#1c2235',
+        authorBorder: '#28324e',
+        authorText: '#f8fafc',
+        footerBorder: '#232b40',
+        readMoreText: '#E6BC6B',
         descText: '#94a3b8',
         metaText: '#64748b',
         metaDot: '#334155',
-        placeholderGradient: 'linear-gradient(135deg, #1e3a5f, #1e1b4b)',
+        badgeBg: 'rgba(201,154,69,0.18)',
+        badgeBorder: 'rgba(201,154,69,0.35)',
+        badgeText: '#E6BC6B',
+        placeholderGradient: 'linear-gradient(135deg, #1e2438, #2a1f10)',
     } : {
-        pageBg: '#ffffff',
-        pageText: '#1a1a2e',
-        cardBg: '#ffffff',
-        cardBorder: '#eef0f4',
-        cardHoverShadow: 'rgba(0,0,0,0.08)',
-        navBg: '#e8edf6',
-        navBorder: 'transparent',
-        tabText: '#475569',
-        tabActiveText: '#2563eb',
-        tabHoverText: '#2563eb',
-        headingText: '#0f172a',
-        subText: '#64748b',
-        mutedText: '#94a3b8',
-        accentText: '#2563eb',
-        accentHover: '#1d4ed8',
-        borderColor: '#eef0f4',
-        sectionBorder: '#e5e7eb',
-        skeletonBg: '#f1f5f9',
-        skeletonShimmer: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)',
-        emptyBg: '#ffffff',
-        emptyBorder: '#eef0f4',
-        paginationBorder: '#e2e5ea',
-        paginationBg: '#ffffff',
-        paginationText: '#4a5568',
-        paginationHoverBorder: '#2563eb',
-        paginationHoverText: '#2563eb',
-        authorBg: '#eff6ff',
-        authorBorder: '#dbeafe',
-        authorText: '#334155',
-        footerBorder: '#f1f5f9',
-        readMoreText: '#2563eb',
-        descText: '#64748b',
-        metaText: '#94a3b8',
-        metaDot: '#d1d5db',
-        placeholderGradient: 'linear-gradient(135deg, #dbeafe, #e0e7ff)',
+        pageBg: '#F8F8FA',
+        pageText: '#252A3D',
+        cardBg: '#FFFFFF',
+        cardBorder: '#E3E5EC',
+        cardHoverShadow: 'rgba(32, 38, 58, 0.08)',
+        navBg: '#FFFFFF',
+        navBorder: '#E3E5EC',
+        tabText: '#5E6577',
+        tabActiveText: '#20263A',
+        tabActiveBg: '#F4EBDD',
+        tabHoverText: '#20263A',
+        headingText: '#20263A',
+        subText: '#5E6577',
+        mutedText: '#8C93A4',
+        accentText: '#C99A45',
+        accentHover: '#B28532',
+        borderColor: '#E3E5EC',
+        sectionBorder: '#E3E5EC',
+        skeletonBg: '#F1F2F6',
+        skeletonShimmer: 'linear-gradient(90deg, #F1F2F6 0%, #E2E4EA 50%, #F1F2F6 100%)',
+        emptyBg: '#FFFFFF',
+        emptyBorder: '#E3E5EC',
+        paginationBorder: '#E3E5EC',
+        paginationBg: '#FFFFFF',
+        paginationText: '#5E6577',
+        paginationHoverBorder: '#20263A',
+        paginationHoverText: '#20263A',
+        authorBg: '#F8F8FA',
+        authorBorder: '#E3E5EC',
+        authorText: '#20263A',
+        footerBorder: '#E3E5EC',
+        readMoreText: '#20263A',
+        descText: '#5E6577',
+        metaText: '#8C93A4',
+        metaDot: '#CBD0DD',
+        badgeBg: '#F4EBDD',
+        badgeBorder: '#E6BC6B',
+        badgeText: '#8C6B28',
+        placeholderGradient: 'linear-gradient(135deg, #20263A, #2f3854)',
     };
 
     // Fetch categories on mount
@@ -278,25 +286,25 @@ export default function BlogLandingPage() {
         const categoryLabel = getCategoryDisplayLabel(post.category);
         return (
             <Link key={post._id} to={`/blog/${post.slug}`} state={{ post }} className="group flex flex-col no-underline" style={{ color: t.pageText }}>
-                <div style={{ borderRadius: '1.5rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'box-shadow 0.3s ease' }}>
+                <div style={{ borderRadius: '1.25rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, background: t.cardBg, position: 'relative', boxShadow: '0 4px 15px rgba(32,38,58,0.04)', transition: 'box-shadow 0.3s ease, border-color 0.3s ease' }} className="group-hover:border-[#C99A45]">
                     {post.coverImage ? (
                         <>
                             <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
-                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', minHeight: '180px', background: t.placeholderGradient, color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.05)' }}>
+                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', minHeight: '180px', background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                                 <BookOpen size={48} />
                             </div>
                         </>
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.05)' }}>
+                        <div className="w-full h-full flex items-center justify-center" style={{ minHeight: '180px', background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                             <BookOpen size={48} />
                         </div>
                     )}
                 </div>
                 <div className="mt-3.5 space-y-1.5">
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
                         {categoryLabel}
                     </span>
-                    <h3 className="group-hover:!text-blue-500 leading-snug transition-colors duration-200 line-clamp-2" style={{ fontSize: '1rem', fontWeight: 800, color: t.headingText }}>
+                    <h3 className="group-hover:!text-[#C99A45] leading-snug transition-colors duration-200 line-clamp-2" style={{ fontSize: '1rem', fontWeight: 800, color: t.headingText }}>
                         {post.title}
                     </h3>
                 </div>
@@ -309,14 +317,14 @@ export default function BlogLandingPage() {
         const sidePosts = featured ? posts.slice(0, 2) : posts.slice(1, 3);
 
         return (
-            <div className="space-y-20 mt-8">
+            <div className="space-y-16 mt-8">
                 {/* ─── LATEST POSTS SECTION ─── */}
                 <div className="space-y-6">
                     <div className="flex justify-between items-end pb-3" style={{ borderBottom: `1px solid ${t.sectionBorder}` }}>
                         <h2 style={{ fontSize: '1.875rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText }}>Latest posts</h2>
                         <button 
                             onClick={() => handleCategoryClick('all')} 
-                            className="font-semibold text-sm flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                            className="font-bold text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer transition-colors"
                             style={{ color: t.accentText }}
                         >
                             View all posts <ArrowRight size={14} />
@@ -327,28 +335,28 @@ export default function BlogLandingPage() {
                         {/* Main Post (Left side, big) */}
                         {mainPost && (
                             <Link to={`/blog/${mainPost.slug}`} state={{ post: mainPost }} className="group flex flex-col no-underline">
-                                <div style={{ borderRadius: '1rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                <div style={{ borderRadius: '1.25rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: t.cardBg, position: 'relative', boxShadow: '0 4px 18px rgba(32,38,58,0.06)' }} className="group-hover:border-[#C99A45]">
                                     {mainPost.coverImage ? (
                                         <>
                                             <img src={mainPost.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
-                                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                            <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                                                 <BookOpen size={64} />
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                        <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                                             <BookOpen size={64} />
                                         </div>
                                     )}
                                 </div>
                                 <div className="mt-4 space-y-2">
-                                    <span style={{ fontSize: '11px', fontWeight: 700, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 800, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
                                         {getCategoryDisplayLabel(mainPost.category)}
                                     </span>
-                                    <h3 className="group-hover:!text-blue-500 leading-tight tracking-tight transition-colors duration-200" style={{ fontSize: 'clamp(1.5rem, 3vw, 1.75rem)', fontWeight: 900, color: t.headingText }}>
+                                    <h3 className="group-hover:!text-[#C99A45] leading-tight tracking-tight transition-colors duration-200" style={{ fontSize: 'clamp(1.5rem, 3vw, 1.85rem)', fontWeight: 900, color: t.headingText }}>
                                         {mainPost.title}
                                     </h3>
-                                    <p style={{ color: t.subText, fontSize: '0.9rem', lineHeight: 1.65 }} className="line-clamp-3">
+                                    <p style={{ color: t.subText, fontSize: '0.95rem', lineHeight: 1.65 }} className="line-clamp-3">
                                         {mainPost.subtitle || (mainPost.content ? mainPost.content.substring(0, 160).replace(/[#*`_]/g, '') + '...' : '')}
                                     </p>
                                 </div>
@@ -359,25 +367,25 @@ export default function BlogLandingPage() {
                         <div className="flex flex-col gap-6 justify-start">
                             {sidePosts.map((post) => (
                                 <Link key={post._id} to={`/blog/${post.slug}`} state={{ post }} className="group flex flex-col no-underline">
-                                    <div style={{ borderRadius: '0.75rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: isDark ? t.cardBg : '#f8fafc', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                    <div style={{ borderRadius: '1rem', overflow: 'hidden', border: `1px solid ${t.cardBorder}`, aspectRatio: '1200/630', background: t.cardBg, position: 'relative', boxShadow: '0 4px 15px rgba(32,38,58,0.05)' }} className="group-hover:border-[#C99A45]">
                                         {post.coverImage ? (
                                             <>
                                                 <img src={post.coverImage} alt="" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
-                                                <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                                <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                                                     <BookOpen size={32} />
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.05)' }}>
+                                            <div className="w-full h-full flex items-center justify-center" style={{ background: t.placeholderGradient, color: 'rgba(255,255,255,0.1)' }}>
                                                 <BookOpen size={32} />
                                             </div>
                                         )}
                                     </div>
                                     <div className="mt-3.5 space-y-1.5">
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
+                                        <span style={{ fontSize: '10px', fontWeight: 800, color: t.accentText, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>
                                             {getCategoryDisplayLabel(post.category)}
                                         </span>
-                                        <h4 className="group-hover:!text-blue-500 leading-snug transition-colors duration-200 line-clamp-2" style={{ fontSize: '1rem', fontWeight: 800, color: t.headingText }}>
+                                        <h4 className="group-hover:!text-[#C99A45] leading-snug transition-colors duration-200 line-clamp-2" style={{ fontSize: '1rem', fontWeight: 800, color: t.headingText }}>
                                             {post.title}
                                         </h4>
                                     </div>
@@ -391,10 +399,10 @@ export default function BlogLandingPage() {
                 {technicalAssessmentsPosts.length > 0 && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-end pb-3" style={{ borderBottom: `1px solid ${t.sectionBorder}` }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: t.headingText }}>Interview Prep</h2>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText }}>Interview Prep</h2>
                             <button 
                                 onClick={() => handleCategoryClick('technical-assessments')} 
-                                className="font-semibold text-sm flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                                className="font-bold text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
                                 style={{ color: t.accentText }}
                             >
                                 View more posts <ArrowRight size={14} />
@@ -410,10 +418,10 @@ export default function BlogLandingPage() {
                 {aiHiringPosts.length > 0 && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-end pb-3" style={{ borderBottom: `1px solid ${t.sectionBorder}` }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: t.headingText }}>Tech Recruiting</h2>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText }}>Tech Recruiting</h2>
                             <button 
                                 onClick={() => handleCategoryClick('ai-hiring')} 
-                                className="font-semibold text-sm flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                                className="font-bold text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
                                 style={{ color: t.accentText }}
                             >
                                 View more posts <ArrowRight size={14} />
@@ -429,10 +437,10 @@ export default function BlogLandingPage() {
                 {engineeringHiringPosts.length > 0 && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-end pb-3" style={{ borderBottom: `1px solid ${t.sectionBorder}` }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: t.headingText }}>Engineering</h2>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText }}>Engineering</h2>
                             <button 
                                 onClick={() => handleCategoryClick('engineering-hiring')} 
-                                className="font-semibold text-sm flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                                className="font-bold text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
                                 style={{ color: t.accentText }}
                             >
                                 View more posts <ArrowRight size={14} />
@@ -444,14 +452,14 @@ export default function BlogLandingPage() {
                     </div>
                 )}
 
-                {/* ─── PRODUCT UPDATES (CODESIGNAL UPDATES) ─── */}
+                {/* ─── PRODUCT UPDATES ─── */}
                 {productUpdatesPosts.length > 0 && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-end pb-3" style={{ borderBottom: `1px solid ${t.sectionBorder}` }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: t.headingText }}>Product Updates</h2>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText }}>Product Updates</h2>
                             <button 
                                 onClick={() => handleCategoryClick('product-updates')} 
-                                className="font-semibold text-sm flex items-center gap-1 bg-transparent border-none cursor-pointer"
+                                className="font-bold text-sm flex items-center gap-1.5 bg-transparent border-none cursor-pointer"
                                 style={{ color: t.accentText }}
                             >
                                 View more posts <ArrowRight size={14} />
@@ -467,10 +475,10 @@ export default function BlogLandingPage() {
     };
 
     return (
-        <div style={{ minHeight: '100vh', fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif", background: t.pageBg, color: t.pageText, paddingTop: '72px', paddingBottom: '4rem', transition: 'background 0.4s ease, color 0.4s ease' }}>
+        <div style={{ minHeight: '100vh', fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif", background: t.pageBg, color: t.pageText, paddingTop: '76px', paddingBottom: '5rem', transition: 'background 0.3s ease, color 0.3s ease' }}>
             <SEO 
-                title="Blog | Hire1Percent" 
-                description="Insights, updates, and best practices for AI-driven recruitment and technical hiring." 
+                title="Blog — Engineering Assessments & Recruitment | Hire1Percent" 
+                description="Insights, code defense benchmarks, anti-cheat authorship analysis, and practical technical hiring guides from Hire1Percent." 
                 canonicalUrl="/blog" 
             />
             <style>{`
@@ -484,37 +492,37 @@ export default function BlogLandingPage() {
                     color: inherit;
                     display: flex;
                     flex-direction: column;
-                    border-radius: 16px;
+                    border-radius: 20px;
                     overflow: hidden;
                     background: ${t.cardBg};
                     border: 1px solid ${t.cardBorder};
-                    transition: box-shadow 0.3s ease, transform 0.3s ease;
+                    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
                 }
                 .blog-card-link:hover {
-                    box-shadow: 0 8px 32px ${t.cardHoverShadow};
+                    box-shadow: 0 12px 35px ${t.cardHoverShadow};
+                    border-color: ${isDark ? '#E6BC6B' : '#C99A45'};
                     transform: translateY(-3px);
                 }
-                .blog-card-link:hover .blog-card-title { color: ${t.accentText} !important; }
+                .blog-card-link:hover .blog-card-title { color: ${isDark ? '#E6BC6B' : '#C99A45'} !important; }
                 .blog-card-link:hover .blog-card-img { transform: scale(1.04); }
                 .cat-tab-btn {
                     position: relative;
-                    padding: 14px 24px;
-                    font-size: 14px;
-                    font-weight: 500;
-                    background: none;
+                    padding: 12px 20px;
+                    font-size: 13px;
                     border: none;
                     cursor: pointer;
                     white-space: nowrap;
-                    transition: color 0.2s ease;
+                    transition: all 0.2s ease;
+                    border-radius: 10px;
                 }
                 .cat-tab-btn:hover { color: ${t.tabHoverText} !important; }
                 .page-btn-themed {
                     padding: 10px 22px;
-                    border-radius: 10px;
+                    border-radius: 12px;
                     border: 1px solid ${t.paginationBorder};
                     background: ${t.paginationBg};
                     font-size: 13px;
-                    font-weight: 600;
+                    font-weight: 700;
                     cursor: pointer;
                     transition: all 0.2s ease;
                     color: ${t.paginationText};
@@ -522,7 +530,8 @@ export default function BlogLandingPage() {
                 .page-btn-themed:hover:not(:disabled) {
                     border-color: ${t.paginationHoverBorder};
                     color: ${t.paginationHoverText};
-                    box-shadow: 0 2px 8px ${isDark ? 'rgba(59,130,246,0.15)' : 'rgba(37,99,235,0.08)'};
+                    background: ${isDark ? '#232b40' : '#F4EBDD'};
+                    box-shadow: 0 4px 14px rgba(32, 38, 58, 0.08);
                 }
                 .page-btn-themed:disabled {
                     opacity: 0.4;
@@ -533,49 +542,64 @@ export default function BlogLandingPage() {
                     align-items: center;
                     gap: 6px;
                     font-size: 13px;
-                    font-weight: 600;
+                    font-weight: 700;
                     color: ${t.readMoreText};
-                    transition: gap 0.2s ease;
+                    transition: gap 0.2s ease, color 0.2s ease;
                 }
-                .blog-card-link:hover .read-more-link { gap: 10px; }
+                .blog-card-link:hover .read-more-link { 
+                    gap: 10px; 
+                    color: ${isDark ? '#E6BC6B' : '#C99A45'};
+                }
                 .theme-toggle-btn {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 12px;
-                    border: 1px solid ${isDark ? '#2a3348' : '#d1d5db'};
-                    background: ${isDark ? '#1e2535' : '#ffffff'};
-                    color: ${isDark ? '#fbbf24' : '#6366f1'};
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 10px;
+                    border: 1px solid ${isDark ? '#28324e' : '#E3E5EC'};
+                    background: ${isDark ? '#1c2235' : '#F8F8FA'};
+                    color: ${isDark ? '#E6BC6B' : '#20263A'};
                     cursor: pointer;
-                    transition: all 0.3s ease;
+                    transition: all 0.2s ease;
                     flex-shrink: 0;
                 }
                 .theme-toggle-btn:hover {
-                    background: ${isDark ? '#2a3348' : '#f1f5f9'};
-                    border-color: ${isDark ? '#3b82f6' : '#6366f1'};
-                    transform: rotate(15deg) scale(1.08);
+                    background: ${isDark ? '#28324e' : '#E3E5EC'};
+                    transform: scale(1.05);
                 }
             `}</style>
 
+            {/* ═══════════ BLOG HERO INTRO ═══════════ */}
+            <div style={{ maxWidth: '1340px', margin: '0 auto', padding: '2rem 24px 0.5rem', textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', background: isDark ? 'rgba(201,154,69,0.18)' : '#F4EBDD', border: `1px solid ${isDark ? 'rgba(201,154,69,0.35)' : 'rgba(230,188,107,0.5)'}`, color: isDark ? '#E6BC6B' : '#8C6B28', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '14px' }}>
+                    Hire1Percent Research &amp; Insights
+                </div>
+                <h1 style={{ fontSize: 'clamp(2.1rem, 4.2vw, 3.4rem)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.15, color: t.headingText, margin: '0 0 14px' }}>
+                    The Technical Hiring <span style={{ color: isDark ? '#E6BC6B' : '#C18D36' }}>Journal</span>
+                </h1>
+                <p style={{ fontSize: 'clamp(0.95rem, 1.8vw, 1.125rem)', color: t.subText, maxWidth: '640px', margin: '0 auto', lineHeight: 1.65 }}>
+                    Engineering assessments, AI proctoring intelligence, code defense benchmarks, and technical recruitment strategies.
+                </p>
+            </div>
+
             {/* ═══════════ CATEGORY NAVIGATION BAR ═══════════ */}
-            <div style={{ maxWidth: '1340px', margin: '0 auto', padding: '0 24px' }}>
+            <div style={{ maxWidth: '1340px', margin: '0 auto', padding: '1.25rem 24px 0' }}>
                 <nav style={{
                     background: t.navBg,
                     border: `1px solid ${t.navBorder}`,
-                    borderRadius: '12px',
-                    marginTop: '1.5rem',
-                    padding: '0 8px',
+                    borderRadius: '16px',
+                    padding: '6px 10px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     overflowX: 'auto',
                     scrollbarWidth: 'none',
                     msOverflowStyle: 'none',
-                    gap: '4px',
+                    gap: '6px',
+                    boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.25)' : '0 4px 20px rgba(32,38,58,0.04)',
                 }} className="blog-cat-scroll">
-                    <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '4px' }}>
                         {navItems.map((item) => {
                             const active = isTabActive(item.slug);
                             return (
@@ -585,10 +609,10 @@ export default function BlogLandingPage() {
                                     className="cat-tab-btn"
                                     style={{
                                         color: active ? t.tabActiveText : t.tabText,
-                                        fontWeight: active ? 600 : 500,
+                                        fontWeight: active ? 700 : 500,
+                                        background: active ? t.tabActiveBg : 'transparent',
                                         flex: 1,
                                         textAlign: 'center',
-                                        padding: '16px 12px',
                                     }}
                                 >
                                     {item.name}
@@ -613,9 +637,9 @@ export default function BlogLandingPage() {
 
                 {/* ═══════════ LOADING SKELETONS ═══════════ */}
                 {loading && !hasCachedData() ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px', marginTop: '4rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px', marginTop: '3.5rem' }}>
                         {[1, 2, 3, 4, 5, 6].map(i => (
-                            <div key={i} style={{ borderRadius: '16px', overflow: 'hidden', background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
+                            <div key={i} style={{ borderRadius: '20px', overflow: 'hidden', background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
                                 <div style={{ height: '200px', background: t.skeletonShimmer, backgroundSize: '200% 100%', animation: 'shimmer 1.5s ease-in-out infinite' }} />
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
                                     <div style={{ height: '12px', width: '35%', borderRadius: '6px', background: t.skeletonBg, marginBottom: '14px' }} />
@@ -627,12 +651,10 @@ export default function BlogLandingPage() {
                         ))}
                     </div>
                 ) : activeCategory === '' ? (
-                    //curated Home / "The Latest" tab view
                     renderLatestTab()
                 ) : (
-                    //Standard Category / All Posts view
                     <>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '3rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${t.sectionBorder}` }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '2.5rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: `1px solid ${t.sectionBorder}` }}>
                             <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: t.headingText, margin: 0 }}>
                                 {activeCategoryLabel()}
                             </h2>
@@ -642,7 +664,7 @@ export default function BlogLandingPage() {
                             {posts.map((post) => (
                                 <Link key={post._id} to={`/blog/${post.slug}`} state={{ post }} className="blog-card-link">
                                     {/* Image */}
-                                    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '16px 16px 0 0' }}>
+                                    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '20px 20px 0 0' }}>
                                         {post.coverImage ? (
                                             <>
                                                 <img
@@ -657,29 +679,33 @@ export default function BlogLandingPage() {
                                                     onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }}
                                                 />
                                                 <div style={{ display: 'none', width: '100%', height: '200px', alignItems: 'center', justifyContent: 'center', background: t.placeholderGradient }}>
-                                                    <BookOpen size={36} style={{ color: isDark ? '#60a5fa' : '#93c5fd' }} />
+                                                    <BookOpen size={36} style={{ color: isDark ? '#E6BC6B' : '#C99A45' }} />
                                                 </div>
                                             </>
                                         ) : (
                                             <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.placeholderGradient }}>
-                                                <BookOpen size={36} style={{ color: isDark ? '#60a5fa' : '#93c5fd' }} />
+                                                <BookOpen size={36} style={{ color: isDark ? '#E6BC6B' : '#C99A45' }} />
                                             </div>
                                         )}
-                                        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-[#0c0f16]/80 border border-white/10 text-blue-400 text-xs font-bold tracking-wider backdrop-blur-md">
+                                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider backdrop-blur-md shadow-sm" style={{
+                                            background: isDark ? 'rgba(14, 18, 30, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                                            border: `1px solid ${isDark ? 'rgba(230, 188, 107, 0.35)' : '#E3E5EC'}`,
+                                            color: isDark ? '#E6BC6B' : '#8C6B28'
+                                        }}>
                                             {getCategoryDisplayLabel(post.category)}
                                         </span>
                                     </div>
 
                                     {/* Body */}
                                     <div style={{ padding: '1.25rem 1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.accentText, marginBottom: '10px', display: 'block' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.accentText, marginBottom: '8px', display: 'block' }}>
                                             {getCategoryDisplayLabel(post.category)}
                                         </span>
 
                                         {/* Title */}
                                         <h3 className="blog-card-title" style={{
-                                            fontSize: '1.05rem',
-                                            fontWeight: 700,
+                                            fontSize: '1.1rem',
+                                            fontWeight: 800,
                                             lineHeight: 1.4,
                                             color: t.headingText,
                                             marginBottom: '8px',
@@ -695,7 +721,7 @@ export default function BlogLandingPage() {
 
                                         {/* Description */}
                                         <p style={{
-                                            fontSize: '0.85rem',
+                                            fontSize: '0.875rem',
                                             color: t.descText,
                                             lineHeight: 1.65,
                                             display: '-webkit-box',
@@ -710,11 +736,11 @@ export default function BlogLandingPage() {
 
                                         {/* Meta: date + reading time */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
-                                            <span style={{ fontSize: '12px', color: t.metaText, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ fontSize: '12px', color: t.metaText, display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
                                                 <Calendar size={11} /> {formatDate(post.publishedAt)}
                                             </span>
                                             <span style={{ color: t.metaDot }}>·</span>
-                                            <span style={{ fontSize: '12px', color: t.metaText, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ fontSize: '12px', color: t.metaText, display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
                                                 <Clock size={11} /> {calculateReadTime(post.content)}
                                             </span>
                                         </div>
@@ -725,18 +751,17 @@ export default function BlogLandingPage() {
                                                 <div 
                                                     className="w-[30px] h-[30px] rounded-lg overflow-hidden flex items-center justify-center shrink-0"
                                                     style={{ 
-                                                        background: isDark ? '#0c0f16' : '#f8fafc',
-                                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`
+                                                        background: '#20263A',
+                                                        border: '1px solid #D4AC5F'
                                                     }}
                                                 >
                                                     <img 
-                                                        src="/logo-icon.webp" 
+                                                        src="/logo.png" 
                                                         alt="Hire1Percent" 
-                                                        onError={(e) => { e.currentTarget.src = '/logo.png'; }}
-                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transform: 'scale(1.1)' }}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                     />
                                                 </div>
-                                                <span style={{ fontSize: '12px', fontWeight: 600, color: t.authorText }}>Hire1Percent Team</span>
+                                                <span style={{ fontSize: '12px', fontWeight: 700, color: t.authorText }}>Hire1Percent Team</span>
                                             </div>
 
                                             <span className="read-more-link">
@@ -746,7 +771,6 @@ export default function BlogLandingPage() {
                                     </div>
                                 </Link>
                             ))}
-
                         </div>
 
                         {/* Empty State */}
@@ -764,7 +788,7 @@ export default function BlogLandingPage() {
                                 <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1} className="page-btn-themed">
                                     Previous
                                 </button>
-                                <span style={{ fontSize: '13px', fontWeight: 600, color: t.mutedText }}>Page {page} of {totalPages}</span>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: t.mutedText }}>Page {page} of {totalPages}</span>
                                 <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page === totalPages} className="page-btn-themed">
                                     Next
                                 </button>

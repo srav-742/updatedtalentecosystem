@@ -229,8 +229,6 @@ const SignupPage = () => {
             };
 
             // 4. Save to MongoDB via BOTH endpoints for maximum reliability:
-            //    a) POST /api/signup — saves hashed password + UID (the critical missing piece)
-            //    b) PUT /api/profile/:uid — saves full profile with upsert
             const [, savedProfile] = await Promise.all([
                 // 4a. Backend signup — persists password hash + UID to MongoDB
                 withRetry(async () => {
@@ -253,8 +251,6 @@ const SignupPage = () => {
                     3, 'saveProfile'
                 )
             ]).catch(err => {
-                // If backend signup fails (e.g., user already exists), that's OK
-                // as long as profile save succeeded
                 console.warn('[SIGNUP] Parallel save partial failure:', err.message);
                 return [null, null];
             });
@@ -279,7 +275,7 @@ const SignupPage = () => {
                 console.warn('[SIGNUP] Gateway session warning:', err.message);
             });
 
-            // 4e. Trigger backend branded verification email (runs alongside Firebase's native verification)
+            // 4e. Trigger backend branded verification email
             axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }, {
                 headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
             }).catch(err => {
@@ -325,7 +321,7 @@ const SignupPage = () => {
         try {
             const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
-            // 1.5 Check for role mismatch if existing profile in DB
+            // Check for role mismatch if existing profile in DB
             const existingProfile = await getUserProfile(normalizedEmail).catch(() => null);
             if (existingProfile && existingProfile.role) {
                 const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
@@ -339,7 +335,7 @@ const SignupPage = () => {
                 }
             }
 
-            // 2. Prepare Profile
+            // Prepare Profile
             const newProfile = {
                 uid: googleUser.uid,
                 name: googleUser.displayName || normalizedEmail.split('@')[0],
@@ -350,7 +346,7 @@ const SignupPage = () => {
                 isOptimistic: true
             };
 
-            // 3. Save to MongoDB — call BOTH endpoints in parallel for complete resilience
+            // Save to MongoDB — call BOTH endpoints in parallel for complete resilience
             const [savedProfile] = await Promise.all([
                 withRetry(
                     () => saveUserProfile(googleUser.uid, newProfile),
@@ -378,7 +374,7 @@ const SignupPage = () => {
                 })
             ]);
 
-            // 4. Store & Navigate
+            // Store & Navigate
             localStorage.setItem('user', JSON.stringify(newProfile));
 
             // Track GA4 sign_up conversion event (zero PII)
@@ -432,67 +428,72 @@ const SignupPage = () => {
         }
     };
 
-
-
     const renderRoleSelection = () => (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="max-w-4xl mx-auto text-center"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="max-w-4xl mx-auto text-center py-6"
         >
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">Choose Your Path</h1>
-            <p className="text-gray-400 mb-12 text-lg">Are you looking to hire top talent or start your dream career?</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 text-[#C99A45] text-xs font-bold uppercase tracking-wider mb-4">
+                Get Started
+            </div>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-[#20263A] tracking-tight mb-3">Choose Your Path</h1>
+            <p className="text-[#5E6577] mb-8 text-base md:text-lg max-w-md mx-auto leading-relaxed">
+                Are you looking to hire top talent or start your dream career?
+            </p>
 
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                 {/* Recruiter Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(59, 130, 246, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
                     onClick={() => handleRoleSelect('recruiter')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Briefcase className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#20263A] rounded-2xl flex items-center justify-center text-[#E6BC6B] mb-6 shadow-md group-hover:scale-110 group-hover:bg-[#151A2D] transition-all">
                         <Briefcase className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">I am a Recruiter</h3>
-                    <p className="text-gray-400 text-sm mb-6">Find, assess, and hire the best talent using our AI-driven system.</p>
-                    <button className="px-6 py-2 rounded-full border border-blue-500/30 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">I am a Recruiter</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Find, assess, and hire the best talent using our AI-driven system.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl bg-[#20263A] group-hover:bg-[#151A2D] text-white transition-all text-sm font-bold shadow-sm">
                         Get Started
                     </button>
                 </motion.div>
 
                 {/* Candidate Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
                     onClick={() => handleRoleSelect('candidate')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Users className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-teal-500/20 rounded-2xl flex items-center justify-center text-teal-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#F4EBDD] border border-[#E6BC6B]/40 rounded-2xl flex items-center justify-center text-[#C99A45] mb-6 shadow-sm group-hover:scale-110 group-hover:bg-[#EEDFC6] transition-all">
                         <Users className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">I am a Candidate</h3>
-                    <p className="text-gray-400 text-sm mb-6">Verify your skills, build your AI resume, and land top roles.</p>
-                    <button className="px-6 py-2 rounded-full border border-teal-500/30 text-teal-400 group-hover:bg-teal-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">I am a Candidate</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Verify your skills, build your AI resume, and land top roles.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl border-2 border-[#20263A] text-[#20263A] group-hover:bg-[#20263A] group-hover:text-white transition-all text-sm font-bold shadow-sm">
                         Get Started
                     </button>
                 </motion.div>
-
             </div>
 
-            <div className="mt-12 text-gray-500 text-sm">
-                Already have an account? <Link to="/login" className="text-blue-400 hover:underline">Login here</Link>
+            <div className="mt-10 text-[#5E6577] text-sm">
+                Already have an account?{' '}
+                <Link to="/login" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors ml-1">
+                    Login here
+                </Link>
             </div>
         </motion.div>
     );
@@ -502,72 +503,80 @@ const SignupPage = () => {
 
         return (
             <motion.div
-                initial={{ opacity: 0, x: 50 }}
+                initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                className="flex flex-col lg:flex-row h-full w-full bg-[#0c0f16] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
+                exit={{ opacity: 0, x: -30 }}
+                className="flex flex-col lg:flex-row w-full max-w-5xl bg-white border border-[#E3E5EC] rounded-[2.5rem] overflow-hidden shadow-[0_20px_60px_rgba(32,38,58,0.1)] my-auto"
             >
-                {/* Left Side: Illustration / Info */}
+                {/* Left Side: Brand Panel */}
                 <motion.div
-                    initial={{ opacity: 0, x: -50 }}
+                    initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : role === 'admin' ? 'from-purple-600/20 to-purple-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
+                    transition={{ delay: 0.1 }}
+                    className="lg:w-5/12 p-8 sm:p-12 flex flex-col justify-between relative overflow-hidden bg-[#20263A] text-white"
                 >
-                    {/* Animated Background Element */}
-                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : role === 'admin' ? 'bg-[radial-gradient(circle_at_50%_50%,#a855f7,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(201,154,69,0.22),transparent_55%)] pointer-events-none" />
 
                     <div className="relative z-10">
                         <button
                             onClick={handleBack}
-                            className="flex items-center gap-2 text-white/50 hover:text-white mb-8 transition-colors group"
+                            className="flex items-center gap-2 text-[#E3E5EB]/80 hover:text-white mb-6 transition-colors group cursor-pointer text-sm font-medium"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
-                        <h2 className="text-3xl font-bold mb-4">
+
+                        <div className="flex items-center gap-2.5 mb-6">
+                            <div className="w-9 h-9 rounded-lg bg-[#20263A] border border-[#D4AC5F] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                <img src="/logo.png" alt="Hire1Percent" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-lg font-extrabold tracking-tight text-white">Hire<span className="text-[#D5A54F]">1</span>Percent</span>
+                        </div>
+
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3 tracking-tight">
                             {role === 'admin' ? 'System Oversight & Control' : isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Potential'}
                         </h2>
-                        <p className="text-gray-400 mb-6 text-sm max-w-md">
+                        <p className="text-[#C5CAD8] mb-8 text-sm leading-relaxed">
                             {role === 'admin'
-                                ? 'Register as a system administrator to manage news content, job requests, and platform settings.'
+                                ? 'Register as a system administrator to manage platform settings, questions, and reports.'
                                 : isRecruiter
-                                    ? 'Join thousands of employers using our AI matching system to find the world\'s most exceptional technical talent.'
-                                    : 'Build your career identity and get matched with the most innovative projects in the space.'
+                                    ? 'Join forward-thinking hiring teams using evidence-led assessments to hire top developers.'
+                                    : 'Demonstrate real coding skills, verify your competence, and get hired faster.'
                             }
                         </p>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3.5">
                             {[
                                 role === 'admin' ? "Content management" : isRecruiter ? "Skill-based ranking" : "AI Resume Analysis",
                                 role === 'admin' ? "Job request oversight" : isRecruiter ? "Automated interviewing" : "Verified skill badges",
                                 role === 'admin' ? "System analytics" : isRecruiter ? "Seamless candidate management" : "Smart job matching"
                             ].map((text, i) => (
-                                <div key={i} className="flex items-center gap-4">
-                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
-                                        <CheckCircle className="w-3 h-3" />
+                                <div key={i} className="flex items-center gap-3 text-sm">
+                                    <div className="w-5 h-5 rounded-full bg-[#C99A45]/20 border border-[#C99A45]/40 flex items-center justify-center text-[#E6BC6B] shrink-0">
+                                        <CheckCircle className="w-3.5 h-3.5" />
                                     </div>
-                                    <span className="text-gray-300 text-sm font-medium">{text}</span>
+                                    <span className="text-[#E3E5EB] font-medium">{text}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Floating UI Elements Mockup */}
-                    <div className="absolute bottom-10 right-10 opacity-20 pointer-events-none">
+                    <div className="absolute -bottom-6 -right-6 opacity-10 text-[#C99A45] pointer-events-none">
                         {role === 'admin' ? <ShieldCheck size={200} /> : isRecruiter ? <Briefcase size={200} /> : <Users size={200} />}
                     </div>
                 </motion.div>
 
                 {/* Right Side: Form */}
-                <div className="lg:w-1/2 p-10 flex flex-col justify-center">
+                <div className="lg:w-7/12 p-8 sm:p-12 flex flex-col justify-center bg-white">
                     <div className="max-w-md mx-auto w-full">
                         <div className="mb-6">
-                            <h3 className="text-2xl font-bold mb-1">Create {role === 'admin' ? 'Admin' : isRecruiter ? 'Recruiter' : 'Candidate'} Account</h3>
-                            <p className="text-gray-500 text-sm">Fill in the details to get started.</p>
+                            <h3 className="text-2xl sm:text-3xl font-extrabold text-[#20263A] mb-1.5 tracking-tight">
+                                Create {role === 'admin' ? 'Admin' : isRecruiter ? 'Recruiter' : 'Candidate'} Account
+                            </h3>
+                            <p className="text-[#5E6577] text-sm">Fill in the details to get started.</p>
                         </div>
 
                         {message.text && (
-                            <div className={`mb-4 p-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                            <div className={`mb-4 p-3.5 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
                                 {message.text}
                             </div>
                         )}
@@ -575,7 +584,7 @@ const SignupPage = () => {
                         <form className="space-y-4" onSubmit={handleSubmit}>
                             <div className="space-y-3">
                                 <div className="relative group">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="text"
                                         name="name"
@@ -583,11 +592,11 @@ const SignupPage = () => {
                                         onChange={handleChange}
                                         placeholder="Full Name"
                                         required
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="email"
                                         name="email"
@@ -595,11 +604,11 @@ const SignupPage = () => {
                                         onChange={handleChange}
                                         placeholder="Work Email"
                                         required
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="password"
                                         name="password"
@@ -608,49 +617,47 @@ const SignupPage = () => {
                                         placeholder="Password"
                                         required
                                         autoComplete="new-password"
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-3 py-2 px-1">
+                            <div className="flex items-start gap-3 py-1 px-1">
                                 <input 
                                     type="checkbox" 
                                     id="terms" 
                                     checked={acceptedTerms}
                                     onChange={(e) => setAcceptedTerms(e.target.checked)}
-                                    className="mt-1 w-4 h-4 rounded border-white/10 bg-white/5 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+                                    className="mt-1 w-4 h-4 rounded border-[#E3E5EC] text-[#20263A] focus:ring-[#20263A]/20 cursor-pointer"
                                 />
-                                <label htmlFor="terms" className="text-xs text-gray-400 leading-relaxed cursor-pointer select-none">
-                                    I agree to the <Link to="/terms" target="_blank" className="text-white hover:underline">Terms & Conditions</Link> and <Link to="/privacy" target="_blank" className="text-white hover:underline">Privacy Policy</Link>.
+                                <label htmlFor="terms" className="text-xs text-[#5E6577] leading-relaxed cursor-pointer select-none">
+                                    I agree to the <Link to="/terms" target="_blank" className="text-[#20263A] font-semibold hover:text-[#C99A45] underline ml-0.5">Terms & Conditions</Link> and <Link to="/privacy" target="_blank" className="text-[#20263A] font-semibold hover:text-[#C99A45] underline ml-0.5">Privacy Policy</Link>.
                                 </label>
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
-                                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
-                                    : isRecruiter
-                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                        : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                                    } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {loading ? 'Creating Account...' : 'Create Account'}
                             </button>
 
-                            <div className="relative flex items-center gap-2 py-1">
-                                <div className="flex-1 h-px bg-white/10" />
-                                <span className="text-[10px] text-gray-500 uppercase tracking-widest">Or continue with</span>
-                                <div className="flex-1 h-px bg-white/10" />
+                            <div className="relative flex items-center justify-center py-2">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-[#E3E5EC]" />
+                                </div>
+                                <span className="relative bg-white px-3 text-[11px] font-bold text-[#8C93A4] uppercase tracking-wider">
+                                    Or continue with
+                                </span>
                             </div>
 
                             <div className="grid grid-cols-1 gap-3">
                                 <button
                                     type="button"
                                     onClick={handleGoogleSignup}
-                                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs"
+                                    className="flex items-center justify-center gap-2.5 py-3 rounded-xl border border-[#E3E5EC] bg-white hover:bg-[#F8F8FA] text-[#20263A] font-semibold text-sm transition-all shadow-sm hover:border-[#D1D5DF] cursor-pointer"
                                 >
                                     <svg className="w-4 h-4" viewBox="0 0 24 24">
                                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -663,7 +670,7 @@ const SignupPage = () => {
                             </div>
                         </form>
 
-                        <p className="mt-8 text-center text-gray-500 text-xs">
+                        <p className="mt-8 text-center text-[#5E6577] text-xs">
                             Secure 256-bit encrypted signup.
                         </p>
                     </div>
@@ -674,73 +681,63 @@ const SignupPage = () => {
 
     const renderVerificationPending = () => {
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-hidden">
-                {/* ─── Ethereal Lavender / Purple Cloud Sky Background (Matches Screenshot) ─── */}
-                <div className="absolute inset-0 bg-[#c5b4e3] overflow-hidden pointer-events-none">
-                    <div className="absolute -top-24 -left-24 w-[600px] h-[600px] bg-gradient-to-br from-[#7c3aed]/45 via-[#6366f1]/35 to-transparent rounded-full blur-[100px] opacity-80" />
-                    <div className="absolute top-1/3 -right-24 w-[600px] h-[600px] bg-gradient-to-tl from-[#9333ea]/40 via-[#c084fc]/35 to-transparent rounded-full blur-[110px] opacity-80" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[750px] h-[750px] bg-gradient-to-r from-white/70 via-[#ede9fe]/80 to-[#ddd6fe]/70 rounded-full blur-[90px]" />
-                    <div className="absolute -bottom-24 left-1/3 w-[650px] h-[550px] bg-gradient-to-tr from-[#6366f1]/35 via-[#8b5cf6]/40 to-[#c084fc]/35 rounded-full blur-[100px] opacity-80" />
-                    <div className="absolute inset-0 opacity-25 mix-blend-soft-light bg-[radial-gradient(#ffffff_1.5px,transparent_1.5px)] [background-size:24px_24px]" />
-                </div>
-
-                {/* ─── Center White Card (Exact Design from Screenshot) ─── */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#20263A]/50 backdrop-blur-md overflow-hidden">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 15 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.3 }}
-                    className="w-full max-w-[440px] bg-white rounded-[2.2rem] sm:rounded-[2.5rem] shadow-[0_25px_70px_-15px_rgba(79,70,229,0.22)] border border-purple-100/90 p-8 sm:p-10 text-center relative z-10"
+                    className="w-full max-w-[440px] bg-white rounded-[2.2rem] sm:rounded-[2.5rem] shadow-[0_25px_70px_rgba(32,38,58,0.2)] border border-[#E3E5EC] p-8 sm:p-10 text-center relative z-10"
                 >
                     {/* Envelope with @ Badge Icon + Floating Dots */}
-                    <div className="relative w-28 h-28 mx-auto rounded-full bg-[#f3f0ff] flex items-center justify-center mb-6 shadow-inner">
+                    <div className="relative w-24 h-24 mx-auto rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 flex items-center justify-center mb-6 shadow-sm">
                         {/* 4 Floating dots */}
                         <motion.span 
                             animate={{ y: [0, -4, 0] }}
                             transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                            className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-[#6366f1]"
+                            className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-[#C99A45]"
                         />
                         <motion.span 
                             animate={{ y: [0, 3, 0] }}
                             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
-                            className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#818cf8]"
+                            className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#20263A]"
                         />
                         <motion.span 
                             animate={{ y: [0, -3, 0] }}
                             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
-                            className="absolute bottom-3 right-4 w-2 h-2 rounded-full bg-[#7c3aed]"
+                            className="absolute bottom-3 right-4 w-2 h-2 rounded-full bg-[#D4AC5F]"
                         />
                         <motion.span 
                             animate={{ y: [0, 4, 0] }}
                             transition={{ duration: 2.7, repeat: Infinity, ease: 'easeInOut', delay: 0.9 }}
-                            className="absolute bottom-5 left-3 w-1.5 h-1.5 rounded-full bg-[#a855f7]"
+                            className="absolute bottom-5 left-3 w-1.5 h-1.5 rounded-full bg-[#20263A]"
                         />
 
                         {/* Envelope Illustration */}
                         <div className="relative">
-                            <svg width="68" height="52" viewBox="0 0 68 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="2" y="6" width="64" height="42" rx="8" fill="#ffffff" stroke="#e0e7ff" strokeWidth="2" />
-                                <path d="M4 12 L34 32 L64 12" fill="#fef3c7" stroke="#fcd34d" strokeWidth="1.5" />
-                                <path d="M2 46 L26 24" stroke="#e0e7ff" strokeWidth="1.5" strokeLinecap="round" />
-                                <path d="M66 46 L42 24" stroke="#e0e7ff" strokeWidth="1.5" strokeLinecap="round" />
+                            <svg width="60" height="46" viewBox="0 0 68 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="6" width="64" height="42" rx="8" fill="#ffffff" stroke="#E3E5EC" strokeWidth="2" />
+                                <path d="M4 12 L34 32 L64 12" fill="#F4EBDD" stroke="#E6BC6B" strokeWidth="1.5" />
+                                <path d="M2 46 L26 24" stroke="#E3E5EC" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M66 46 L42 24" stroke="#E3E5EC" strokeWidth="1.5" strokeLinecap="round" />
                             </svg>
 
                             {/* Center Circular Badge with @ */}
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#6366f1] text-white flex items-center justify-center shadow-lg border-2 border-white">
-                                <span className="text-sm font-bold leading-none select-none">@</span>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#20263A] text-[#E6BC6B] flex items-center justify-center shadow-md border-2 border-white">
+                                <span className="text-xs font-bold leading-none select-none">@</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Primary Title */}
-                    <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#312E81] mb-2.5 tracking-tight">
+                    <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#20263A] mb-2.5 tracking-tight">
                         Authenticate Your Email Address
                     </h1>
 
                     {/* Subtitle / Email */}
-                    <p className="text-gray-500 text-sm sm:text-[15px] leading-relaxed mb-6 max-w-sm mx-auto">
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-sm mx-auto">
                         An email has been sent to{' '}
-                        <span className="font-semibold underline text-gray-800 break-all">
+                        <span className="font-semibold underline text-[#20263A] break-all">
                             {verificationPending?.email}
                         </span>
                         . Please check your inbox to verify your account.
@@ -748,12 +745,12 @@ const SignupPage = () => {
 
                     {/* Notice alert */}
                     {verificationNotice.text && (
-                        <div className={`w-full mb-4 p-3 rounded-xl text-xs border text-left ${
+                        <div className={`w-full mb-4 p-3 rounded-xl text-xs border font-medium text-left ${
                             verificationNotice.type === 'success'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : verificationNotice.type === 'warning'
                                     ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
                         }`}>
                             {verificationNotice.text}
                         </div>
@@ -761,12 +758,11 @@ const SignupPage = () => {
 
                     {/* Action Buttons */}
                     <div className="space-y-3">
-                        {/* Primary Button: Check Verification */}
                         <button
                             type="button"
                             onClick={handleCheckVerification}
                             disabled={checkingVerification}
-                            className="w-full py-3.5 px-6 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-semibold text-sm transition-all shadow-md shadow-blue-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                            className={`w-full py-3.5 px-6 rounded-xl bg-[#20263A] hover:bg-[#151A2D] text-white font-bold text-sm transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {checkingVerification ? (
                                 <>
@@ -781,22 +777,21 @@ const SignupPage = () => {
                             )}
                         </button>
 
-                        {/* Secondary Button: Update Email (Matches Screenshot "Update email") */}
                         <button
                             type="button"
                             onClick={() => {
                                 setVerificationPending(null);
                                 setVerificationNotice({ type: '', text: '' });
                             }}
-                            className="w-full py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="w-full py-2.5 px-4 rounded-xl border border-[#E3E5EC] hover:bg-[#F8F8FA] text-[#20263A] font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             <span>Update email</span>
                         </button>
                     </div>
 
-                    {/* Footer Subtext with "Send it once more." link */}
-                    <p className="text-xs text-gray-500 mt-6 flex items-center justify-center gap-1">
+                    {/* Footer Subtext */}
+                    <p className="text-xs text-[#5E6577] mt-6 flex items-center justify-center gap-1">
                         <span>Email not received?</span>
                         <button
                             type="button"
@@ -805,7 +800,7 @@ const SignupPage = () => {
                             className={`font-semibold underline transition-colors cursor-pointer ${
                                 resendCooldown > 0
                                     ? 'text-gray-400 cursor-not-allowed'
-                                    : 'text-[#2563eb] hover:text-[#1d4ed8]'
+                                    : 'text-[#20263A] hover:text-[#C99A45]'
                             }`}
                         >
                             {resendCooldown > 0 ? `Wait (${resendCooldown}s)` : 'Send it once more.'}
@@ -817,20 +812,20 @@ const SignupPage = () => {
     };
 
     return (
-        <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
+        <div className="min-h-screen bg-[#F8F8FA] text-[#20263A] flex flex-col relative overflow-x-hidden selection:bg-[#C99A45]/20 selection:text-[#20263A]">
             <SEO 
                 title="Create an Account | Hire1Percent" 
                 description="Join Hire1Percent as a candidate or recruiter to access automated coding assessments and technical screening." 
                 robots="noindex, follow" 
             />
-            {/* Background Decor */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
+            {/* Background Decor matching homepage hero warmth */}
+            <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-[#C99A45]/10 blur-[130px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[550px] h-[550px] bg-[#20263A]/5 blur-[130px] rounded-full pointer-events-none" />
 
-            <Navbar />
+            <Navbar theme="light" />
 
-            <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden pt-24">
-                <div className="w-full max-w-6xl h-full max-h-[800px] flex items-center justify-center">
+            <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-24 sm:py-28">
+                <div className="w-full max-w-5xl flex items-center justify-center my-auto">
                     <AnimatePresence mode="wait">
                         {verificationPending ? (
                             renderVerificationPending()
@@ -846,36 +841,33 @@ const SignupPage = () => {
             {/* Recruiter API Client Credentials Modal */}
             <AnimatePresence>
                 {clientCredentials && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20263A]/60 backdrop-blur-md p-6">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="w-full max-w-lg bg-[#11131a] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+                            className="w-full max-w-lg bg-white border border-[#E3E5EC] rounded-[2rem] p-8 sm:p-10 shadow-[0_25px_70px_rgba(32,38,58,0.2)] relative overflow-hidden"
                         >
-                            {/* Background subtle glow */}
-                            <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
-                            
                             <div className="flex items-center gap-3 mb-6 relative z-10">
-                                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                <div className="w-12 h-12 rounded-2xl bg-[#F4EBDD] border border-[#E6BC6B]/40 flex items-center justify-center text-[#C99A45]">
                                     <ShieldCheck className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-white">Signup Successful</h2>
-                                    <p className="text-gray-400 text-xs">Your API client credentials have been generated.</p>
+                                    <h2 className="text-2xl font-bold text-[#20263A]">Signup Successful</h2>
+                                    <p className="text-[#5E6577] text-xs">Your API client credentials have been generated.</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6 mb-8 relative z-10">
+                            <div className="space-y-5 mb-8 relative z-10">
                                 {/* Client ID */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Client ID</label>
+                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client ID</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             readOnly
                                             value={clientCredentials.clientId}
-                                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm outline-none"
+                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
                                         />
                                         <button
                                             type="button"
@@ -883,7 +875,7 @@ const SignupPage = () => {
                                                 navigator.clipboard.writeText(clientCredentials.clientId);
                                                 alert("Client ID copied!");
                                             }}
-                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
+                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
                                         >
                                             Copy
                                         </button>
@@ -892,13 +884,13 @@ const SignupPage = () => {
 
                                 {/* Client Secret */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Client Secret</label>
+                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client Secret</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             readOnly
                                             value={clientCredentials.clientSecret}
-                                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-sm outline-none"
+                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
                                         />
                                         <button
                                             type="button"
@@ -906,12 +898,12 @@ const SignupPage = () => {
                                                 navigator.clipboard.writeText(clientCredentials.clientSecret);
                                                 alert("Client Secret copied!");
                                             }}
-                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
+                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
                                         >
                                             Copy
                                         </button>
                                     </div>
-                                    <p className="text-amber-400 text-xs mt-2 font-medium flex items-center gap-1.5">
+                                    <p className="text-amber-800 text-xs mt-2 font-medium flex items-center gap-1.5">
                                         ⚠️ The Client Secret will never be shown again.
                                     </p>
                                 </div>
@@ -920,11 +912,10 @@ const SignupPage = () => {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    // Destroy plaintext secret in memory and navigate
                                     setClientCredentials(null);
                                     navigate('/recruiter');
                                 }}
-                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-teal-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/10 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider relative z-10"
+                                className="w-full py-3.5 bg-[#20263A] hover:bg-[#151A2D] text-white font-bold rounded-xl shadow-md transition-all text-sm uppercase tracking-wider relative z-10 cursor-pointer"
                             >
                                 Close & Continue to Dashboard
                             </button>

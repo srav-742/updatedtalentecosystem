@@ -116,10 +116,12 @@ const AssessmentsHome = () => {
                         <Link to="/sample-report" onClick={() => setMenuOpen(false)}>Sample report</Link>
                         <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>Candidate experience</a>
                         <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
+                        <Link to="/blog" onClick={() => setMenuOpen(false)}>Blog</Link>
                     </nav>
 
                     <div className="nav-actions">
                         <Link className="login" to="/login">Log in</Link>
+                        <Link className="login" to="/signup">Sign up</Link>
                         <button className="btn" type="button" onClick={() => setIsModalOpen(true)}>
                             Book a 15-minute demo <span>↗</span>
                         </button>
@@ -631,6 +633,7 @@ const AssessmentsHome = () => {
                             <Link to="/sample-report">Sample report</Link>
                             <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToSection('pricing'); }}>Pricing</a>
                             <a href="#candidate-experience" onClick={(e) => { e.preventDefault(); scrollToSection('candidate-experience'); }}>For engineers</a>
+                            <Link to="/blog">Blog</Link>
                         </nav>
                         <nav className="footer-links" aria-label="Company and support">
                             <h4>Company &amp; support</h4>

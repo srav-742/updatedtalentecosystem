@@ -119,8 +119,6 @@ const LoginPage = () => {
                         sessionStorage.removeItem('pendingRole');
                     } else {
                         setMessage({ type: 'warning', text: "Login verified, but role was lost. Please select Recruiter or Candidate." });
-                        // Don't auto-navigate, let them pick role, but maybe cache the user
-                        // For now just warn
                     }
                 }
             } catch (err) {
@@ -286,7 +284,7 @@ const LoginPage = () => {
                             });
                             
                             if (backendRes.data && backendRes.data.user) {
-                                backendUser = backendRes.data.user;
+                                backendUser = backendRes.data.user; 
                                 // Password matched in backend! 
                                 // Try to silently create the Firebase account to migrate them
                                 try {
@@ -322,7 +320,6 @@ const LoginPage = () => {
                         throw error;
                     }
                 }
-
 
                 // Fetch Profile and initialize Gateway Session in parallel
                 const [fetchedProfile] = await Promise.all([
@@ -402,7 +399,6 @@ const LoginPage = () => {
             setMessage({ type: 'success', text: "Login successful!" });
 
             // Store using the SELECTED role (not the DB role) so the session matches what the user chose.
-            // e.g. an admin email logging in as Recruiter should land on /recruiter, not /admin.
             localStorage.setItem('user', JSON.stringify({ ...profile, role: role }));
 
             // Track GA4 login conversion event (zero PII)
@@ -453,8 +449,6 @@ const LoginPage = () => {
             ).catch(() => null);
 
             if (existingProfile && existingProfile.role) {
-                // Auto-correct role if user selected the wrong one to prevent login blocks
-                // But respect crossing rule: admin and recruiter are both staff and can cross-login
                 const isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
                 const isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
                 if (!(isSelectedStaff && isDbStaff)) {
@@ -537,7 +531,6 @@ const LoginPage = () => {
         }
         setLoading(true);
         try {
-            // 1. Authenticate with Google (Try Popup First)
             const googleUser = await signInWithGoogle();
             await processGoogleUser(googleUser, role);
 
@@ -548,10 +541,8 @@ const LoginPage = () => {
                 console.warn("Popup blocked or closed. Switching to Redirect method...");
                 setMessage({ type: 'warning', text: "Popup blocked. Redirecting to Google..." });
 
-                // Save state for return
                 sessionStorage.setItem('pendingRole', role);
 
-                // Trigger Redirect
                 try {
                     await signInWithGoogleRedirect();
                 } catch (redirErr) {
@@ -559,7 +550,6 @@ const LoginPage = () => {
                     setMessage({ type: 'error', text: "Google Login failed completely." });
                     setLoading(false);
                 }
-                // Ensure loading state doesn't hang forever if redirect is silently blocked
                 setTimeout(() => setLoading(false), 5000);
             } else {
                 setMessage({ type: 'error', text: error.message || "Google login failed." });
@@ -569,49 +559,30 @@ const LoginPage = () => {
     };
 
     const renderForgotPasswordForm = () => {
-        const isRecruiter = role === 'recruiter';
-        
-        let focusBorderClass = "focus:border-teal-500/50";
-        let buttonClass = "bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10";
-        let iconClass = "group-focus-within:text-teal-400";
-        let borderClass = "border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-white";
-
-        if (role === 'admin') {
-            focusBorderClass = "focus:border-purple-500/50";
-            buttonClass = "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10";
-            iconClass = "group-focus-within:text-purple-400";
-            borderClass = "border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-white";
-        } else if (isRecruiter) {
-            focusBorderClass = "focus:border-blue-500/50";
-            buttonClass = "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10";
-            iconClass = "group-focus-within:text-blue-400";
-            borderClass = "border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white";
-        }
-
         return (
             <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="w-full space-y-6 animate-in fade-in slide-in-from-right-4 duration-300"
+                className="w-full space-y-5"
             >
                 <div>
-                    <h3 className="text-2xl font-bold mb-1">
+                    <h3 className="text-2xl font-extrabold text-[#20263A] mb-1.5 tracking-tight">
                         {role === 'admin' ? 'Admin Reset' : 'Reset Password'}
                     </h3>
-                    <p className="text-gray-400/80 text-sm">
+                    <p className="text-[#5E6577] text-sm leading-relaxed">
                         {role === 'admin' 
                             ? 'Verify your admin identity via one-time pass code.' 
-                            : 'Receive a secure login link to change your password.'
+                            : 'Receive a secure code to change your password.'
                         }
                     </p>
                 </div>
 
                 {forgotMessage.text && (
-                    <div className={`p-3.5 rounded-2xl text-sm border transition-all ${
+                    <div className={`p-3.5 rounded-xl text-sm border font-medium transition-all ${
                         forgotMessage.type === 'success' 
-                            ? 'bg-green-500/10 text-green-400 border-green-500/20' 
-                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
                     }`}>
                         {forgotMessage.text}
                     </div>
@@ -620,21 +591,21 @@ const LoginPage = () => {
                 {forgotStep === 1 ? (
                     <form onSubmit={handleForgotRequestSubmit} className="space-y-4">
                         <div className="relative group">
-                            <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                             <input
                                 type="email"
                                 value={forgotEmail}
                                 onChange={(e) => setForgotEmail(e.target.value)}
                                 placeholder="Enter Your Registered Email"
                                 required
-                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                             />
                         </div>
 
                         <button
                             type="submit"
                             disabled={forgotLoading}
-                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                             {forgotLoading ? 'Sending Code...' : 'Send Verification Code'}
@@ -643,7 +614,7 @@ const LoginPage = () => {
                         <button
                             type="button"
                             onClick={() => setForgotPasswordMode(false)}
-                            className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors"
+                            className="w-full text-center text-xs text-[#5E6577] hover:text-[#20263A] font-semibold transition-colors pt-2 cursor-pointer"
                         >
                             Back to Sign In
                         </button>
@@ -651,52 +622,52 @@ const LoginPage = () => {
                 ) : (
                     <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
                         {devOtpText && (
-                            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-sm rounded-xl mb-4 text-center">
-                                DEV OTP: <span className="font-bold text-yellow-400 tracking-widest">{devOtpText}</span>
+                            <div className="p-3 bg-[#F4EBDD] border border-[#E6BC6B] text-[#8C6B28] text-sm rounded-xl mb-4 text-center font-medium">
+                                DEV OTP: <span className="font-bold text-[#20263A] tracking-widest">{devOtpText}</span>
                             </div>
                         )}
                         
                         <div className="relative group">
-                            <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                             <input
                                 type="text"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
                                 placeholder="6-digit Verification Code"
                                 required
-                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm tracking-widest`}
+                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2] tracking-widest"
                                 maxLength={6}
                             />
                         </div>
                         
                         <div className="relative group">
-                            <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                             <input
                                 type="password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 placeholder="New Password"
                                 required
-                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                             />
                         </div>
                         
                         <div className="relative group">
-                            <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 ${iconClass} transition-colors`} />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                             <input
                                 type="password"
                                 value={confirmNewPassword}
                                 onChange={(e) => setConfirmNewPassword(e.target.value)}
                                 placeholder="Confirm New Password"
                                 required
-                                className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 ${focusBorderClass} outline-none transition-all text-sm`}
+                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                             />
                         </div>
 
                         <button
                             type="submit"
                             disabled={forgotLoading}
-                            className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${buttonClass} ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${forgotLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                             {forgotLoading ? 'Resetting...' : 'Reset Password'}
@@ -708,7 +679,7 @@ const LoginPage = () => {
                                 setForgotStep(1);
                                 setForgotMessage({ type: '', text: '' });
                             }}
-                            className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors"
+                            className="w-full text-center text-xs text-[#5E6577] hover:text-[#20263A] font-semibold transition-colors pt-2 cursor-pointer"
                         >
                             Back to Request Code
                         </button>
@@ -855,36 +826,33 @@ const LoginPage = () => {
     };
 
     const renderVerificationRequired = () => {
-        const activeRole = verificationRequired?.role || role || 'candidate';
-        const isRecruiter = activeRole === 'recruiter';
-
         return (
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="w-full space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 text-center"
+                className="w-full space-y-6 text-center"
             >
                 <div className="flex flex-col items-center">
-                    <div className={`w-16 h-16 rounded-2xl ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'} flex items-center justify-center mb-4`}>
+                    <div className="w-16 h-16 rounded-2xl bg-[#F4EBDD] border border-[#E6BC6B]/40 text-[#C99A45] flex items-center justify-center mb-4 shadow-sm">
                         <Mail className="w-8 h-8 animate-bounce" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-1 text-white">Email Verification Required</h3>
-                    <p className="text-gray-400 text-xs max-w-sm mb-3">
+                    <h3 className="text-2xl font-bold mb-1.5 text-[#20263A]">Email Verification Required</h3>
+                    <p className="text-[#5E6577] text-xs max-w-sm mb-3">
                         Your account requires email verification before accessing Hire1Percent.
                     </p>
-                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-xs font-medium mb-3 max-w-full truncate">
+                    <div className="px-4 py-2 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-xs font-semibold mb-3 max-w-full truncate">
                         {verificationRequired?.email}
                     </div>
                 </div>
 
                 {verificationNotice.text && (
-                    <div className={`p-3.5 rounded-2xl text-xs border text-left ${
+                    <div className={`p-3.5 rounded-xl text-xs border font-medium text-left ${
                         verificationNotice.type === 'success'
-                            ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             : verificationNotice.type === 'warning'
-                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
                     }`}>
                         {verificationNotice.text}
                     </div>
@@ -895,11 +863,7 @@ const LoginPage = () => {
                         type="button"
                         onClick={handleCheckVerification}
                         disabled={checkingVerification}
-                        className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${
-                            isRecruiter
-                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                        } ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
                         {checkingVerification && <Loader2 className="w-4 h-4 animate-spin" />}
                         {checkingVerification ? "Checking Status..." : "I've Verified My Email"}
@@ -909,7 +873,7 @@ const LoginPage = () => {
                         type="button"
                         onClick={handleResendEmail}
                         disabled={checkingVerification || resendCooldown > 0}
-                        className={`w-full py-3 rounded-2xl border border-white/10 hover:bg-white/5 text-gray-300 hover:text-white transition-all text-xs font-semibold flex items-center justify-center gap-2 ${
+                        className={`w-full py-2.5 rounded-xl border border-[#E3E5EC] hover:bg-[#F8F8FA] text-[#20263A] transition-all text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer ${
                             resendCooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                     >
@@ -926,7 +890,7 @@ const LoginPage = () => {
                             setVerificationRequired(null);
                             setVerificationNotice({ type: '', text: '' });
                         }}
-                        className="w-full text-center text-xs text-gray-400 hover:text-white transition-colors pt-1"
+                        className="w-full text-center text-xs text-[#5E6577] hover:text-[#20263A] font-semibold transition-colors pt-1 cursor-pointer"
                     >
                         Back to Sign In
                     </button>
@@ -940,13 +904,18 @@ const LoginPage = () => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="max-w-4xl mx-auto text-center"
+            className="max-w-4xl mx-auto text-center py-6"
         >
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">Welcome Back</h1>
-            <p className="text-gray-400 mb-8 text-lg">Select your account type to continue your journey.</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 text-[#C99A45] text-xs font-bold uppercase tracking-wider mb-4">
+                Secure Access
+            </div>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-[#20263A] tracking-tight mb-3">Welcome Back</h1>
+            <p className="text-[#5E6577] mb-8 text-base md:text-lg max-w-md mx-auto leading-relaxed">
+                Select your account type to continue your journey.
+            </p>
 
             {message.text && (
-                <div className={`max-w-md mx-auto mb-8 p-4 rounded-2xl text-sm font-semibold text-center ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                <div className={`max-w-md mx-auto mb-8 p-3.5 rounded-xl text-sm font-semibold text-center ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
                     {message.text}
                 </div>
             )}
@@ -954,53 +923,57 @@ const LoginPage = () => {
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                 {/* Recruiter Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(59, 130, 246, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
                     onClick={() => handleRoleSelect('recruiter')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Briefcase className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#20263A] rounded-2xl flex items-center justify-center text-[#E6BC6B] mb-6 shadow-md group-hover:scale-110 group-hover:bg-[#151A2D] transition-all">
                         <Briefcase className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">Recruiter Login</h3>
-                    <p className="text-gray-400 text-sm mb-6">Access your dashboard to manage jobs and track candidate progress.</p>
-                    <button className="px-6 py-2 rounded-full border border-blue-500/30 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">Recruiter Login</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Access your dashboard to manage jobs and track candidate progress.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl bg-[#20263A] group-hover:bg-[#151A2D] text-white transition-all text-sm font-bold shadow-sm">
                         Continue
                     </button>
                 </motion.div>
 
                 {/* Candidate Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
                     onClick={() => handleRoleSelect('candidate')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Users className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-teal-500/20 rounded-2xl flex items-center justify-center text-teal-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#F4EBDD] border border-[#E6BC6B]/40 rounded-2xl flex items-center justify-center text-[#C99A45] mb-6 shadow-sm group-hover:scale-110 group-hover:bg-[#EEDFC6] transition-all">
                         <Users className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">Candidate Login</h3>
-                    <p className="text-gray-400 text-sm mb-6">Continue your job search, refine your skills, and get hired.</p>
-                    <button className="px-6 py-2 rounded-full border border-teal-500/30 text-teal-400 group-hover:bg-teal-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">Candidate Login</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Continue your job search, refine your skills, and get hired.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl border-2 border-[#20263A] text-[#20263A] group-hover:bg-[#20263A] group-hover:text-white transition-all text-sm font-bold shadow-sm">
                         Continue
                     </button>
                 </motion.div>
             </div>
 
-            <div className="mt-12 text-gray-500 text-sm flex flex-col items-center gap-4">
-                <p>Don't have an account? <Link to="/signup" className="text-blue-400 hover:underline font-semibold">Join the ecosystem</Link></p>
+            <div className="mt-10 text-[#5E6577] text-sm">
+                <p>
+                    Don't have an account?{' '}
+                    <Link to="/signup" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors ml-1">
+                        Join the ecosystem
+                    </Link>
+                </p>
             </div>
-
         </motion.div>
     );
 
@@ -1012,73 +985,78 @@ const LoginPage = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="flex flex-col lg:flex-row h-full w-full bg-[#0c0f16] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
+                className="flex flex-col lg:flex-row w-full max-w-5xl bg-white border border-[#E3E5EC] rounded-[2.5rem] overflow-hidden shadow-[0_20px_60px_rgba(32,38,58,0.1)] my-auto"
             >
-                {/* Left Side: Illustration / Info */}
+                {/* Left Side: Brand Panel */}
                 <motion.div
-                    initial={{ opacity: 0, x: -50 }}
+                    initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : role === 'admin' ? 'from-purple-600/20 to-purple-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
+                    transition={{ delay: 0.1 }}
+                    className="lg:w-5/12 p-8 sm:p-12 flex flex-col justify-between relative overflow-hidden bg-[#20263A] text-white"
                 >
-                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : role === 'admin' ? 'bg-[radial-gradient(circle_at_50%_50%,#a855f7,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(201,154,69,0.22),transparent_55%)] pointer-events-none" />
 
                     <div className="relative z-10">
                         <button
                             onClick={handleBack}
-                            className="flex items-center gap-2 text-white/50 hover:text-white mb-8 transition-colors group"
+                            className="flex items-center gap-2 text-[#E3E5EB]/80 hover:text-white mb-6 transition-colors group cursor-pointer text-sm font-medium"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
-                        <h2 className="text-3xl font-bold mb-4">
+
+                        <div className="flex items-center gap-2.5 mb-6">
+                            <div className="w-9 h-9 rounded-lg bg-[#20263A] border border-[#D4AC5F] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                <img src="/logo.png" alt="Hire1Percent" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-lg font-extrabold tracking-tight text-white">Hire<span className="text-[#D5A54F]">1</span>Percent</span>
+                        </div>
+
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3 tracking-tight">
                             {role === 'admin' ? 'Admin Control Center' : isRecruiter ? 'Welcome Back, Recruiter' : 'Welcome Back, Candidate'}
                         </h2>
 
-                        <p className="text-gray-400 mb-6 text-sm max-w-sm">
+                        <p className="text-[#C5CAD8] mb-8 text-sm leading-relaxed">
                             {role === 'admin'
                                 ? 'System overview and core management tools are ready for your oversight.'
                                 : isRecruiter
                                     ? 'Your hiring suite is ready. Find top-tier talent with AI precision.'
-                                    : 'Ready for your next big break? Your future in Web3 starts here.'
+                                    : 'Ready for your next big break? Your future in tech starts here.'
                             }
                         </p>
 
-
-                        <div className="space-y-4">
+                        <div className="space-y-3.5">
                             {[
                                 role === 'admin' ? "Manage platform content" : isRecruiter ? "Manage active postings" : "Track your applications",
                                 role === 'admin' ? "Approve job requests" : isRecruiter ? "Analyze recent applications" : "Get matching job alerts",
                                 role === 'admin' ? "System performance monitoring" : isRecruiter ? "Schedule AI interviews" : "Improve your skill score"
                             ].map((text, i) => (
-                                <div key={i} className="flex items-center gap-4 text-sm">
-                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${role === 'admin' ? 'bg-purple-500/20 text-purple-400' : isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
-                                        <ShieldCheck className="w-3 h-3" />
+                                <div key={i} className="flex items-center gap-3 text-sm">
+                                    <div className="w-5 h-5 rounded-full bg-[#C99A45]/20 border border-[#C99A45]/40 flex items-center justify-center text-[#E6BC6B] shrink-0">
+                                        <CheckCircle className="w-3.5 h-3.5" />
                                     </div>
-                                    <span className="text-gray-300 font-medium">{text}</span>
+                                    <span className="text-[#E3E5EB] font-medium">{text}</span>
                                 </div>
                             ))}
-
                         </div>
                     </div>
-                    {/* Role Icon Decor */}
-                    <div className="absolute bottom-10 right-10 opacity-20 pointer-events-none">
-                        {role === 'admin' ? <ShieldCheck size={240} className="text-purple-500" /> : isRecruiter ? <Briefcase size={240} className="text-blue-500" /> : <Users size={240} className="text-teal-500" />}
-                    </div>
 
+                    <div className="absolute -bottom-6 -right-6 opacity-10 text-[#C99A45] pointer-events-none">
+                        {role === 'admin' ? <ShieldCheck size={200} /> : isRecruiter ? <Briefcase size={200} /> : <Users size={200} />}
+                    </div>
                 </motion.div>
 
                 {/* Right Side: Form */}
-                <div className="lg:w-1/2 p-10 flex flex-col justify-center">
+                <div className="lg:w-7/12 p-8 sm:p-12 flex flex-col justify-center bg-white">
                     <div className="max-w-md mx-auto w-full">
                         {forgotPasswordMode ? renderForgotPasswordForm() : verificationRequired ? renderVerificationRequired() : (
                             <>
                                 <div className="mb-6">
-                                    <h3 className="text-2xl font-bold mb-1">Login to Account</h3>
-                                    <p className="text-gray-500 text-sm">Enter your credentials to continue.</p>
+                                    <h3 className="text-2xl sm:text-3xl font-extrabold text-[#20263A] mb-1.5 tracking-tight">Login to Account</h3>
+                                    <p className="text-[#5E6577] text-sm">Enter your credentials to continue.</p>
                                 </div>
 
                                 {message.text && (
-                                    <div className={`mb-4 p-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                                    <div className={`mb-4 p-3.5 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
                                         {message.text}
                                     </div>
                                 )}
@@ -1086,7 +1064,7 @@ const LoginPage = () => {
                                 <form className="space-y-4" onSubmit={handleSubmit}>
                                     <div className="space-y-3">
                                         <div className="relative group">
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                             <input
                                                 type="email"
                                                 name="email"
@@ -1094,11 +1072,11 @@ const LoginPage = () => {
                                                 onChange={handleChange}
                                                 placeholder="Work Email"
                                                 required
-                                                className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                             />
                                         </div>
                                         <div className="relative group">
-                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                             <input
                                                 type="password"
                                                 name="password"
@@ -1107,45 +1085,44 @@ const LoginPage = () => {
                                                 placeholder="Password"
                                                 required
                                                 autoComplete="current-password"
-                                                className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                             />
                                         </div>
                                     </div>
 
                                     {role === 'admin' && (
                                         <div className="flex items-center justify-end">
-                                            <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Forgot Password?</button>
+                                            <button type="button" onClick={handleForgotPasswordClick} className="text-xs text-[#20263A] hover:text-[#C99A45] font-semibold transition-colors cursor-pointer">
+                                                Forgot Password?
+                                            </button>
                                         </div>
                                     )}
 
                                     <button
                                         type="submit"
                                         disabled={loading}
-                                        className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
-                                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
-                                            : isRecruiter
-                                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                                : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                                            } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                     >
-
                                         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                         {loading ? 'Signing In...' : 'Sign In'}
                                     </button>
 
                                     {role !== 'admin' && (
                                         <>
-                                            <div className="relative flex items-center gap-2 py-1">
-                                                <div className="flex-1 h-px bg-white/10" />
-                                                <span className="text-[10px] text-gray-500 uppercase tracking-widest text-center">Or continue with</span>
-                                                <div className="flex-1 h-px bg-white/10" />
+                                            <div className="relative flex items-center justify-center py-2">
+                                                <div className="absolute inset-0 flex items-center">
+                                                    <div className="w-full border-t border-[#E3E5EC]" />
+                                                </div>
+                                                <span className="relative bg-white px-3 text-[11px] font-bold text-[#8C93A4] uppercase tracking-wider">
+                                                    Or continue with
+                                                </span>
                                             </div>
 
                                             <div className="grid grid-cols-1 gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={handleGoogleLogin}
-                                                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs"
+                                                    className="flex items-center justify-center gap-2.5 py-3 rounded-xl border border-[#E3E5EC] bg-white hover:bg-[#F8F8FA] text-[#20263A] font-semibold text-sm transition-all shadow-sm hover:border-[#D1D5DF] cursor-pointer"
                                                 >
                                                     <svg className="w-4 h-4" viewBox="0 0 24 24">
                                                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -1161,8 +1138,11 @@ const LoginPage = () => {
                                 </form>
 
                                 {role !== 'admin' && (
-                                    <p className="mt-8 text-center text-gray-500 text-sm">
-                                        New here? <Link to="/signup" className="text-white hover:underline cursor-pointer font-medium">Create an account</Link>
+                                    <p className="mt-8 text-center text-[#5E6577] text-sm">
+                                        New here?{' '}
+                                        <Link to="/signup" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors cursor-pointer ml-1">
+                                            Create an account
+                                        </Link>
                                     </p>
                                 )}
                             </>
@@ -1174,21 +1154,21 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
+        <div className="min-h-screen bg-[#F8F8FA] text-[#20263A] flex flex-col relative overflow-x-hidden selection:bg-[#C99A45]/20 selection:text-[#20263A]">
             <SEO 
                 title="Sign In | Hire1Percent" 
                 description="Sign in to your Hire1Percent account to access coding assessments and recruitment dashboards." 
                 canonicalUrl="/login"
                 robots="noindex, follow" 
             />
-            {/* Background Decor */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
+            {/* Background Decor matching homepage hero warmth */}
+            <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-[#C99A45]/10 blur-[130px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[550px] h-[550px] bg-[#20263A]/5 blur-[130px] rounded-full pointer-events-none" />
 
-            <Navbar />
+            <Navbar theme="light" />
 
-            <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden pt-24">
-                <div className="w-full max-w-6xl h-full max-h-[750px] flex items-center justify-center">
+            <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-24 sm:py-28">
+                <div className="w-full max-w-5xl flex items-center justify-center my-auto">
                     <AnimatePresence mode="wait">
                         {!role ? renderRoleSelection() : renderLoginForm()}
                     </AnimatePresence>

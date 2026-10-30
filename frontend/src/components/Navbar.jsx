@@ -67,7 +67,6 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                     <a href="/service#elite-talent" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Elite Talent</a>
                     <a href="/service#operations" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Operations</a>
                     <a href="/service#safety" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Safety</a>
-                    <Link to="/blog" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Blog</Link>
 
                     <div className="flex items-center space-x-4">
                         {themeToggle}
@@ -76,14 +75,9 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                                 Dashboard
                             </Link>
                         ) : (
-                            <>
-                                <Link to="/login" className={`px-5 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-800 hover:text-blue-500' : 'text-white hover:text-blue-400'}`}>
+                            <Link to="/login" className={`px-5 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-800 hover:text-blue-500' : 'text-white hover:text-blue-400'}`}>
                                     Login
                                 </Link>
-                                <Link to="/signup" className="px-5 py-2 text-sm font-medium bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white rounded-full transition-all shadow-lg shadow-blue-500/20">
-                                    Sign Up
-                                </Link>
-                            </>
                         )}
                     </div>
                 </div>
@@ -116,7 +110,6 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                     <a href="/service#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
                     <a href="/service#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
                     <a href="/service#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
-                    <Link to="/blog" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Blog</Link>
                     {onToggleTheme && (
                         <div className="pt-2">
                             <button
@@ -141,12 +134,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                                 Dashboard
                             </Link>
                         ) : (
-                            <>
-                                <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Login</Link>
-                                <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="w-full py-3 text-center bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-full">
-                                    Sign Up
-                                </Link>
-                            </>
+                            <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Login</Link>
                         )}
                     </div>
                 </div>

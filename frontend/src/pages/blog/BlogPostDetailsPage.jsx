@@ -61,7 +61,7 @@ const parseInline = (text, isDark) => {
             const [, alt, src] = earliest.match;
             element = (
                 <span className="block my-10 select-none" key={index}>
-                    <img src={src} alt={alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
+                    <img src={src} alt={alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#232b40' : '#E3E5EC'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
                 </span>
             );
         } else if (earliest.type === 'link') {
@@ -72,7 +72,7 @@ const parseInline = (text, isDark) => {
                     href={href} 
                     target={isExternal ? '_blank' : undefined}
                     rel={isExternal ? 'noopener noreferrer' : undefined}
-                    style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: 600, textDecoration: 'underline', transition: 'color 0.2s' }}
+                    style={{ color: isDark ? '#E6BC6B' : '#C99A45', fontWeight: 600, textDecoration: 'underline', transition: 'color 0.2s' }}
                     key={index}
                 >
                     {parse(text)}
@@ -80,14 +80,14 @@ const parseInline = (text, isDark) => {
             );
         } else if (earliest.type === 'bold') {
             const [, text] = earliest.match;
-            element = <strong style={{ fontWeight: 700, color: isDark ? '#f1f5f9' : '#0f172a' }} key={index}>{parse(text)}</strong>;
+            element = <strong style={{ fontWeight: 700, color: isDark ? '#F8FAFC' : '#20263A' }} key={index}>{parse(text)}</strong>;
         } else if (earliest.type === 'italic') {
             const [, text] = earliest.match;
-            element = <em style={{ fontStyle: 'italic', color: isDark ? '#cbd5e1' : '#475569' }} key={index}>{parse(text)}</em>;
+            element = <em style={{ fontStyle: 'italic', color: isDark ? '#CBD5E1' : '#5E6577' }} key={index}>{parse(text)}</em>;
         } else if (earliest.type === 'code') {
             const [, code] = earliest.match;
             element = (
-                <code style={{ background: isDark ? '#1e2535' : '#f1f5f9', fontFamily: 'monospace', fontSize: '14px', padding: '2px 6px', borderRadius: '4px', color: isDark ? '#f87171' : '#ef4444', border: `1px solid ${isDark ? '#2a3348' : '#e2e8f0'}`, fontWeight: 600 }} key={index}>
+                <code style={{ background: isDark ? '#1E2535' : '#F4EBDD', fontFamily: 'monospace', fontSize: '14px', padding: '2px 6px', borderRadius: '4px', color: isDark ? '#E6BC6B' : '#8C6B28', border: `1px solid ${isDark ? '#2A3348' : '#E6BC6B'}`, fontWeight: 600 }} key={index}>
                     {code}
                 </code>
             );
@@ -695,11 +695,11 @@ const Heading2 = ({ id, text, isHTML, isDark }) => {
         <h2 
             id={id} 
             className="group scroll-mt-28 flex items-center gap-2 cursor-pointer select-text"
-            style={{ fontSize: '34px', fontWeight: 700, color: isDark ? '#f1f5f9' : '#0f172a', marginTop: '72px', marginBottom: '28px' }}
+            style={{ fontSize: '32px', fontWeight: 700, color: isDark ? '#F8FAFC' : '#20263A', marginTop: '64px', marginBottom: '24px', letterSpacing: '-0.01em' }}
             onClick={copyLink}
         >
             {isHTML ? <span dangerouslySetInnerHTML={{ __html: text }} /> : <span>{parseInline(text, isDark)}</span>}
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ color: isDark ? '#475569' : '#cbd5e1', fontSize: '1.125rem' }}>
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ color: isDark ? '#E6BC6B' : '#C99A45', fontSize: '1.125rem' }}>
                 {copied ? '✓' : '#'}
             </span>
         </h2>
@@ -720,11 +720,11 @@ const Heading3 = ({ id, text, isHTML, isDark }) => {
         <h3 
             id={id} 
             className="group scroll-mt-28 flex items-center gap-2 cursor-pointer select-text"
-            style={{ fontSize: '26px', fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b', marginTop: '48px', marginBottom: '18px' }}
+            style={{ fontSize: '24px', fontWeight: 600, color: isDark ? '#E2E8F0' : '#252A3D', marginTop: '40px', marginBottom: '16px' }}
             onClick={copyLink}
         >
             {isHTML ? <span dangerouslySetInnerHTML={{ __html: text }} /> : <span>{parseInline(text, isDark)}</span>}
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ color: isDark ? '#475569' : '#cbd5e1' }}>
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ color: isDark ? '#E6BC6B' : '#C99A45' }}>
                 {copied ? '✓' : '#'}
             </span>
         </h3>
@@ -735,14 +735,14 @@ const Paragraph = ({ text, isHTML, isDark }) => {
     if (isHTML) {
         return (
             <p 
-                style={{ fontSize: '20px', fontWeight: 400, lineHeight: 1.9, color: isDark ? '#94a3b8' : 'rgba(100,116,139,0.9)', maxWidth: '80ch', marginBottom: '24px' }}
+                style={{ fontSize: '18px', fontWeight: 400, lineHeight: 1.85, color: isDark ? '#CBD5E1' : '#252A3D', maxWidth: '80ch', marginBottom: '24px' }}
                 className="select-text"
                 dangerouslySetInnerHTML={{ __html: text }}
             />
         );
     }
     return (
-        <p style={{ fontSize: '20px', fontWeight: 400, lineHeight: 1.9, color: isDark ? '#94a3b8' : 'rgba(100,116,139,0.9)', maxWidth: '80ch', marginBottom: '24px' }} className="select-text">
+        <p style={{ fontSize: '18px', fontWeight: 400, lineHeight: 1.85, color: isDark ? '#CBD5E1' : '#252A3D', maxWidth: '80ch', marginBottom: '24px' }} className="select-text">
             {parseInline(text, isDark)}
         </p>
     );
@@ -751,11 +751,11 @@ const Paragraph = ({ text, isHTML, isDark }) => {
 const CustomList = ({ ordered, items, isHTML, isDark }) => {
     const Tag = ordered ? 'ol' : 'ul';
     return (
-        <Tag style={{ marginLeft: '2rem', marginBottom: '24px', fontSize: '20px', lineHeight: 1.9, color: isDark ? '#94a3b8' : 'rgba(100,116,139,0.9)', listStyleType: ordered ? 'decimal' : 'none' }} className="space-y-3">
+        <Tag style={{ marginLeft: '2rem', marginBottom: '24px', fontSize: '18px', lineHeight: 1.85, color: isDark ? '#CBD5E1' : '#252A3D', listStyleType: ordered ? 'decimal' : 'none' }} className="space-y-3">
             {items.map((item, index) => (
                 <li key={index} className="relative select-text">
                     {!ordered && (
-                        <span style={{ position: 'absolute', left: '-1.5rem', top: '0.875rem', width: '6px', height: '6px', borderRadius: '50%', background: isDark ? '#60a5fa' : '#2563eb', flexShrink: 0 }}></span>
+                        <span style={{ position: 'absolute', left: '-1.5rem', top: '0.875rem', width: '6px', height: '6px', borderRadius: '50%', background: isDark ? '#E6BC6B' : '#C99A45', flexShrink: 0 }}></span>
                     )}
                     {isHTML ? <span dangerouslySetInnerHTML={{ __html: item }} /> : <span>{parseInline(item, isDark)}</span>}
                 </li>
@@ -766,8 +766,8 @@ const CustomList = ({ ordered, items, isHTML, isDark }) => {
 
 const Blockquote = ({ text, isHTML, isDark }) => {
     return (
-        <blockquote style={{ borderLeft: `6px solid ${isDark ? '#3b82f6' : '#2563eb'}`, paddingLeft: '1.5rem', paddingTop: '1rem', paddingBottom: '1rem', margin: '2rem 0', background: isDark ? 'rgba(30,37,53,0.5)' : 'rgba(248,250,252,0.7)', borderRadius: '0 1rem 1rem 0' }} className="select-text">
-            <p style={{ fontStyle: 'italic', color: isDark ? '#cbd5e1' : '#475569', fontSize: '20px', lineHeight: 1.9, fontWeight: 500 }}>
+        <blockquote style={{ borderLeft: `4px solid ${isDark ? '#E6BC6B' : '#C99A45'}`, paddingLeft: '1.5rem', paddingTop: '1rem', paddingBottom: '1rem', margin: '2rem 0', background: isDark ? 'rgba(32,38,58,0.4)' : '#F4EBDD', borderRadius: '0 1rem 1rem 0' }} className="select-text">
+            <p style={{ fontStyle: 'italic', color: isDark ? '#F8FAFC' : '#20263A', fontSize: '18px', lineHeight: 1.8, fontWeight: 500 }}>
                 {isHTML ? <span dangerouslySetInnerHTML={{ __html: text }} /> : <>"{parseInline(text, isDark)}"</>}
             </p>
         </blockquote>
@@ -776,12 +776,12 @@ const Blockquote = ({ text, isHTML, isDark }) => {
 
 const Table = ({ headers, rows, isHTML, isDark }) => {
     return (
-        <div className="my-8 overflow-hidden max-w-full overflow-x-auto" style={{ borderRadius: '0.75rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <table className="w-full text-left border-collapse text-sm" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+        <div className="my-8 overflow-hidden max-w-full overflow-x-auto" style={{ borderRadius: '0.75rem', border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <table className="w-full text-left border-collapse text-sm" style={{ color: isDark ? '#CBD5E1' : '#5E6577' }}>
                 <thead>
-                    <tr style={{ background: isDark ? '#151922' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}` }}>
+                    <tr style={{ background: isDark ? '#151928' : '#F8F8FA', borderBottom: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}` }}>
                         {headers.map((h, index) => (
-                            <th key={index} style={{ padding: '1rem 1.5rem', fontWeight: 700, color: isDark ? '#f1f5f9' : '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>
+                            <th key={index} style={{ padding: '1rem 1.5rem', fontWeight: 700, color: isDark ? '#F8FAFC' : '#20263A', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>
                                 {isHTML ? <span dangerouslySetInnerHTML={{ __html: h }} /> : parseInline(h, isDark)}
                             </th>
                         ))}
@@ -791,7 +791,7 @@ const Table = ({ headers, rows, isHTML, isDark }) => {
                     {rows.map((row, rIndex) => (
                         <tr 
                             key={rIndex} 
-                            style={{ background: rIndex % 2 === 0 ? (isDark ? '#0c0f16' : '#ffffff') : (isDark ? 'rgba(21,25,34,0.5)' : 'rgba(248,250,252,0.3)'), borderBottom: rIndex < rows.length - 1 ? `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}` : 'none' }}
+                            style={{ background: rIndex % 2 === 0 ? (isDark ? '#0E121E' : '#FFFFFF') : (isDark ? '#151928' : '#FAFBFD'), borderBottom: rIndex < rows.length - 1 ? `1px solid ${isDark ? '#232B40' : '#F1F2F6'}` : 'none' }}
                         >
                             {row.map((cell, cIndex) => (
                                 <td key={cIndex} style={{ padding: '1rem 1.5rem', lineHeight: 1.6 }}>
@@ -816,18 +816,18 @@ const CodeBlock = ({ language, code, isDark }) => {
     };
 
     return (
-        <div className="my-8 overflow-hidden group relative" style={{ borderRadius: '0.75rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, background: '#0d1117', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-            <div className="flex items-center justify-between px-4 py-2.5 text-xs font-mono select-none" style={{ background: '#161b22', borderBottom: '1px solid #21262d', color: '#8b949e' }}>
+        <div className="my-8 overflow-hidden group relative" style={{ borderRadius: '0.75rem', border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`, background: '#0e121e', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <div className="flex items-center justify-between px-4 py-2.5 text-xs font-mono select-none" style={{ background: '#151928', borderBottom: '1px solid #232B40', color: '#8C93A4' }}>
                 <span className="uppercase tracking-wider font-semibold">{language}</span>
                 <button 
                     onClick={handleCopy}
                     className="flex items-center gap-1.5 hover:text-white transition-colors duration-200 py-1 px-2 rounded cursor-pointer"
-                    style={{ background: 'transparent', border: 'none', color: '#8b949e' }}
+                    style={{ background: 'transparent', border: 'none', color: '#8C93A4' }}
                 >
                     {copied ? (
                         <>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
-                            <span style={{ color: '#34d399', fontWeight: 500 }}>Copied!</span>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C99A45' }}></span>
+                            <span style={{ color: '#E6BC6B', fontWeight: 500 }}>Copied!</span>
                         </>
                     ) : (
                         <>
@@ -837,7 +837,7 @@ const CodeBlock = ({ language, code, isDark }) => {
                     )}
                 </button>
             </div>
-            <pre className="p-5 overflow-x-auto text-sm font-mono leading-relaxed select-text" style={{ color: '#c9d1d9' }}>
+            <pre className="p-5 overflow-x-auto text-sm font-mono leading-relaxed select-text" style={{ color: '#e2e8f0' }}>
                 <code>{code}</code>
             </pre>
         </div>
@@ -849,11 +849,11 @@ const Callout = ({ type, text, isHTML, isDark }) => {
 
     const configs = {
         info: {
-            bg: isDark ? 'rgba(30,58,93,0.25)' : 'rgba(219,234,254,0.4)',
-            border: isDark ? '#3b82f6' : '#3b82f6',
-            titleColor: isDark ? '#93c5fd' : '#1e40af',
+            bg: isDark ? 'rgba(32,38,58,0.45)' : 'rgba(244,235,221,0.5)',
+            border: isDark ? '#E6BC6B' : '#C99A45',
+            titleColor: isDark ? '#E6BC6B' : '#8C6B28',
             label: 'INFO',
-            icon: <Info size={18} style={{ color: isDark ? '#60a5fa' : '#3b82f6' }} />
+            icon: <Info size={18} style={{ color: isDark ? '#E6BC6B' : '#C99A45' }} />
         },
         success: {
             bg: isDark ? 'rgba(6,78,59,0.25)' : 'rgba(209,250,229,0.4)',
@@ -870,11 +870,11 @@ const Callout = ({ type, text, isHTML, isDark }) => {
             icon: <AlertTriangle size={18} style={{ color: isDark ? '#fbbf24' : '#f59e0b' }} />
         },
         tip: {
-            bg: isDark ? 'rgba(76,29,149,0.25)' : 'rgba(237,233,254,0.45)',
-            border: isDark ? '#8b5cf6' : '#8b5cf6',
-            titleColor: isDark ? '#c4b5fd' : '#5b21b6',
+            bg: isDark ? 'rgba(32,38,58,0.45)' : 'rgba(244,235,221,0.5)',
+            border: isDark ? '#E6BC6B' : '#C99A45',
+            titleColor: isDark ? '#E6BC6B' : '#8C6B28',
             label: 'TIP',
-            icon: <Sparkles size={18} style={{ color: isDark ? '#a78bfa' : '#8b5cf6' }} />
+            icon: <Sparkles size={18} style={{ color: isDark ? '#E6BC6B' : '#C99A45' }} />
         },
         research: {
             bg: isDark ? 'rgba(13,148,136,0.15)' : 'rgba(204,251,241,0.4)',
@@ -903,7 +903,7 @@ const Callout = ({ type, text, isHTML, isDark }) => {
 };
 
 const Divider = ({ isDark }) => {
-    return <hr style={{ margin: '3rem auto', borderTop: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, maxWidth: '320px' }} />;
+    return <hr style={{ margin: '3rem auto', borderTop: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`, maxWidth: '320px' }} />;
 };
 
 const renderBlock = (block, index, isDark) => {
@@ -924,7 +924,7 @@ const renderBlock = (block, index, isDark) => {
         case 'image':
             return (
                 <span className="block my-10 select-none" key={index}>
-                    <img src={block.src} alt={block.alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
+                    <img src={block.src} alt={block.alt} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ borderRadius: '1rem', border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', width: '100%', height: 'auto', margin: '0 auto', display: 'block' }} />
                 </span>
             );
         case 'hr':
@@ -944,13 +944,13 @@ const TableOfContents = ({ items, activeId, onItemClick, collapsed, onToggle, is
     if (!items || items.length === 0) return null;
     
     return (
-        <div className="space-y-4 font-sans font-normal" style={{ color: isDark ? '#e2e8f0' : '#1e293b' }}>
-            <div className="flex items-center justify-between pb-3" style={{ borderBottom: `1px solid ${isDark ? '#1e2535' : '#e2e8f0'}` }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: isDark ? '#f1f5f9' : '#0f172a' }}>Contents</span>
+        <div className="space-y-4 font-sans font-normal" style={{ color: isDark ? '#e2e8f0' : '#252A3D' }}>
+            <div className="flex items-center justify-between pb-3" style={{ borderBottom: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}` }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: isDark ? '#F8FAFC' : '#20263A' }}>Contents</span>
                 {onToggle && (
                     <button 
                         onClick={onToggle}
-                        style={{ fontSize: '0.75rem', color: isDark ? '#60a5fa' : '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'color 0.2s', cursor: 'pointer', background: 'none', border: 'none' }}
+                        style={{ fontSize: '0.75rem', color: isDark ? '#E6BC6B' : '#C99A45', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'color 0.2s', cursor: 'pointer', background: 'none', border: 'none' }}
                     >
                         {collapsed ? 'Show' : 'Hide'}
                     </button>
@@ -965,9 +965,9 @@ const TableOfContents = ({ items, activeId, onItemClick, collapsed, onToggle, is
                                 key={item.id}
                                 className="transition-all duration-200"
                                 style={{ 
-                                    borderLeft: `2px solid ${isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#1e2535' : '#e2e8f0')}`,
-                                    color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8'),
-                                    fontWeight: isActive ? 600 : 400,
+                                    borderLeft: `2px solid ${isActive ? (isDark ? '#E6BC6B' : '#C99A45') : (isDark ? '#232B40' : '#E3E5EC')}`,
+                                    color: isActive ? (isDark ? '#E6BC6B' : '#20263A') : (isDark ? '#64748B' : '#8C93A4'),
+                                    fontWeight: isActive ? 700 : 400,
                                     paddingLeft: `${(item.level - 2) * 12 + 16}px`
                                 }}
                             >
@@ -977,7 +977,7 @@ const TableOfContents = ({ items, activeId, onItemClick, collapsed, onToggle, is
                                         e.preventDefault();
                                         onItemClick(item.id);
                                     }}
-                                    className="block py-0.5 truncate cursor-pointer"
+                                    className="block py-0.5 truncate cursor-pointer transition-colors duration-200"
                                     style={{ fontSize: '13px', textDecoration: 'none', color: 'inherit' }}
                                 >
                                     {item.text}
@@ -1016,70 +1016,72 @@ export default function BlogPostDetailsPage() {
 
     // Theme-aware tokens
     const t = isDark ? {
-        pageBg: '#0c0f16',
+        pageBg: '#0e121e',
         pageText: '#cbd5e1',
-        cardBg: '#151922',
-        cardBorder: '#1e2535',
-        headerBg: '#151922',
-        headerBorder: '#1e2535',
-        headingText: '#f1f5f9',
+        cardBg: '#151928',
+        cardBorder: '#232b40',
+        headerBg: '#151928',
+        headerBorder: '#232b40',
+        headingText: '#f8fafc',
         subText: '#94a3b8',
         mutedText: '#64748b',
-        accentText: '#60a5fa',
-        accentBg: '#2563eb',
-        badgeBg: '#2563eb',
-        badgeText: '#ffffff',
-        progressBg: '#1e2535',
-        progressBar: '#3b82f6',
-        btnBg: '#1e2535',
-        btnBorder: '#2a3348',
+        accentText: '#e6bc6b',
+        accentBg: '#c99a45',
+        badgeBg: 'rgba(201, 154, 69, 0.18)',
+        badgeText: '#e6bc6b',
+        badgeBorder: 'rgba(230, 188, 107, 0.35)',
+        progressBg: '#232b40',
+        progressBar: '#e6bc6b',
+        btnBg: '#151928',
+        btnBorder: '#232b40',
         btnText: '#94a3b8',
-        btnHoverBg: '#2a3348',
-        ctaGradient: 'linear-gradient(135deg, #0f172a, #1e293b, #172554)',
+        btnHoverBg: '#20263a',
+        ctaGradient: 'linear-gradient(135deg, #151928 0%, #20263a 100%)',
         ctaText: '#ffffff',
-        ctaBorder: '#1e2535',
-        relCardBg: '#151922',
-        relCardBorder: '#1e2535',
-        relCardHoverBorder: '#2a3348',
-        mobileTocBg: '#151922',
-        mobileTocBorder: '#1e2535',
+        ctaBorder: '#232b40',
+        relCardBg: '#151928',
+        relCardBorder: '#232b40',
+        relCardHoverBorder: '#e6bc6b',
+        mobileTocBg: '#151928',
+        mobileTocBorder: '#232b40',
         overlayBg: 'rgba(0,0,0,0.65)',
-        copiedBg: 'rgba(16,185,129,0.15)',
-        copiedBorder: '#10b981',
-        copiedText: '#34d399',
+        copiedBg: 'rgba(201,154,69,0.15)',
+        copiedBorder: '#e6bc6b',
+        copiedText: '#e6bc6b',
         tocStickyBg: 'transparent',
     } : {
-        pageBg: '#f8f9fb',
-        pageText: '#475569',
+        pageBg: '#F8F8FA',
+        pageText: '#252A3D',
         cardBg: '#ffffff',
-        cardBorder: '#e2e8f0',
+        cardBorder: '#E3E5EC',
         headerBg: '#ffffff',
-        headerBorder: '#e2e8f0',
-        headingText: '#0f172a',
-        subText: '#64748b',
-        mutedText: '#94a3b8',
-        accentText: '#2563eb',
-        accentBg: '#2563eb',
-        badgeBg: '#2563eb',
-        badgeText: '#ffffff',
-        progressBg: '#e2e8f0',
-        progressBar: '#2563eb',
-        btnBg: '#f8fafc',
-        btnBorder: '#e2e8f0',
-        btnText: '#64748b',
-        btnHoverBg: '#f1f5f9',
-        ctaGradient: 'linear-gradient(135deg, #0f172a, #1e293b, #172554)',
+        headerBorder: '#E3E5EC',
+        headingText: '#20263A',
+        subText: '#5E6577',
+        mutedText: '#8C93A4',
+        accentText: '#C99A45',
+        accentBg: '#20263A',
+        badgeBg: '#F4EBDD',
+        badgeText: '#8C6B28',
+        badgeBorder: '#E6BC6B',
+        progressBg: '#E3E5EC',
+        progressBar: '#20263A',
+        btnBg: '#F8F8FA',
+        btnBorder: '#E3E5EC',
+        btnText: '#5E6577',
+        btnHoverBg: '#F4EBDD',
+        ctaGradient: 'linear-gradient(135deg, #20263A 0%, #181D2D 100%)',
         ctaText: '#ffffff',
-        ctaBorder: '#1e293b',
+        ctaBorder: '#20263A',
         relCardBg: '#ffffff',
-        relCardBorder: '#e2e8f0',
-        relCardHoverBorder: '#bfdbfe',
+        relCardBorder: '#E3E5EC',
+        relCardHoverBorder: '#C99A45',
         mobileTocBg: '#ffffff',
-        mobileTocBorder: '#e2e8f0',
-        overlayBg: 'rgba(15,23,42,0.65)',
-        copiedBg: 'rgba(16,185,129,0.1)',
-        copiedBorder: '#10b981',
-        copiedText: '#059669',
+        mobileTocBorder: '#E3E5EC',
+        overlayBg: 'rgba(32,38,58,0.65)',
+        copiedBg: 'rgba(201,154,69,0.12)',
+        copiedBorder: '#C99A45',
+        copiedText: '#8C6B28',
         tocStickyBg: 'transparent',
     };
 
@@ -1273,9 +1275,9 @@ export default function BlogPostDetailsPage() {
                     width: 40px;
                     height: 40px;
                     border-radius: 50%;
-                    border: 1px solid ${isDark ? '#2a3348' : '#d1d5db'};
-                    background: ${isDark ? '#1e2535' : '#ffffff'};
-                    color: ${isDark ? '#fbbf24' : '#6366f1'};
+                    border: 1px solid ${isDark ? '#232B40' : '#E3E5EC'};
+                    background: ${isDark ? '#151928' : '#ffffff'};
+                    color: ${isDark ? '#E6BC6B' : '#C99A45'};
                     cursor: pointer;
                     transition: all 0.3s ease;
                     flex-shrink: 0;
@@ -1283,11 +1285,11 @@ export default function BlogPostDetailsPage() {
                     top: 80px;
                     right: 24px;
                     z-index: 40;
-                    box-shadow: 0 2px 8px ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)'};
+                    box-shadow: 0 2px 8px ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.08)'};
                 }
                 .blog-details-theme-toggle:hover {
-                    background: ${isDark ? '#2a3348' : '#f1f5f9'};
-                    border-color: ${isDark ? '#3b82f6' : '#6366f1'};
+                    background: ${isDark ? '#20263A' : '#F4EBDD'};
+                    border-color: ${isDark ? '#E6BC6B' : '#C99A45'};
                     transform: rotate(15deg) scale(1.08);
                 }
             `}</style>
@@ -1351,12 +1353,12 @@ export default function BlogPostDetailsPage() {
                     {post.coverImage ? (
                         <>
                             <img src={post.coverImage} alt={post.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-auto block" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
-                            <div className="w-full items-center justify-center" style={{ display: 'none', height: '250px', background: isDark ? 'linear-gradient(135deg, #1e3a5f, #1e1b4b)' : 'linear-gradient(135deg, #1e3a8a, #312e81)', color: 'rgba(255,255,255,0.05)' }}>
+                            <div className="w-full items-center justify-center" style={{ display: 'none', height: '250px', background: isDark ? 'linear-gradient(135deg, #151928, #20263A)' : 'linear-gradient(135deg, #20263A, #2E3852)', color: 'rgba(255,255,255,0.05)' }}>
                                 <BookOpen size={96} />
                             </div>
                         </>
                     ) : (
-                        <div className="w-full flex items-center justify-center" style={{ height: '250px', background: isDark ? 'linear-gradient(135deg, #1e3a5f, #1e1b4b)' : 'linear-gradient(135deg, #1e3a8a, #312e81)', color: 'rgba(255,255,255,0.05)' }}>
+                        <div className="w-full flex items-center justify-center" style={{ height: '250px', background: isDark ? 'linear-gradient(135deg, #151928, #20263A)' : 'linear-gradient(135deg, #20263A, #2E3852)', color: 'rgba(255,255,255,0.05)' }}>
                             <BookOpen size={96} />
                         </div>
                     )}
@@ -1368,7 +1370,19 @@ export default function BlogPostDetailsPage() {
                         
                         {/* 1. Category Badge */}
                         <div>
-                            <span style={{ display: 'inline-block', padding: '10px 16px', borderRadius: '8px', background: t.badgeBg, color: t.badgeText, fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+                            <span style={{ 
+                                display: 'inline-block', 
+                                padding: '8px 18px', 
+                                borderRadius: '9999px', 
+                                background: t.badgeBg, 
+                                color: t.badgeText, 
+                                border: `1px solid ${t.badgeBorder}`,
+                                fontSize: '11px', 
+                                fontWeight: 700, 
+                                textTransform: 'uppercase', 
+                                letterSpacing: '0.08em', 
+                                boxShadow: isDark ? 'none' : '0 1px 3px rgba(201,154,69,0.1)' 
+                            }}>
                                 {categoryLabel}
                             </span>
                         </div>
@@ -1386,16 +1400,16 @@ export default function BlogPostDetailsPage() {
                         )}
 
                         {/* 4. Team Hire1Percent / Author metadata row at the bottom of the card */}
-                        <div className="flex flex-col items-center justify-center gap-4 pt-6" style={{ borderTop: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}` }}>
+                        <div className="flex flex-col items-center justify-center gap-4 pt-6" style={{ borderTop: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}` }}>
                             
                             {/* Author avatar & designation */}
                             <div className="flex items-center gap-3">
                                 <div 
                                     className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shrink-0 transition-transform"
                                     style={{ 
-                                        background: isDark ? '#0c0f16' : '#f8fafc',
-                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
-                                        boxShadow: isDark ? '0 4px 12px rgba(59,130,246,0.15)' : '0 2px 6px rgba(0,0,0,0.06)'
+                                        background: isDark ? '#151928' : '#F8F8FA',
+                                        border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`,
+                                        boxShadow: isDark ? '0 4px 12px rgba(201,154,69,0.12)' : '0 2px 6px rgba(0,0,0,0.06)'
                                     }}
                                 >
                                     <img 
@@ -1419,7 +1433,7 @@ export default function BlogPostDetailsPage() {
                                     <span className="flex items-center gap-1.5"><Calendar size={11} /> {new Date(post.publishedAt || post.createdAt).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</span>
                                     <span className="flex items-center gap-1.5"><Clock size={11} /> {calculateReadTime(post.content)}</span>
                                 </div>
-                                <span className="hidden sm:inline" style={{ color: isDark ? '#1e2535' : '#e2e8f0' }}>|</span>
+                                <span className="hidden sm:inline" style={{ color: isDark ? '#232B40' : '#E3E5EC' }}>|</span>
                                 <div className="flex items-center gap-2">
                                     <button 
                                         onClick={copyLinkToClipboard}
@@ -1512,21 +1526,21 @@ export default function BlogPostDetailsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
                         
                         {/* Recruiter Card */}
-                        <div className="group flex flex-col justify-between relative overflow-hidden" style={{ background: t.ctaGradient, color: t.ctaText, border: `1px solid ${t.ctaBorder}`, borderRadius: '2rem', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'all 0.3s ease' }}>
+                        <div className="group flex flex-col justify-between relative overflow-hidden" style={{ background: t.ctaGradient, color: t.ctaText, border: `1px solid ${isDark ? '#232B40' : 'rgba(201,154,69,0.25)'}`, borderRadius: '2rem', padding: '2.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'all 0.3s ease' }}>
                             {/* Soft Glow */}
-                            <div style={{ position: 'absolute', top: 0, right: 0, width: '192px', height: '192px', background: 'rgba(59,130,246,0.1)', borderRadius: '50%', filter: 'blur(48px)', zIndex: 0 }}></div>
-                            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '192px', height: '192px', background: 'rgba(99,102,241,0.1)', borderRadius: '50%', filter: 'blur(48px)', zIndex: 0 }}></div>
+                            <div style={{ position: 'absolute', top: 0, right: 0, width: '220px', height: '220px', background: 'rgba(201,154,69,0.08)', borderRadius: '50%', filter: 'blur(50px)', zIndex: 0 }}></div>
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '220px', height: '220px', background: 'rgba(201,154,69,0.05)', borderRadius: '50%', filter: 'blur(50px)', zIndex: 0 }}></div>
                             
                             <div className="relative z-10 space-y-5">
                                 <div>
-                                    <span style={{ display: 'inline-block', padding: '2px 10px', background: 'rgba(59,130,246,0.1)', color: '#60a5fa', fontSize: '10px', fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                    <span style={{ display: 'inline-block', padding: '4px 12px', background: 'rgba(201,154,69,0.15)', color: '#E6BC6B', fontSize: '10px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', borderRadius: '9999px', border: '1px solid rgba(201,154,69,0.3)' }}>
                                         HIRE1PERCENT
                                     </span>
                                 </div>
-                                <h3 style={{ fontSize: 'clamp(1.25rem, 2.5vw, 1.625rem)', lineHeight: 1.2, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
+                                <h3 style={{ fontSize: 'clamp(1.25rem, 2.5vw, 1.625rem)', lineHeight: 1.25, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
                                     Build High-Performing Engineering Teams with Confidence
                                 </h3>
-                                <p style={{ color: '#94a3b8', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)', lineHeight: 1.6 }}>
+                                <p style={{ color: '#CBD5E1', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)', lineHeight: 1.6 }}>
                                     Hire1Percent helps growing companies make confident technical hiring decisions, reduce recruitment friction, and identify exceptional engineering talent through a structured hiring experience designed for modern teams.
                                 </p>
                             </div>
@@ -1534,8 +1548,8 @@ export default function BlogPostDetailsPage() {
                             <div className="relative z-10 pt-6">
                                 <Link 
                                     to="/?book-calibration=true" 
-                                    className="inline-flex items-center gap-2 font-semibold text-white rounded-full px-6 py-3 transition-all duration-200 cursor-pointer group/btn"
-                                    style={{ background: '#2563eb', fontSize: '1rem', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
+                                    className="inline-flex items-center gap-2 font-bold rounded-full px-7 py-3.5 transition-all duration-200 cursor-pointer group/btn"
+                                    style={{ background: '#C99A45', color: '#20263A', fontSize: '0.95rem', boxShadow: '0 4px 14px rgba(201,154,69,0.3)' }}
                                     aria-label="Book a Demo for Recruiters"
                                 >
                                     <span>Book a Demo</span>
@@ -1545,21 +1559,21 @@ export default function BlogPostDetailsPage() {
                         </div>
 
                         {/* Candidate Card */}
-                        <div className="group flex flex-col justify-between relative overflow-hidden" style={{ background: t.ctaGradient, color: t.ctaText, border: `1px solid ${t.ctaBorder}`, borderRadius: '2rem', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'all 0.3s ease' }}>
+                        <div className="group flex flex-col justify-between relative overflow-hidden" style={{ background: t.ctaGradient, color: t.ctaText, border: `1px solid ${isDark ? '#232B40' : 'rgba(201,154,69,0.25)'}`, borderRadius: '2rem', padding: '2.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'all 0.3s ease' }}>
                             {/* Soft Glow */}
-                            <div style={{ position: 'absolute', top: 0, right: 0, width: '192px', height: '192px', background: 'rgba(59,130,246,0.1)', borderRadius: '50%', filter: 'blur(48px)', zIndex: 0 }}></div>
-                            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '192px', height: '192px', background: 'rgba(99,102,241,0.1)', borderRadius: '50%', filter: 'blur(48px)', zIndex: 0 }}></div>
+                            <div style={{ position: 'absolute', top: 0, right: 0, width: '220px', height: '220px', background: 'rgba(201,154,69,0.08)', borderRadius: '50%', filter: 'blur(50px)', zIndex: 0 }}></div>
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '220px', height: '220px', background: 'rgba(201,154,69,0.05)', borderRadius: '50%', filter: 'blur(50px)', zIndex: 0 }}></div>
                             
                             <div className="relative z-10 space-y-5">
                                 <div>
-                                    <span style={{ display: 'inline-block', padding: '2px 10px', background: 'rgba(59,130,246,0.1)', color: '#60a5fa', fontSize: '10px', fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                    <span style={{ display: 'inline-block', padding: '4px 12px', background: 'rgba(201,154,69,0.15)', color: '#E6BC6B', fontSize: '10px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', borderRadius: '9999px', border: '1px solid rgba(201,154,69,0.3)' }}>
                                         HIRE1PERCENT
                                     </span>
                                 </div>
-                                <h3 style={{ fontSize: 'clamp(1.25rem, 2.5vw, 1.625rem)', lineHeight: 1.2, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
+                                <h3 style={{ fontSize: 'clamp(1.25rem, 2.5vw, 1.625rem)', lineHeight: 1.25, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
                                     Turn Your Skills Into Your Biggest Advantage
                                 </h3>
-                                <p style={{ color: '#94a3b8', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)', lineHeight: 1.6 }}>
+                                <p style={{ color: '#CBD5E1', fontSize: 'clamp(0.85rem, 1.5vw, 1rem)', lineHeight: 1.6 }}>
                                     Join Hire1Percent to showcase your technical abilities, connect with leading companies, and discover opportunities where your skills matter more than your résumé.
                                 </p>
                             </div>
@@ -1568,8 +1582,8 @@ export default function BlogPostDetailsPage() {
                                 <Link 
                                     to="/signup?role=candidate" 
                                     state={{ role: 'candidate' }}
-                                    className="inline-flex items-center gap-2 font-semibold text-white rounded-full px-6 py-3 transition-all duration-200 cursor-pointer group/btn"
-                                    style={{ background: '#2563eb', fontSize: '1rem', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
+                                    className="inline-flex items-center gap-2 font-bold rounded-full px-7 py-3.5 transition-all duration-200 cursor-pointer group/btn"
+                                    style={{ background: '#C99A45', color: '#20263A', fontSize: '0.95rem', boxShadow: '0 4px 14px rgba(201,154,69,0.3)' }}
                                     aria-label="Get Started for Candidates"
                                 >
                                     <span>Get Started</span>
@@ -1599,20 +1613,20 @@ export default function BlogPostDetailsPage() {
                                         style={{ height: '360px', borderRadius: '1.5rem', border: `1px solid ${t.relCardBorder}`, background: t.relCardBg, padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                                     >
                                         <div>
-                                            <div className="overflow-hidden relative" style={{ height: '160px', borderRadius: '1rem', border: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}`, background: isDark ? '#1e2535' : '#f8fafc' }}>
+                                            <div className="overflow-hidden relative" style={{ height: '160px', borderRadius: '1rem', border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`, background: isDark ? '#151928' : '#F8F8FA' }}>
                                                 {relPost.coverImage ? (
                                                     <>
                                                         <img src={relPost.coverImage} alt={relPost.title} loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }} />
-                                                        <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: isDark ? '#1e2535' : '#f1f5f9', color: t.mutedText }}>
+                                                        <div className="w-full h-full items-center justify-center" style={{ display: 'none', background: isDark ? '#151928' : '#F8F8FA', color: t.mutedText }}>
                                                             <BookOpen size={24} />
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: isDark ? '#1e2535' : '#f1f5f9', color: t.mutedText }}>
+                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: isDark ? '#151928' : '#F8F8FA', color: t.mutedText }}>
                                                         <BookOpen size={24} />
                                                     </div>
                                                 )}
-                                                <span style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 10px', borderRadius: '4px', background: 'rgba(15,23,42,0.7)', color: '#ffffff', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', backdropFilter: 'blur(4px)' }}>
+                                                <span style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(32,38,58,0.85)', color: '#E6BC6B', border: '1px solid rgba(201,154,69,0.3)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', backdropFilter: 'blur(4px)' }}>
                                                     {relCategory}
                                                 </span>
                                             </div>
@@ -1620,18 +1634,18 @@ export default function BlogPostDetailsPage() {
                                                 <p className="font-mono" style={{ fontSize: '9px', fontWeight: 700, color: t.mutedText, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                                     {new Date(relPost.publishedAt || relPost.createdAt).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
                                                 </p>
-                                                <h4 className="group-hover:!text-blue-500 line-clamp-2 transition-colors duration-200" style={{ fontSize: '0.875rem', fontWeight: 800, color: t.headingText }}>
+                                                <h4 className="group-hover:!text-[#C99A45] line-clamp-2 transition-colors duration-200" style={{ fontSize: '0.875rem', fontWeight: 800, color: t.headingText }}>
                                                     {relPost.title}
                                                 </h4>
                                             </div>
                                         </div>
-                                        <div className="flex items-center justify-between pt-3 mt-3" style={{ borderTop: `1px solid ${isDark ? '#1e2535' : '#f1f5f9'}` }}>
+                                        <div className="flex items-center justify-between pt-3 mt-3" style={{ borderTop: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}` }}>
                                             <div className="flex items-center gap-2">
                                                 <div 
                                                     className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center shrink-0"
                                                     style={{ 
-                                                        background: isDark ? '#0c0f16' : '#f8fafc',
-                                                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`
+                                                        background: isDark ? '#151928' : '#F8F8FA',
+                                                        border: `1px solid ${isDark ? '#232B40' : '#E3E5EC'}`
                                                     }}
                                                 >
                                                     <img 
@@ -1641,7 +1655,7 @@ export default function BlogPostDetailsPage() {
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transform: 'scale(1.1)' }}
                                                     />
                                                 </div>
-                                                <span className="truncate max-w-[120px]" style={{ fontSize: '11px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>Hire1Percent Team</span>
+                                                <span className="truncate max-w-[120px]" style={{ fontSize: '11px', fontWeight: 700, color: isDark ? '#CBD5E1' : '#252A3D' }}>Hire1Percent Team</span>
                                             </div>
                                             <ArrowRight size={14} style={{ color: t.accentText }} className="group-hover:translate-x-1 transition-transform" />
                                         </div>
@@ -1659,7 +1673,7 @@ export default function BlogPostDetailsPage() {
                     <button 
                         onClick={() => setMobileTocOpen(true)}
                         className="fixed bottom-6 right-6 z-40 rounded-full shadow-lg p-4 flex items-center gap-2 transition-all duration-300 font-bold uppercase tracking-wider text-xs cursor-pointer"
-                        style={{ background: t.accentBg, color: '#ffffff', border: `1px solid ${isDark ? '#3b82f6' : '#2563eb'}` }}
+                        style={{ background: '#20263A', color: '#E6BC6B', border: '1px solid #C99A45', boxShadow: '0 4px 14px rgba(32,38,58,0.25)' }}
                     >
                         <BookOpen size={16} />
                         <span>Contents</span>
@@ -1673,7 +1687,7 @@ export default function BlogPostDetailsPage() {
                                 onClick={() => setMobileTocOpen(false)}
                             />
                             <div className="relative w-full max-w-lg z-10 overflow-hidden flex flex-col transition-transform duration-300 transform translate-y-0" style={{ background: t.mobileTocBg, borderRadius: '2.5rem 2.5rem 0 0', padding: '1.5rem', boxShadow: isDark ? '0 -10px 40px rgba(0,0,0,0.5)' : '0 -10px 40px rgba(0,0,0,0.1)', border: `1px solid ${t.mobileTocBorder}`, maxHeight: '80vh' }}>
-                                <div style={{ width: '48px', height: '6px', background: isDark ? '#334155' : '#e2e8f0', borderRadius: '9999px', margin: '0 auto 1.25rem' }}></div>
+                                <div style={{ width: '48px', height: '6px', background: isDark ? '#232B40' : '#E3E5EC', borderRadius: '9999px', margin: '0 auto 1.25rem' }}></div>
                                 
                                 <div className="flex justify-between items-center pb-4 mb-4 shrink-0 font-sans" style={{ borderBottom: `1px solid ${t.mobileTocBorder}` }}>
                                     <h3 style={{ fontSize: '0.875rem', fontWeight: 900, color: t.headingText, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Table of Contents</h3>
