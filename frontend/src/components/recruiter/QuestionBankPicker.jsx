@@ -329,7 +329,7 @@ export default function QuestionBankPicker({ isOpen, onClose, jobId, onQuestions
                                 </div>
                             ) : (
                                 questions.map((q) => {
-                                    const isSelected = selectedIds.has(q._id);
+                                    const isSelected = selectedIds.has(String(q._id)) || (q.title && selectedIds.has(q.title.trim().toLowerCase()));
                                     const isPreviewed = previewQuestion?._id === q._id;
 
                                     return (

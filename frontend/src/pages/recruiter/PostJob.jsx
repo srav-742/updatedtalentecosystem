@@ -148,6 +148,9 @@ const PostJob = () => {
     const [normalTime, setNormalTime] = useState(15);
     const [moderateTime, setModerateTime] = useState(30);
     const [highTime, setHighTime] = useState(45);
+    const [normalConstraint, setNormalConstraint] = useState(true);
+    const [moderateConstraint, setModerateConstraint] = useState(true);
+    const [highConstraint, setHighConstraint] = useState(true);
 
     // Central Question Bank Integration States
     const [selectedBankQuestions, setSelectedBankQuestions] = useState([]);
@@ -326,9 +329,18 @@ const PostJob = () => {
                         const round = roundRes.data.codingRound;
                         if (round.languages && round.languages.length > 0) {
                             setCodingLanguages(round.languages);
+                            setSelectedLanguage(round.languages[0]);
                         }
                         if (round.timerType) setTimerType(round.timerType);
                         if (round.totalTime) setTotalTime(round.totalTime);
+                        if (round.normalTime) setNormalTime(round.normalTime);
+                        if (round.moderateTime) setModerateTime(round.moderateTime);
+                        if (round.highTime) setHighTime(round.highTime);
+                        if (round.constraintsConfig) {
+                            if (round.constraintsConfig.normal !== undefined) setNormalConstraint(round.constraintsConfig.normal);
+                            if (round.constraintsConfig.moderate !== undefined) setModerateConstraint(round.constraintsConfig.moderate);
+                            if (round.constraintsConfig.high !== undefined) setHighConstraint(round.constraintsConfig.high);
+                        }
                         if (Array.isArray(round.questions) && round.questions.length > 0) {
                             setSelectedBankQuestions(round.questions);
                             const isLow = (d) => ['LOW', 'EASY'].includes(String(d || '').toUpperCase());
@@ -337,7 +349,21 @@ const PostJob = () => {
                             setNormalCount(round.questions.filter(x => isLow(x.difficulty)).length);
                             setModerateCount(round.questions.filter(x => isMed(x.difficulty)).length);
                             setHighCount(round.questions.filter(x => isHigh(x.difficulty)).length);
+                        } else {
+                            if (round.normalCount !== undefined) setNormalCount(round.normalCount);
+                            if (round.moderateCount !== undefined) setModerateCount(round.moderateCount);
+                            if (round.highCount !== undefined) setHighCount(round.highCount);
                         }
+
+                        // Ensure coding round toggle is enabled in UI
+                        setJobData(prev => ({
+                            ...prev,
+                            codingAssessment: {
+                                ...(prev.codingAssessment || {}),
+                                enabled: true,
+                                passingScore: prev.codingAssessment?.passingScore || round.passingScore || 70
+                            }
+                        }));
                     }
                 } catch (error) {
                     console.error('Error fetching job for edit:', error);
@@ -725,48 +751,50 @@ const PostJob = () => {
                 });
             }
 
-            queryClient.invalidateQueries({ queryKey: ['jobs'] });
-            setSuccess(true);
-
-            // If bank questions were chosen, link them directly to the job assessment
-            if (targetJobId && (selectedBankQuestions.length > 0 || (editJobId && dataToSave.codingAssessment?.enabled))) {
+            // If codingAssessment is enabled or questions are attached, synchronize and publish coding assessment
+            const isCodingEnabled = Boolean(dataToSave.codingAssessment?.enabled || selectedBankQuestions.length > 0);
+            if (isCodingEnabled && targetJobId) {
                 try {
-                    await axios.post(`${API_URL}/question-bank/import-to-job`, {
+                    const syncPayload = {
                         jobId: targetJobId,
-                        questionIds: selectedBankQuestions.map(q => q?._id || q?.id).filter(Boolean),
-                        syncQuestions: true
-                    }, { headers });
-                } catch (importErr) {
-                    console.error('Error attaching bank questions to job:', importErr);
+                        passingScore: Number(dataToSave.codingAssessment?.passingScore) || 70,
+                        language: selectedLanguage,
+                        timerType,
+                        totalTime: Number(totalTime) || 60,
+                        normalTime: Number(normalTime) || 15,
+                        moderateTime: Number(moderateTime) || 30,
+                        highTime: Number(highTime) || 45,
+                        normalCount: Number(normalCount) || 0,
+                        moderateCount: Number(moderateCount) || 0,
+                        highCount: Number(highCount) || 0,
+                        constraintsConfig: {
+                            normal: normalConstraint,
+                            moderate: moderateConstraint,
+                            high: highConstraint
+                        },
+                        selectedQuestions: selectedBankQuestions.map(q => {
+                            const isLow = ['LOW', 'EASY'].includes(String(q.difficulty || '').toUpperCase());
+                            const isHigh = ['HIGH', 'HARD'].includes(String(q.difficulty || '').toUpperCase());
+                            const defaultReq = isLow ? normalConstraint : (isHigh ? highConstraint : moderateConstraint);
+                            return {
+                                ...q,
+                                requiresConstraint: q.requiresConstraint !== undefined ? q.requiresConstraint : defaultReq
+                            };
+                        })
+                    };
+
+                    await axios.post(`${API_URL}/coding-assessments/sync-job-assessment`, syncPayload, { headers });
+                } catch (codingSyncErr) {
+                    console.error('Error synchronizing coding assessment round:', codingSyncErr);
+                    alert("Warning: Job details saved, but coding assessment failed to sync: " + (codingSyncErr.response?.data?.message || codingSyncErr.message));
+                    setLoading(false);
+                    return;
                 }
             }
 
-            if (dataToSave.codingAssessment?.enabled && targetJobId) {
-                setTimeout(() => {
-                    const destinationRoute = selectedBankQuestions.length > 0
-                        ? `/recruiter/coding-assessment/${targetJobId}`
-                        : `/recruiter/custom-coding-assessment/${targetJobId}`;
-                    navigate(destinationRoute, {
-                        state: {
-                            language: selectedLanguage,
-                            importedQuestions: selectedBankQuestions,
-                            normalCount,
-                            moderateCount,
-                            highCount,
-                            uploadedFile,
-                            jobTitle: jobData.title,
-                            jobDescription: jobData.description,
-                            timerType,
-                            totalTime: Number(totalTime) || 60,
-                            normalTime: Number(normalTime) || 15,
-                            moderateTime: Number(moderateTime) || 30,
-                            highTime: Number(highTime) || 45
-                        }
-                    });
-                }, 1500);
-            } else {
-                setTimeout(() => navigate('/recruiter/my-jobs'), 3000);
-            }
+            queryClient.invalidateQueries({ queryKey: ['jobs'] });
+            setSuccess(true);
+            setTimeout(() => navigate('/recruiter/my-jobs'), 2500);
         } catch (error) {
             console.error('Error saving job:', error);
             const data = error.response?.data;
@@ -1506,6 +1534,95 @@ const PostJob = () => {
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {/* Dynamic Constraint Selection by Difficulty (only shown when count > 0) */}
+                                            {(normalCount > 0 || moderateCount > 0 || highCount > 0) && (
+                                                <div className="pt-2 border-t border-white/5 space-y-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="block font-semibold text-gray-400 uppercase tracking-wider text-[9px]">
+                                                            Constraints Selection
+                                                        </span>
+                                                        <span className="text-[8px] text-teal-400 font-medium">Recruiter Defined</span>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        {normalCount > 0 && (
+                                                            <div className="flex items-center justify-between p-1 bg-black/30 rounded border border-white/5">
+                                                                <span className="text-[9px] text-emerald-400 font-semibold">Normal ({normalCount})</span>
+                                                                <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setNormalConstraint(true)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            normalConstraint ? 'bg-teal-500 text-white' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Needed
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setNormalConstraint(false)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            !normalConstraint ? 'bg-rose-500/25 text-rose-300 border border-rose-500/30' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Not Needed
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {moderateCount > 0 && (
+                                                            <div className="flex items-center justify-between p-1 bg-black/30 rounded border border-white/5">
+                                                                <span className="text-[9px] text-amber-400 font-semibold">Moderate ({moderateCount})</span>
+                                                                <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setModerateConstraint(true)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            moderateConstraint ? 'bg-teal-500 text-white' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Needed
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setModerateConstraint(false)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            !moderateConstraint ? 'bg-rose-500/25 text-rose-300 border border-rose-500/30' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Not Needed
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {highCount > 0 && (
+                                                            <div className="flex items-center justify-between p-1 bg-black/30 rounded border border-white/5">
+                                                                <span className="text-[9px] text-red-400 font-semibold">High ({highCount})</span>
+                                                                <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setHighConstraint(true)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            highConstraint ? 'bg-teal-500 text-white' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Needed
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setHighConstraint(false)}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-bold cursor-pointer transition-all ${
+                                                                            !highConstraint ? 'bg-rose-500/25 text-rose-300 border border-rose-500/30' : 'text-gray-400 hover:text-white'
+                                                                        }`}
+                                                                    >
+                                                                        Not Needed
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
  
                                         <div>
@@ -1604,14 +1721,40 @@ const PostJob = () => {
                                                                         {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} • {q.testCases?.length || 0} test cases
                                                                     </span>
                                                                 </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => handleRemoveBankQuestion(q, idx, e)}
-                                                                    className="text-gray-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 cursor-pointer shrink-0 transition-all"
-                                                                    title="Remove question"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            setSelectedBankQuestions(prev => prev.map((item, i) => {
+                                                                                if (i === idx) {
+                                                                                    const curReq = item.requiresConstraint !== undefined ? item.requiresConstraint : (
+                                                                                        isLow ? normalConstraint : isHigh ? highConstraint : moderateConstraint
+                                                                                    );
+                                                                                    return { ...item, requiresConstraint: !curReq };
+                                                                                }
+                                                                                return item;
+                                                                            }));
+                                                                        }}
+                                                                        className={`px-2 py-0.5 rounded text-[9px] font-bold border cursor-pointer transition-all ${
+                                                                            (q.requiresConstraint !== undefined ? q.requiresConstraint : (isLow ? normalConstraint : isHigh ? highConstraint : moderateConstraint))
+                                                                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/30 hover:bg-teal-500/30'
+                                                                                : 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                                                                        }`}
+                                                                        title="Toggle constraint for this question"
+                                                                    >
+                                                                        {(q.requiresConstraint !== undefined ? q.requiresConstraint : (isLow ? normalConstraint : isHigh ? highConstraint : moderateConstraint)) ? 'Constraint: Needed' : 'Constraint: Not Needed'}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => handleRemoveBankQuestion(q, idx, e)}
+                                                                        className="text-gray-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 cursor-pointer shrink-0 transition-all"
+                                                                        title="Remove question"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         );
                                                     })}
@@ -2567,7 +2710,11 @@ const PostJob = () => {
                 isOpen={showQuestionBankPicker}
                 onClose={() => setShowQuestionBankPicker(false)}
                 onSelectQuestions={handleBankQuestionsSelected}
-                initialSelectedIds={selectedBankQuestions.map(q => q?._id || q?.id).filter(Boolean)}
+                initialSelectedIds={[
+                    ...selectedBankQuestions.map(q => String(q?._id || q?.id || '')),
+                    ...selectedBankQuestions.map(q => String(q?.bankQuestionId || '')),
+                    ...selectedBankQuestions.map(q => q?.title ? q.title.trim().toLowerCase() : '')
+                ].filter(Boolean)}
             />
 
         </div >

@@ -656,7 +656,7 @@ const importToJob = async (req, res) => {
                 timerType: 'overall',
                 languages: ['python', 'javascript'],
                 instructions: '',
-                status: 'draft',
+                status: 'published',
                 questions: []
             });
             await codingRound.save();
@@ -670,7 +670,7 @@ const importToJob = async (req, res) => {
 
         // Handle empty questionIds when syncing (user deleted all questions)
         if (questionIds.length === 0) {
-            if (syncQuestions || replaceExisting) {
+            if (replaceExisting === true) {
                 await CodingQuestion.deleteMany({ codingRoundId: codingRound._id });
                 codingRound.questions = [];
                 await codingRound.save();

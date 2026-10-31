@@ -1038,25 +1038,33 @@ const CodingAssessment = ({
                 }));
 
                 if (isPassed) {
-                    const fallbackMutation = {
-                        mutationId: 'mut_mem_opt_14mb',
-                        headline: 'Scale Constraint: Maximum Heap Clamped to 14 MB',
-                        description: 'Input stream throughput has scaled 10x. Available runtime heap is clamped to 14 MB. Adapt your solution to process input in-place using iterators without buffering entire arrays.',
-                        resourceConstraints: { memoryLimitMb: 14, timeoutMs: 4000 }
-                    };
-                    const activeMut = res.data.mutationTriggered || fallbackMutation;
+                    const qRequiresConstraint = currentQuestion?.requiresConstraint !== false;
+                    if (!qRequiresConstraint) {
+                        updateQuestionStage(qId, 'COMPLETED', {
+                            stage1Code: code,
+                            stage1SubmittedAt: Date.now()
+                        });
+                    } else {
+                        const fallbackMutation = {
+                            mutationId: 'mut_mem_opt_14mb',
+                            headline: 'Scale Constraint: Maximum Heap Clamped to 14 MB',
+                            description: 'Input stream throughput has scaled 10x. Available runtime heap is clamped to 14 MB. Adapt your solution to process input in-place using iterators without buffering entire arrays.',
+                            resourceConstraints: { memoryLimitMb: 14, timeoutMs: 4000 }
+                        };
+                        const activeMut = res.data.mutationTriggered || fallbackMutation;
 
-                    setDmceMutations(prev => ({
-                        ...prev,
-                        [qId]: { ...activeMut, activated: true, triggered: true }
-                    }));
+                        setDmceMutations(prev => ({
+                            ...prev,
+                            [qId]: { ...activeMut, activated: true, triggered: true }
+                        }));
 
-                    updateQuestionStage(qId, 'STAGE_2', {
-                        stage1Code: code,
-                        stage1SubmittedAt: Date.now()
-                    });
+                        updateQuestionStage(qId, 'STAGE_2', {
+                            stage1Code: code,
+                            stage1SubmittedAt: Date.now()
+                        });
 
-                    triggerMutationAlert(activeMut, qId);
+                        triggerMutationAlert(activeMut, qId);
+                    }
                 } else {
                     setError(`Initial solution passed ${exec?.passed || 0} of ${exec?.total || 0} sample tests. All baseline tests must pass before progressive constraints unlock.`);
                 }
@@ -1598,6 +1606,27 @@ const CodingAssessment = ({
                             {/* Progressive Constraints Block */}
                             {(() => {
                                 const qId = currentQuestion?._id;
+                                const qRequiresConstraint = currentQuestion?.requiresConstraint !== false;
+                                if (!qRequiresConstraint) {
+                                    return (
+                                        <div className="space-y-2 bg-[#161b22] border border-[#30363d] p-4 rounded-xl">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Layers size={13} className="text-teal-400" />
+                                                    <span>Constraints</span>
+                                                </h4>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 bg-gray-800/80 border border-gray-700">
+                                                    Standard Execution
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400 font-mono">
+                                                {currentQuestion?.constraints && currentQuestion.constraints !== 'No specific constraints'
+                                                    ? currentQuestion.constraints
+                                                    : 'No special memory or progressive constraints required for this challenge.'}
+                                            </p>
+                                        </div>
+                                    );
+                                }
                                 const currentStage = questionStages[qId] || 'STAGE_1';
                                 const isStage2OrDone = currentStage === 'STAGE_2' || currentStage === 'COMPLETED' || dmceMutations[qId]?.activated;
                                 const activeMutation = dmceMutations[qId] || activeMutationAlert;

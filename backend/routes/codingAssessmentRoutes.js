@@ -21,6 +21,7 @@ const optionalAuth = (req, res, next) => {
 
 // ─── Coding Round ────────────────────────────────────────
 router.post('/round', authMiddleware, roleCheck('recruiter'), codingAssessmentController.createOrUpdateCodingRound);
+router.post('/sync-job-assessment', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.syncJobCodingAssessment);
 router.get('/round/:jobId', optionalAuth, codingAssessmentController.getCodingRoundByJobId);
 router.delete('/round/:jobId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.deleteCodingRound);
 

@@ -34,6 +34,7 @@ const codingQuestionSchema = new mongoose.Schema({
     inputFormat: { type: String, default: '' },
     outputFormat: { type: String, default: '' },
     constraints: { type: String, default: '' },
+    requiresConstraint: { type: Boolean, default: true },
     expectedApproach: { type: String, default: '' },
     examples: [exampleSchema],
     testCases: [testCaseSchema],

@@ -65,27 +65,61 @@ const getCodingRoundByJobId = async (req, res) => {
             }
         }
 
-        let codingRound = await CodingRound.findOne({ jobId }).populate('questions');
+        let codingRound = null;
+        if (job?.codingRoundId) {
+            codingRound = await CodingRound.findById(job.codingRoundId);
+        }
+        if (!codingRound) {
+            codingRound = await CodingRound.findOne({ jobId }).sort({ updatedAt: -1 });
+        }
         if (!codingRound) {
             return res.json({ success: false, message: 'No coding round configured for this job.' });
         }
 
-        // Clean up any null / deleted questions from populate
-        if (Array.isArray(codingRound.questions)) {
-            const validQuestions = codingRound.questions.filter(Boolean);
-            if (validQuestions.length !== codingRound.questions.length) {
-                codingRound.questions = validQuestions;
-                await CodingRound.findByIdAndUpdate(codingRound._id, {
-                    questions: validQuestions.map(q => q._id)
-                });
+        // Robust question resolution: Fetch directly from CodingQuestion or fallback to QuestionBank
+        const rawQuestionIds = (Array.isArray(codingRound.questions) ? codingRound.questions : [])
+            .map(q => (q && q._id) ? q._id : q)
+            .filter(Boolean);
+
+        let resolvedQuestions = [];
+        if (rawQuestionIds.length > 0) {
+            const cqList = await CodingQuestion.find({ _id: { $in: rawQuestionIds } }).lean();
+            const cqMap = new Map(cqList.map(item => [item._id.toString(), item]));
+
+            const missingIds = rawQuestionIds.filter(id => !cqMap.has(id.toString()));
+            let bqMap = new Map();
+            if (missingIds.length > 0) {
+                const QuestionBank = require('../models/QuestionBank');
+                const bqList = await QuestionBank.find({ _id: { $in: missingIds } }).lean();
+                bqMap = new Map(bqList.map(item => [item._id.toString(), item]));
+            }
+
+            for (const qid of rawQuestionIds) {
+                const idStr = qid.toString();
+                if (cqMap.has(idStr)) {
+                    resolvedQuestions.push({ ...cqMap.get(idStr) });
+                } else if (bqMap.has(idStr)) {
+                    resolvedQuestions.push({ ...bqMap.get(idStr) });
+                }
+            }
+        }
+
+        // If round had 0 questions referenced in array, recover any existing CodingQuestions for this round
+        if (resolvedQuestions.length === 0) {
+            const orphanCqs = await CodingQuestion.find({ codingRoundId: codingRound._id }).lean();
+            if (orphanCqs.length > 0) {
+                resolvedQuestions = orphanCqs;
+                CodingRound.findByIdAndUpdate(codingRound._id, {
+                    questions: orphanCqs.map(q => q._id)
+                }).catch(err => console.warn('[CODING-ROUND] Recovered questions background update:', err.message));
             }
         }
 
         // Apply dynamic score calculations to questions
-        if (codingRound.questions && codingRound.questions.length > 0) {
-            const dynamicCalcs = calculateDynamicMarks(codingRound.questions);
+        if (resolvedQuestions.length > 0) {
+            const dynamicCalcs = calculateDynamicMarks(resolvedQuestions);
             const calcsById = new Map(dynamicCalcs.map(c => [c.id ? c.id.toString() : '', c]));
-            codingRound.questions.forEach(q => {
+            resolvedQuestions.forEach(q => {
                 if (!q) return;
                 const c = calcsById.get(q._id ? q._id.toString() : '');
                 if (c) {
@@ -98,24 +132,25 @@ const getCodingRoundByJobId = async (req, res) => {
         
         // Recruiter and admin can see all test details; candidates only see public test cases or metadata
         const isRecruiter = req.user && ['recruiter', 'admin', 'company'].includes(req.user.role);
-        let sanitizedRound = codingRound.toObject ? codingRound.toObject() : { ...codingRound };
-        if (!isRecruiter && Array.isArray(sanitizedRound.questions)) {
-            sanitizedRound.questions = sanitizedRound.questions.map(q => {
-                if (Array.isArray(q.testCases)) {
-                    q.testCases = q.testCases.map(tc => {
-                        if (tc.isHidden) {
-                            return {
-                                _id: tc._id,
-                                category: tc.category || 'EDGE_CASE',
-                                isHidden: true
-                            };
-                        }
-                        return tc;
-                    });
-                }
-                return q;
-            });
-        }
+        let sanitizedQuestions = resolvedQuestions.map(q => {
+            const qObj = { ...q };
+            if (!isRecruiter && Array.isArray(qObj.testCases)) {
+                qObj.testCases = qObj.testCases.map(tc => {
+                    if (tc.isHidden) {
+                        return {
+                            _id: tc._id,
+                            category: tc.category || 'EDGE_CASE',
+                            isHidden: true
+                        };
+                    }
+                    return tc;
+                });
+            }
+            return qObj;
+        });
+
+        const sanitizedRound = codingRound.toObject ? codingRound.toObject() : { ...codingRound };
+        sanitizedRound.questions = sanitizedQuestions;
 
         res.json({ success: true, codingRound: sanitizedRound });
     } catch (error) {
@@ -264,6 +299,366 @@ const createOrUpdateCodingRound = async (req, res) => {
         res.json({ success: true, codingRound: populatedRound || codingRound });
     } catch (error) {
         console.error('[CODING-ROUND] Create/Update Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * POST /api/coding-assessments/sync-job-assessment
+ * Synchronizes and automatically publishes the coding round directly during job creation/update.
+ * Supports:
+ * - Direct attachment of Question Bank questions or auto-selected vetted questions
+ * - Constraints selection (Needed / Not Needed) per difficulty or per question
+ * - Timer configuration (Overall round timer or per-question difficulty timers)
+ * - Automatic status: 'published' ensuring candidate flow never sees "no challenges" or errors
+ */
+const syncJobCodingAssessment = async (req, res) => {
+    try {
+        const {
+            jobId,
+            passingScore = 70,
+            language = 'Python',
+            timerType = 'overall',
+            totalTime = 60,
+            normalTime = 15,
+            moderateTime = 30,
+            highTime = 45,
+            normalCount = 1,
+            moderateCount = 1,
+            highCount = 0,
+            constraintsConfig = { normal: true, moderate: true, high: true },
+            selectedQuestions = []
+        } = req.body;
+
+        if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ success: false, message: 'Valid Job ID is required.' });
+        }
+
+        const Job = require('../models/Job');
+        const QuestionBank = require('../models/QuestionBank');
+        const CodingQuestion = require('../models/CodingQuestion');
+
+        const job = await Job.findById(jobId);
+        if (!job) {
+            return res.status(404).json({ success: false, message: 'Job not found.' });
+        }
+
+        // Find or create coding round
+        let codingRound = null;
+        if (job.codingRoundId) {
+            codingRound = await CodingRound.findById(job.codingRoundId);
+        }
+        if (!codingRound) {
+            codingRound = await CodingRound.findOne({ jobId }).sort({ updatedAt: -1 });
+        }
+
+        if (!codingRound) {
+            codingRound = new CodingRound({
+                jobId,
+                totalTime: Number(totalTime) || 60,
+                timerType: timerType || 'overall',
+                normalTime: Number(normalTime) || 15,
+                moderateTime: Number(moderateTime) || 30,
+                highTime: Number(highTime) || 45,
+                normalCount: Number(normalCount) || 0,
+                moderateCount: Number(moderateCount) || 0,
+                highCount: Number(highCount) || 0,
+                constraintsConfig: {
+                    normal: constraintsConfig?.normal !== false,
+                    moderate: constraintsConfig?.moderate !== false,
+                    high: constraintsConfig?.high !== false
+                },
+                languages: [language || 'Python'],
+                instructions: 'Read each problem description, observe sample test cases, and satisfy all constraints.',
+                status: 'published',
+                dynamicMutation: {
+                    enabled: constraintsConfig?.normal !== false || constraintsConfig?.moderate !== false || constraintsConfig?.high !== false,
+                    minTriggerSec: 0,
+                    maxTriggerSec: 1800,
+                    minAstNodes: 12,
+                    mutationTimeBufferSec: 0,
+                    memoryLimitMb: 14
+                },
+                questions: []
+            });
+        } else {
+            codingRound.totalTime = Number(totalTime) || 60;
+            codingRound.timerType = timerType || 'overall';
+            codingRound.normalTime = Number(normalTime) || 15;
+            codingRound.moderateTime = Number(moderateTime) || 30;
+            codingRound.highTime = Number(highTime) || 45;
+            codingRound.normalCount = Number(normalCount) || 0;
+            codingRound.moderateCount = Number(moderateCount) || 0;
+            codingRound.highCount = Number(highCount) || 0;
+            codingRound.constraintsConfig = {
+                normal: constraintsConfig?.normal !== false,
+                moderate: constraintsConfig?.moderate !== false,
+                high: constraintsConfig?.high !== false
+            };
+            if (language) {
+                const existingLangs = Array.isArray(codingRound.languages) ? codingRound.languages : [];
+                codingRound.languages = Array.from(new Set([language, ...existingLangs]));
+            }
+            codingRound.status = 'published';
+            if (!codingRound.dynamicMutation) {
+                codingRound.dynamicMutation = {
+                    enabled: constraintsConfig?.normal !== false || constraintsConfig?.moderate !== false || constraintsConfig?.high !== false,
+                    minTriggerSec: 0,
+                    maxTriggerSec: 1800,
+                    minAstNodes: 12,
+                    mutationTimeBufferSec: 0,
+                    memoryLimitMb: 14
+                };
+            } else {
+                codingRound.dynamicMutation.enabled = constraintsConfig?.normal !== false || constraintsConfig?.moderate !== false || constraintsConfig?.high !== false;
+            }
+        }
+        await codingRound.save();
+
+        const isLow = (d) => ['LOW', 'EASY'].includes(String(d || '').toUpperCase());
+        const isHigh = (d) => ['HIGH', 'HARD'].includes(String(d || '').toUpperCase());
+
+        const savedQuestionIds = [];
+
+        // Helper to determine question timer and constraints
+        const resolveQuestionParams = (diff, specifiedConstraint) => {
+            const low = isLow(diff);
+            const high = isHigh(diff);
+
+            let reqConstraint = true;
+            if (specifiedConstraint !== undefined) {
+                reqConstraint = Boolean(specifiedConstraint);
+            } else if (low) {
+                reqConstraint = constraintsConfig?.normal !== false;
+            } else if (high) {
+                reqConstraint = constraintsConfig?.high !== false;
+            } else {
+                reqConstraint = constraintsConfig?.moderate !== false;
+            }
+
+            let qTimer = 0;
+            if (timerType === 'individual') {
+                if (low) qTimer = Number(normalTime) || 15;
+                else if (high) qTimer = Number(highTime) || 45;
+                else qTimer = Number(moderateTime) || 30;
+            }
+
+            return { reqConstraint, qTimer, normalizedDiff: low ? 'LOW' : high ? 'HIGH' : 'MEDIUM' };
+        };
+
+        if (Array.isArray(selectedQuestions) && selectedQuestions.length > 0) {
+            // Recruiter specifically picked questions (from question bank or existing round)
+            for (const q of selectedQuestions) {
+                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(q.difficulty, q.requiresConstraint);
+
+                let existingQuestion = null;
+                const candidateId = q._id || q.id;
+                if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
+                    existingQuestion = await CodingQuestion.findById(candidateId);
+                }
+
+                if (existingQuestion) {
+                    existingQuestion.codingRoundId = codingRound._id;
+                    existingQuestion.title = q.title || existingQuestion.title;
+                    existingQuestion.description = q.description || existingQuestion.description;
+                    existingQuestion.difficulty = normalizedDiff || existingQuestion.difficulty;
+                    existingQuestion.difficultyWeight = normalizedDiff === 'HIGH' ? 3 : normalizedDiff === 'LOW' ? 1 : 2;
+                    existingQuestion.requiresConstraint = reqConstraint;
+                    existingQuestion.constraints = reqConstraint
+                        ? (q.constraints || existingQuestion.constraints || 'Standard time and space constraints apply')
+                        : 'No specific constraints';
+                    existingQuestion.timer = qTimer;
+
+                    // Only update testCases if passed testCases have actual non-empty input
+                    if (Array.isArray(q.testCases) && q.testCases.length > 0) {
+                        const hasMasked = q.testCases.some(tc => tc.isHidden && (tc.input === undefined || tc.input === ''));
+                        if (!hasMasked) {
+                            existingQuestion.testCases = q.testCases;
+                        }
+                    }
+                    await existingQuestion.save();
+                    savedQuestionIds.push(existingQuestion._id);
+                } else {
+                    let bq = null;
+                    if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
+                        bq = await QuestionBank.findById(candidateId);
+                    }
+
+                    const rawTestCases = (bq?.testCases || q.testCases || []);
+                    const mappedTestCases = rawTestCases.map(tc => {
+                        let cat = tc.category || 'NORMAL';
+                        const catUpper = String(cat).toUpperCase();
+                        if (catUpper === 'BASIC') cat = 'NORMAL';
+                        else if (catUpper === 'EDGE') cat = 'EDGE_CASE';
+                        return {
+                            input: tc.input || '',
+                            expectedOutput: tc.expectedOutput || '',
+                            isHidden: tc.isHidden || false,
+                            category: cat,
+                            explanation: tc.explanation || '',
+                            validationStatus: tc.validationStatus || 'VALIDATED',
+                            source: 'QUESTION_BANK',
+                            timeoutMs: tc.timeoutMs || 6000
+                        };
+                    });
+
+                    const rawExamples = (bq?.examples || q.examples || []);
+                    const mappedExamples = rawExamples.map(ex => ({
+                        input: ex.input || '',
+                        output: ex.output || '',
+                        explanation: ex.explanation || ''
+                    }));
+
+                    const newQuestion = new CodingQuestion({
+                        codingRoundId: codingRound._id,
+                        title: q.title || bq?.title || 'Coding Challenge',
+                        description: q.description || bq?.description || '',
+                        inputFormat: q.inputFormat || bq?.inputFormat || '',
+                        outputFormat: q.outputFormat || bq?.outputFormat || '',
+                        constraints: reqConstraint
+                            ? (q.constraints || bq?.constraints || 'Standard time and space constraints apply')
+                            : 'No specific constraints',
+                        requiresConstraint: reqConstraint,
+                        expectedApproach: q.expectedApproach || bq?.expectedApproach || '',
+                        examples: mappedExamples,
+                        testCases: mappedTestCases,
+                        difficulty: normalizedDiff,
+                        difficultyWeight: normalizedDiff === 'HIGH' ? 3 : normalizedDiff === 'LOW' ? 1 : 2,
+                        marks: q.marks || bq?.marks || 10,
+                        allowedLanguages: (Array.isArray(q.allowedLanguages) && q.allowedLanguages.length > 0)
+                            ? q.allowedLanguages
+                            : (Array.isArray(bq?.supportedLanguages) && bq.supportedLanguages.length > 0)
+                                ? bq.supportedLanguages
+                                : [language.toLowerCase()],
+                        timer: qTimer,
+                        executionMode: q.executionMode || bq?.executionMode || 'STDIN',
+                        functionSignature: q.functionSignature || bq?.functionSignature || null,
+                        referenceSolution: q.referenceSolution || (bq?.referenceSolution ? (bq.referenceSolution.python || null) : null),
+                        validationStatus: 'VALIDATED'
+                    });
+                    await newQuestion.save();
+                    savedQuestionIds.push(newQuestion._id);
+                }
+            }
+        }
+
+        // Check if there are shortfalls compared to requested normalCount, moderateCount, highCount
+        const currentSavedDocs = await CodingQuestion.find({ _id: { $in: savedQuestionIds } });
+        const curNormal = currentSavedDocs.filter(q => isLow(q.difficulty)).length;
+        const curModerate = currentSavedDocs.filter(q => !isLow(q.difficulty) && !isHigh(q.difficulty)).length;
+        const curHigh = currentSavedDocs.filter(q => isHigh(q.difficulty)).length;
+
+        const neededNormal = Math.max(0, (parseInt(normalCount) || 0) - curNormal);
+        const neededModerate = Math.max(0, (parseInt(moderateCount) || 0) - curModerate);
+        const neededHigh = Math.max(0, (parseInt(highCount) || 0) - curHigh);
+
+        if (neededNormal > 0 || neededModerate > 0 || neededHigh > 0) {
+            const pickedBank = [];
+            if (neededNormal > 0) {
+                const low = await QuestionBank.find({ difficulty: 'LOW' }).limit(neededNormal);
+                pickedBank.push(...low);
+            }
+            if (neededModerate > 0) {
+                const med = await QuestionBank.find({ difficulty: 'MEDIUM' }).limit(neededModerate);
+                pickedBank.push(...med);
+            }
+            if (neededHigh > 0) {
+                const high = await QuestionBank.find({ difficulty: 'HIGH' }).limit(neededHigh);
+                pickedBank.push(...high);
+            }
+
+            for (const bq of pickedBank) {
+                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(bq.difficulty);
+
+                const mappedTestCases = (bq.testCases || []).map(tc => {
+                    let cat = tc.category || 'NORMAL';
+                    const catUpper = String(cat).toUpperCase();
+                    if (catUpper === 'BASIC') cat = 'NORMAL';
+                    else if (catUpper === 'EDGE') cat = 'EDGE_CASE';
+                    return {
+                        input: tc.input || '',
+                        expectedOutput: tc.expectedOutput || '',
+                        isHidden: tc.isHidden || false,
+                        category: cat,
+                        explanation: tc.explanation || '',
+                        validationStatus: tc.validationStatus || 'VALIDATED',
+                        source: 'QUESTION_BANK',
+                        timeoutMs: tc.timeoutMs || 6000
+                    };
+                });
+
+                const newQuestion = new CodingQuestion({
+                    codingRoundId: codingRound._id,
+                    title: bq.title,
+                    description: bq.description,
+                    inputFormat: bq.inputFormat || '',
+                    outputFormat: bq.outputFormat || '',
+                    constraints: reqConstraint
+                        ? (bq.constraints || 'Standard time and space constraints apply')
+                        : 'No specific constraints',
+                    requiresConstraint: reqConstraint,
+                    expectedApproach: bq.expectedApproach || '',
+                    examples: (bq.examples || []).map(ex => ({
+                        input: ex.input || '',
+                        output: ex.output || '',
+                        explanation: ex.explanation || ''
+                    })),
+                    testCases: mappedTestCases,
+                    difficulty: normalizedDiff,
+                    difficultyWeight: normalizedDiff === 'HIGH' ? 3 : normalizedDiff === 'LOW' ? 1 : 2,
+                    marks: bq.marks || 10,
+                    allowedLanguages: (Array.isArray(bq.supportedLanguages) && bq.supportedLanguages.length > 0)
+                        ? bq.supportedLanguages
+                        : [language.toLowerCase()],
+                    timer: qTimer,
+                    executionMode: bq.executionMode || 'STDIN',
+                    functionSignature: bq.functionSignature || null,
+                    referenceSolution: bq.referenceSolution ? (bq.referenceSolution.python || null) : null,
+                    validationStatus: 'VALIDATED'
+                });
+                await newQuestion.save();
+                savedQuestionIds.push(newQuestion._id);
+            }
+        }
+
+        // If no questions were selected or added, preserve any existing questions for this round
+        if (savedQuestionIds.length === 0 && Array.isArray(codingRound.questions) && codingRound.questions.length > 0) {
+            const existingValid = await CodingQuestion.find({ _id: { $in: codingRound.questions } });
+            savedQuestionIds.push(...existingValid.map(eq => eq._id));
+        }
+
+        // Clean up only unreferenced CodingQuestion docs for this round
+        if (savedQuestionIds.length > 0) {
+            await CodingQuestion.deleteMany({
+                codingRoundId: codingRound._id,
+                _id: { $nin: savedQuestionIds }
+            });
+            codingRound.questions = savedQuestionIds;
+            await codingRound.save();
+        }
+
+        // Calculate dynamic marks distribution strictly totaling 100 marks
+        await syncRoundQuestionMarks(codingRound._id);
+
+        // Update Job with codingRoundId and enabled flag
+        job.codingRoundId = codingRound._id;
+        job.codingAssessment = {
+            enabled: true,
+            passingScore: Number(passingScore) || 70
+        };
+        await job.save();
+
+        invalidateCache('/api/jobs');
+
+        const populatedRound = await CodingRound.findById(codingRound._id).populate('questions');
+        res.json({
+            success: true,
+            message: 'Coding assessment synchronized and published successfully.',
+            codingRound: populatedRound || codingRound,
+            questionCount: savedQuestionIds.length
+        });
+    } catch (error) {
+        console.error('[CODING-ROUND] syncJobCodingAssessment Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -1171,6 +1566,13 @@ const startDMCESession = async (req, res) => {
             config.minTriggerSec = 0;
         }
 
+        if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
+            const cq = await CodingQuestion.findById(questionId).lean();
+            if (cq && cq.requiresConstraint === false) {
+                config.enabled = false;
+            }
+        }
+
         const session = mutationEngine.startSession({
             sessionId,
             candidateId: candidateId || req.user?.uid || req.user?._id || '',
@@ -1938,6 +2340,7 @@ const recordRevisionCheckpoint = async (req, res) => {
 module.exports = {
     getCodingRoundByJobId,
     createOrUpdateCodingRound,
+    syncJobCodingAssessment,
     deleteCodingRound,
     addCodingQuestion,
     updateCodingQuestion,
