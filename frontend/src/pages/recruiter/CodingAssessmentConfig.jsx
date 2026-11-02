@@ -717,7 +717,7 @@ const CodingAssessmentConfig = () => {
                                                 </span>
                                                 {roundConfig.timerType === 'individual' ? (
                                                     <span className="flex items-center gap-1.5 bg-teal-500/10 text-teal-400 px-2 py-0.5 rounded-lg border border-teal-500/20">
-                                                        <Clock size={12} /> {q.timer || (q.difficulty === 'Easy' ? 15 : q.difficulty === 'Hard' ? 45 : 30)} min
+                                                        <Clock size={12} /> {q.timer || (normalizeDifficulty(dynamicDiff) === 'LOW' ? 15 : normalizeDifficulty(dynamicDiff) === 'HIGH' ? 45 : 30)} min
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center gap-1.5 bg-gray-500/10 text-gray-400 px-2 py-0.5 rounded-lg border border-white/5">

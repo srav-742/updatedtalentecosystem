@@ -740,6 +740,16 @@ const importToJob = async (req, res) => {
                 continue;
             }
 
+            let importedTimer = 0;
+            if (Number(bq.timer) > 0) {
+                importedTimer = Number(bq.timer);
+            } else if (codingRound.timerType === 'individual') {
+                const diffUpper = String(bq.difficulty || '').toUpperCase();
+                if (['LOW', 'EASY'].includes(diffUpper)) importedTimer = Number(codingRound.normalTime) || 15;
+                else if (['HIGH', 'HARD'].includes(diffUpper)) importedTimer = Number(codingRound.highTime) || 45;
+                else importedTimer = Number(codingRound.moderateTime) || 30;
+            }
+
             // Create a new CodingQuestion (existing schema) from bank question
             const newQuestion = new CodingQuestion({
                 codingRoundId: codingRound._id,
@@ -774,6 +784,7 @@ const importToJob = async (req, res) => {
                 difficultyWeight: bq.difficultyWeight || 2,
                 marks: bq.marks || 10,
                 allowedLanguages: bq.supportedLanguages || [],
+                timer: importedTimer,
                 executionMode: bq.executionMode || 'STDIN',
                 functionSignature: bq.functionSignature || null,
                 referenceSolution: bq.referenceSolution ? (bq.referenceSolution.get ? bq.referenceSolution.get('python') : bq.referenceSolution.python) : null,

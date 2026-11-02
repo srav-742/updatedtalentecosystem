@@ -421,7 +421,7 @@ const syncJobCodingAssessment = async (req, res) => {
         const savedQuestionIds = [];
 
         // Helper to determine question timer and constraints
-        const resolveQuestionParams = (diff, specifiedConstraint) => {
+        const resolveQuestionParams = (diff, specifiedConstraint, explicitTimer) => {
             const low = isLow(diff);
             const high = isHigh(diff);
 
@@ -437,7 +437,9 @@ const syncJobCodingAssessment = async (req, res) => {
             }
 
             let qTimer = 0;
-            if (timerType === 'individual') {
+            if (explicitTimer !== undefined && explicitTimer !== null && Number(explicitTimer) > 0) {
+                qTimer = Number(explicitTimer);
+            } else if (timerType === 'individual') {
                 if (low) qTimer = Number(normalTime) || 15;
                 else if (high) qTimer = Number(highTime) || 45;
                 else qTimer = Number(moderateTime) || 30;
@@ -449,13 +451,17 @@ const syncJobCodingAssessment = async (req, res) => {
         if (Array.isArray(selectedQuestions) && selectedQuestions.length > 0) {
             // Recruiter specifically picked questions (from question bank or existing round)
             for (const q of selectedQuestions) {
-                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(q.difficulty, q.requiresConstraint);
-
                 let existingQuestion = null;
                 const candidateId = q._id || q.id;
                 if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
                     existingQuestion = await CodingQuestion.findById(candidateId);
                 }
+
+                const candidateExplicitTimer = (q.timer !== undefined && q.timer !== null && Number(q.timer) > 0)
+                    ? Number(q.timer)
+                    : (existingQuestion?.timer && Number(existingQuestion.timer) > 0 ? Number(existingQuestion.timer) : undefined);
+
+                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(q.difficulty, q.requiresConstraint, candidateExplicitTimer);
 
                 if (existingQuestion) {
                     existingQuestion.codingRoundId = codingRound._id;
@@ -483,6 +489,11 @@ const syncJobCodingAssessment = async (req, res) => {
                     if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
                         bq = await QuestionBank.findById(candidateId);
                     }
+
+                    const newExplicitTimer = (q.timer !== undefined && q.timer !== null && Number(q.timer) > 0)
+                        ? Number(q.timer)
+                        : (bq?.timer && Number(bq.timer) > 0 ? Number(bq.timer) : undefined);
+                    const { reqConstraint: newReqConstraint, qTimer: newQTimer, normalizedDiff: newNormDiff } = resolveQuestionParams(q.difficulty || bq?.difficulty, q.requiresConstraint, newExplicitTimer);
 
                     const rawTestCases = (bq?.testCases || q.testCases || []);
                     const mappedTestCases = rawTestCases.map(tc => {
@@ -515,22 +526,22 @@ const syncJobCodingAssessment = async (req, res) => {
                         description: q.description || bq?.description || '',
                         inputFormat: q.inputFormat || bq?.inputFormat || '',
                         outputFormat: q.outputFormat || bq?.outputFormat || '',
-                        constraints: reqConstraint
+                        constraints: newReqConstraint
                             ? (q.constraints || bq?.constraints || 'Standard time and space constraints apply')
                             : 'No specific constraints',
-                        requiresConstraint: reqConstraint,
+                        requiresConstraint: newReqConstraint,
                         expectedApproach: q.expectedApproach || bq?.expectedApproach || '',
                         examples: mappedExamples,
                         testCases: mappedTestCases,
-                        difficulty: normalizedDiff,
-                        difficultyWeight: normalizedDiff === 'HIGH' ? 3 : normalizedDiff === 'LOW' ? 1 : 2,
+                        difficulty: newNormDiff,
+                        difficultyWeight: newNormDiff === 'HIGH' ? 3 : newNormDiff === 'LOW' ? 1 : 2,
                         marks: q.marks || bq?.marks || 10,
                         allowedLanguages: (Array.isArray(q.allowedLanguages) && q.allowedLanguages.length > 0)
                             ? q.allowedLanguages
                             : (Array.isArray(bq?.supportedLanguages) && bq.supportedLanguages.length > 0)
                                 ? bq.supportedLanguages
                                 : [language.toLowerCase()],
-                        timer: qTimer,
+                        timer: newQTimer,
                         executionMode: q.executionMode || bq?.executionMode || 'STDIN',
                         functionSignature: q.functionSignature || bq?.functionSignature || null,
                         referenceSolution: q.referenceSolution || (bq?.referenceSolution ? (bq.referenceSolution.python || null) : null),
@@ -568,7 +579,8 @@ const syncJobCodingAssessment = async (req, res) => {
             }
 
             for (const bq of pickedBank) {
-                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(bq.difficulty);
+                const bankExplicitTimer = (bq?.timer && Number(bq.timer) > 0) ? Number(bq.timer) : undefined;
+                const { reqConstraint, qTimer, normalizedDiff } = resolveQuestionParams(bq.difficulty, undefined, bankExplicitTimer);
 
                 const mappedTestCases = (bq.testCases || []).map(tc => {
                     let cat = tc.category || 'NORMAL';
@@ -1566,11 +1578,36 @@ const startDMCESession = async (req, res) => {
             config.minTriggerSec = 0;
         }
 
+        let cq = null;
         if (questionId && mongoose.Types.ObjectId.isValid(questionId)) {
-            const cq = await CodingQuestion.findById(questionId).lean();
+            cq = await CodingQuestion.findById(questionId).lean();
             if (cq && cq.requiresConstraint === false) {
                 config.enabled = false;
             }
+        }
+
+        // Authoritative Timer Resolution:
+        // Prioritize explicit question timer or per-difficulty timer when timerType is 'individual'
+        let resolvedDurationSec = null;
+        if (req.body.durationSec && Number(req.body.durationSec) > 0) {
+            resolvedDurationSec = Number(req.body.durationSec);
+        } else if (roundConfig?.timerType === 'individual') {
+            if (cq && Number(cq.timer) > 0) {
+                resolvedDurationSec = Number(cq.timer) * 60;
+            } else {
+                const diff = String(cq?.difficulty || '').toUpperCase();
+                const isLow = ['LOW', 'EASY'].includes(diff);
+                const isHigh = ['HIGH', 'HARD'].includes(diff);
+                if (isLow) resolvedDurationSec = (Number(roundConfig?.normalTime) || 15) * 60;
+                else if (isHigh) resolvedDurationSec = (Number(roundConfig?.highTime) || 45) * 60;
+                else resolvedDurationSec = (Number(roundConfig?.moderateTime) || 30) * 60;
+            }
+        } else {
+            resolvedDurationSec = (Number(roundConfig?.totalTime) || 60) * 60;
+        }
+
+        if (resolvedDurationSec && resolvedDurationSec > 0) {
+            config.durationSec = resolvedDurationSec;
         }
 
         const session = mutationEngine.startSession({

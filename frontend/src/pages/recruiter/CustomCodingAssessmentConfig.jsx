@@ -443,7 +443,7 @@ const CustomCodingAssessmentConfig = () => {
                                             <span className="text-xs text-gray-500">({q.marks || 10} Marks)</span>
                                             {timerType === 'individual' && (
                                                 <span className="text-xs text-gray-400 flex items-center gap-1.5 font-semibold">
-                                                    <Clock size={12} className="text-teal-400" /> {q.timer || (q.difficulty === 'Easy' ? 15 : q.difficulty === 'Hard' ? 45 : 30)} min
+                                                    <Clock size={12} className="text-teal-400" /> {q.timer || (['low', 'easy'].includes(String(q.difficulty || '').toLowerCase()) ? 15 : ['high', 'hard'].includes(String(q.difficulty || '').toLowerCase()) ? 45 : 30)} min
                                                 </span>
                                             )}
                                         </div>
@@ -518,7 +518,7 @@ const CustomCodingAssessmentConfig = () => {
                                                                     <input
                                                                         type="number"
                                                                         min="1"
-                                                                        value={q.timer || (q.difficulty === 'Easy' ? 15 : q.difficulty === 'Hard' ? 45 : 30)}
+                                                                        value={q.timer || (['low', 'easy'].includes(String(q.difficulty || '').toLowerCase()) ? 15 : ['high', 'hard'].includes(String(q.difficulty || '').toLowerCase()) ? 45 : 30)}
                                                                         onChange={(e) => handleFieldChange(idx, 'timer', parseInt(e.target.value) || 0)}
                                                                         className="w-full bg-[#161b22] border border-white/10 rounded-xl p-2.5 text-white"
                                                                     />

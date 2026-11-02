@@ -76,6 +76,21 @@ const CodingAssessment = ({
     const activeEvaluationsRef = useRef({}); // { [questionId]: evaluationId }
 
     const timerRef = useRef(null);
+    const questionTimersRef = useRef({});
+    const prevQIndexRef = useRef(0);
+
+    const getQuestionTimerMinutes = (q, config) => {
+        if (config?.timerType === 'individual') {
+            if (q && Number(q.timer) > 0) {
+                return Number(q.timer);
+            }
+            const diff = normalizeDifficulty(q?.difficulty);
+            if (diff === 'LOW') return Number(config.normalTime) || 15;
+            if (diff === 'HIGH') return Number(config.highTime) || 45;
+            return Number(config.moderateTime) || 30;
+        }
+        return Number(config?.totalTime) || 60;
+    };
 
     const currentQuestion = questions[currentQIndex] || null;
 
@@ -374,11 +389,15 @@ const CodingAssessment = ({
                 if (user?.uid || user?._id || user?.id) {
                     headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
                 }
+                const qMinutes = getQuestionTimerMinutes(currentQuestion, roundConfig);
+                const questionDurationSec = qMinutes * 60;
+
                 const res = await axios.post(`${API_URL}/coding-assessments/session/start`, {
                     sessionId: sid,
                     candidateId: candidateId,
                     jobId: targetJobId,
                     questionId: qId,
+                    durationSec: questionDurationSec,
                     language: answers[qId]?.language || 'python'
                 }, { headers });
 
@@ -390,7 +409,13 @@ const CodingAssessment = ({
                         const statusRes = await axios.get(`${API_URL}/coding-assessments/session/status/${sid}`, { headers });
                         if (statusRes.data?.success) {
                             if (statusRes.data.timerRemainingSec !== undefined && statusRes.data.timerRemainingSec > 0) {
-                                setTimeLeft(statusRes.data.timerRemainingSec);
+                                if (roundConfig?.timerType === 'individual') {
+                                    const validRemaining = Math.min(statusRes.data.timerRemainingSec, questionDurationSec + 30);
+                                    setTimeLeft(validRemaining);
+                                    questionTimersRef.current[qId] = validRemaining;
+                                } else {
+                                    setTimeLeft(statusRes.data.timerRemainingSec);
+                                }
                             }
                             if (statusRes.data.adaptationBufferApplied) {
                                 setMutationBufferedQuestions(prev => new Set([...prev, qId]));
@@ -515,9 +540,20 @@ const CodingAssessment = ({
                 setRoundConfig(round);
                 setQuestions(enrichedQuestions);
                 if (round.timerType === 'individual') {
+                    const targetJobId = job?._id || job?.id || 'job';
+                    let savedTimers = {};
+                    try {
+                        const stored = sessionStorage.getItem(`dmce_q_timers_${targetJobId}`);
+                        if (stored) savedTimers = JSON.parse(stored);
+                    } catch (_) {}
+                    questionTimersRef.current = savedTimers;
+
                     const firstQ = enrichedQuestions[0];
-                    const qTimer = firstQ?.timer || Math.floor((round.totalTime || 60) / enrichedQuestions.length);
-                    setTimeLeft(qTimer * 60);
+                    const firstQMinutes = getQuestionTimerMinutes(firstQ, round);
+                    const initialSec = savedTimers[firstQ?._id] !== undefined
+                        ? Math.max(0, Number(savedTimers[firstQ._id]))
+                        : (firstQMinutes * 60);
+                    setTimeLeft(initialSec);
                 } else {
                     setTimeLeft((round.totalTime || 60) * 60);
                 }
@@ -561,6 +597,15 @@ const CodingAssessment = ({
         if (started && timeLeft > 0 && !securityResetting) {
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
+                    const currentQ = questions[currentQIndex];
+                    const nextVal = Math.max(0, prev - 1);
+                    if (currentQ?._id && roundConfig?.timerType === 'individual') {
+                        questionTimersRef.current[currentQ._id] = nextVal;
+                        try {
+                            const targetJobId = job?._id || job?.id || 'job';
+                            sessionStorage.setItem(`dmce_q_timers_${targetJobId}`, JSON.stringify(questionTimersRef.current));
+                        } catch (_) {}
+                    }
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
                         if (roundConfig?.timerType === 'individual') {
@@ -576,7 +621,7 @@ const CodingAssessment = ({
                             return 0;
                         }
                     }
-                    return prev - 1;
+                    return nextVal;
                 });
             }, 1000);
         }
@@ -586,12 +631,34 @@ const CodingAssessment = ({
         };
     }, [started, timeLeft, securityResetting, currentQIndex, questions, roundConfig]);
 
-    // Handle individual question timer reset on question switch
+    // Handle individual question timer switch
     useEffect(() => {
         if (started && roundConfig?.timerType === 'individual' && questions.length > 0) {
+            const prevQ = questions[prevQIndexRef.current];
             const currentQ = questions[currentQIndex];
-            const qTimer = currentQ?.timer || Math.floor((roundConfig?.totalTime || 60) / questions.length);
-            setTimeLeft(qTimer * 60);
+            const targetJobId = job?._id || job?.id || 'job';
+
+            // Save remaining time for the previous question if switching
+            if (prevQ?._id && prevQIndexRef.current !== currentQIndex) {
+                questionTimersRef.current[prevQ._id] = timeLeft;
+                try {
+                    sessionStorage.setItem(`dmce_q_timers_${targetJobId}`, JSON.stringify(questionTimersRef.current));
+                } catch (_) {}
+            }
+
+            prevQIndexRef.current = currentQIndex;
+
+            // Load saved remaining time or initialize with question's full timer
+            if (currentQ?._id) {
+                if (questionTimersRef.current[currentQ._id] !== undefined) {
+                    setTimeLeft(questionTimersRef.current[currentQ._id]);
+                } else {
+                    const qMinutes = getQuestionTimerMinutes(currentQ, roundConfig);
+                    const qSec = qMinutes * 60;
+                    questionTimersRef.current[currentQ._id] = qSec;
+                    setTimeLeft(qSec);
+                }
+            }
         }
     }, [currentQIndex, started, roundConfig, questions]);
 
@@ -1184,12 +1251,13 @@ const CodingAssessment = ({
             }, { headers });
 
             if (res.data?.success) {
-                // Clear cached draft codes on successful submission
+                // Clear cached draft codes and question timers on successful submission
                 try {
                     const targetJobId = job?._id || job?.id || 'job';
                     questions.forEach(q => {
                         localStorage.removeItem(`dmce_code_${targetJobId}_${q._id}`);
                     });
+                    sessionStorage.removeItem(`dmce_q_timers_${targetJobId}`);
                 } catch (_) {}
 
                 // Success! Complete step
@@ -1368,7 +1436,11 @@ const CodingAssessment = ({
                                     Rules & Structure
                                 </h3>
                                 <ul className="text-xs md:text-sm text-gray-600 space-y-2.5 list-disc list-inside leading-relaxed">
-                                    <li>Total time allotted: <strong>{roundConfig?.totalTime || 60} minutes</strong></li>
+                                    {roundConfig?.timerType === 'individual' ? (
+                                        <li>Time allotted: <strong>Individual per question</strong> ({questions.map((q, i) => `Q${i + 1}: ${getQuestionTimerMinutes(q, roundConfig)}m`).join(', ')})</li>
+                                    ) : (
+                                        <li>Total time allotted: <strong>{roundConfig?.totalTime || 60} minutes</strong></li>
+                                    )}
                                     <li>Total programming challenges: <strong>{questions.length} questions</strong> • Maximum Score: <strong>100 Marks</strong></li>
                                     <li>Each challenge has dynamic proportional marks based on difficulty totaling exactly 100 marks.</li>
                                     <li>Ensure you choose the correct language from the dropdown menu.</li>
