@@ -51,6 +51,7 @@ const SkillAssessment = ({
     const [sessionId, setSessionId] = useState(null);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState({});
+    const [descriptions, setDescriptions] = useState({});
     const [score, setScore] = useState(null);
     const [error, setError] = useState(null);
     const [securityResetting, setSecurityResetting] = useState(false);
@@ -272,6 +273,30 @@ const SkillAssessment = ({
         setAnswers((prev) => ({ ...prev, [currentQIndex]: value }));
     };
 
+    const handleDescription = (value) => {
+        setDescriptions((prev) => ({ ...prev, [currentQIndex]: value }));
+    };
+
+    const canProceed = useMemo(() => {
+        const q = questions[currentQIndex];
+        if (!q) return false;
+        const isParagraph = q.type === 'paragraph' || q.type === 'descriptive' || q.type === 'subjective';
+        const isMcqWithDesc = q.type === 'mcq' && Boolean(q.requiresDescription || q.requiresExplanation || q.hasDescription);
+
+        if (isParagraph) {
+            return Boolean((descriptions[currentQIndex] || answers[currentQIndex] || '').trim().length >= 10);
+        }
+        if (isMcqWithDesc) {
+            const hasOption = Boolean(answers[currentQIndex]);
+            const hasExplanation = Boolean((descriptions[currentQIndex] || '').trim().length >= 5);
+            return hasOption && hasExplanation;
+        }
+        if (q.type === 'mcq') {
+            return Boolean(answers[currentQIndex]);
+        }
+        return Boolean((answers[currentQIndex] || '').trim());
+    }, [questions, currentQIndex, answers, descriptions]);
+
     const nextQuestion = () => {
         if (currentQIndex < questions.length - 1) {
             setCurrentQIndex(currentQIndex + 1);
@@ -288,22 +313,25 @@ const SkillAssessment = ({
         const formattedAnswers = [];
 
         questions.forEach((question, index) => {
-            const userAnswer = answers[index];
+            const userAnswer = answers[index] || '';
+            const userExplanation = (descriptions[index] || '').trim();
             let isCorrect = false;
 
             if (question.type === 'mcq') {
-                if (question.options[question.correctAnswer] === userAnswer) {
+                if (question.options && question.options[question.correctAnswer] === userAnswer) {
                     correct += 1;
                     isCorrect = true;
                 }
-            } else if (question.type === 'coding') {
-                // Frontend no longer scores coding questions (deferred to AI on backend)
-                // We leave isCorrect as false and let the backend evaluate it.
+            } else if (question.type === 'coding' || question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') {
+                // Frontend no longer scores coding/paragraph/descriptive questions (deferred to AI on backend)
+                // We leave isCorrect as null and let the backend evaluate it.
                 isCorrect = null; // Send null to indicate it's not pre-scored
             }
 
             formattedAnswers.push({
-                userAnswer,
+                userAnswer: userAnswer || userExplanation,
+                selectedOption: userAnswer,
+                explanation: userExplanation,
                 isCorrect
             });
         });
@@ -799,8 +827,8 @@ const SkillAssessment = ({
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                         <div className="max-w-3xl">
                             <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">
-                                {question.type === 'mcq' ? <ListChecks size={14} /> : <Code2 size={14} />}
-                                {question.type === 'mcq' ? 'Multiple choice' : 'Coding response'}
+                                {question.type === 'mcq' ? <ListChecks size={14} /> : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? <BookOpenCheck size={14} /> : <Code2 size={14} />}
+                                {question.type === 'mcq' ? 'Multiple choice' : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? 'Paragraph response' : 'Coding response'}
                             </div>
                             <h2 className="mt-6 text-3xl font-semibold leading-tight tracking-tight text-gray-900">
                                 {question.question}
@@ -809,25 +837,79 @@ const SkillAssessment = ({
                     </div>
 
                     {question.type === 'mcq' ? (
-                        <div className="mt-8 space-y-4">
-                            {question.options.map((option, index) => {
-                                const isSelected = answers[currentQIndex] === option;
+                        <div className="mt-8 space-y-6">
+                            <div className="space-y-4">
+                                {question.options.map((option, index) => {
+                                    const isSelected = answers[currentQIndex] === option;
 
-                                return (
-                                    <button
-                                        key={`${option}-${index}`}
-                                        onClick={() => handleAnswer(option)}
-                                        className={`w-full rounded-[1.5rem] border px-5 py-5 text-left transition ${isSelected ? 'border-black bg-black text-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]' : 'border-black/10 bg-[#fbf8f3] text-gray-700 hover:border-black/20 hover:bg-[#faf7f1]'}`}
-                                    >
-                                        <div className="flex items-start gap-4">
-                                            <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${isSelected ? 'bg-white text-black' : 'bg-white text-gray-500 border border-black/10'}`}>
-                                                {String.fromCharCode(65 + index)}
+                                    return (
+                                        <button
+                                            key={`${option}-${index}`}
+                                            onClick={() => handleAnswer(option)}
+                                            className={`w-full rounded-[1.5rem] border px-5 py-5 text-left transition ${isSelected ? 'border-black bg-black text-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]' : 'border-black/10 bg-[#fbf8f3] text-gray-700 hover:border-black/20 hover:bg-[#faf7f1]'}`}
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${isSelected ? 'bg-white text-black' : 'bg-white text-gray-500 border border-black/10'}`}>
+                                                    {String.fromCharCode(65 + index)}
+                                                </div>
+                                                <p className="text-base leading-7">{option}</p>
                                             </div>
-                                            <p className="text-base leading-7">{option}</p>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Descriptive explanation area ONLY when specifically requested for this particular MCQ */}
+                            {Boolean(question.requiresDescription || question.requiresExplanation || question.hasDescription) && (
+                                <div className="rounded-[1.75rem] border border-black/10 bg-[#fcfbf9] p-5 sm:p-6 transition-all focus-within:border-black/30">
+                                    <div className="mb-2.5 flex items-center justify-between">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                                            Describe your answer / solution reasoning
+                                        </label>
+                                        <span className="text-[11px] font-medium text-gray-400">
+                                            {(descriptions[currentQIndex] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        rows={4}
+                                        className="w-full rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-gray-800 placeholder-gray-400 outline-none transition focus:border-black/30 focus:ring-1 focus:ring-black/10"
+                                        value={descriptions[currentQIndex] || ''}
+                                        onChange={(event) => handleDescription(event.target.value)}
+                                        placeholder="Explain your reasoning or approach in detail for the chosen answer..."
+                                        maxLength={2000}
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Explain the technical principles behind your answer to support your choice.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? (
+                        <div className="mt-8 space-y-4">
+                            <div className="rounded-[1.75rem] border border-black/10 bg-[#fcfbf9] p-5 sm:p-6 transition-all focus-within:border-black/30">
+                                <div className="mb-2.5 flex items-center justify-between">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                                        Written Response
+                                    </label>
+                                    <span className="text-[11px] font-medium text-gray-400">
+                                        {(descriptions[currentQIndex] || answers[currentQIndex] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                    </span>
+                                </div>
+                                <textarea
+                                    rows={8}
+                                    className="w-full rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-gray-800 placeholder-gray-400 outline-none transition focus:border-black/30 focus:ring-1 focus:ring-black/10"
+                                    value={descriptions[currentQIndex] || answers[currentQIndex] || ''}
+                                    onChange={(event) => {
+                                        handleDescription(event.target.value);
+                                        handleAnswer(event.target.value);
+                                    }}
+                                    placeholder="Type your complete answer or explanation here..."
+                                    maxLength={3000}
+                                />
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Provide a comprehensive answer covering the core concepts and edge cases.
+                                </p>
+                            </div>
                         </div>
                     ) : (
                         <div className="mt-8 space-y-4">
@@ -854,15 +936,29 @@ const SkillAssessment = ({
 
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <div className="text-sm text-gray-500">
-                            {question.type === 'mcq'
-                                ? 'Select the strongest answer before moving forward.'
-                                : 'Provide a complete response before continuing.'}
+                            {(() => {
+                                const isParagraph = question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective';
+                                const isMcqWithDesc = question.type === 'mcq' && Boolean(question.requiresDescription || question.requiresExplanation || question.hasDescription);
+
+                                if (isParagraph) {
+                                    return 'Provide a complete written response before continuing.';
+                                }
+                                if (isMcqWithDesc) {
+                                    if (!answers[currentQIndex]) return 'Select an option and describe your reasoning.';
+                                    if (!(descriptions[currentQIndex] || '').trim()) return 'Please provide a brief written explanation for your answer.';
+                                    return 'Select the strongest answer and verify your explanation before moving forward.';
+                                }
+                                if (question.type === 'mcq') {
+                                    return 'Select the strongest answer before moving forward.';
+                                }
+                                return 'Provide a complete response before continuing.';
+                            })()}
                         </div>
 
                         <button
                             onClick={nextQuestion}
-                            disabled={!answers[currentQIndex] || submitting}
-                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${answers[currentQIndex] && !submitting ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
+                            disabled={!canProceed || submitting}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${canProceed && !submitting ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
                         >
                             {submitting ? (
                                 <>

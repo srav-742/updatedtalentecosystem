@@ -98,7 +98,9 @@ Session Seed: ${seed}
 
 TASK: 
 - Create a diverse set of original questions tailored specifically to the ${job.title} role.
-- For MLOps roles, cover a mix of: Model Deployment, Monitoring, Infrastructure, and Automation.
+- For standard assessment, generate standard "mcq" questions with 4 choices.
+- Include 1 or 2 "paragraph" (or "descriptive") questions where the candidate must describe/explain their answer in text (e.g. system design choice, debugging scenario, or technical trade-off).
+- Standard "mcq" questions do NOT have a descriptive answer area. If a specific MCQ requires the candidate to write an explanation for why they picked that option, set "requiresDescription": true.
 - Do NOT repeat common or basic questions. Focus on practical, real-world technical scenarios.
 - Each user should get unique questions (use the Session Seed: ${seed} to vary the focus).
 
@@ -106,7 +108,7 @@ Return ONLY a JSON object with key "questions" containing an array.
 Each question must be original and different from common examples.
 
 Each question must have:
-- "type": "mcq" or "coding"
+- "type": "mcq" or "paragraph" or "coding"
 - "skill": one of the given skills
 - "question": clear, original question text
 - "difficulty": "medium"
@@ -114,12 +116,16 @@ Each question must have:
 For "mcq":
 - "options": array of 4 unique strings
 - "correctAnswer": integer (0-3)
+- "requiresDescription": boolean (set true only if this specific MCQ requires the candidate to write an explanation)
+
+For "paragraph":
+- "idealAnswer": 2-3 sentences outlining the essential key points a correct candidate answer must mention.
 
 For "coding":
 - "starterCode": string with function signature
 
 Example:
-{"questions":[{"type":"mcq","skill":"JavaScript","question":"What is the result of 1 + '1' in JS?","options":["11","2","NaN","Error"],"correctAnswer":0}]}
+{"questions":[{"type":"mcq","skill":"JavaScript","question":"What is the result of 1 + '1' in JS?","options":["11","2","NaN","Error"],"correctAnswer":0},{"type":"paragraph","skill":"Database","question":"Describe the key differences between clustered and non-clustered indexes and when to use each.","idealAnswer":"Clustered indexes determine physical row order with only one per table. Non-clustered indexes create a separate pointer structure, ideal for frequent search columns."}]}
 
 NO extra text, explanations, or markdown.
 `;
@@ -163,6 +169,8 @@ NO extra text, explanations, or markdown.
                 }
             } else if (type === 'coding') {
                 if (!q.starterCode) q.starterCode = "// Write your solution here";
+            } else if (type === 'descriptive' || type === 'paragraph' || type === 'subjective') {
+                if (!q.idealAnswer) q.idealAnswer = "Comprehensive technical explanation";
             }
             // Save to log
             try {
@@ -230,7 +238,11 @@ const submitAssessment = async (req, res) => {
         // Sanitize questions array
         const sanitizedQuestions = safeQuestions.map(q => {
             const rawType = String(q.type || 'mcq').toLowerCase();
-            const normType = rawType.includes('coding') ? 'coding' : 'mcq';
+            const normType = rawType.includes('coding')
+                ? 'coding'
+                : (rawType.includes('paragraph') || rawType.includes('descriptive') || rawType.includes('subjective')
+                    ? 'paragraph'
+                    : 'mcq');
             return {
                 type: normType,
                 skill: q.skill || 'General',
@@ -238,6 +250,8 @@ const submitAssessment = async (req, res) => {
                 difficulty: q.difficulty || 'medium',
                 options: Array.isArray(q.options) ? q.options : [],
                 correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : 0,
+                requiresDescription: Boolean(q.requiresDescription || q.requiresExplanation || q.hasDescription),
+                idealAnswer: q.idealAnswer || '',
                 starterCode: q.starterCode || ''
             };
         });
@@ -257,20 +271,121 @@ const submitAssessment = async (req, res) => {
                 const rawQId = question._id || question.id || question.questionId;
                 const safeQId = (rawQId && mongoose.Types.ObjectId.isValid(rawQId)) ? rawQId : null;
 
+                const candidateOption = ans.selectedOption || (typeof ans.userAnswer === 'string' && question.type === 'mcq' && Array.isArray(question.options) && question.options.includes(ans.userAnswer) ? ans.userAnswer : (typeof ans.userAnswer === 'string' ? ans.userAnswer : ''));
+                const candidateExplanation = (ans.explanation || '').trim();
+
                 if (question.type === 'mcq') {
                     const correctOptionIndex = typeof question.correctAnswer === 'number' ? question.correctAnswer : 0;
                     const correctOption = Array.isArray(question.options) ? question.options[correctOptionIndex] : '';
-                    isCorrect = ans.userAnswer === correctOption;
+                    isCorrect = candidateOption === correctOption;
                     score = isCorrect ? 1 : 0;
                     correctAnswerField = correctOption;
+
+                    let aiFeedback = '';
+                    if (candidateExplanation && candidateExplanation.length >= 8) {
+                        const prompt = `
+Analyze this candidate's written explanation for a multiple-choice question in a technical job assessment.
+
+Question: ${question.question}
+Target Skill: ${question.skill}
+Candidate Selected Option: ${candidateOption}
+Is Selected Option Correct: ${isCorrect ? 'Yes' : 'No'}
+Correct Option: ${correctOption}
+
+Candidate's Written Explanation:
+"${candidateExplanation}"
+
+Task:
+Evaluate whether the candidate demonstrates genuine technical understanding of the concept or if they are guessing/superficial.
+Provide a concise 1-2 sentence assessment of their reasoning.
+
+Respond ONLY with a JSON object:
+{
+  "isExplanationAccurate": true/false,
+  "feedback": "1-2 sentence technical assessment of candidate's reasoning."
+}
+`;
+                        try {
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 25000));
+                            const aiResponse = await Promise.race([
+                                callGemini(prompt, 400, true),
+                                timeoutPromise
+                            ]);
+                            const parsed = safeParseAIJson(aiResponse, null);
+                            if (parsed?.feedback) {
+                                aiFeedback = parsed.feedback;
+                            }
+                        } catch (err) {
+                            console.warn('[ASSESSMENT MCQ EXPLANATION EVAL ERROR]', err.message);
+                        }
+                    }
 
                     return {
                         questionId: safeQId,
                         question: question.question,
                         questionType: question.type,
                         skill: question.skill,
-                        userAnswer: ans.userAnswer,
+                        userAnswer: candidateOption || candidateExplanation,
+                        selectedOption: candidateOption,
+                        explanation: candidateExplanation,
+                        aiFeedback: aiFeedback || (candidateExplanation ? 'Candidate provided reasoning.' : ''),
                         correctAnswer: correctAnswerField,
+                        isCorrect,
+                        score
+                    };
+                } else if (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') {
+                    const writtenResponse = candidateExplanation || ans.userAnswer || '';
+                    let aiFeedback = '';
+                    if (writtenResponse && writtenResponse.length >= 10) {
+                        const prompt = `
+Evaluate this candidate's written descriptive response for a technical job assessment.
+
+Question: ${question.question}
+Target Skill: ${question.skill}
+Reference / Ideal Answer: ${question.idealAnswer || question.correctAnswer || 'Accurate technical explanation of concepts.'}
+
+Candidate's Response:
+"${writtenResponse}"
+
+Task: Determine if the candidate's answer is conceptually accurate and demonstrates competent technical knowledge.
+
+Respond ONLY with a JSON object:
+{
+  "isCorrect": true/false,
+  "score": 0 or 1,
+  "feedback": "1-2 sentence explanation of technical strengths and any gaps."
+}
+`;
+                        try {
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 25000));
+                            const aiResponse = await Promise.race([
+                                callGemini(prompt, 400, true),
+                                timeoutPromise
+                            ]);
+                            const parsed = safeParseAIJson(aiResponse, null);
+                            if (parsed && typeof parsed.isCorrect === 'boolean') {
+                                isCorrect = parsed.isCorrect;
+                                score = parsed.score === 1 || parsed.isCorrect ? 1 : 0;
+                                aiFeedback = parsed.feedback || '';
+                                correctAnswerField = parsed.feedback || (question.idealAnswer || 'Technical evaluation complete');
+                            }
+                        } catch (err) {
+                            console.warn('[ASSESSMENT DESCRIPTIVE AI EVAL ERROR]', err.message);
+                            isCorrect = writtenResponse.length > 30;
+                            score = isCorrect ? 1 : 0;
+                        }
+                    }
+
+                    return {
+                        questionId: safeQId,
+                        question: question.question,
+                        questionType: 'descriptive',
+                        skill: question.skill,
+                        userAnswer: writtenResponse,
+                        selectedOption: '',
+                        explanation: writtenResponse,
+                        aiFeedback: aiFeedback || correctAnswerField,
+                        correctAnswer: question.idealAnswer || correctAnswerField,
                         isCorrect,
                         score
                     };
@@ -534,6 +649,9 @@ const getAssessmentDetails = async (req, res) => {
                             correctAnswer: a.correctAnswer,
                             starterCode: null,
                             userAnswer: a.userAnswer,
+                            selectedOption: a.selectedOption,
+                            explanation: a.explanation,
+                            aiFeedback: a.aiFeedback,
                             isCorrect: a.isCorrect,
                             answerScore: a.score
                         }))
@@ -561,6 +679,9 @@ const getAssessmentDetails = async (req, res) => {
                 questions: (submission.questions || []).map((q, idx) => ({
                     ...(typeof q?.toObject === 'function' ? q.toObject() : q),
                     userAnswer: submission.answers?.[idx]?.userAnswer,
+                    selectedOption: submission.answers?.[idx]?.selectedOption,
+                    explanation: submission.answers?.[idx]?.explanation,
+                    aiFeedback: submission.answers?.[idx]?.aiFeedback,
                     isCorrect: submission.answers?.[idx]?.isCorrect,
                     answerScore: submission.answers?.[idx]?.score
                 }))

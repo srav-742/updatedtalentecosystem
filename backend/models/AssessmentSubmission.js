@@ -7,6 +7,8 @@ const questionSchema = new mongoose.Schema({
     difficulty: { type: String, default: 'medium' },
     options: [String],
     correctAnswer: mongoose.Mixed,
+    requiresDescription: { type: Boolean, default: false },
+    idealAnswer: String,
     starterCode: String
 });
 
@@ -16,6 +18,9 @@ const answerSchema = new mongoose.Schema({
     questionType: { type: String, default: 'mcq' },
     skill: String,
     userAnswer: mongoose.Mixed,
+    selectedOption: String,
+    explanation: String,
+    aiFeedback: String,
     correctAnswer: mongoose.Mixed,
     isCorrect: { type: Boolean, default: false },
     score: { type: Number, default: 0 }

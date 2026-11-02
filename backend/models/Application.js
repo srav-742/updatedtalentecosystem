@@ -93,6 +93,9 @@ const applicationSchema = new mongoose.Schema({
             questionType: String,
             skill: String,
             userAnswer: mongoose.Schema.Types.Mixed,
+            selectedOption: String,
+            explanation: String,
+            aiFeedback: String,
             correctAnswer: mongoose.Schema.Types.Mixed,
             isCorrect: Boolean,
             score: Number
