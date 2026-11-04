@@ -136,7 +136,7 @@ function App() {
       <Suspense fallback={<GlobalPageSkeleton />}>
       <Routes>
         <Route path="/" element={<AssessmentsHome />} />
-        <Route path="/service" element={<LandingPage />} />
+        <Route path="/service" element={<Navigate to="/" replace />} />
         <Route path="/assessments-home" element={<Navigate to="/" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/about" element={<AboutPage />} />

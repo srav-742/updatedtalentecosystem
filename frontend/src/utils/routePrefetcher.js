@@ -15,7 +15,7 @@
 // These match the lazy() imports in App.jsx
 const ROUTE_IMPORT_MAP = {
   '/': () => import('../pages/AssessmentsHome'),
-  '/service': () => import('../pages/LandingPage'),
+  '/service': () => import('../pages/AssessmentsHome'),
   '/about': () => import('../pages/AboutPage'),
   '/pricing': () => import('../pages/PricingPage'),
   '/sample-report': () => import('../pages/SampleReportPage'),

@@ -28,8 +28,6 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
         return () => window.removeEventListener('storage', updateAuth);
     }, []);
 
-
-
     const themeToggle = onToggleTheme ? (
         <button
             onClick={onToggleTheme}
@@ -42,42 +40,47 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
 
     return (
         <nav
-            className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md ${isLight ? 'border-b border-gray-200 bg-white/90' : 'border-b border-white/10 bg-[#0c0f16]/80'}`}
+            className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md ${isLight ? 'border-b border-gray-200 bg-white/95' : 'border-b border-white/10 bg-[#0c0f16]/90'}`}
         >
             <div className="container mx-auto px-6 py-4 flex items-center justify-between">
                 <Link to="/" className="flex items-center space-x-2 group">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#0c0f16] flex items-center justify-center shadow-lg shadow-blue-500/20 border border-white/10 group-hover:scale-110 transition-transform shrink-0">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#20263A] flex items-center justify-center shadow-md border border-white/10 group-hover:scale-105 transition-transform shrink-0">
                         <img 
-                            src="/logo-icon.webp" 
-                            alt="hire1percent icon" 
+                            src="/logo-icon.png" 
+                            alt="Hire1Percent logo" 
                             width="40"
                             height="40"
                             onError={(e) => { e.currentTarget.src = '/logo.png'; }}
-                            className="w-full h-full object-cover object-top scale-110" 
+                            className="w-full h-full object-cover object-top" 
                         />
                     </div>
-                    <span className={`text-xl font-bold bg-clip-text text-transparent transition-all ${isLight ? 'bg-gradient-to-r from-gray-900 to-gray-500 group-hover:from-blue-500 group-hover:to-teal-500' : 'bg-gradient-to-r from-white to-white/60 group-hover:from-blue-400 group-hover:to-teal-400'}`}>
-                        hire1percent
+                    <span className={`text-xl font-extrabold tracking-tight transition-all ${isLight ? 'text-[#20263A]' : 'text-white'}`}>
+                        Hire<span className="text-[#C99A45]">1Percent</span>
                     </span>
                 </Link>
-                <div className="hidden md:flex items-center space-x-8">
-                    <Link to="/pricing" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Pricing</Link>
-                    {/* Service page link temporarily hidden from frontend; kept in codebase to enable again if needed */}
-                    {/* <Link to="/service" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Service</Link> */}
-                    <a href="/service#elite-talent" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Elite Talent</a>
-                    <a href="/service#operations" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Operations</a>
-                    <a href="/service#safety" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>Safety</a>
+                <div className="hidden md:flex items-center space-x-7">
+                    <a href="/#how-it-works" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>How it works</a>
+                    <a href="/#anti-cheat" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>4-Layer Anti-Cheat</a>
+                    <Link to="/sample-report" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Sample Report</Link>
+                    <Link to="/pricing" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Pricing</Link>
+                    <Link to="/blog" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Blog</Link>
+                    <Link to="/contact" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Contact</Link>
 
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3 pl-2">
                         {themeToggle}
                         {user ? (
-                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/candidate'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}>
+                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/candidate'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
                                 Dashboard
                             </Link>
                         ) : (
-                            <Link to="/login" className={`px-5 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-800 hover:text-blue-500' : 'text-white hover:text-blue-400'}`}>
-                                    Login
+                            <>
+                                <Link to="/login" className={`px-4 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                                    Sign In
                                 </Link>
+                                <Link to="/?book-demo=true" className="px-4 py-2 text-xs font-bold rounded-xl bg-[#20263A] text-[#E6BC6B] hover:bg-[#2c344e] border border-[#E6BC6B]/30 shadow-sm transition-all duration-200">
+                                    Book Demo ↗
+                                </Link>
+                            </>
                         )}
                     </div>
                 </div>
@@ -104,12 +107,12 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                 className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${isMenuOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'} ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
             >
                 <div className="flex flex-col p-6 space-y-4">
+                    <a href="/#how-it-works" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>How it works</a>
+                    <a href="/#anti-cheat" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>4-Layer Anti-Cheat</a>
+                    <Link to="/sample-report" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Sample Report</Link>
                     <Link to="/pricing" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Pricing</Link>
-                    {/* Service page link temporarily hidden from frontend; kept in codebase to enable again if needed */}
-                    {/* <Link to="/service" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Service</Link> */}
-                    <a href="/service#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
-                    <a href="/service#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
-                    <a href="/service#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
+                    <Link to="/blog" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Blog</Link>
+                    <Link to="/contact" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Contact</Link>
                     {onToggleTheme && (
                         <div className="pt-2">
                             <button
@@ -134,7 +137,10 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                                 Dashboard
                             </Link>
                         ) : (
-                            <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Login</Link>
+                            <>
+                                <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Sign In</Link>
+                                <Link to="/?book-demo=true" onClick={() => setIsMenuOpen(false)} className="py-2.5 text-center text-xs font-bold rounded-xl bg-[#20263A] text-[#E6BC6B] border border-[#E6BC6B]/30">Book Demo ↗</Link>
+                            </>
                         )}
                     </div>
                 </div>
