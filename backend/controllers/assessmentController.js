@@ -10,6 +10,281 @@ const { findRecruiterUser } = require('../utils/userResolver');
 const { generateHash } = require('../utils/helpers');
 
 
+// Helper to infer core technical skills if job.skills is empty
+const inferRoleSkills = (title = '') => {
+    const t = String(title || '').toLowerCase();
+    if (t.includes('qa') || t.includes('quality') || t.includes('test') || t.includes('sdet')) {
+        return ['Automation Testing', 'Test Strategy & Planning', 'Selenium & Cypress Frameworks', 'Defect Triage & Root Cause Analysis', 'API Testing & CI/CD'];
+    }
+    if (t.includes('front') || t.includes('react') || t.includes('ui') || t.includes('angular') || t.includes('vue')) {
+        return ['React & JavaScript', 'Web Performance', 'State Management', 'CSS & Responsive Design', 'Component Architecture'];
+    }
+    if (t.includes('back') || t.includes('node') || t.includes('java') || t.includes('python') || t.includes('golang')) {
+        return ['Node.js & Backend Architecture', 'Databases & Query Optimization', 'REST & GraphQL APIs', 'System Reliability', 'Distributed Caching'];
+    }
+    if (t.includes('full') || t.includes('stack')) {
+        return ['Frontend Architecture', 'Backend Services', 'Database Design', 'API Integration', 'Cloud Deployment'];
+    }
+    if (t.includes('devops') || t.includes('cloud') || t.includes('sre') || t.includes('infrastructure')) {
+        return ['CI/CD Pipelines', 'Docker & Kubernetes', 'Cloud Infrastructure', 'Monitoring & Alerting', 'Security & Compliance'];
+    }
+    if (t.includes('data') || t.includes('ml') || t.includes('ai') || t.includes('analytics')) {
+        return ['Python & SQL', 'Data Pipelines', 'Data Modeling', 'ETL Processes', 'Analytical Queries'];
+    }
+    return ['Software Engineering Principles', 'System Architecture', 'Testing & Code Quality', 'API Integration', 'Debugging & Optimization'];
+};
+
+// Curated high-yield question fallback library for rock-solid reliability
+const getRoleFallbackQuestions = (title = '') => {
+    const t = String(title || '').toLowerCase();
+    const isQA = t.includes('qa') || t.includes('quality') || t.includes('test') || t.includes('sdet');
+
+    if (isQA) {
+        return [
+            {
+                type: 'mcq',
+                skill: 'Test Strategy',
+                question: 'In risk-based testing for an enterprise software release, which criterion should primarily determine test execution priority?',
+                options: [
+                    'Potential business impact and likelihood of failure',
+                    'Total lines of source code in the changed module',
+                    'Alphabetical order of the test case identifier tags',
+                    'The seniority level of the developer who wrote the feature'
+                ],
+                correctAnswer: 0,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'Automation Frameworks',
+                question: 'When implementing the Page Object Model (POM) in Selenium or Cypress, what is the core architectural principle?',
+                options: [
+                    'Encapsulate UI element locators and page interactions within reusable classes separate from test assertions',
+                    'Execute test assertions directly in the DOM mutation observer',
+                    'Bypass browser drivers by sending direct mock SQL queries to the database',
+                    'Combine all UI actions, API calls, and validations into a single monolithic script'
+                ],
+                correctAnswer: 0,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'Defect Triage',
+                question: 'What is the precise distinction between Defect Severity and Defect Priority during bug triage?',
+                options: [
+                    'Severity is assigned by the client; Priority is assigned by the developer',
+                    'Severity reflects technical impact on system stability; Priority reflects business urgency for fixing',
+                    'Severity is for automated test failures; Priority is strictly for manual test failures',
+                    'Severity and Priority are synonymous and can be used interchangeably'
+                ],
+                correctAnswer: 1,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'API Testing',
+                question: 'An authenticated API endpoint receives a valid JWT token that lacks administrative permissions. Which HTTP status code should the server return?',
+                options: [
+                    '401 Unauthorized',
+                    '403 Forbidden',
+                    '400 Bad Request',
+                    '404 Not Found'
+                ],
+                correctAnswer: 1,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'CI/CD & Reliability',
+                question: 'What is the most effective industry practice for handling flaky tests in a high-velocity CI/CD pipeline?',
+                options: [
+                    'Delete the flaky test immediately from version control',
+                    'Quarantine the flaky test into a non-blocking diagnostic suite while diagnosing root cause',
+                    'Increase global assertion timeouts to 10 minutes across all test suites',
+                    'Disable automated smoke test gates in pull request reviews'
+                ],
+                correctAnswer: 1,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'Quality Metrics',
+                question: 'What does the Defect Leakage metric indicate in software quality management?',
+                options: [
+                    'The number of bugs resolved per sprint by the engineering team',
+                    'The percentage of defects discovered in production compared to defects found during pre-release testing',
+                    'The count of duplicate defect submissions in the issue tracking system',
+                    'The total memory consumed by test execution processes'
+                ],
+                correctAnswer: 1,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'Test Design',
+                question: 'In Boundary Value Analysis (BVA), for an input field accepting integers between 1 and 100 inclusive, which test values are ideal?',
+                options: [
+                    '0, 1, 2, 99, 100, 101',
+                    '10, 20, 30, 40, 50',
+                    '50 only, representing the exact middle value',
+                    '-100, 0, 200'
+                ],
+                correctAnswer: 0,
+                difficulty: 'medium'
+            },
+            {
+                type: 'mcq',
+                skill: 'Performance Testing',
+                question: 'What is the primary objective of a Stress Test compared to a standard Load Test?',
+                options: [
+                    'Validate system behavior and graceful recovery beyond peak design capacity limits',
+                    'Measure response times under expected average daily user traffic',
+                    'Verify that single user transactions pass functional acceptance criteria',
+                    'Check code style and linter compliance in the test repository'
+                ],
+                correctAnswer: 0,
+                difficulty: 'medium'
+            },
+            {
+                type: 'paragraph',
+                skill: 'Leadership & Triage',
+                question: 'As a QA Lead, describe your step-by-step approach when a critical P0 defect is detected 3 hours before a major production deployment. How do you coordinate with Product, Engineering, and DevOps?',
+                idealAnswer: 'Immediately assess defect severity and blast radius, convene an emergency triage with the Product Owner and Tech Lead, present data-backed options (hotfix, feature flag disablement, or release postponement), communicate risk clearly to stakeholders, and coordinate a post-incident retrospective.',
+                difficulty: 'medium'
+            },
+            {
+                type: 'paragraph',
+                skill: 'Test Architecture',
+                question: 'Explain how you would architect a scalable continuous testing strategy for a microservices-based application transitioning from manual regressions to automated CI/CD pipelines.',
+                idealAnswer: 'Adopt the test automation pyramid focusing on fast unit and contract tests (e.g. Pact) over heavy end-to-end UI tests, integrate containerized parallel runs in CI/CD, establish clear quality gates on PRs, and implement synthetic monitoring in production.',
+                difficulty: 'medium'
+            }
+        ];
+    }
+
+    // Default Engineering fallback
+    return [
+        {
+            type: 'mcq',
+            skill: 'Architecture & Design',
+            question: 'Which architectural pattern is best suited for decoupling event producers from consumers in a scalable distributed system?',
+            options: [
+                'Event-Driven Pub/Sub Architecture',
+                'Monolithic Shared Memory',
+                'Synchronous Blocking RPC',
+                'Single-Threaded Polling'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Database & Caching',
+            question: 'When implementing a Cache-Aside (Lazy Loading) pattern with Redis, what happens on a cache miss?',
+            options: [
+                'The application reads from the database, writes the result to cache, and returns it to the client',
+                'The cache automatically synchronizes with the database without application involvement',
+                'An HTTP 404 error is returned to the client immediately',
+                'The database record is deleted to prevent stale reads'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'API & Security',
+            question: 'What is the most effective defense against SQL Injection vulnerabilities in modern web applications?',
+            options: [
+                'Using parameterized queries / prepared statements with ORM abstraction',
+                'Escaping single quote characters on the frontend only',
+                'Storing all SQL queries in client cookies',
+                'Increasing database connection timeout values'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Concurrency & Performance',
+            question: 'What is the difference between optimistic locking and pessimistic locking in database transaction management?',
+            options: [
+                'Optimistic locking validates record versions at commit time; pessimistic locking locks rows during reads to prevent concurrent modification',
+                'Optimistic locking locks all tables globally; pessimistic locking operates only on views',
+                'Optimistic locking is only supported by NoSQL databases',
+                'There is no functional difference between the two strategies'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Code Quality & Testing',
+            question: 'In test-driven development (TDD), what is the correct sequence of the Red-Green-Refactor cycle?',
+            options: [
+                'Write a failing test, write minimal code to pass the test, then clean up and optimize the implementation',
+                'Refactor existing code, write the test, then run the compiler',
+                'Write complete feature code, write tests that pass, then deploy to production',
+                'Run automated benchmarks, inspect code coverage, then write unit tests'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Microservices & Networking',
+            question: 'What is the primary role of a Circuit Breaker pattern in microservices communications?',
+            options: [
+                'Prevent cascading failures across services by quickly failing requests when a downstream dependency is unhealthy',
+                'Encrypt network packets between microservice endpoints',
+                'Balance HTTP traffic evenly across multiple server nodes',
+                'Compress JSON payloads before transmission over TCP'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Version Control & CI/CD',
+            question: 'What is the primary benefit of Trunk-Based Development over long-lived feature branches?',
+            options: [
+                'Frequent small integrations avoid painful merge conflicts and ensure continuous feedback',
+                'It eliminates the need for automated tests in CI',
+                'It allows developers to work for months without synchronizing with the main branch',
+                'It restricts git access to repository administrators only'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'mcq',
+            skill: 'Monitoring & Observability',
+            question: 'Which three telemetry pillars form the foundation of distributed system observability?',
+            options: [
+                'Logs, Metrics, and Distributed Traces',
+                'CPU, RAM, and Disk space',
+                'Source code, Git commits, and Pull requests',
+                'HTML, CSS, and JavaScript'
+            ],
+            correctAnswer: 0,
+            difficulty: 'medium'
+        },
+        {
+            type: 'paragraph',
+            skill: 'System Design',
+            question: 'Explain how you would design a rate limiter for an external public API to prevent abuse while ensuring high availability for legitimate users.',
+            idealAnswer: 'Implement a Token Bucket or Leaky Bucket algorithm using distributed Redis counters with atomic Lua scripts, return 429 Too Many Requests with Retry-After headers upon quota breach, and support tiered API key allowances.',
+            difficulty: 'medium'
+        },
+        {
+            type: 'paragraph',
+            skill: 'Debugging & Performance',
+            question: 'Describe how you would diagnose and resolve an intermittent memory leak in a Node.js production service under sustained load.',
+            idealAnswer: 'Capture sequential V8 heap snapshots during peak traffic using inspector tools, compare heap diffs to identify retaining paths for uncollected objects (e.g. uncleared timers, event listener leaks, global closures), apply code fixes, and verify under synthetic load tests.',
+            difficulty: 'medium'
+        }
+    ];
+};
+
 const generateFullAssessment = async (req, res) => {
     try {
         const { jobId, userId } = req.body;
@@ -84,119 +359,190 @@ const generateFullAssessment = async (req, res) => {
         }
 
         // 🎯 Config
-        const totalQuestions = Math.min(job.assessment.totalQuestions || 5, 10);
-        const assessmentType = (job.assessment.type || 'mixed').toLowerCase();
-        const skills = job.skills || ['General'];
+        const totalQuestions = Math.min(job.assessment?.totalQuestions || 5, 10);
+        const assessmentType = (job.assessment?.type || 'mixed').toLowerCase();
+        const cleanTitle = (job.title || 'Technical Specialist').trim();
+        const rawSkills = Array.isArray(job.skills) && job.skills.length > 0 ? job.skills : [];
+        const skills = rawSkills.length > 0 ? rawSkills : inferRoleSkills(cleanTitle);
         const usedHashes = new Set((await QuestionLog.find({ userId }).select('hash')).map(q => q.hash));
         const seed = crypto.randomBytes(8).toString('hex');
 
         const prompt = `
-Generate exactly ${totalQuestions} unique ${assessmentType.toUpperCase()} questions about: ${skills.join(', ')}.
-Target Role: ${job.title}
-Job Context: ${job.description.substring(0, 500)}...
+Generate a JSON object containing an array of exactly ${totalQuestions} unique questions for the role "${cleanTitle}".
+Key Focus Skills: ${skills.join(', ')}.
+Job Context: ${(job.description || cleanTitle).substring(0, 400)}
 Session Seed: ${seed}
 
-TASK: 
-- Create a diverse set of original questions tailored specifically to the ${job.title} role.
+REQUIREMENTS:
 - For standard assessment, generate standard "mcq" questions with 4 choices.
-- Include 1 or 2 "paragraph" (or "descriptive") questions where the candidate must describe/explain their answer in text (e.g. system design choice, debugging scenario, or technical trade-off).
+- Include 1 or 2 "paragraph" questions where the candidate must describe/explain their answer in text (e.g. system design choice, debugging scenario, or technical trade-off).
 - Standard "mcq" questions do NOT have a descriptive answer area. If a specific MCQ requires the candidate to write an explanation for why they picked that option, set "requiresDescription": true.
 - Do NOT repeat common or basic questions. Focus on practical, real-world technical scenarios.
-- Each user should get unique questions (use the Session Seed: ${seed} to vary the focus).
+- Return ONLY a JSON object in this exact shape:
+{
+  "questions": [
+    {
+      "type": "mcq",
+      "skill": "one of the given skills",
+      "question": "clear, original question text",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "correctAnswer": 0,
+      "requiresDescription": false,
+      "difficulty": "medium"
+    },
+    {
+      "type": "paragraph",
+      "skill": "one of the given skills",
+      "question": "clear technical scenario question",
+      "idealAnswer": "2-3 sentences outlining the essential key points",
+      "difficulty": "medium"
+    }
+  ]
+}
 
-Return ONLY a JSON object with key "questions" containing an array.
-Each question must be original and different from common examples.
-
-Each question must have:
-- "type": "mcq" or "paragraph" or "coding"
-- "skill": one of the given skills
-- "question": clear, original question text
-- "difficulty": "medium"
-
-For "mcq":
-- "options": array of 4 unique strings
-- "correctAnswer": integer (0-3)
-- "requiresDescription": boolean (set true only if this specific MCQ requires the candidate to write an explanation)
-
-For "paragraph":
-- "idealAnswer": 2-3 sentences outlining the essential key points a correct candidate answer must mention.
-
-For "coding":
-- "starterCode": string with function signature
-
-Example:
-{"questions":[{"type":"mcq","skill":"JavaScript","question":"What is the result of 1 + '1' in JS?","options":["11","2","NaN","Error"],"correctAnswer":0},{"type":"paragraph","skill":"Database","question":"Describe the key differences between clustered and non-clustered indexes and when to use each.","idealAnswer":"Clustered indexes determine physical row order with only one per table. Non-clustered indexes create a separate pointer structure, ideal for frequent search columns."}]}
-
-NO extra text, explanations, or markdown.
+NO extra markdown, explanations, or commentary. Strictly valid JSON.
 `;
-        // 🔁 Call AI
-        console.log("[ASSESSMENT] Calling AI service...");
-        const rawResponse = await callSkillAI(prompt);
 
-        if (!rawResponse) {
-            console.error("[ASSESSMENT] AI response was null - Check API keys and connectivity");
-            return res.status(503).json({
-                message: "AI service unavailable. Please ensure API keys are configured and try again.",
-                debug: process.env.NODE_ENV === 'development' ? {
-                    hasGeminiKey: !!process.env.GEMINI_API_KEY,
-                    hasGroqKey: !!process.env.GROQ_API_KEY
-                } : undefined
-            });
+        // 🔁 Call AI with graceful fallback handling
+        console.log(`[ASSESSMENT] Generating questions for "${cleanTitle}"...`);
+        let rawResponse = null;
+        try {
+            rawResponse = await callSkillAI(prompt);
+        } catch (aiErr) {
+            console.warn("[ASSESSMENT] AI service call error:", aiErr.message);
         }
 
         // ✅ Robust JSON Extraction
-        const parsed = safeParseAIJson(rawResponse, null);
-        if (!parsed) {
-            console.error("[ASSESSMENT JSON PARSE FAILED]:", rawResponse.substring(0, 500));
-            return res.status(503).json({ message: "AI returned invalid JSON formatting." });
+        const parsed = rawResponse ? safeParseAIJson(rawResponse, null) : null;
+        let rawQuestions = [];
+
+        if (parsed) {
+            if (Array.isArray(parsed)) {
+                rawQuestions = parsed;
+            } else if (Array.isArray(parsed?.questions)) {
+                rawQuestions = parsed.questions;
+            } else if (Array.isArray(parsed?.questions?.questions)) {
+                rawQuestions = parsed.questions.questions;
+            } else if (Array.isArray(parsed?.data)) {
+                rawQuestions = parsed.data;
+            } else if (Array.isArray(parsed?.items)) {
+                rawQuestions = parsed.items;
+            }
         }
 
-        if (!parsed?.questions || !Array.isArray(parsed.questions)) {
-            console.error("[ASSESSMENT] Invalid structure:", parsed);
-            return res.status(503).json({ message: "AI returned incorrect question structure." });
-        }
-        // 🔒 Dedupe & Save
+        // 🔒 Dedupe, Sanitize & Save
         const finalQuestions = [];
-        for (const q of parsed.questions) {
-            if (!q.question || typeof q.question !== 'string') continue;
-            const hash = generateHash(q.question);
+        for (const q of rawQuestions) {
+            if (!q || !q.question || typeof q.question !== 'string' || q.question.trim().length < 5) continue;
+            const hash = generateHash(q.question.trim());
             if (usedHashes.has(hash)) continue;
-            const type = (q.type || 'mcq').toLowerCase();
-            if (type === 'mcq') {
-                if (!Array.isArray(q.options) || q.options.length < 2) continue;
-                if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer >= q.options.length) {
-                    q.correctAnswer = 0;
-                }
-            } else if (type === 'coding') {
-                if (!q.starterCode) q.starterCode = "// Write your solution here";
-            } else if (type === 'descriptive' || type === 'paragraph' || type === 'subjective') {
-                if (!q.idealAnswer) q.idealAnswer = "Comprehensive technical explanation";
+
+            const rawType = String(q.type || 'mcq').toLowerCase();
+            let normType = 'mcq';
+            if (rawType.includes('para') || rawType.includes('desc') || rawType.includes('subj') || rawType.includes('scen') || rawType.includes('essay')) {
+                normType = 'paragraph';
+            } else if (rawType.includes('code') || rawType.includes('coding')) {
+                normType = 'coding';
             }
-            // Save to log
+
+            const cleanQ = {
+                type: normType,
+                skill: q.skill || skills[finalQuestions.length % skills.length] || 'General',
+                question: q.question.trim(),
+                difficulty: q.difficulty || 'medium'
+            };
+
+            if (normType === 'mcq') {
+                let options = Array.isArray(q.options) ? q.options.map(o => String(o).trim()).filter(Boolean) : [];
+                if (options.length < 2) continue;
+                // Pad options to 4 if AI returned 2 or 3
+                if (options.length === 2) {
+                    options.push("Both of the above depending on configuration", "Neither of the above");
+                } else if (options.length === 3) {
+                    options.push("None of the above");
+                }
+                cleanQ.options = options.slice(0, 4);
+
+                let correctIdx = 0;
+                if (typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < cleanQ.options.length) {
+                    correctIdx = q.correctAnswer;
+                } else if (typeof q.correctAnswer === 'string') {
+                    const ansStr = q.correctAnswer.trim().toLowerCase();
+                    const foundIdx = cleanQ.options.findIndex(opt => opt.toLowerCase() === ansStr);
+                    if (foundIdx !== -1) {
+                        correctIdx = foundIdx;
+                    } else if (ansStr === 'a' || ansStr === '0') correctIdx = 0;
+                    else if (ansStr === 'b' || ansStr === '1') correctIdx = 1;
+                    else if (ansStr === 'c' || ansStr === '2') correctIdx = 2;
+                    else if (ansStr === 'd' || ansStr === '3') correctIdx = 3;
+                }
+                cleanQ.correctAnswer = correctIdx;
+                cleanQ.requiresDescription = Boolean(q.requiresDescription);
+            } else if (normType === 'coding') {
+                cleanQ.starterCode = q.starterCode || "// Write your solution here";
+            } else {
+                cleanQ.idealAnswer = q.idealAnswer || "Comprehensive technical explanation addressing core principles and trade-offs.";
+            }
+
+            // Save to QuestionLog
             try {
                 await QuestionLog.create({
-                    questionText: q.question,
-                    skill: q.skill || 'General',
-                    difficulty: 'medium',
-                    category: type.toUpperCase(),
+                    questionText: cleanQ.question,
+                    skill: cleanQ.skill,
+                    difficulty: cleanQ.difficulty,
+                    category: normType.toUpperCase(),
                     hash,
                     userId
                 });
             } catch (e) {
                 // Soft fail
             }
-            finalQuestions.push(q);
+
+            finalQuestions.push(cleanQ);
             usedHashes.add(hash);
             if (finalQuestions.length >= totalQuestions) break;
         }
+
+        // 🛡️ Fallback Injection if AI was unavailable or produced fewer than totalQuestions
+        if (finalQuestions.length < totalQuestions) {
+            console.log(`[ASSESSMENT] AI returned ${finalQuestions.length}/${totalQuestions} questions. Padding with role-tailored fallback library...`);
+            const fallbackBank = getRoleFallbackQuestions(cleanTitle);
+
+            // Deterministic pseudorandom shuffle based on session seed so candidates get varying subsets
+            let seedNum = 0;
+            for (let i = 0; i < seed.length; i++) seedNum += seed.charCodeAt(i);
+            const shuffledFallback = [...fallbackBank].sort((a, b) => {
+                const hA = (seedNum + generateHash(a.question).charCodeAt(0)) % 100;
+                const hB = (seedNum + generateHash(b.question).charCodeAt(0)) % 100;
+                return hA - hB;
+            });
+
+            for (const fb of shuffledFallback) {
+                const fbHash = generateHash(fb.question);
+                if (usedHashes.has(fbHash)) continue;
+
+                finalQuestions.push({ ...fb });
+                usedHashes.add(fbHash);
+
+                try {
+                    await QuestionLog.create({
+                        questionText: fb.question,
+                        skill: fb.skill,
+                        difficulty: fb.difficulty || 'medium',
+                        category: (fb.type || 'mcq').toUpperCase(),
+                        hash: fbHash,
+                        userId
+                    });
+                } catch (e) {}
+
+                if (finalQuestions.length >= totalQuestions) break;
+            }
+        }
+
         // Final trim
         const output = finalQuestions.slice(0, totalQuestions);
-        if (output.length < 3) {
-            return res.status(503).json({
-                message: "Elite assessment failed. Generated only " + output.length + " questions (< 3)."
-            });
-        }
-        console.log(`[ASSESSMENT] ✅ Generated ${output.length} questions (Requested: ${totalQuestions}) for user ${userId}`);
+        console.log(`[ASSESSMENT] ✅ Successfully served ${output.length} questions for user ${userId} on role "${cleanTitle}"`);
+
         res.json({
             sessionId: seed,
             questions: output,
@@ -205,7 +551,7 @@ NO extra text, explanations, or markdown.
                 skills: job.skills,
                 assessment: {
                     type: assessmentType,
-                    passingScore: job.assessment.passingScore || 70,
+                    passingScore: job.assessment?.passingScore || 70,
                     totalQuestions: totalQuestions
                 }
             }

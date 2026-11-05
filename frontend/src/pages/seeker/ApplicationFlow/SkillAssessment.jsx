@@ -520,28 +520,41 @@ const SkillAssessment = ({
                     )}
                 </div>
 
-                {lobbyError && (
-                    <p className="text-red-500 text-center mb-4 text-xs font-bold uppercase tracking-wider">{lobbyError}</p>
+                {(lobbyError || error) && (
+                    <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+                        <AlertCircle size={15} />
+                        <span>{lobbyError || error}</span>
+                    </div>
                 )}
 
                 <div className="flex justify-between gap-4 border-t border-black/10 pt-4">
                     <button
+                        disabled={loading}
                         onClick={handleLobbyBack}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1] disabled:opacity-50"
                     >
                         <ArrowLeft size={16} />
                         Back
                     </button>
 
                     <button
-                        disabled={!sharedStream}
+                        disabled={!sharedStream || loading}
                         onClick={startAssessment}
                         className={`inline-flex items-center justify-center gap-2.5 rounded-[2rem] px-8 py-3.5 text-xs md:text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
-                            sharedStream ? 'bg-black text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            sharedStream && !loading ? 'bg-black text-white hover:bg-gray-800 cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         }`}
                     >
-                        Begin Assessment
-                        <Play size={16} />
+                        {loading ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Preparing Challenge...
+                            </>
+                        ) : (
+                            <>
+                                Begin Assessment
+                                <Play size={16} />
+                            </>
+                        )}
                     </button>
                 </div>
             </motion.div>
