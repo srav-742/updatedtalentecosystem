@@ -5,6 +5,7 @@ import { Star, ChevronRight, CheckCircle2, Loader, Send, MessageSquare, Monitor,
 
 // API Configuration
 import { API_URL } from '../../../firebase';
+import SEO from '../../../components/SEO';
 
 const StarRating = ({ value, onChange, label, max = 5 }) => {
     const [hover, setHover] = useState(0);
@@ -121,6 +122,11 @@ const InterviewFeedbackForm = ({ userId, jobId, interviewId, onDone }) => {
     return (
         <div className="relative w-full max-w-2xl mx-auto backdrop-blur-2xl border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
              style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)' }}>
+            <SEO 
+                title="Interview Feedback | Hire1Percent" 
+                description="Candidate assessment and interview feedback form." 
+                robots="noindex, nofollow" 
+            />
             {/* Progress Bar */}
             <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
                 <motion.div

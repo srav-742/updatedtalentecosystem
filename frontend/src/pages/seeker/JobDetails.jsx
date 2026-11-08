@@ -14,12 +14,16 @@ import {
     Mail,
     Linkedin,
     Twitter,
-    Copy
+    Copy,
+    Users,
+    Lock,
+    ShieldCheck
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobDetailSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SEO from '../../components/SEO';
 
 const JobDetails = () => {
     const { id } = useParams();
@@ -47,10 +51,12 @@ const JobDetails = () => {
     const { data: job = null, isLoading: jobLoading } = useQuery({
         queryKey: ['job', id],
         queryFn: async () => {
-            const res = await axios.get(`${API_URL}/jobs/${id}`);
+            const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`);
             return res.data;
         },
-        enabled: !!id
+        enabled: !!id,
+        staleTime: 0,
+        refetchOnWindowFocus: true
     });
 
     // Fetch seeker's applications to determine save/application status
@@ -58,14 +64,33 @@ const JobDetails = () => {
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                if (error.response?.status !== 404) throw error;
+                return axios.get(`${API_URL}/applications/seeker/${userId}`);
+            });
             return res.data;
         },
         enabled: !!userId
     });
 
     const loading = jobLoading || appsLoading;
-    const application = userApplications.find((app) => (app.jobId?._id || app.jobId) === id);
+
+    const application = userApplications.find((app) => {
+        const appJobId = app.jobId?._id || app.jobId;
+        const isJobMatch = appJobId === id || String(appJobId) === String(id);
+        const candidateEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
+        const isEmailMatch = candidateEmail && app.applicantEmail && app.applicantEmail.toLowerCase() === candidateEmail;
+        return isJobMatch && (app.userId === userId || isEmailMatch);
+    });
+
+    // Whitelist access evaluation
+    const candidateEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
+    const isRestrictedToWhitelist = Boolean(job?.isRestrictedToWhitelist);
+    const allowedCandidates = (job?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());
+    const isWhitelistedCandidate = Boolean(candidateEmail && allowedCandidates.includes(candidateEmail));
+    const isEmailAllowed = !isRestrictedToWhitelist || isWhitelistedCandidate;
+    // Whitelisted candidates, invite-only roles, and applicants with existing applications are never blocked by candidate evaluation limit
+    const isLimitReached = !isWhitelistedCandidate && !isRestrictedToWhitelist && !application && typeof job?.candidateLimit === 'number' && job.candidateLimit > 0 && (job?.applicantCount ?? 0) >= job.candidateLimit;
 
     // Mutation for toggling save state
     const toggleSaveMutation = useMutation({
@@ -109,7 +134,7 @@ const JobDetails = () => {
         );
     }
 
-    const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
+    const getShareUrl = () => `${window.location.origin}/candidate/job/${job._id}`;
 
     const handleCopyLink = async () => {
         try {
@@ -143,6 +168,14 @@ const JobDetails = () => {
 
     return (
         <div className="space-y-8">
+            {job && (
+                <SEO 
+                    title={`${job.title} | Hire1Percent`}
+                    description={job.description ? job.description.substring(0, 160).replace(/[#*`_]/g, '') : `View details for ${job.title} on Hire1Percent.`}
+                    canonicalUrl={`/candidate/job/${id}`}
+                    robots="index, follow"
+                />
+            )}
             <div className="flex items-center justify-between">
                 <button
                     onClick={() => navigate(-1)}
@@ -225,73 +258,142 @@ const JobDetails = () => {
                 </div>
             </div>
 
-            <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#f4efe6] text-gray-700">
-                            <Building2 size={36} />
+            <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-5 px-6 md:py-6 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+                <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
+                            <Building2 size={26} />
                         </div>
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Job overview</p>
-                            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
-                            <p className="mt-2 text-base text-gray-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Job overview</p>
+                            <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">{job.title}</h1>
+                            <p className="mt-1 text-sm text-gray-500">
                                 {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
                             </p>
-                            <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-500">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <MapPin size={14} />
+                            <div className="mt-3.5 flex flex-wrap gap-2 text-xs text-gray-500">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <MapPin size={12} />
                                     {job.location || 'Remote'}
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <Clock3 size={14} />
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <Clock3 size={12} />
                                     {job.experienceLevel || `${job.minExperience || 0}+ years`}
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                    <GraduationCap size={14} />
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                    <GraduationCap size={12} />
                                     {job.qualification || 'Any qualification'}
                                 </span>
+                                {isRestrictedToWhitelist && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 font-semibold">
+                                        <ShieldCheck size={12} />
+                                        Listed Candidates Only
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {application && application.status !== 'SAVED' ? (
-                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Application status</p>
-                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Already Applied</h2>
-                            <p className="mt-3 text-sm leading-7 text-gray-600">
-                                You have an active application for this role. Current status: <span className="font-bold text-gray-900 uppercase">{application.status}</span>.
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Application status</p>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">
+                                {application.status === 'APPLIED' ? 'Assessment & Interview Ready' : 'Application Active'}
+                            </h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                {application.status === 'APPLIED'
+                                    ? 'You have been granted exclusive access! Proceed to take your skill assessment and AI interview.'
+                                    : `You have an active application for this role. Current status: ${application.status}.`}
                             </p>
-                            <div className="mt-6">
+                            <div className="mt-4 space-y-2">
                                 <Link
-                                    to="/seeker/applications"
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                    to={`/candidate/apply/${id}`}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-xs font-semibold text-white transition shadow-sm"
                                 >
-                                    Track your application
+                                    <Sparkles size={14} />
+                                    <span>Start Test & Interview</span>
+                                </Link>
+                                <Link
+                                    to="/candidate/applications"
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    Track application
                                 </Link>
                             </div>
                         </div>
+                    ) : !isEmailAllowed ? (
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-purple-200 bg-purple-50/60 p-4.5">
+                            <div className="flex items-center gap-2 text-purple-700">
+                                <Lock size={16} />
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Restricted Access</p>
+                            </div>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Listed Candidates Only</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                This job requisition is reserved for invited candidates. Your account email <span className="font-semibold text-gray-900">({user?.email || 'Guest'})</span> is not on the candidate list.
+                            </p>
+                            <div className="mt-4 space-y-2">
+                                <button
+                                    disabled
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-100 text-purple-400 px-4 py-2.5 text-xs font-semibold cursor-not-allowed border border-purple-200"
+                                >
+                                    <Lock size={14} />
+                                    <span>Invitation Required</span>
+                                </button>
+                                <button
+                                    onClick={handleToggleSaveJob}
+                                    disabled={isSaving}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 transition"
+                                >
+                                    {application?.status === 'SAVED' ? 'Saved' : 'Save for Later'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : isLimitReached ? (
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Application status</p>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Applications Closed</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                This position is currently not accepting new applicants or assessment attempts.
+                            </p>
+                            <div className="mt-4 space-y-2">
+                                <button
+                                    disabled
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-200 text-gray-500 px-4 py-2.5 text-xs font-semibold cursor-not-allowed"
+                                >
+                                    <span>Applications Closed</span>
+                                </button>
+                                <button
+                                    onClick={handleToggleSaveJob}
+                                    disabled={isSaving}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    {application?.status === 'SAVED' ? 'Saved' : 'Save for Later'}
+                                </button>
+                            </div>
+                        </div>
                     ) : (
-                        <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
-                            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
-                            <p className="mt-3 text-sm leading-7 text-gray-600">
-                                Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
+                        <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Start application</p>
+                            </div>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Ready to apply?</h2>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                Upload your resume to begin the AI-led application process and unlock assessment stages.
                             </p>
 
-                            <div className="mt-6 space-y-3">
+                            <div className="mt-4 space-y-2.5">
                                 {!showApplyOptions ? (
-                                    <div className="flex flex-col gap-3">
+                                    <div className="flex flex-col gap-2">
                                         <button
                                             onClick={() => setShowApplyOptions(true)}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800 shadow-sm"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
                                         >
-                                            <Sparkles size={18} />
+                                            <Sparkles size={14} />
                                             Apply
                                         </button>
                                         <button
                                             onClick={handleToggleSaveJob}
                                             disabled={isSaving}
-                                            className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-5 py-4 text-sm font-semibold transition shadow-sm ${
+                                            className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition shadow-xs ${
                                                 application?.status === 'SAVED'
                                                     ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100/75'
                                                     : 'border-black/10 bg-white text-gray-700 hover:bg-[#faf7f1]'
@@ -303,17 +405,17 @@ const JobDetails = () => {
                                 ) : (
                                     <>
                                         <Link
-                                            to={`/seeker/apply/${job._id}`}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                            to={`/candidate/apply/${job._id}`}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
                                         >
-                                            <FileUp size={18} />
+                                            <FileUp size={14} />
                                             Upload and analyze resume
                                         </Link>
                                         <Link
-                                            to={`/seeker/apply/${job._id}?method=create`}
-                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-5 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                                            to={`/candidate/apply/${job._id}?method=create`}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                                         >
-                                            <Wand2 size={18} />
+                                            <Wand2 size={14} />
                                             Create resume
                                         </Link>
                                     </>

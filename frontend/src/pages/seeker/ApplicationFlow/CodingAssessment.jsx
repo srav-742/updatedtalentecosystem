@@ -1,0 +1,2489 @@
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import {
+    AlertCircle,
+    ArrowLeft,
+    ArrowRight,
+    Code2,
+    Clock3,
+    Terminal,
+    Play,
+    Loader2,
+    CheckCircle2,
+    FileLock2,
+    RotateCcw,
+    ChevronUp,
+    ChevronDown,
+    Check,
+    X,
+    ShieldAlert,
+    Zap,
+    Cpu,
+    Layers,
+    Lightbulb,
+    ShieldCheck
+} from 'lucide-react';
+import axios from 'axios';
+import { API_URL, getAuthHeaders } from '../../../firebase';
+import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { calculateDynamicMarks, normalizeDifficulty } from '../../../utils/codingScoreCalculator';
+
+const CodingAssessment = ({
+    job,
+    user,
+    onComplete,
+    onBack,
+    onSecurityReset,
+    sharedStream,
+    setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
+    sharedRecorder,
+    setSharedRecorder,
+    sharedSessionId,
+    setSharedSessionId,
+    sharedRecordingSessionId,
+    setSharedRecordingSessionId,
+    firstQuestionData,
+    setFirstQuestionData,
+    sharedChunkIndexRef,
+    sharedChunkUploadsRef
+}) => {
+    const [lobbyStarted, setLobbyStarted] = useState(false);
+    const [lobbyError, setLobbyError] = useState(null);
+    const [started, setStarted] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [roundConfig, setRoundConfig] = useState(null);
+    const [questions, setQuestions] = useState([]);
+    const [currentQIndex, setCurrentQIndex] = useState(0);
+    
+    // answers structure: { [questionId]: { code: string, language: string } }
+    const [answers, setAnswers] = useState({});
+    const [error, setError] = useState(null);
+    const [timeLeft, setTimeLeft] = useState(0); // in seconds
+    const [securityResetting, setSecurityResetting] = useState(false);
+
+    // Real Code Execution State
+    const [runningCode, setRunningCode] = useState(false);
+    const [executionResults, setExecutionResults] = useState({}); // { [questionId]: { status, passed, failed, total, publicPassed, publicTotal, hiddenPassed, hiddenTotal, executionTime, results } }
+    const [selectedTestCaseIdx, setSelectedTestCaseIdx] = useState(0);
+    const [consoleOpen, setConsoleOpen] = useState(false);
+
+    // Synchronous state snapshots & evaluation versioning to prevent stale/out-of-order execution overwrites
+    const answersRef = useRef({});
+    const evaluationSeqRef = useRef(0);
+    const activeEvaluationsRef = useRef({}); // { [questionId]: evaluationId }
+
+    const timerRef = useRef(null);
+    const questionTimersRef = useRef({});
+    const prevQIndexRef = useRef(0);
+
+    const getQuestionTimerMinutes = (q, config) => {
+        if (config?.timerType === 'individual') {
+            if (q && Number(q.timer) > 0) {
+                return Number(q.timer);
+            }
+            const diff = normalizeDifficulty(q?.difficulty);
+            if (diff === 'LOW') return Number(config.normalTime) || 15;
+            if (diff === 'HIGH') return Number(config.highTime) || 45;
+            return Number(config.moderateTime) || 30;
+        }
+        return Number(config?.totalTime) || 60;
+    };
+
+    const currentQuestion = questions[currentQIndex] || null;
+
+    // ── Two-Stage Progressive Assessment State ──────────────────────────
+    // questionStages: { [questionId]: 'STAGE_1' | 'STAGE_2' | 'COMPLETED' }
+    const [questionStages, setQuestionStages] = useState(() => {
+        try {
+            const targetJobId = job?._id || job?.id || 'job';
+            const saved = sessionStorage.getItem(`dmce_q_stages_${targetJobId}`);
+            return saved ? JSON.parse(saved) : {};
+        } catch (_) {
+            return {};
+        }
+    });
+
+    // stageSubmissions: { [questionId]: { stage1Code: string, stage1SubmittedAt: number, stage2Code: string, stage2SubmittedAt: number } }
+    const [stageSubmissions, setStageSubmissions] = useState(() => {
+        try {
+            const targetJobId = job?._id || job?.id || 'job';
+            const saved = sessionStorage.getItem(`dmce_stage_subs_${targetJobId}`);
+            return saved ? JSON.parse(saved) : {};
+        } catch (_) {
+            return {};
+        }
+    });
+
+    const [submittingStage1, setSubmittingStage1] = useState(false);
+    const [submittingStage2, setSubmittingStage2] = useState(false);
+    const [hintLoading, setHintLoading] = useState(false);
+    const [targetedHints, setTargetedHints] = useState({});
+
+    // ── Copy / Paste Restriction State & Notice ─────────────────────────
+    const [clipboardNotice, setClipboardNotice] = useState(null);
+    const clipboardNoticeTimeoutRef = useRef(null);
+
+    const triggerClipboardBlockedNotice = (msg = 'Copy and paste are disabled during the coding assessment.') => {
+        setClipboardNotice(msg);
+        if (clipboardNoticeTimeoutRef.current) clearTimeout(clipboardNoticeTimeoutRef.current);
+        clipboardNoticeTimeoutRef.current = setTimeout(() => {
+            setClipboardNotice(null);
+        }, 3000);
+    };
+
+    // Global listener to disable copy, paste, cut shortcuts and clipboard operations
+    useEffect(() => {
+        if (!started) return;
+
+        const handleGlobalKeyDown = (e) => {
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            const key = e.key ? e.key.toLowerCase() : '';
+
+            // Block Ctrl+C, Cmd+C (Copy), Ctrl+V, Cmd+V (Paste), Ctrl+X, Cmd+X (Cut)
+            if (isCtrlOrCmd && (key === 'c' || key === 'v' || key === 'x')) {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+                return false;
+            }
+
+            // Block Shift+Insert (Paste) and Ctrl+Insert (Copy)
+            if ((e.shiftKey && e.key === 'Insert') || (e.ctrlKey && e.key === 'Insert')) {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+                return false;
+            }
+        };
+
+        const handleGlobalCopy = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copying is disabled during the coding round.');
+            if (e.clipboardData) {
+                e.clipboardData.clearData();
+            }
+        };
+
+        const handleGlobalPaste = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Pasting is disabled during the coding round.');
+        };
+
+        const handleGlobalCut = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Cutting text is disabled during the coding round.');
+            if (e.clipboardData) {
+                e.clipboardData.clearData();
+            }
+        };
+
+        const handleContextMenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Right-click context menu is disabled during the coding round.');
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+        window.addEventListener('copy', handleGlobalCopy, { capture: true });
+        window.addEventListener('paste', handleGlobalPaste, { capture: true });
+        window.addEventListener('cut', handleGlobalCut, { capture: true });
+        document.addEventListener('contextmenu', handleContextMenu, { capture: true });
+
+        return () => {
+            window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+            window.removeEventListener('copy', handleGlobalCopy, { capture: true });
+            window.removeEventListener('paste', handleGlobalPaste, { capture: true });
+            window.removeEventListener('cut', handleGlobalCut, { capture: true });
+            document.removeEventListener('contextmenu', handleContextMenu, { capture: true });
+            if (clipboardNoticeTimeoutRef.current) clearTimeout(clipboardNoticeTimeoutRef.current);
+        };
+    }, [started]);
+
+
+    const handleRequestTargetedHint = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        setHintLoading(true);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            const res = await axios.post(`${API_URL}/coding-assessments/session/generate-hint`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language
+            }, { headers });
+
+            if (res.data?.success && res.data.hint) {
+                setTargetedHints(prev => ({
+                    ...prev,
+                    [qId]: res.data.hint
+                }));
+            }
+        } catch (err) {
+            console.warn('[CodingAssessment] Hint request warning:', err.message);
+        } finally {
+            setHintLoading(false);
+        }
+    };
+
+    const updateQuestionStage = (qId, stage, extraData = {}) => {
+        const targetJobId = job?._id || job?.id || 'job';
+        setQuestionStages(prev => {
+            const next = { ...prev, [qId]: stage };
+            try {
+                sessionStorage.setItem(`dmce_q_stages_${targetJobId}`, JSON.stringify(next));
+            } catch (_) {}
+            return next;
+        });
+
+        if (Object.keys(extraData).length > 0) {
+            setStageSubmissions(prev => {
+                const next = {
+                    ...prev,
+                    [qId]: { ...(prev[qId] || {}), ...extraData }
+                };
+                try {
+                    sessionStorage.setItem(`dmce_stage_subs_${targetJobId}`, JSON.stringify(next));
+                } catch (_) {}
+                return next;
+            });
+        }
+    };
+
+    // DMCE Dedicated Sandbox & Dynamic Mutation State
+    const [dmceSessions, setDmceSessions] = useState({}); // { [questionId]: sessionId }
+    const [dmceMutations, setDmceMutations] = useState({}); // { [questionId]: mutationPayload }
+    const [showMutationModal, setShowMutationModal] = useState(false);
+    const [activeMutationAlert, setActiveMutationAlert] = useState(null);
+    const [mutationBufferedQuestions, setMutationBufferedQuestions] = useState(new Set());
+    const [activatingMutation, setActivatingMutation] = useState(false);
+    const [mutationActivationError, setMutationActivationError] = useState(null);
+    const telemetryBufferRef = useRef([]);
+    const telemetrySeqRef = useRef(0);
+    const telemetrySocketRef = useRef(null);
+
+    // Record Telemetry Event Helper (keystroke, delete, cursor, run)
+    const recordTelemetry = (type, meta = {}) => {
+        telemetryBufferRef.current.push({
+            type,
+            line: meta.line || 1,
+            column: meta.column || 1,
+            key: meta.key || '',
+            timestamp: Date.now()
+        });
+    };
+
+    // Trigger Mutation Notification Banner
+    const triggerMutationAlert = (mutationPayload, qId) => {
+        if (!mutationPayload) return;
+        setDmceMutations(prev => ({
+            ...prev,
+            [qId]: {
+                ...(prev[qId] || {}),
+                ...mutationPayload,
+                triggered: true
+            }
+        }));
+        setActiveMutationAlert(mutationPayload);
+        setShowMutationModal(true);
+    };
+
+    // Candidate clicks "Adapt Solution Under Constraint"
+    const handleAdaptMutation = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentSid = dmceSessions[qId];
+        const currentAns = answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        setActivatingMutation(true);
+        setMutationActivationError(null);
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/activate-mutation`, {
+                sessionId: currentSid,
+                questionId: qId,
+                candidateId: user?.uid || user?._id || user?.id || '',
+                code,
+                language
+            }, { headers });
+
+            if (res.data?.success && res.data.activated) {
+                const appliedMutation = res.data.mutation || activeMutationAlert;
+                setDmceMutations(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...appliedMutation,
+                        activated: true,
+                        triggered: true
+                    }
+                }));
+
+                // Apply authoritative adaptation time buffer only once
+                setMutationBufferedQuestions(prev => {
+                    if (!prev.has(qId)) {
+                        const next = new Set(prev);
+                        next.add(qId);
+                        // DO NOT add extra time — recruiter's configured duration is the absolute ceiling
+                        return next;
+                    }
+                    return prev;
+                });
+
+                updateQuestionStage(qId, 'STAGE_2');
+                setShowMutationModal(false);
+            } else {
+                setMutationActivationError(res.data?.message || 'Failed to activate mutation constraint.');
+            }
+        } catch (err) {
+            console.error('[DMCE] Mutation activation error:', err);
+            setMutationActivationError(err.response?.data?.message || 'Failed to activate constraint. Please retry.');
+        } finally {
+            setActivatingMutation(false);
+        }
+    };
+
+    // Initialize dedicated DMCE sandbox when candidate starts or switches question
+    useEffect(() => {
+        if (!started || !currentQuestion?._id) return;
+        const qId = currentQuestion._id;
+        if (dmceSessions[qId]) return;
+
+        const startSandbox = async () => {
+            try {
+                const targetJobId = job?._id || job?.id || 'job';
+                const candidateId = user?.uid || user?._id || user?.id || 'candidate';
+                const sessionKey = `dmce_sid_${targetJobId}_${candidateId}_${qId}`;
+                let sid = null;
+                try {
+                    sid = sessionStorage.getItem(sessionKey);
+                } catch (_) {}
+                if (!sid) {
+                    sid = `dmce-${candidateId}-${qId}-${Date.now().toString(36)}`;
+                    try {
+                        sessionStorage.setItem(sessionKey, sid);
+                    } catch (_) {}
+                }
+
+                const headers = await getAuthHeaders().catch(() => ({}));
+                if (user?.uid || user?._id || user?.id) {
+                    headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+                }
+                const qMinutes = getQuestionTimerMinutes(currentQuestion, roundConfig);
+                const questionDurationSec = qMinutes * 60;
+
+                const res = await axios.post(`${API_URL}/coding-assessments/session/start`, {
+                    sessionId: sid,
+                    candidateId: candidateId,
+                    jobId: targetJobId,
+                    questionId: qId,
+                    durationSec: questionDurationSec,
+                    language: answers[qId]?.language || 'python'
+                }, { headers });
+
+                if (res.data?.success) {
+                    setDmceSessions(prev => ({ ...prev, [qId]: sid }));
+
+                    // Restore existing session status if candidate reloads/returns
+                    try {
+                        const statusRes = await axios.get(`${API_URL}/coding-assessments/session/status/${sid}`, { headers });
+                        if (statusRes.data?.success) {
+                            if (statusRes.data.timerRemainingSec !== undefined && statusRes.data.timerRemainingSec > 0) {
+                                if (roundConfig?.timerType === 'individual') {
+                                    const validRemaining = Math.min(statusRes.data.timerRemainingSec, questionDurationSec + 30);
+                                    setTimeLeft(validRemaining);
+                                    questionTimersRef.current[qId] = validRemaining;
+                                } else {
+                                    setTimeLeft(statusRes.data.timerRemainingSec);
+                                }
+                            }
+                            if (statusRes.data.adaptationBufferApplied) {
+                                setMutationBufferedQuestions(prev => new Set([...prev, qId]));
+                            }
+                            if (statusRes.data.mutation) {
+                                const mut = statusRes.data.mutation;
+                                if (mut.activated) {
+                                    setDmceMutations(prev => ({ ...prev, [qId]: { ...mut, activated: true, triggered: true } }));
+                                    updateQuestionStage(qId, 'STAGE_2');
+                                } else if (mut.triggered) {
+                                    triggerMutationAlert(mut, qId);
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
+            } catch (err) {
+                console.warn('[DMCE] Sandbox init fallback:', err.message);
+            }
+        };
+
+        startSandbox();
+    }, [started, currentQIndex, questions]);
+
+    // WebSocket Telemetry Streaming & 500ms batched transmission
+    useEffect(() => {
+        if (!started) return;
+        const qId = currentQuestion?._id;
+        const currentSid = qId ? dmceSessions[qId] : null;
+
+        let ws = null;
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/telemetry`);
+            telemetrySocketRef.current = ws;
+
+            ws.onopen = () => {
+                if (currentSid) {
+                    ws.send(JSON.stringify({ type: 'INIT_SESSION', sessionId: currentSid }));
+                }
+            };
+
+            ws.onmessage = (evt) => {
+                try {
+                    const data = JSON.parse(evt.data);
+                    if (data.type === 'MUTATION_TRIGGERED' && data.payload) {
+                        triggerMutationAlert(data.payload, qId);
+                    }
+                } catch (_) {}
+            };
+        } catch (_) {}
+
+        const batchInterval = setInterval(() => {
+            if (telemetryBufferRef.current.length > 0 && currentSid) {
+                const batch = [...telemetryBufferRef.current];
+                telemetryBufferRef.current = [];
+                const seq = ++telemetrySeqRef.current;
+
+                if (telemetrySocketRef.current && telemetrySocketRef.current.readyState === WebSocket.OPEN) {
+                    telemetrySocketRef.current.send(JSON.stringify({
+                        type: 'TELEMETRY_BATCH',
+                        sessionId: currentSid,
+                        seqId: seq,
+                        events: batch
+                    }));
+                } else {
+                    axios.post(`${API_URL}/coding-assessments/session/telemetry`, {
+                        sessionId: currentSid,
+                        seqId: seq,
+                        events: batch
+                    }).catch(() => {});
+                }
+            }
+        }, 500);
+
+        return () => {
+            clearInterval(batchInterval);
+            if (ws) {
+                try { ws.close(); } catch (_) {}
+            }
+        };
+    }, [started, currentQIndex, dmceSessions]);
+
+    // Fetch existing coding round configuration
+    const fetchCodingRound = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            const targetJobId = job?._id || job?.id;
+            if (!targetJobId) {
+                setError('Job reference is missing. Please refresh the page.');
+                return;
+            }
+            headers['Cache-Control'] = 'no-cache';
+            const res = await axios.get(`${API_URL}/coding-assessments/round/${targetJobId}?_t=${Date.now()}`, { headers });
+            if (res.data?.success && res.data.codingRound) {
+                const round = res.data.codingRound;
+                if (!round.questions || round.questions.length === 0) {
+                    setError('No coding challenges have been added for this job yet. Please check back shortly.');
+                    return;
+                }
+
+                // Enrich questions with dynamic marks totaling strictly 100 marks
+                const rawQuestions = round.questions || [];
+                const dynamicCalcs = calculateDynamicMarks(rawQuestions);
+                const calcsMap = new Map(dynamicCalcs.map(c => [c.id ? c.id.toString() : '', c]));
+                const enrichedQuestions = rawQuestions.map(q => {
+                    const c = calcsMap.get(q._id ? q._id.toString() : '');
+                    return {
+                        ...q,
+                        marks: c?.maximumMarks ?? (q.marks || 10),
+                        difficulty: c?.difficulty ?? normalizeDifficulty(q.difficulty),
+                        difficultyWeight: c?.difficultyWeight ?? 2
+                    };
+                });
+
+                setRoundConfig(round);
+                setQuestions(enrichedQuestions);
+                if (round.timerType === 'individual') {
+                    const targetJobId = job?._id || job?.id || 'job';
+                    let savedTimers = {};
+                    try {
+                        const stored = sessionStorage.getItem(`dmce_q_timers_${targetJobId}`);
+                        if (stored) savedTimers = JSON.parse(stored);
+                    } catch (_) {}
+                    questionTimersRef.current = savedTimers;
+
+                    const firstQ = enrichedQuestions[0];
+                    const firstQMinutes = getQuestionTimerMinutes(firstQ, round);
+                    const initialSec = savedTimers[firstQ?._id] !== undefined
+                        ? Math.max(0, Number(savedTimers[firstQ._id]))
+                        : (firstQMinutes * 60);
+                    setTimeLeft(initialSec);
+                } else {
+                    setTimeLeft((round.totalTime || 60) * 60);
+                }
+
+                // Initialize answers with starter template or cached candidate code
+                const targetJobId = job?._id || job?.id || 'job';
+                const initialAnswers = {};
+                (round.questions || []).forEach(q => {
+                    const defaultLang = q.allowedLanguages?.[0] || round.languages?.[0] || 'Python';
+                    const codeCacheKey = `dmce_code_${targetJobId}_${q._id}`;
+                    let cachedCode = null;
+                    try {
+                        cachedCode = localStorage.getItem(codeCacheKey);
+                    } catch (_) {}
+                    initialAnswers[q._id] = {
+                        code: (typeof cachedCode === 'string' && cachedCode.length > 0) ? cachedCode : getStarterTemplate(q, defaultLang),
+                        language: defaultLang
+                    };
+                });
+                answersRef.current = initialAnswers;
+                setAnswers(initialAnswers);
+            } else {
+                setError(res.data?.message || 'No coding round configured for this job.');
+            }
+        } catch (err) {
+            console.error("Failed to load coding round:", err);
+            setError(err.response?.data?.message || 'Failed to load coding assessment data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (job?._id || job?.id) {
+            fetchCodingRound();
+        }
+    }, [job?._id, job?.id]);
+
+    // Timer Countdown
+    useEffect(() => {
+        if (started && timeLeft > 0 && !securityResetting) {
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    const currentQ = questions[currentQIndex];
+                    const nextVal = Math.max(0, prev - 1);
+                    if (currentQ?._id && roundConfig?.timerType === 'individual') {
+                        questionTimersRef.current[currentQ._id] = nextVal;
+                        try {
+                            const targetJobId = job?._id || job?.id || 'job';
+                            sessionStorage.setItem(`dmce_q_timers_${targetJobId}`, JSON.stringify(questionTimersRef.current));
+                        } catch (_) {}
+                    }
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        if (roundConfig?.timerType === 'individual') {
+                            if (currentQIndex < questions.length - 1) {
+                                setCurrentQIndex(q => q + 1);
+                                return 0;
+                            } else {
+                                handleSubmitSolutions();
+                                return 0;
+                            }
+                        } else {
+                            handleSubmitSolutions();
+                            return 0;
+                        }
+                    }
+                    return nextVal;
+                });
+            }, 1000);
+        }
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [started, timeLeft, securityResetting, currentQIndex, questions, roundConfig]);
+
+    // Handle individual question timer switch
+    useEffect(() => {
+        if (started && roundConfig?.timerType === 'individual' && questions.length > 0) {
+            const prevQ = questions[prevQIndexRef.current];
+            const currentQ = questions[currentQIndex];
+            const targetJobId = job?._id || job?.id || 'job';
+
+            // Save remaining time for the previous question if switching
+            if (prevQ?._id && prevQIndexRef.current !== currentQIndex) {
+                questionTimersRef.current[prevQ._id] = timeLeft;
+                try {
+                    sessionStorage.setItem(`dmce_q_timers_${targetJobId}`, JSON.stringify(questionTimersRef.current));
+                } catch (_) {}
+            }
+
+            prevQIndexRef.current = currentQIndex;
+
+            // Load saved remaining time or initialize with question's full timer
+            if (currentQ?._id) {
+                if (questionTimersRef.current[currentQ._id] !== undefined) {
+                    setTimeLeft(questionTimersRef.current[currentQ._id]);
+                } else {
+                    const qMinutes = getQuestionTimerMinutes(currentQ, roundConfig);
+                    const qSec = qMinutes * 60;
+                    questionTimersRef.current[currentQ._id] = qSec;
+                    setTimeLeft(qSec);
+                }
+            }
+        }
+    }, [currentQIndex, started, roundConfig, questions]);
+
+    const inferFunctionParameters = (q) => {
+        if (!q) return ['arg1'];
+
+        // 1. If explicit functionSignature is defined (e.g. "def solution(nums, target):" or "solution(nums, target)")
+        if (q.functionSignature && typeof q.functionSignature === 'string') {
+            const match = q.functionSignature.match(/\(([^)]*)\)/);
+            if (match && match[1]) {
+                const parsed = match[1].split(',').map(p => p.trim().split(':')[0].trim()).filter(Boolean);
+                if (parsed.length > 0) return parsed;
+            }
+        }
+
+        // 2. Find first available visible test case or example with input (not just index 0 which may be hidden)
+        const visibleTestCase = Array.isArray(q.testCases)
+            ? q.testCases.find(tc => tc && tc.input !== undefined && tc.input !== null && !tc.isHidden && String(tc.input).trim())
+            : null;
+        const visibleExample = Array.isArray(q.examples)
+            ? q.examples.find(ex => ex && ex.input !== undefined && ex.input !== null && String(ex.input).trim())
+            : null;
+
+        const sampleInput = (visibleTestCase?.input || visibleExample?.input || q.testCases?.[0]?.input || '').trim();
+        if (sampleInput) {
+            // 2a. Check for named assignments: "nums = [2, 7, 11, 15], target = 9"
+            const namedMatches = [...sampleInput.matchAll(/(?:^|[,\n;])\s*([a-zA-Z_]\w*)\s*=/g)];
+            if (namedMatches.length > 1) {
+                return namedMatches.map(m => m[1]);
+            }
+
+            // 2b. Check for multi-line inputs: each line is an argument
+            const lines = sampleInput.split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length > 1) {
+                // If line 0 is a count indicator e.g. "5", and line 1 is array, line 2 is k
+                if (lines.length === 3 && /^\d+$/.test(lines[0])) {
+                    return ['nums', 'k'];
+                }
+                return lines.map((_, i) => (i === 0 && (lines[0].startsWith('[') || lines[0].includes(' '))) ? 'nums' : `arg${i + 1}`);
+            }
+
+            // 2c. Check for top-level bracket/quote-aware separated items on a single line
+            const splitTopLevel = (str) => {
+                const tokens = [];
+                let curr = [];
+                let depth = 0;
+                let inQuote = null;
+                for (let i = 0; i < str.length; i++) {
+                    const ch = str[i];
+                    if (inQuote) {
+                        curr.push(ch);
+                        if (ch === inQuote) inQuote = null;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        inQuote = ch;
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (ch === '[' || ch === '{' || ch === '(') {
+                        depth++;
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (ch === ']' || ch === '}' || ch === ')') {
+                        depth = Math.max(0, depth - 1);
+                        curr.push(ch);
+                        continue;
+                    }
+                    if (depth === 0 && (ch === ',' || ch === ';' || (/\s/.test(ch) && curr.length > 0 && /[\]\}\)\"\']/.test(curr[curr.length - 1])))) {
+                        const tok = curr.join('').trim();
+                        if (tok) tokens.push(tok);
+                        curr = [];
+                        continue;
+                    }
+                    curr.push(ch);
+                }
+                if (curr.length > 0) {
+                    const tok = curr.join('').trim();
+                    if (tok) tokens.push(tok);
+                }
+                return tokens;
+            };
+
+            const topTokens = splitTopLevel(sampleInput);
+            if (topTokens.length > 1) {
+                return topTokens.map((t, idx) => {
+                    if (idx === 0 && (t.startsWith('[') || t.includes(' '))) return 'nums';
+                    if (idx === 1 && !isNaN(Number(t))) return 'k';
+                    return `arg${idx + 1}`;
+                });
+            }
+        }
+
+        // 3. Fallback: inspect inputFormat for mention of multiple parameters
+        const formatText = `${q.inputFormat || ''} ${q.description || ''}`;
+        if (/\bnums\b.*\b(k|target)\b/i.test(formatText)) {
+            return ['nums', 'k'];
+        }
+
+        return ['arg1'];
+    };
+
+    const getStarterTemplate = (questionOrTitle, language) => {
+        const q = (typeof questionOrTitle === 'object' && questionOrTitle !== null)
+            ? questionOrTitle
+            : (questions.find(item => item.title === questionOrTitle) || currentQuestion);
+
+        const lang = (language || 'python').toLowerCase();
+
+        // Check if question has preconfigured starterCode for this language
+        if (q?.starterCode) {
+            const configuredCode = (q.starterCode instanceof Map)
+                ? q.starterCode.get(lang)
+                : q.starterCode[lang];
+            if (typeof configuredCode === 'string' && configuredCode.trim().length > 0) {
+                return configuredCode;
+            }
+        }
+
+        const params = inferFunctionParameters(q);
+        const paramStr = params.join(', ');
+
+        if (lang === 'python') {
+            return `def solution(${paramStr}):\n    # Write your solution here\n    pass\n`;
+        } else if (lang === 'javascript') {
+            return `function solution(${paramStr}) {\n    // Write your solution here\n    \n}\n`;
+        } else if (lang === 'java') {
+            return `public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n        \n    }\n}\n`;
+        } else if (lang === 'c++') {
+            return `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n`;
+        } else if (lang === 'sql') {
+            return `-- Write your SQL query here\nSELECT * FROM users;\n`;
+        }
+        return `// Write your solution here\n`;
+    };
+
+    const enableMedia = async () => {
+        try {
+            setLobbyError(null);
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
+            setSharedStream(stream);
+        } catch (err) {
+            console.error("Camera/Mic access denied:", err);
+            setLobbyError("Camera and microphone access are required to proceed.");
+        }
+    };
+
+    // Auto-request webcam on mount so camera is ready immediately
+    useEffect(() => {
+        if (!sharedStream) {
+            enableMedia();
+        }
+    }, []);
+
+    const handleLobbyBack = () => {
+        if (sharedStream) {
+            sharedStream.getTracks().forEach(t => t.stop());
+            setSharedStream(null);
+        }
+        setLobbyStarted(false);
+    };
+
+    const startCodingAssessment = () => {
+        if (!sharedStream) {
+            enableMedia();
+            return;
+        }
+        setStarted(true);
+    };
+
+    const handleCodeChange = (codeValue) => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const prevCode = answersRef.current[qId]?.code || answers[qId]?.code || '';
+        const isDelete = codeValue.length < prevCode.length;
+        recordTelemetry(isDelete ? 'DELETE' : 'KEY_PRESS', { line: 1, column: 1 });
+
+        const targetJobId = job?._id || job?.id || 'job';
+        try {
+            localStorage.setItem(`dmce_code_${targetJobId}_${qId}`, codeValue);
+        } catch (_) {}
+
+        // Keep synchronous ref snapshot updated immediately
+        answersRef.current = {
+            ...answersRef.current,
+            [qId]: {
+                ...(answersRef.current[qId] || {}),
+                code: codeValue
+            }
+        };
+
+        setAnswers(prev => ({
+            ...prev,
+            [qId]: {
+                ...prev[qId],
+                code: codeValue
+            }
+        }));
+    };
+
+    const handleLanguageChange = (lang) => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const starter = getStarterTemplate(currentQuestion, lang);
+        answersRef.current = {
+            ...answersRef.current,
+            [qId]: {
+                code: starter,
+                language: lang
+            }
+        };
+        setAnswers(prev => ({
+            ...prev,
+            [qId]: {
+                code: starter,
+                language: lang
+            }
+        }));
+    };
+
+    const handleRunCode = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write some code before running tests.');
+            return;
+        }
+
+        // Generate unique monotonic evaluation ID for this run
+        const seq = ++evaluationSeqRef.current;
+        const evaluationId = `eval_${qId}_${Date.now()}_${seq}`;
+        activeEvaluationsRef.current[qId] = evaluationId;
+
+        recordTelemetry('RUN', { line: 1, column: 1 });
+        setRunningCode(true);
+        setConsoleOpen(true);
+        setError(null);
+
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+        const isMutated = !!dmceMutations[qId]?.activated || !!dmceMutations[qId]?.triggered;
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            let res;
+            if (isMutated) {
+                // Execute mutation-specific test suite under mutated constraints
+                res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
+                    sessionId: currentSid,
+                    questionId: qId,
+                    code,
+                    language,
+                    evaluationId
+                }, { headers });
+
+                // Guard against stale or superseded responses
+                if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                    console.warn(`[CodingAssessment] Discarding superseded mutation response for ${qId}`);
+                    return;
+                }
+
+                if (res.data?.success) {
+                    const isAllPassed = res.data.status === 'ALL_PASSED' || res.data.mutationStatus === 'ALL_PASSED' || res.data.mutationStatus === 'PASSED' || (res.data.total > 0 && res.data.passed === res.data.total);
+                    const isPartiallyPassed = !isAllPassed && (res.data.status === 'PARTIALLY_PASSED' || res.data.mutationStatus === 'PARTIALLY_PASSED' || res.data.passed > 0);
+                    const computedStatus = isAllPassed ? 'ALL_PASSED' : (isPartiallyPassed ? 'PARTIALLY_PASSED' : (res.data.status || res.data.mutationStatus || 'FAILED'));
+
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: {
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now(),
+                            status: computedStatus,
+                            passed: res.data.passed,
+                            failed: res.data.failed,
+                            total: res.data.total,
+                            publicPassed: res.data.passed,
+                            publicTotal: res.data.total,
+                            hiddenPassed: 0,
+                            hiddenTotal: 0,
+                            executionTime: res.data.executionTime || 0.1,
+                            isMutationRun: true,
+                            mutationId: dmceMutations[qId]?.mutationId,
+                            errorMessage: res.data.errorMessage,
+                            results: res.data.results || []
+                        }
+                    }));
+                    setSelectedTestCaseIdx(0);
+                } else {
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: {
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now(),
+                            status: res.data?.code || res.data?.status || 'EXECUTION_ERROR',
+                            passed: 0,
+                            failed: 0,
+                            total: 0,
+                            errorMessage: res.data?.message || 'Mutation execution failed.',
+                            results: []
+                        }
+                    }));
+                }
+            } else {
+                // Execute baseline test suite in dedicated sandbox
+                res = await axios.post(`${API_URL}/coding-assessments/session/run-baseline`, {
+                    sessionId: currentSid,
+                    questionId: qId,
+                    code,
+                    language,
+                    evaluationId
+                }, { headers });
+
+                // Guard against stale or superseded responses
+                if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                    console.warn(`[CodingAssessment] Discarding superseded baseline response for ${qId}`);
+                    return;
+                }
+
+                if (res.data?.success && res.data.execution) {
+                    const exec = res.data.execution;
+                    const isAllPassed = exec.status === 'ALL_PASSED' || (exec.total > 0 && exec.passed === exec.total);
+                    const isPartiallyPassed = !isAllPassed && (exec.status === 'PARTIALLY_PASSED' || exec.passed > 0);
+                    const normalizedExec = {
+                        ...exec,
+                        evaluationId,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
+                        status: isAllPassed ? 'ALL_PASSED' : (isPartiallyPassed ? 'PARTIALLY_PASSED' : (exec.status || 'FAILED'))
+                    };
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: normalizedExec
+                    }));
+                    setSelectedTestCaseIdx(0);
+
+                    // Check if baseline pass triggered mutation
+                    if (res.data.mutationTriggered) {
+                        triggerMutationAlert(res.data.mutationTriggered, qId);
+                    }
+                } else {
+                    const execData = res.data?.execution || {
+                        status: res.data?.code || res.data?.status || 'TEST_CONFIGURATION_ERROR',
+                        passed: 0,
+                        failed: 0,
+                        total: 0,
+                        errorMessage: res.data?.message || 'Baseline execution failed.',
+                        results: []
+                    };
+                    setExecutionResults(prev => ({
+                        ...prev,
+                        [qId]: {
+                            ...execData,
+                            evaluationId,
+                            submittedCode: code,
+                            submittedAt: Date.now()
+                        }
+                    }));
+                }
+            }
+        } catch (runErr) {
+            if (activeEvaluationsRef.current[qId] !== evaluationId) {
+                return; // Discard error from superseded run
+            }
+            console.error('[CodingAssessment] Run code error:', runErr.message);
+            const errData = runErr.response?.data;
+            setExecutionResults(prev => ({
+                ...prev,
+                [qId]: {
+                    evaluationId,
+                    submittedCode: code,
+                    submittedAt: Date.now(),
+                    status: errData?.code || errData?.status || 'EXECUTION_ERROR',
+                    passed: 0,
+                    failed: 0,
+                    total: 0,
+                    errorMessage: errData?.message || runErr.message || 'Execution service unreachable. Please retry.',
+                    results: []
+                }
+            }));
+        } finally {
+            if (activeEvaluationsRef.current[qId] === evaluationId) {
+                setRunningCode(false);
+            }
+        }
+    };
+
+    // ── Stage 1: Initial Submission & Constraint Reveal ───
+    const handleSubmitStage1 = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write some code before submitting your initial solution.');
+            return;
+        }
+
+        setSubmittingStage1(true);
+        setConsoleOpen(true);
+        setError(null);
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/run-baseline`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language,
+                isInitialSubmission: true
+            }, { headers });
+
+            if (res.data?.success) {
+                const exec = res.data.execution;
+                const isPassed = res.data.baselinePassed || (exec && exec.total > 0 && exec.passed === exec.total);
+
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...exec,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
+                        status: isPassed ? 'ALL_PASSED' : (exec?.status || 'PARTIALLY_PASSED')
+                    }
+                }));
+
+                if (isPassed) {
+                    const qRequiresConstraint = currentQuestion?.requiresConstraint !== false;
+                    if (!qRequiresConstraint) {
+                        updateQuestionStage(qId, 'COMPLETED', {
+                            stage1Code: code,
+                            stage1SubmittedAt: Date.now()
+                        });
+                    } else {
+                        const fallbackMutation = {
+                            mutationId: 'mut_mem_opt_14mb',
+                            headline: 'Scale Constraint: Maximum Heap Clamped to 14 MB',
+                            description: 'Input stream throughput has scaled 10x. Available runtime heap is clamped to 14 MB. Adapt your solution to process input in-place using iterators without buffering entire arrays.',
+                            resourceConstraints: { memoryLimitMb: 14, timeoutMs: 4000 }
+                        };
+                        const activeMut = res.data.mutationTriggered || fallbackMutation;
+
+                        setDmceMutations(prev => ({
+                            ...prev,
+                            [qId]: { ...activeMut, activated: true, triggered: true }
+                        }));
+
+                        updateQuestionStage(qId, 'STAGE_2', {
+                            stage1Code: code,
+                            stage1SubmittedAt: Date.now()
+                        });
+
+                        triggerMutationAlert(activeMut, qId);
+                    }
+                } else {
+                    setError(`Initial solution passed ${exec?.passed || 0} of ${exec?.total || 0} sample tests. All baseline tests must pass before progressive constraints unlock.`);
+                }
+            } else {
+                setError(res.data?.message || 'Initial solution validation failed. Please check your logic.');
+            }
+        } catch (err) {
+            console.error('Stage 1 submission error:', err);
+            setError(err.response?.data?.message || 'Failed to submit initial solution. Please retry.');
+        } finally {
+            setSubmittingStage1(false);
+        }
+    };
+
+    // ── Stage 2: Adapted Submission Under Constraint ───
+    const handleSubmitStage2 = async () => {
+        if (!currentQuestion) return;
+        const qId = currentQuestion._id;
+        const currentAns = answersRef.current[qId] || answers[qId];
+        const code = currentAns?.code || '';
+        const language = currentAns?.language || 'python';
+
+        if (!code.trim()) {
+            setError('Please write your adapted solution before submitting.');
+            return;
+        }
+
+        // Validate that candidate has adapted their code since Stage 1
+        const stage1Code = stageSubmissions[qId]?.stage1Code;
+        if (stage1Code && code.trim() === stage1Code.trim()) {
+            setError('Your code is unchanged from Stage 1. Please adapt your solution to satisfy the newly revealed constraint before submitting.');
+            return;
+        }
+
+        setSubmittingStage2(true);
+        setConsoleOpen(true);
+        setError(null);
+        const currentSid = dmceSessions[qId] || `dmce-${user?.uid || 'seeker'}-${qId}`;
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+
+            const res = await axios.post(`${API_URL}/coding-assessments/session/run-mutation`, {
+                sessionId: currentSid,
+                questionId: qId,
+                code,
+                language,
+                isFinalQuestionSubmission: true
+            }, { headers });
+
+            if (res.data?.success) {
+                const isAllPassed = res.data.status === 'ALL_PASSED' || res.data.mutationStatus === 'ALL_PASSED' || res.data.mutationStatus === 'PASSED' || (res.data.total > 0 && res.data.passed === res.data.total);
+
+                setExecutionResults(prev => ({
+                    ...prev,
+                    [qId]: {
+                        ...res.data,
+                        submittedCode: code,
+                        submittedAt: Date.now(),
+                        isMutationRun: true
+                    }
+                }));
+
+                if (isAllPassed) {
+                    updateQuestionStage(qId, 'COMPLETED', {
+                        stage2Code: code,
+                        stage2SubmittedAt: Date.now(),
+                        stage2Passed: true
+                    });
+                } else {
+                    setError(res.data?.errorMessage || 'Adapted solution failed under the active constraint. Please refine your code to satisfy the constraint.');
+                }
+            } else {
+                setError(res.data?.message || 'Adapted solution failed under the active constraint. Please refine your code.');
+            }
+        } catch (err) {
+            console.error('Stage 2 submission error:', err);
+            setError(err.response?.data?.message || 'Failed to submit adapted solution. Please retry.');
+        } finally {
+            setSubmittingStage2(false);
+        }
+    };
+
+    const handleSubmitSolutions = async () => {
+        setSaving(true);
+        setError(null);
+        if (timerRef.current) clearInterval(timerRef.current);
+
+        try {
+            // Format solutions array with correlated DMCE sessions from exact latest editor snapshots
+            const solutions = questions.map(q => {
+                const ans = answersRef.current[q._id] || answers[q._id] || {};
+                const sub = stageSubmissions[q._id] || {};
+                return {
+                    questionId: q._id,
+                    code: ans.code || '',
+                    language: ans.language || 'python',
+                    sessionId: dmceSessions[q._id] || undefined,
+                    stage1Code: sub.stage1Code || ans.code || '',
+                    stage2Code: sub.stage2Code || ans.code || '',
+                    stage1SubmittedAt: sub.stage1SubmittedAt || undefined,
+                    stage2SubmittedAt: sub.stage2SubmittedAt || undefined
+                };
+            });
+
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            const res = await axios.post(`${API_URL}/coding-assessments/submit`, {
+                jobId: job?._id || job?.id,
+                userId: user?.uid || user?._id || user?.id || '',
+                answers: solutions
+            }, { headers });
+
+            if (res.data?.success) {
+                // Clear cached draft codes and question timers on successful submission
+                try {
+                    const targetJobId = job?._id || job?.id || 'job';
+                    questions.forEach(q => {
+                        localStorage.removeItem(`dmce_code_${targetJobId}_${q._id}`);
+                    });
+                    sessionStorage.removeItem(`dmce_q_timers_${targetJobId}`);
+                } catch (_) {}
+
+                // Success! Complete step
+                onComplete(res.data.codingScore);
+            }
+        } catch (err) {
+            console.error("Failed to submit coding assessment:", err);
+            setError(err.response?.data?.message || 'Failed to submit solutions. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleNextChallenge = () => {
+        setError(null);
+        if (currentQIndex < questions.length - 1) {
+            setCurrentQIndex(prev => prev + 1);
+        }
+    };
+
+    const handleCodingSecurityReset = async (violation) => {
+        setSecurityResetting(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            if (user?.uid || user?._id || user?.id) {
+                headers['x-user-id'] = user?.uid || user?._id || user?.id || '';
+            }
+            await axios.post(`${API_URL}/applications/proctoring-reset`, {
+                jobId: job?._id || job?.id,
+                userId: user?.uid || user?._id || user?.id || '',
+                stage: 'coding',
+                reason: 'Security policy violation detected during Coding Assessment.',
+                violation
+            }, { headers });
+        } catch (error) {
+            console.error('Failed to reset coding application:', error);
+        }
+
+        answersRef.current = {};
+        setAnswers({});
+        setSecurityResetting(false);
+        onSecurityReset({
+            stage: 'coding',
+            reason: 'Strict proctoring security violation triggered.',
+            violation
+        });
+    };
+
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h > 0 ? h + ':' : ''}${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+    };
+
+    const getFileExtension = (lang) => {
+        const l = (lang || '').toLowerCase();
+        if (l === 'python') return 'py';
+        if (l === 'javascript') return 'js';
+        if (l === 'java') return 'java';
+        if (l === 'c++' || l === 'cpp') return 'cpp';
+        if (l === 'sql') return 'sql';
+        return 'code';
+    };
+
+    const handleKeyDown = (e) => {
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        const key = e.key ? e.key.toLowerCase() : '';
+
+        // Disable copy and paste keys inside the editor
+        if (isCtrlOrCmd && (key === 'c' || key === 'v' || key === 'x')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
+        if ((e.shiftKey && e.key === 'Insert') || (e.ctrlKey && e.key === 'Insert')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerClipboardBlockedNotice('Copy and paste keys are disabled during the coding round.');
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            const currentVal = e.target.value;
+            const newVal = currentVal.substring(0, start) + '    ' + currentVal.substring(end);
+            handleCodeChange(newVal);
+            setTimeout(() => {
+                if (e.target) {
+                    e.target.selectionStart = e.target.selectionEnd = start + 4;
+                }
+            }, 0);
+        }
+    };
+
+    const handleResetCode = () => {
+        const q = questions[currentQIndex];
+        if (!q) return;
+        const defaultLang = answers[q._id]?.language || q.allowedLanguages?.[0] || roundConfig?.languages?.[0] || 'Python';
+        const starter = getStarterTemplate(q, defaultLang);
+        handleCodeChange(starter);
+    };
+
+    const currentResult = currentQuestion ? executionResults[currentQuestion._id] : null;
+    const progress = questions.length > 0 ? ((currentQIndex + 1) / questions.length) * 100 : 0;
+
+    if (loading) {
+        return (
+            <div className="min-h-[400px] flex flex-col items-center justify-center bg-gray-50/50 rounded-[2.5rem] border border-black/5">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+                <p className="text-sm text-gray-500 mt-4 font-semibold">Loading assessment environment...</p>
+            </div>
+        );
+    }
+
+    if (error && !started) {
+        return (
+            <div className="mx-auto max-w-xl p-8 rounded-[2.5rem] border border-black/10 bg-white shadow-2xl text-center">
+                <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Assessment Notice</h3>
+                <p className="text-gray-500 mb-6">{error}</p>
+                <div className="flex items-center justify-center flex-wrap gap-3">
+                    <button
+                        onClick={fetchCodingRound}
+                        className="px-6 py-3 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition font-bold"
+                    >
+                        Retry / Refresh
+                    </button>
+                    <button
+                        onClick={onBack}
+                        className="px-6 py-3 rounded-2xl bg-black text-white hover:bg-gray-800 transition font-bold"
+                    >
+                        Go Back
+                    </button>
+                    {onComplete && (
+                        <button
+                            onClick={() => onComplete(0)}
+                            className="px-6 py-3 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-bold"
+                        >
+                            Skip to Next Stage
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Lobby Screen
+    if (!started) {
+        return (
+            <div className="coding-assessment-lobby-card mx-auto max-w-5xl my-6 rounded-3xl md:rounded-[2.5rem] border border-black/10 bg-white p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+                    <Code2 size={200} />
+                </div>
+                <div className="relative z-10">
+                    <div className="mb-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-teal-600">Coding Assessment</p>
+                        <h1 className="mt-1.5 text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">Coding Assessment</h1>
+                        <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                            Welcome to the coding assessment round for <strong>{job?.title || 'this position'}</strong>. You will be evaluated on your programming logic, time complexity, and clean code principles.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
+                        {/* Left Side: Rules & Structure Instructions */}
+                        <div className="rounded-2xl bg-[#faf8f5] p-5 border border-black/5 flex flex-col justify-between">
+                            <div>
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-3 text-sm md:text-base">
+                                    <Clock3 size={18} className="text-teal-600" />
+                                    Rules & Structure
+                                </h3>
+                                <ul className="text-xs md:text-sm text-gray-600 space-y-2.5 list-disc list-inside leading-relaxed">
+                                    {roundConfig?.timerType === 'individual' ? (
+                                        <li>Time allotted: <strong>Individual per question</strong> ({questions.map((q, i) => `Q${i + 1}: ${getQuestionTimerMinutes(q, roundConfig)}m`).join(', ')})</li>
+                                    ) : (
+                                        <li>Total time allotted: <strong>{roundConfig?.totalTime || 60} minutes</strong></li>
+                                    )}
+                                    <li>Total programming challenges: <strong>{questions.length} questions</strong> • Maximum Score: <strong>100 Marks</strong></li>
+                                    <li>Each challenge has dynamic proportional marks based on difficulty totaling exactly 100 marks.</li>
+                                    <li>Ensure you choose the correct language from the dropdown menu.</li>
+                                    <li>This assessment is strictly proctored. <strong>Tab switching or leaving screen share will result in immediate disqualification.</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Right Side: Video Preview & Action */}
+                        <div className="flex flex-col justify-center">
+                            {!sharedStream ? (
+                                <div className="space-y-4 my-auto">
+                                    <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-800 text-xs md:text-sm font-semibold flex items-start gap-2.5">
+                                        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                                        <span>Webcam and microphone access are required to verify identity and maintain test integrity.</span>
+                                    </div>
+                                    {lobbyError && (
+                                        <p className="text-xs text-red-500 font-bold">{lobbyError}</p>
+                                    )}
+                                    <button
+                                        onClick={enableMedia}
+                                        className="w-full py-3.5 rounded-2xl bg-gray-600 hover:bg-gray-700 text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-gray-500/20"
+                                    >
+                                        <Play size={18} />
+                                        Grant Camera & Mic Access
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <div className="aspect-video w-full rounded-2xl bg-black border border-black/10 overflow-hidden relative shadow-inner max-h-[220px]">
+                                        <video
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                            ref={(videoEl) => {
+                                                if (videoEl && sharedStream) {
+                                                    videoEl.srcObject = sharedStream;
+                                                }
+                                            }}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-3 left-3 px-2.5 py-0.5 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow">
+                                            Camera Active
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={startCodingAssessment}
+                                        className="w-full py-3.5 rounded-2xl bg-black hover:bg-gray-800 text-white text-base font-bold transition-all shadow-xl hover:scale-[1.01] active:scale-98 cursor-pointer"
+                                    >
+                                        Start Coding Assessment
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Active Coding Test Screen
+    return (
+        <SecureExamWrapper
+            examId={`coding:${job?._id || job?.id || ''}`}
+            userId={user?.uid || user?._id || user?.id || ''}
+            isActive={started && !securityResetting}
+            requireScreenShare={false}
+            screenStream={sharedScreenStream}
+            preserveScreenOnUnmount={true}
+            requireCamera={true}
+            cameraStream={sharedStream}
+            showWebcamPreview={true}
+            isAnswering={started && !securityResetting}
+            questionIndex={currentQIndex}
+            questionId={questions[currentQIndex]?._id || null}
+            warningLimit={3}
+            resetLimit={4}
+            onSecurityReset={handleCodingSecurityReset}
+            enableSnapshots={false}
+        >
+            <div className="fixed inset-0 z-[100] w-screen h-screen bg-[#0d1117] text-gray-100 flex flex-col overflow-hidden select-none font-sans">
+                {/* ── Top Exam Navigation Header ────────────────────────────── */}
+                <header className="h-16 px-6 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0 z-10 shadow-sm">
+                    {/* Left: Role Title & Questions Switcher */}
+                    <div className="flex items-center gap-5">
+                        <div className="flex items-center gap-2.5">
+                            <div className="h-9 w-9 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+                                <Terminal size={18} />
+                            </div>
+                            <div className="hidden sm:block">
+                                <h1 className="text-sm font-extrabold text-white tracking-tight leading-tight">{job?.title || 'Coding Assessment'}</h1>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-400">Coding Assessment</p>
+                            </div>
+                        </div>
+
+                        {/* Question Switcher Pills */}
+                        <div className="flex items-center gap-1.5 bg-[#0d1117] p-1 rounded-xl border border-[#30363d]">
+                            {questions.map((q, idx) => {
+                                const hasCode = !!answers[q._id]?.code && answers[q._id]?.code.trim().length > 0;
+                                const isCurrent = currentQIndex === idx;
+                                return (
+                                    <button
+                                        key={q._id || idx}
+                                        onClick={() => {
+                                            setError(null);
+                                            setCurrentQIndex(idx);
+                                        }}
+                                        title={`Jump to Challenge ${idx + 1}`}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                            isCurrent
+                                                ? 'bg-teal-500 text-black shadow-md shadow-teal-500/20'
+                                                : hasCode
+                                                    ? 'text-teal-400 hover:bg-[#161b22]'
+                                                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#161b22]'
+                                        }`}
+                                    >
+                                        <span>Q{idx + 1}</span>
+                                        {hasCode && !isCurrent && <span className="text-[10px] text-teal-400">✓</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Center: Countdown Timer */}
+                    <div className="flex items-center">
+                        <div className={`px-4 py-1.5 rounded-xl border font-mono text-sm font-extrabold flex items-center gap-2 transition-all ${
+                            timeLeft <= 120
+                                ? 'bg-red-500/10 border-red-500/40 text-red-400 animate-pulse'
+                                : timeLeft <= 300
+                                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                                    : 'bg-[#0d1117] border-[#30363d] text-emerald-400'
+                        }`}>
+                            <Clock3 size={15} className={timeLeft <= 120 ? 'text-red-400' : timeLeft <= 300 ? 'text-amber-400' : 'text-emerald-400'} />
+                            <span>{formatTime(timeLeft)}</span>
+                        </div>
+                    </div>
+
+                    {/* Right: Submit Button & Marks */}
+                    <div className="flex items-center gap-3">
+                        <span className="hidden md:inline-block text-xs font-semibold text-gray-400">
+                            Challenge {currentQIndex + 1} of {questions.length} • {currentQuestion?.marks || 10} Marks
+                        </span>
+
+                        {currentQIndex === questions.length - 1 ? (
+                            <button
+                                onClick={handleSubmitSolutions}
+                                disabled={saving}
+                                className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                            >
+                                {saving ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span>Submitting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 size={14} />
+                                        <span>Submit Final Solutions</span>
+                                    </>
+                                )}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('Are you sure you want to finish the test early? This will submit all your current answers.')) {
+                                        handleSubmitSolutions();
+                                    }
+                                }}
+                                disabled={saving}
+                                className="px-5 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-white font-bold text-xs transition-all border border-[#30363d] flex items-center gap-2 cursor-pointer"
+                            >
+                                {saving ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                    <CheckCircle2 size={14} />
+                                )}
+                                <span>Finish Test Early</span>
+                            </button>
+                        )}
+                    </div>
+                </header>
+
+                {/* ── Main Full-Screen Split Workspace ──────────────────────── */}
+                <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                    {/* Left Pane: Question Details (45% width) */}
+                    <div className="w-full lg:w-[45%] h-full flex flex-col bg-[#0d1117] border-r border-[#30363d] overflow-hidden">
+                        {/* Question Header */}
+                        <div className="p-5 border-b border-[#30363d] bg-[#161b22]/50 shrink-0">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2.5 py-0.5 rounded-md">
+                                    Challenge {currentQIndex + 1}
+                                </span>
+                                <span className="text-xs font-extrabold text-gray-400">
+                                    {currentQuestion?.marks || 10} Marks
+                                </span>
+                            </div>
+                            <h2 className="text-xl font-bold text-white tracking-tight">{currentQuestion?.title}</h2>
+                            <span className={`inline-block mt-2 px-2.5 py-0.5 text-[10px] font-black rounded uppercase tracking-wider ${
+                                normalizeDifficulty(currentQuestion?.difficulty) === 'LOW'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    : normalizeDifficulty(currentQuestion?.difficulty) === 'HIGH'
+                                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            }`}>
+                                {normalizeDifficulty(currentQuestion?.difficulty)}
+                            </span>
+                        </div>
+
+                        {/* Question Scrollable Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-gray-300">
+                            {/* Problem Description */}
+                            <div className="space-y-2">
+                                <h3 className="text-xs font-extrabold uppercase tracking-widest text-gray-400">Problem Description</h3>
+                                <p className="whitespace-pre-line text-gray-200 leading-relaxed font-sans">{currentQuestion?.description}</p>
+                            </div>
+
+                            {/* Input Format */}
+                            {currentQuestion?.inputFormat && (
+                                <div className="space-y-1.5 bg-[#161b22] border border-[#30363d] p-3.5 rounded-xl">
+                                    <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider">Input Format</h4>
+                                    <p className="text-xs text-gray-400">{currentQuestion.inputFormat}</p>
+                                </div>
+                            )}
+
+                            {/* Output Format */}
+                            {currentQuestion?.outputFormat && (
+                                <div className="space-y-1.5 bg-[#161b22] border border-[#30363d] p-3.5 rounded-xl">
+                                    <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider">Output Format</h4>
+                                    <p className="text-xs text-gray-400">{currentQuestion.outputFormat}</p>
+                                </div>
+                            )}
+
+                            {/* Progressive Constraints Block */}
+                            {(() => {
+                                const qId = currentQuestion?._id;
+                                const qRequiresConstraint = currentQuestion?.requiresConstraint !== false;
+                                if (!qRequiresConstraint) {
+                                    return (
+                                        <div className="space-y-2 bg-[#161b22] border border-[#30363d] p-4 rounded-xl">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Layers size={13} className="text-teal-400" />
+                                                    <span>Constraints</span>
+                                                </h4>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 bg-gray-800/80 border border-gray-700">
+                                                    Standard Execution
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400 font-mono">
+                                                {currentQuestion?.constraints && currentQuestion.constraints !== 'No specific constraints'
+                                                    ? currentQuestion.constraints
+                                                    : 'No special memory or progressive constraints required for this challenge.'}
+                                            </p>
+                                        </div>
+                                    );
+                                }
+                                const currentStage = questionStages[qId] || 'STAGE_1';
+                                const isStage2OrDone = currentStage === 'STAGE_2' || currentStage === 'COMPLETED' || dmceMutations[qId]?.activated;
+                                const activeMutation = dmceMutations[qId] || activeMutationAlert;
+                                const memMb = activeMutation?.resourceConstraints?.memoryLimitMb || activeMutation?.memoryLimitMb || 14;
+
+                                return (
+                                    <div className="space-y-2.5 bg-[#161b22] border border-[#30363d] p-4 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-extrabold text-xs text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Layers size={13} className="text-teal-400" />
+                                                <span>Constraints</span>
+                                            </h4>
+
+                                            {/* Stage Status Badge */}
+                                            {currentStage === 'STAGE_2' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                                                    <Zap size={11} className="text-amber-400" />
+                                                    <span>Stage 2: Constraint Mutated</span>
+                                                </span>
+                                            )}
+                                            {currentStage === 'COMPLETED' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                                    <CheckCircle2 size={11} className="text-emerald-400" />
+                                                    <span>Constraint Satisfied</span>
+                                                </span>
+                                            )}
+                                            {currentStage === 'STAGE_1' && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 bg-gray-800/80 border border-gray-700">
+                                                    Stage 1 of 2
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Baseline / Problem Constraints */}
+                                        {currentQuestion?.constraints && (
+                                            <div className={`text-xs font-mono p-2.5 rounded-lg border ${
+                                                isStage2OrDone
+                                                    ? 'bg-[#0d1117]/60 border-[#21262d] text-gray-400'
+                                                    : 'bg-[#0d1117] border-[#21262d] text-gray-300'
+                                            }`}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400">Baseline Constraint:</span>
+                                                    {isStage2OrDone && (
+                                                        <span className="text-[10px] text-teal-400 flex items-center gap-1 font-sans font-semibold">
+                                                            <CheckCircle2 size={11} />
+                                                            <span>Stage 1 Satisfied</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className={isStage2OrDone ? 'opacity-75' : ''}>
+                                                    {currentQuestion.constraints}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Stage 1 Helper Notice */}
+                                        {currentStage === 'STAGE_1' && (
+                                            <div className="p-2.5 rounded-lg bg-teal-500/5 border border-teal-500/20 text-[11px] text-teal-300/80 flex items-center gap-2">
+                                                <Clock3 size={13} className="shrink-0 text-teal-400" />
+                                                <span>
+                                                    <strong>Stage 1 of 2:</strong> Solve the baseline requirements first. Submit your initial code to unlock the progressive scale constraint.
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Stage 2 Revealed Scale Constraint Card */}
+                                        {isStage2OrDone && (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.98, y: -4 }}
+                                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                className="p-3.5 rounded-xl bg-gradient-to-br from-amber-500/15 via-[#161b22] to-amber-950/20 border-2 border-amber-500/40 space-y-2.5"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 text-amber-300 font-extrabold text-xs">
+                                                        <Cpu size={15} className="text-amber-400 animate-pulse shrink-0" />
+                                                        <span>
+                                                            {activeMutation?.headline || `System Scale Mutation: Memory Cap Clamped to ${memMb} MB`}
+                                                        </span>
+                                                    </div>
+                                                    {currentStage === 'STAGE_2' && (
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/25 text-amber-300 border border-amber-500/50 animate-pulse">
+                                                            ⚠️ Adapt Code
+                                                        </span>
+                                                    )}
+                                                    {currentStage === 'COMPLETED' && (
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                                            <CheckCircle2 size={10} />
+                                                            <span>Satisfied</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <p className="text-xs text-amber-100/90 leading-relaxed font-sans">
+                                                    {activeMutation?.description ||
+                                                        `Peak stream volume exceeded. Runtime heap is clamped to ${memMb} MB. Adapt your solution to process data in-place using iterators without buffering full arrays in RAM.`}
+                                                </p>
+
+                                                <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center gap-2 text-[10px] font-mono text-amber-300">
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Heap Limit: {memMb} MB
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Time Limit: {((activeMutation?.resourceConstraints?.timeoutMs || 4000) / 1000).toFixed(1)}s
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Auxiliary Space: O(1) In-Place
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                                                        Scale: N = 100,000
+                                                    </span>
+                                                </div>
+
+                                                {/* Targeted Adaptation Hint Section */}
+                                                {targetedHints[qId] ? (
+                                                    <div className="mt-3 p-3 rounded-lg bg-[#0d1117] border border-amber-500/40 space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                                                                <Lightbulb size={14} className="text-amber-400 shrink-0" />
+                                                                <span>{targetedHints[qId].hintTitle || `Targeted Line Hint (Line ${targetedHints[qId].targetLineNumber || '?'})`}</span>
+                                                            </div>
+                                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                                Adaptation Hint
+                                                            </span>
+                                                        </div>
+
+                                                        {targetedHints[qId].targetCodeSnippet && (
+                                                            <div className="p-2 rounded bg-black/50 border border-gray-800 font-mono text-[11px] text-teal-300 overflow-x-auto">
+                                                                <span className="text-gray-500 select-none mr-2">Line {targetedHints[qId].targetLineNumber}:</span>
+                                                                <code>{targetedHints[qId].targetCodeSnippet}</code>
+                                                            </div>
+                                                        )}
+
+                                                        <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                                                            {targetedHints[qId].hintText}
+                                                        </p>
+
+                                                        <div className="p-2 rounded bg-red-950/30 border border-red-500/30 text-[10px] text-red-300/90 flex items-start gap-1.5">
+                                                            <ShieldCheck size={13} className="text-red-400 shrink-0 mt-0.5" />
+                                                            <span>
+                                                                <strong>Integrity Monitor:</strong> Make targeted adaptations to your existing logic. Discarding your code entirely and pasting an external solution will trigger an AI cheating detection flag for recruiter review.
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    currentStage === 'STAGE_2' && (
+                                                        <div className="mt-2 pt-2 border-t border-amber-500/15 flex items-center justify-between">
+                                                            <span className="text-[11px] text-amber-200/70 font-sans">
+                                                                Stuck adapting to the scale constraint?
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                disabled={hintLoading}
+                                                                onClick={handleRequestTargetedHint}
+                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 transition-all cursor-pointer disabled:opacity-50"
+                                                            >
+                                                                {hintLoading ? (
+                                                                    <>
+                                                                        <Loader2 size={12} className="animate-spin text-amber-400" />
+                                                                        <span>Analyzing Bottleneck...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Lightbulb size={12} className="text-amber-400" />
+                                                                        <span>Get Targeted Line Hint</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Examples */}
+                            {currentQuestion?.examples && currentQuestion.examples.length > 0 && (
+                                <div className="space-y-3">
+                                    <h4 className="font-extrabold text-xs text-gray-400 uppercase tracking-widest">Examples</h4>
+                                    {currentQuestion.examples.map((ex, idx) => (
+                                        <div key={idx} className="p-4 bg-[#161b22] rounded-xl border border-[#30363d] text-xs font-mono space-y-1.5">
+                                            <div className="text-emerald-400"><strong className="text-gray-400">Input:</strong> {ex.input}</div>
+                                            <div className="text-teal-300"><strong className="text-gray-400">Output:</strong> {ex.output}</div>
+                                            {ex.explanation && (
+                                                <div className="text-gray-400 pt-1 border-t border-[#30363d]/60 font-sans text-[11px]">
+                                                    <strong>Explanation:</strong> {ex.explanation}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Question Footer Navigation */}
+                        <div className="p-4 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between shrink-0">
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setCurrentQIndex(prev => Math.max(prev - 1, 0));
+                                }}
+                                disabled={currentQIndex === 0}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                                    currentQIndex === 0
+                                        ? 'text-gray-600 bg-[#0d1117] border border-[#21262d] cursor-not-allowed'
+                                        : 'text-gray-200 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] cursor-pointer'
+                                }`}
+                            >
+                                <ArrowLeft size={14} />
+                                <span>Previous</span>
+                            </button>
+
+                            <span className="text-xs font-semibold text-gray-400">
+                                Question {currentQIndex + 1} of {questions.length}
+                            </span>
+
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setCurrentQIndex(prev => Math.min(prev + 1, questions.length - 1));
+                                }}
+                                disabled={currentQIndex === questions.length - 1}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                                    currentQIndex === questions.length - 1
+                                        ? 'text-gray-600 bg-[#0d1117] border border-[#21262d] cursor-not-allowed'
+                                        : 'text-gray-200 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] cursor-pointer'
+                                }`}
+                            >
+                                <span>Next</span>
+                                <ArrowRight size={14} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right Pane: Code Editor / Notepad (55% width) */}
+                    <div className="w-full lg:w-[55%] h-full flex flex-col bg-[#05080f] overflow-hidden">
+                        {/* Editor Header Bar */}
+                        <div className="px-5 py-2.5 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-2">
+                                <Code2 size={16} className="text-teal-400" />
+                                <span className="font-mono text-xs text-gray-300">
+                                    solution.{getFileExtension(answers[currentQuestion?._id]?.language)}
+                                </span>
+                                {dmceMutations[currentQuestion?._id]?.activated ? (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-extrabold animate-pulse">
+                                        <Cpu size={12} className="text-amber-400" />
+                                        <span>{(dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14)} MB MEMORY CAP ENFORCED</span>
+                                    </div>
+                                ) : dmceMutations[currentQuestion?._id]?.triggered ? (
+                                    <button
+                                        onClick={() => {
+                                            setActiveMutationAlert(dmceMutations[currentQuestion?._id]);
+                                            setShowMutationModal(true);
+                                        }}
+                                        className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 text-[10px] font-extrabold cursor-pointer hover:bg-yellow-500/30"
+                                    >
+                                        <Zap size={11} className="text-yellow-400 animate-bounce" />
+                                        <span>MUTATION PENDING: CLICK TO ADAPT</span>
+                                    </button>
+                                ) : null}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleResetCode}
+                                    title="Reset to starter template"
+                                    className="px-2.5 py-1 text-xs text-gray-400 hover:text-white bg-[#0d1117] border border-[#30363d] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                    <RotateCcw size={12} />
+                                    <span>Reset</span>
+                                </button>
+
+                                <div className="flex items-center gap-1.5">
+                                    <label className="text-xs text-gray-400">Language:</label>
+                                    <select
+                                        value={answers[currentQuestion?._id]?.language || 'Python'}
+                                        onChange={(e) => handleLanguageChange(e.target.value)}
+                                        className="bg-[#0d1117] text-white border border-[#30363d] rounded-lg px-2.5 py-1 text-xs outline-none focus:border-teal-500 transition-colors"
+                                    >
+                                        {(currentQuestion?.allowedLanguages?.length > 0
+                                            ? currentQuestion.allowedLanguages
+                                            : roundConfig?.languages?.length > 0
+                                                ? roundConfig.languages
+                                                : ['Python', 'JavaScript', 'Java', 'C++', 'SQL']
+                                        ).map(lang => (
+                                            <option key={lang} value={lang}>{lang}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Editor Textarea / Notepad Area */}
+                        <div className="flex-1 relative flex flex-col bg-[#05080f] overflow-hidden min-h-[220px]">
+                            {clipboardNotice && (
+                                <div className="absolute top-3 right-3 z-30 bg-red-950/95 border border-red-500/50 text-red-200 text-xs font-bold px-3 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-sm pointer-events-none animate-bounce">
+                                    <ShieldAlert size={14} className="text-red-400 shrink-0" />
+                                    <span>{clipboardNotice}</span>
+                                </div>
+                            )}
+                            <textarea
+                                className="flex-1 w-full h-full bg-[#05080f] text-emerald-300 p-6 font-mono text-sm leading-6 outline-none resize-none border-none overflow-y-auto focus:ring-0 selection:bg-teal-500/30 selection:text-white"
+                                value={answers[currentQuestion?._id]?.code || ''}
+                                onChange={(e) => handleCodeChange(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onCopy={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Copying is disabled during the coding round.');
+                                }}
+                                onPaste={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Pasting is disabled during the coding round.');
+                                }}
+                                onCut={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Cutting text is disabled during the coding round.');
+                                }}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    triggerClipboardBlockedNotice('Right-click context menu is disabled during the coding round.');
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }}
+                                placeholder="Write your code solution here..."
+                                spellCheck={false}
+                            />
+                        </div>
+
+                        {/* Execution Console Panel */}
+                        {consoleOpen && (
+                            <div className="h-64 border-t border-[#30363d] bg-[#0d1117] flex flex-col shrink-0 overflow-hidden shadow-2xl">
+                                {/* Console Header Bar */}
+                                <div className="px-4 py-2 bg-[#161b22] border-b border-[#30363d] flex items-center justify-between shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+                                            <Terminal size={14} className="text-teal-400" />
+                                            Execution Results
+                                        </span>
+
+                                        {runningCode ? (
+                                            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[11px] font-semibold">
+                                                <Loader2 size={12} className="animate-spin" />
+                                                <span>Running in container sandbox...</span>
+                                            </div>
+                                        ) : currentResult ? (() => {
+                                            const isAllPassed = currentResult.status === 'ALL_PASSED' || currentResult.status === 'PASSED' || (currentResult.total > 0 && currentResult.passed === currentResult.total);
+                                            const isPartiallyPassed = !isAllPassed && (currentResult.status === 'PARTIALLY_PASSED' || (currentResult.passed > 0 && currentResult.passed < currentResult.total));
+
+                                            return (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                                                        isAllPassed
+                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                            : isPartiallyPassed
+                                                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                                                : 'bg-red-500/10 border-red-500/30 text-red-400'
+                                                    }`}>
+                                                        {isAllPassed ? 'All Passed' :
+                                                         isPartiallyPassed ? `${currentResult.passed}/${currentResult.total} Passed` :
+                                                         currentResult.status === 'MEMORY_LIMIT_EXCEEDED' ? `Memory Limit Exceeded (${dmceMutations[currentQuestion?._id]?.resourceConstraints?.memoryLimitMb || dmceMutations[currentQuestion?._id]?.memoryLimitMb || 14} MB Clamped)` :
+                                                         currentResult.status === 'COMPILATION_ERROR' ? 'Compilation Error' :
+                                                         currentResult.status === 'RUNTIME_ERROR' ? 'Runtime Error' :
+                                                         currentResult.status === 'TIME_LIMIT_EXCEEDED' ? 'Time Limit Exceeded' :
+                                                         'Failed'}
+                                                    </span>
+
+                                                    {currentResult.publicTotal > 0 && (
+                                                        <span className="text-[11px] text-gray-400 font-mono">
+                                                            Public: <strong className="text-gray-200">{currentResult.publicPassed}/{currentResult.publicTotal}</strong>
+                                                        </span>
+                                                    )}
+                                                    {currentResult.hiddenTotal > 0 && (
+                                                        <span className="text-[11px] text-gray-400 font-mono">
+                                                            Hidden: <strong className="text-gray-200">{currentResult.hiddenPassed}/{currentResult.hiddenTotal}</strong>
+                                                        </span>
+                                                    )}
+                                                    {currentResult.executionTime !== undefined && (
+                                                        <span className="text-[11px] text-gray-500 font-mono">
+                                                            • {currentResult.executionTime}s
+                                                        </span>
+                                                    )}
+                                                    {currentResult.submittedCode !== undefined && (answers[currentQuestion?._id]?.code || '') !== currentResult.submittedCode && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-300 font-mono">
+                                                            Modified
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })() : null}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setConsoleOpen(false)}
+                                            className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#21262d] transition-colors cursor-pointer"
+                                            title="Minimize Console"
+                                        >
+                                            <ChevronDown size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Console Body */}
+                                <div className="flex-1 overflow-hidden flex">
+                                    {runningCode ? (
+                                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-gray-400 gap-2">
+                                            <Loader2 size={24} className="animate-spin text-teal-400" />
+                                            <span className="text-xs font-medium">Executing code against test cases in isolated sandbox...</span>
+                                        </div>
+                                    ) : currentResult?.status === 'COMPILATION_ERROR' || (currentResult?.errorMessage && (!currentResult?.results || currentResult?.results.length === 0)) ? (
+                                        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs bg-red-950/20 text-red-300 space-y-1">
+                                            <div className="flex items-center gap-1.5 text-red-400 font-bold mb-2">
+                                                <AlertCircle size={14} />
+                                                <span>
+                                                    {currentResult?.status === 'MEMORY_LIMIT_EXCEEDED'
+                                                        ? 'Memory Limit Exceeded'
+                                                        : currentResult?.status === 'COMPILATION_ERROR'
+                                                            ? 'Compilation / Syntax Output'
+                                                            : 'Execution Output'}
+                                                </span>
+                                            </div>
+                                            <pre className="whitespace-pre-wrap">{currentResult.errorMessage || currentResult.results?.[0]?.errorMessage || 'Error executing program.'}</pre>
+                                        </div>
+                                    ) : currentResult?.results?.length > 0 ? (
+                                        <div className="flex-1 flex overflow-hidden">
+                                            {/* Test Case Pills (left column) */}
+                                            <div className="w-44 border-r border-[#30363d] overflow-y-auto p-2 space-y-1 bg-[#0d1117] shrink-0">
+                                                {currentResult.results.map((tc, idx) => {
+                                                    const isSelected = selectedTestCaseIdx === idx;
+                                                    return (
+                                                        <button
+                                                            key={tc.id || idx}
+                                                            type="button"
+                                                            onClick={() => setSelectedTestCaseIdx(idx)}
+                                                            className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition-all flex items-center justify-between cursor-pointer ${
+                                                                isSelected
+                                                                    ? 'bg-[#21262d] text-white border border-[#30363d]'
+                                                                    : 'hover:bg-[#161b22] text-gray-400'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                {tc.passed ? (
+                                                                    <Check size={13} className="text-emerald-400 shrink-0" />
+                                                                ) : (
+                                                                    <X size={13} className="text-red-400 shrink-0" />
+                                                                )}
+                                                                <span className="truncate">
+                                                                    {tc.category === 'MUTATION' || currentResult?.isMutationRun
+                                                                        ? `Constraint ${idx + 1}`
+                                                                        : (tc.isHidden ? `Hidden ${idx + 1}` : `Case ${idx + 1}`)}
+                                                                </span>
+                                                            </div>
+                                                            <span className={`text-[10px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {tc.passed ? 'Pass' : 'Fail'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Selected Test Case Details (right column) */}
+                                            <div className="flex-1 overflow-y-auto p-4 bg-[#05080f] font-mono text-xs">
+                                                {(() => {
+                                                    const tc = currentResult.results[selectedTestCaseIdx] || currentResult.results[0];
+                                                    if (!tc) return null;
+                                                    if (tc.isHidden) {
+                                                        return (
+                                                            <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                                                                <div className="p-3 rounded-full bg-white/5 border border-white/10">
+                                                                    <FileLock2 size={24} className="text-teal-400" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-sm font-bold text-gray-200">
+                                                                        {tc.category === 'MUTATION' ? 'Mutated Constraint Test (Confidential)' : 'Hidden Test Case'}
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                                                                        Test inputs and expected outputs are confidential to ensure assessment fairness and integrity.
+                                                                    </p>
+                                                                </div>
+                                                                <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                                    tc.passed
+                                                                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                                                                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                                                                }`}>
+                                                                    Result: {tc.passed ? 'Passed ✓' : 'Failed ✗'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-gray-400 font-bold uppercase text-[10px] tracking-wider">
+                                                                    {tc.category === 'MUTATION' || currentResult?.isMutationRun ? 'Mutated Constraint Test' : 'Test Case'} {selectedTestCaseIdx + 1} ({tc.category || (currentResult?.isMutationRun ? 'MUTATION' : 'NORMAL')})
+                                                                </span>
+                                                                <span className={`text-[11px] font-bold ${tc.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {tc.status} {tc.executionTime ? `• ${tc.executionTime}s` : ''}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Input</label>
+                                                                <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-gray-200 whitespace-pre-wrap">
+                                                                    {tc.input !== undefined && tc.input !== null ? (String(tc.input) === '' ? '""' : String(tc.input)) : '(empty)'}
+                                                                </pre>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Expected Output</label>
+                                                                    <pre className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d] text-emerald-400 whitespace-pre-wrap">
+                                                                        {tc.expectedOutput !== undefined && tc.expectedOutput !== null ? (String(tc.expectedOutput) === '' ? '""' : String(tc.expectedOutput)) : '(empty)'}
+                                                                    </pre>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Actual Output</label>
+                                                                    <pre className={`p-2.5 rounded-lg bg-[#0d1117] border ${tc.passed ? 'border-emerald-500/30 text-emerald-300' : 'border-red-500/30 text-red-300'} whitespace-pre-wrap`}>
+                                                                        {tc.actualOutput !== undefined && tc.actualOutput !== null && tc.actualOutput !== ''
+                                                                            ? String(tc.actualOutput)
+                                                                            : (tc.errorMessage ? `Error: ${tc.errorMessage}` : '(no output)')}
+                                                                    </pre>
+                                                                </div>
+                                                            </div>
+
+                                                            {tc.errorMessage && (
+                                                                <div className="p-2 rounded-lg bg-red-950/20 border border-red-500/30 text-red-300">
+                                                                    <span className="font-bold text-[10px] uppercase block text-red-400 mb-0.5">Error details:</span>
+                                                                    <pre className="whitespace-pre-wrap text-[11px]">{tc.errorMessage}</pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-gray-500 text-xs">
+                                            <Terminal size={20} className="mb-2 text-gray-600" />
+                                            <span>Click "Run Code" below to test your solution against test cases.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Editor Action Footer */}
+                        <div className="px-6 py-3 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3 text-xs text-gray-400">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Auto-saved locally</span>
+                                </div>
+                                {currentResult && !consoleOpen && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConsoleOpen(true)}
+                                        className="text-[11px] text-teal-400 hover:text-teal-300 underline cursor-pointer"
+                                    >
+                                        View results ({currentResult.passed}/{currentResult.total} passed)
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                {/* Run Code / Run Mutation Tests Button */}
+                                <button
+                                    type="button"
+                                    onClick={handleRunCode}
+                                    disabled={runningCode || submittingStage1 || submittingStage2}
+                                    className={`px-5 py-2.5 rounded-xl active:scale-95 font-extrabold text-xs transition-all border flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                        (questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered)
+                                            ? 'bg-amber-500/15 border-amber-500/50 text-amber-300 hover:bg-amber-500/25 shadow-lg shadow-amber-500/10'
+                                            : 'bg-[#21262d] hover:bg-[#30363d] text-teal-300 border-teal-500/30 hover:border-teal-500'
+                                    }`}
+                                >
+                                    {runningCode ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin text-teal-400" />
+                                            <span>Executing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {(questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered) ? (
+                                                <Zap size={13} className="text-amber-400 fill-amber-400" />
+                                            ) : (
+                                                <Play size={13} className="text-teal-400 fill-teal-400" />
+                                            )}
+                                            <span>
+                                                {(questionStages[currentQuestion?._id] === 'STAGE_2' || dmceMutations[currentQuestion?._id]?.triggered)
+                                                    ? 'Run Mutation Tests'
+                                                    : 'Run Code'}
+                                            </span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {(() => {
+                                    const qId = currentQuestion?._id;
+                                    const stage = questionStages[qId] || 'STAGE_1';
+
+                                    if (stage === 'STAGE_1') {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmitStage1}
+                                                disabled={submittingStage1 || runningCode}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
+                                                {submittingStage1 ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Validating Stage 1...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <CheckCircle2 size={14} />
+                                                        <span>Submit Initial Code (Stage 1)</span>
+                                                        <ArrowRight size={13} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        );
+                                    }
+
+                                    if (stage === 'STAGE_2') {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmitStage2}
+                                                disabled={submittingStage2 || runningCode}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
+                                                {submittingStage2 ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Verifying Constraint...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Zap size={14} className="text-black fill-black" />
+                                                        <span>Submit Adapted Solution (Stage 2)</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        );
+                                    }
+
+                                    // Stage is COMPLETED
+                                    if (currentQIndex < questions.length - 1) {
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={handleNextChallenge}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                            >
+                                                <CheckCircle2 size={14} />
+                                                <span>Next Challenge</span>
+                                                <ArrowRight size={13} />
+                                            </button>
+                                        );
+                                    }
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={handleSubmitSolutions}
+                                            disabled={saving}
+                                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 cursor-pointer"
+                                        >
+                                            {saving ? (
+                                                <>
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                    <span>Submitting All...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle2 size={14} />
+                                                    <span>Submit Final Solutions</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Error Banner if any */}
+                {error && (
+                    <div className="p-3 bg-red-500/20 border-t border-red-500/40 text-red-300 text-xs font-semibold flex items-center justify-center gap-2 animate-pulse shrink-0">
+                        <AlertCircle size={15} />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                {/* ── DMCE Dynamic Runtime Mutation Modal Notification ───────── */}
+                {showMutationModal && activeMutationAlert && (
+                    <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            className="max-w-xl w-full bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-7 shadow-2xl shadow-amber-500/20 text-white relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600" />
+                            
+                            <div className="flex items-start gap-4">
+                                <div className="h-12 w-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                                    <Zap size={24} className="animate-bounce" />
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                                        SYSTEM SCALE MUTATION TRIGGERED
+                                    </span>
+                                    <h3 className="text-xl font-black text-white tracking-tight">
+                                        {activeMutationAlert.headline || 'System Scale Mutation: Memory Cap Clamped'}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const effectiveMemMb = activeMutationAlert.resourceConstraints?.memoryLimitMb || activeMutationAlert.memoryLimitMb || 14;
+                                return (
+                                    <>
+                                        <div className="mt-5 p-4 rounded-2xl bg-[#0d1117] border border-[#30363d] text-xs text-gray-300 space-y-3 leading-relaxed">
+                                            <p className="text-gray-200">
+                                                {activeMutationAlert.description || `Peak stream volume exceeded. The maximum runtime heap available to your execution environment has been dynamically reduced to ${effectiveMemMb} MB.`}
+                                            </p>
+                                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono text-[11px] flex items-center gap-2">
+                                                <Cpu size={14} className="shrink-0 text-amber-400" />
+                                                <span>Constraint: Maximum Heap Clamped to {effectiveMemMb} MB. Process dataset in-place using iterators / streams.</span>
+                                            </div>
+                                            {(activeMutationAlert.adaptationTimeBufferSec > 0) && (
+                                                <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-300 font-sans font-bold text-xs flex items-center gap-2">
+                                                    <Clock3 size={15} className="shrink-0 text-teal-400" />
+                                                    <span>Adaptation Time Buffer: +{Math.round(activeMutationAlert.adaptationTimeBufferSec / 60)} Minutes Added to Assessment Timer</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {mutationActivationError && (
+                                            <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+                                                <AlertCircle size={15} className="shrink-0 text-red-400" />
+                                                <span>{mutationActivationError}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="mt-6 flex items-center justify-between gap-3">
+                                            <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                                                <ShieldCheck size={14} className="text-emerald-400" />
+                                                <span>Stage-1 Baseline credit is 100% preserved.</span>
+                                            </div>
+                                            <button
+                                                onClick={handleAdaptMutation}
+                                                disabled={activatingMutation}
+                                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {activatingMutation ? (
+                                                    <>
+                                                        <Loader2 size={14} className="animate-spin text-black" />
+                                                        <span>Enforcing {effectiveMemMb} MB Limit...</span>
+                                                    </>
+                                                ) : (
+                                                    <span>Adapt Solution Under Constraint</span>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </motion.div>
+                    </div>
+                )}
+            </div>
+        </SecureExamWrapper>
+    );
+};
+
+export default CodingAssessment;

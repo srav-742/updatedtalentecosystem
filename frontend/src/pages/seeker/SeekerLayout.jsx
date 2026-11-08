@@ -1,34 +1,65 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getUserProfile, auth } from '../../firebase';
+import { Briefcase, Clock, LayoutDashboard, LogOut, UserCircle, Zap, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { getUserProfile, auth, API_URL } from '../../firebase';
 import { signOut } from 'firebase/auth';
+import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import CreatePasswordModal from '../../components/CreatePasswordModal';
 import { prefetchSeekerRoutes } from '../../utils/prefetchRoutes';
 
 const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/seeker' },
-    { label: 'Browse Jobs', icon: Briefcase, path: '/seeker/jobs' },
-    { label: 'My Applications', icon: Clock, path: '/seeker/applications' },
-    { label: 'Profile', icon: UserCircle, path: '/seeker/profile' }
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/candidate' },
+    { label: 'Browse Jobs', icon: Briefcase, path: '/candidate/jobs' },
+    { label: 'My Applications', icon: Clock, path: '/candidate/applications' },
+    { label: 'Career Hub', icon: BookOpen, path: '/candidate/career-hub' },
+    { label: 'Profile', icon: UserCircle, path: '/candidate/profile' }
 ];
 
 const SeekerLayout = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [profile, setProfile] = useState(user);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
 
-    // Prefetch all seeker page chunks during browser idle time
+    // Prefetch all seeker page chunks and candidate data
     // so navigation between seeker pages is instant
     useEffect(() => {
         prefetchSeekerRoutes();
-    }, []);
+        const uid = user.uid || user._id || user.id;
+        queryClient.prefetchQuery({
+            queryKey: ['jobs'],
+            queryFn: () => axios.get(`${API_URL}/jobs`).then(res => res.data),
+            staleTime: 5 * 60 * 1000
+        });
+        if (uid) {
+            queryClient.prefetchQuery({
+                queryKey: ['applications', 'stats', uid],
+                queryFn: () => axios.get(`${API_URL}/applications/candidate/${uid}/stats`).then(res => res.data),
+                staleTime: 60 * 1000
+            });
+            queryClient.prefetchQuery({
+                queryKey: ['applications', uid],
+                queryFn: async () => {
+                    try {
+                        const res = await axios.get(`${API_URL}/applications/candidate/${uid}`);
+                        return res.data;
+                    } catch (error) {
+                        if (error.response?.status !== 404) throw error;
+                        const res = await axios.get(`${API_URL}/applications/seeker/${uid}`);
+                        return res.data;
+                    }
+                },
+                staleTime: 5 * 60 * 1000
+            });
+        }
+    }, [user.uid, user._id, user.id, queryClient]);
 
     useEffect(() => {
-        // Only redirect if user has a role and it's not seeker OR admin
-        if (user.role && user.role !== 'seeker' && user.role !== 'admin') {
+        // Only redirect if user has a role and it's not seeker/candidate OR admin
+        if (user.role && user.role !== 'seeker' && user.role !== 'candidate' && user.role !== 'admin') {
             navigate('/recruiter');
             return;
         }
@@ -38,7 +69,7 @@ const SeekerLayout = () => {
             if (!uid) return;
 
             try {
-                const profileData = await getUserProfile(uid);
+                const profileData = await getUserProfile(user.email || uid);
                 if (profileData) {
                     setProfile(profileData);
                     localStorage.setItem('user', JSON.stringify({ ...user, ...profileData, role: user.role }));
@@ -118,7 +149,7 @@ const SeekerLayout = () => {
                             <NavLink
                                 key={item.path}
                                 to={item.path}
-                                end={item.path === '/seeker'}
+                                end={item.path === '/candidate'}
                                 onClick={() => setIsSidebarOpen(false)}
                                 title={isMinimized ? item.label : undefined}
                                 className={({ isActive }) => `
@@ -138,7 +169,7 @@ const SeekerLayout = () => {
                     })}
 
                     <NavLink
-                        to="/seeker/mock-interview"
+                        to="/candidate/mock-interview"
                         onClick={() => setIsSidebarOpen(false)}
                         title={isMinimized ? "Mock Interview" : undefined}
                         className={({ isActive }) => `
@@ -218,7 +249,7 @@ const SeekerLayout = () => {
                 <div className="pointer-events-none fixed right-[-5%] top-[-10%] -z-10 h-[600px] w-[600px] rounded-full bg-[#ded7cb] blur-[150px]" />
                 <div className="pointer-events-none fixed bottom-[-10%] left-[-5%] -z-10 h-[600px] w-[600px] rounded-full bg-[#ebe5db] blur-[150px]" />
 
-                <div className="mx-auto max-w-[1440px] p-4 md:p-10">
+                <div className="mx-auto max-w-[1440px] p-4 md:px-8 md:py-6">
                     <Outlet />
                 </div>
             </main>

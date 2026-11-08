@@ -48,6 +48,7 @@ const CookieBanner = () => {
                                     <button 
                                         onClick={() => setShow(false)}
                                         className="p-1 rounded-full hover:bg-white/5 text-gray-500 hover:text-white transition-colors"
+                                        aria-label="Close cookie banner"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -55,7 +56,7 @@ const CookieBanner = () => {
                                 <p className="text-gray-400 text-sm leading-relaxed mb-6">
                                     We use cookies to enhance your experience, analyze site traffic, and deliver personalized job matches. By clicking "Accept All", you agree to our use of cookies.
                                     <Link to="/cookies" className="text-blue-400 hover:underline ml-1 inline-flex items-center gap-1">
-                                        Learn more <ExternalLink className="w-3 h-3" />
+                                        View cookie policy <ExternalLink className="w-3 h-3" aria-hidden="true" />
                                     </Link>
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-3">

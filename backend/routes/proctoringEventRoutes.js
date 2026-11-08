@@ -27,6 +27,12 @@ router.get('/session/:examId', ctrl.getSession);
 // Get current proctoring score only
 router.get('/score/:examId', ctrl.getScore);
 
+// Get detailed score breakdown and factor explanation (Requirement 44)
+router.get('/score-breakdown/:examId', ctrl.getScoreBreakdown);
+
+// Submit human reviewer verification status (Requirement 34)
+router.post('/review/:examId', ctrl.submitHumanReview);
+
 // Log a warning escalation
 router.post('/warning', ctrl.logWarning);
 

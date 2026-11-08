@@ -1,73 +1,55 @@
 const {
-    validateClient,
+    validateClientCredentials,
     verifyAccessToken,
-    refreshAccessToken,
     getUserRoles,
     getClientRoles,
-    checkResourceAccess
+    checkResourceAccess,
+    refreshAccessToken
 } = require('../services/authService');
 const User = require('../models/User');
 
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
 /**
- * API Gateway Middleware
- * 
- * This middleware acts as the entry point for every protected request:
- * 1. Validates Client ID & Client Secret (application-level auth)
- * 2. Validates the Access Token (user-level auth)
- * 3. If Access Token expired, attempts silent refresh using Refresh Token
- * 4. Checks if the user's role is authorized to access the requested resource
- * 
- * Required Headers:
- *   X-Client-ID: <clientId>
- *   X-Client-Secret: <clientSecret>
- *   Authorization: Bearer <accessToken>
- *   X-Refresh-Token: <refreshToken>  (optional, used for silent refresh)
+ * Public routes that do NOT require client credentials or user tokens.
+ * Matches method + regex pattern.
  */
 const PUBLIC_ROUTES = [
+    { method: 'GET', pattern: /^\/api\/status$/i },
+    { method: 'GET', pattern: /^\/api\/health$/i },
+    { method: 'GET', pattern: /^\/health$/i },
+    { method: 'GET', pattern: /^\/live$/i },
+    { method: 'GET', pattern: /^\/ready$/i },
+
+    { method: 'POST', pattern: /^\/api\/auth\/login$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/signup$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/google$/i },
     { method: 'POST', pattern: /^\/api\/signup$/i },
     { method: 'POST', pattern: /^\/api\/login$/i },
     { method: 'POST', pattern: /^\/api\/users\/sync$/i },
-    { method: 'POST', pattern: /^\/api\/auth\/google$/i },
-    { method: 'POST', pattern: /^\/api\/forgot-password$/i },
+    { method: 'POST', pattern: /^\/api\/auth\/refresh$/i },
     { method: 'POST', pattern: /^\/api\/auth\/forgot-password$/i },
-    { method: 'POST', pattern: /^\/api\/verify-otp$/i },
+    { method: 'POST', pattern: /^\/api\/forgot-password$/i },
     { method: 'POST', pattern: /^\/api\/auth\/verify-otp$/i },
     { method: 'POST', pattern: /^\/api\/reset-password$/i },
     { method: 'POST', pattern: /^\/api\/auth\/reset-password$/i },
-    { method: 'GET', pattern: /^\/api\/status$/i },
-    { method: 'GET', pattern: /^\/api\/tts-debug$/i },
-    // Jobs — only job browsing is public
-    { method: 'GET',    pattern: /^\/api\/jobs(\/.*)?$/i },
-    // Profile
-    { method: 'GET', pattern: /^\/api\/profile\/[^/]+$/i },
-    { method: 'PUT', pattern: /^\/api\/profile(\/.*)?$/i },
-    { method: 'POST', pattern: /^\/api\/profile(\/.*)?$/i },
-    // Recruiter Dashboard — analytics & insights
-    { method: 'GET', pattern: /^\/api\/dashboard(\/.*)?$/i },
-    { method: 'GET', pattern: /^\/api\/insights(\/.*)?$/i },
-    // Interview & Assessment
-    { method: '*', pattern: /^\/api\/interview-details(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/assessment-details(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/proctoring-details(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/resume-profile(\/.*)?$/i },
-    // AI / search
-    { method: '*', pattern: /^\/api\/ai(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/talent(\/.*)?$/i },
-    { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
-    { method: '*', pattern: /^\/api\/gateway\/.*/i },
-    { method: 'GET', pattern: /^\/api\/v1\/auth\/diagnostics\/state$/i },
-    { method: 'GET', pattern: /^\/api\/v1\/blogs(\/.*)?$/i },
-    { method: 'POST', pattern: /^\/api\/v1\/blogs\/subscribe$/i },
-    { method: '*', pattern: /^\/api\/proctoring(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/proctoring-enhanced(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/wallet(\/.*)?$/i },
-    { method: '*', pattern: /^\/api\/payments(\/.*)?$/i },
-    { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i }
-];
+    { method: 'POST', pattern: /^\/api\/(auth\/)?send-verification$/i },
+    { method: 'GET', pattern: /^\/api\/(auth\/)?verify-email(\/.*)?$/i },
+    { method: 'POST', pattern: /^\/api\/(auth\/)?resend-verification$/i },
+    { method: 'POST', pattern: /^\/api\/(auth\/)?sync-verification$/i },
+    { method: 'POST', pattern: /^\/api\/gateway\/token$/i },
+    { method: 'POST', pattern: /^\/api\/gateway\/refresh$/i },
+    { method: 'GET', pattern: /^\/api\/gateway\/validate$/i },
 
+    { method: 'GET', pattern: /^\/api\/jobs\/?$/i },
+    { method: 'GET', pattern: /^\/api\/jobs\/(?!admin(?:\/|$)|recruiter(?:\/|$))[^/]+$/i },
+    { method: 'GET', pattern: /^\/api\/sample-seekers$/i },
+    { method: 'GET', pattern: /^\/api\/v1\/blogs(?:\/(?!admin(?:\/|$))[^/]+)?$/i },
+    { method: 'POST', pattern: /^\/api\/v1\/blogs\/subscribe$/i },
+    { method: 'GET', pattern: /^\/api\/content(\/.*)?$/i },
+    { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i },
+    { method: 'GET', pattern: /^\/api\/candidate-career\/(topics|blueprints)$/i }
+];
 
 const gatewayMiddleware = async (req, res, next) => {
     try {
@@ -75,112 +57,109 @@ const gatewayMiddleware = async (req, res, next) => {
 
         // ─── Step 0: Trust API Gateway Propagated Context ────────────────
         const gatewaySecret = req.headers['x-gateway-secret'];
-        const trustedSecret = process.env.GATEWAY_SHARED_SECRET || 'hire1percent_gateway_secret_key_2026';
-        
+        const trustedSecret = process.env.GATEWAY_SHARED_SECRET;
+
         if (gatewaySecret && gatewaySecret === trustedSecret) {
-            const gatewayClientId = req.headers['x-client-id'] || req.headers['x-h1p-client-id'];
-            if (gatewayClientId) {
-                console.log(`[GATEWAY-TRUSTED] 🔐 Request verified by Java API Gateway. Client: ${gatewayClientId}`);
-                
-                const Client = require('../models/Client');
-                const client = await Client.findOne({ clientId: gatewayClientId });
-                req.client = client || {
-                    clientId: gatewayClientId,
-                    name: 'API Gateway Verified Client',
-                    status: 'active'
-                };
+            const contextUserId = req.headers['x-context-user-id'] || req.headers['x-user-id'];
+            const contextRoles = req.headers['x-context-roles'];
+            const contextEmail = req.headers['x-context-user-email'];
 
-                // Check if route is public
-                const isPublic = PUBLIC_ROUTES.some(route => {
-                    const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
-                    const isPathMatch = route.pattern.test(fullPath);
-                    return isMethodMatch && isPathMatch;
-                });
-
-                if (isPublic) {
-                    console.log(`[GATEWAY-TRUSTED-PUBLIC] ✅ Access granted: ${req.method} ${fullPath}`);
-                    return next();
+            if (contextUserId) {
+                let query;
+                const trimmed = String(contextUserId).trim();
+                if (trimmed.includes('@')) {
+                    query = { $or: [{ email: trimmed.toLowerCase() }, { uid: trimmed }] };
+                } else if (OBJECT_ID_REGEX.test(trimmed)) {
+                    query = { $or: [{ uid: trimmed }, { _id: trimmed }] };
+                } else {
+                    query = { uid: trimmed };
                 }
-
-                // If user is authenticated, attach to request
-                const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'];
-                if (xUserId) {
-                    const userQuery = {};
-                    if (OBJECT_ID_REGEX.test(xUserId.toString())) {
-                        userQuery.$or = [{ _id: xUserId }, { uid: xUserId }];
-                    } else {
-                        userQuery.uid = xUserId;
-                    }
-                    const user = await User.findOne(userQuery);
-                    if (user) {
-                        req.user = user;
-                    }
+                const foundUser = await User.findOne(query);
+                if (foundUser) {
+                    req.user = foundUser;
+                } else {
+                    req.user = {
+                        _id: OBJECT_ID_REGEX.test(contextUserId) ? contextUserId : undefined,
+                        uid: contextUserId,
+                        email: contextEmail || '',
+                        role: contextRoles ? contextRoles.split(',')[0].trim() : 'seeker',
+                        isActive: true
+                    };
                 }
-
-                // Retrieve roles and check resource access
-                const userRoles = req.user ? getUserRoles(req.user) : [];
-                const clientRoles = client && client.roles ? client.roles : [];
-                const combinedRoles = [...new Set([...userRoles, ...clientRoles])];
-                req.userRoles = combinedRoles;
-
-                console.log(`[GATEWAY-TRUSTED] ✅ Access granted: ${req.method} ${fullPath} | Roles: [${combinedRoles.join(', ')}]`);
-                return next();
             }
+
+            req.gatewayContext = {
+                correlationId: req.headers['x-correlation-id'] || 'gw-' + Date.now(),
+                roles: contextRoles ? contextRoles.split(',').map(r => r.trim()) : [],
+                authenticated: true
+            };
+
+            return next();
         }
 
-        // ─── Admin Bypass Check ──────────────────────────────────────────
-        const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+        // ─── Step 0.5: Bypass for Public Routes ─────────────────────────
+        const isPublic = PUBLIC_ROUTES.some(route => {
+            const methodMatches = route.method === '*' || route.method === req.method;
+            return methodMatches && route.pattern.test(fullPath);
+        });
+
+        // ─── Step 0.6: Special Bypass for Admin Users / Admin Origin ────
+        const adminEmails = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
         let isAdminRequest = false;
         let adminUser = null;
 
-        // 1. Check by login/sync/signup email in req.body
-        if (req.body && req.body.email && adminEmails.includes(req.body.email.toLowerCase().trim())) {
-            isAdminRequest = true;
-        }
-
-        // 2. Check by x-user-id header matching an admin
-        const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'];
-        if (xUserId) {
-            const query = { role: 'admin' };
-            if (OBJECT_ID_REGEX.test(xUserId)) {
-                query.$or = [{ uid: xUserId }, { _id: xUserId }];
-            } else {
-                query.uid = xUserId;
-            }
-            adminUser = await User.findOne(query);
-            if (adminUser) {
-                isAdminRequest = true;
-            }
-        }
-
-        // 3. Or check by Authorization Bearer token (if we can decode it and it's an admin)
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.split(' ')[1];
+        // 1. Check if token belongs to an admin
+        const authHeaderCheck = req.headers.authorization;
+        if (authHeaderCheck && authHeaderCheck.startsWith('Bearer ')) {
             try {
+                const token = authHeaderCheck.split(' ')[1];
                 const decoded = verifyAccessToken(token);
-                if (decoded && (decoded.role === 'admin' || adminEmails.includes(decoded.email?.toLowerCase().trim()))) {
-                    isAdminRequest = true;
-                    if (!adminUser) {
-                        const query = {};
-                        if (OBJECT_ID_REGEX.test(decoded.userId)) {
-                            query.$or = [{ _id: decoded.userId }, { uid: decoded.userId }];
-                        } else {
-                            query.uid = decoded.userId;
-                        }
-                        adminUser = await User.findOne(query);
+                if (decoded && decoded.userId) {
+                    let query;
+                    const trimmed = String(decoded.userId).trim();
+                    if (trimmed.includes('@')) {
+                        query = { $or: [{ email: trimmed.toLowerCase() }, { uid: trimmed }] };
+                    } else if (OBJECT_ID_REGEX.test(trimmed)) {
+                        query = { $or: [{ uid: trimmed }, { _id: trimmed }] };
+                    } else {
+                        query = { uid: trimmed };
+                    }
+                    const user = await User.findOne(query);
+                    if (user && (user.role === 'admin' || (user.email && adminEmails.includes(user.email.toLowerCase().trim())))) {
+                        adminUser = user;
+                        isAdminRequest = true;
                     }
                 }
-            } catch (err) {
-                // Ignore decoding error here, normal flow will handle it if not admin
+            } catch (err) {}
+        }
+
+        // 2. Fallback: Check if a verified Firebase token belongs to an admin
+        if (!isAdminRequest && authHeaderCheck && authHeaderCheck.startsWith('Bearer ')) {
+            try {
+                const admin = require('../config/firebase');
+                if (admin.apps.length > 0) {
+                    const token = authHeaderCheck.split(' ')[1];
+                    const decoded = await admin.auth().verifyIdToken(token);
+                    if (decoded && decoded.email && adminEmails.includes(decoded.email.toLowerCase().trim())) {
+                        isAdminRequest = true;
+                        let query;
+                        const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+                        if (OBJECT_ID_REGEX.test(decoded.userId || decoded.uid)) {
+                            query = { $or: [{ uid: decoded.userId || decoded.uid }, { _id: decoded.userId || decoded.uid }] };
+                        } else {
+                            query = { uid: decoded.userId || decoded.uid };
+                        }
+                        adminUser = await User.findOne(query);
+                        isAdminRequest = !!adminUser;
+                    }
+                }
+            } catch (error) {
+                console.warn('[GATEWAY-MIDDLEWARE] Firebase admin token verification failed:', error.message);
             }
         }
 
         // If detected as admin request, bypass client credentials and token checks
         if (isAdminRequest) {
-            console.log(`[GATEWAY-ADMIN-BYPASS] 🔓 Admin request detected for path: ${req.method} ${fullPath}`);
-            
-            // Populate mock/default client info to avoid breaking downstream code
             const Client = require('../models/Client');
             const defaultClient = await Client.findOne({ clientId: 'hire1percent_web_client' });
             req.client = defaultClient || {
@@ -189,61 +168,51 @@ const gatewayMiddleware = async (req, res, next) => {
                 status: 'active'
             };
 
-            // If user has been identified, attach to request
             if (adminUser) {
                 req.user = adminUser;
                 req.tokenRefreshed = false;
                 req.userRoles = ['admin'];
-                console.log(`[GATEWAY-ADMIN-BYPASS] ✅ User authenticated as admin: ${adminUser.email}`);
-            } else {
-                console.log(`[GATEWAY-ADMIN-BYPASS] ✅ Public admin endpoint or login flow.`);
             }
-
             return next();
         }
-
-        // Check if route is public (use baseUrl + path to match patterns starting with /api)
-        const isPublic = PUBLIC_ROUTES.some(route => {
-            const isMethodMatch = route.method === '*' || route.method.toUpperCase() === req.method.toUpperCase();
-            const isPathMatch = route.pattern.test(fullPath);
-            return isMethodMatch && isPathMatch;
-        });
-
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
 
         if (isPublic) {
-            console.log(`[GATEWAY-PUBLIC] ✅ Access granted (Public Client): ${req.method} ${fullPath}`);
-            if (clientId && clientSecret) {
-                req.client = await validateClient(clientId, clientSecret).catch(() => null);
+            // Still populate user if token is provided
+            if (authHeaderCheck && authHeaderCheck.startsWith('Bearer ')) {
+                try {
+                    const token = authHeaderCheck.split(' ')[1];
+                    const decoded = verifyAccessToken(token);
+                    if (decoded && decoded.userId) {
+                        const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+                        const query = OBJECT_ID_REGEX.test(decoded.userId)
+                            ? { $or: [{ _id: decoded.userId }, { uid: decoded.userId }] }
+                            : { uid: decoded.userId };
+                        req.user = await User.findOne(query);
+                    }
+                } catch (e) {}
             }
             return next();
         }
 
-        // ─── Step 1: Validate Client Credentials for Private Routes ──────
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required. Provide X-Client-ID and X-Client-Secret headers.'
-            });
-        }
+        // ─── Step 1: Client Credentials Verification ────────────────────
+        let clientId = req.headers['x-client-id'] || req.headers['client_id'];
+        let clientSecret = req.headers['x-client-secret'] || req.headers['client_secret'];
 
-        const client = await validateClient(clientId, clientSecret);
+        const client = await validateClientCredentials(clientId, clientSecret);
         if (!client) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid client credentials. You are not authorized.'
+                message: 'Invalid or inactive client credentials. Provide valid X-Client-ID and X-Client-Secret headers.'
             });
         }
-
-        // Attach client info to request
         req.client = client;
 
-        // ─── Step 2: Validate Access Token ────────────────────────────────
+        // ─── Step 2: User Access Token Verification ─────────────────────
+        const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({
                 success: false,
-                message: 'Access token required. Provide Authorization: Bearer <token> header.'
+                message: 'Missing or malformed Authorization header. Expected: Bearer <token>'
             });
         }
 
@@ -254,148 +223,107 @@ const gatewayMiddleware = async (req, res, next) => {
         try {
             decoded = verifyAccessToken(accessToken);
         } catch (tokenError) {
-            if (tokenError.code === 'TOKEN_EXPIRED') {
-                // ─── Step 3: Attempt Silent Refresh ───────────────────────
+            if (tokenError.name === 'TokenExpiredError') {
                 const refreshToken = req.headers['x-refresh-token'];
                 if (!refreshToken) {
                     return res.status(401).json({
                         success: false,
-                        message: 'Access token expired. Provide X-Refresh-Token header for renewal.',
-                        code: 'TOKEN_EXPIRED'
+                        message: 'Access token expired. Provide X-Refresh-Token header to refresh.',
+                        tokenExpired: true
                     });
                 }
-
                 try {
-                    const result = await refreshAccessToken(refreshToken);
-                    decoded = verifyAccessToken(result.accessToken);
+                    const newTokens = await refreshAccessToken(refreshToken);
+                    res.setHeader('X-New-Access-Token', newTokens.accessToken);
+                    decoded = verifyAccessToken(newTokens.accessToken);
                     tokenRefreshed = true;
-
-                    // Send the new access token back in response header
-                    res.setHeader('X-New-Access-Token', result.accessToken);
                 } catch (refreshError) {
                     return res.status(401).json({
                         success: false,
-                        message: refreshError.code === 'SESSION_EXPIRED'
-                            ? 'Session expired. Please log in again.'
-                            : 'Token refresh failed. Please log in again.',
-                        code: refreshError.code || 'REFRESH_FAILED'
+                        message: 'Refresh token invalid or expired. Please re-authenticate.',
+                        tokenExpired: true
                     });
                 }
             } else {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Invalid access token.',
-                    code: 'INVALID_TOKEN'
-                });
+                // Try Firebase token verification as fallback
+                try {
+                    const admin = require('../config/firebase');
+                    if (admin.apps.length > 0) {
+                        const fbDecoded = await admin.auth().verifyIdToken(accessToken);
+                        decoded = { userId: fbDecoded.uid };
+                    } else {
+                        throw tokenError;
+                    }
+                } catch (fbErr) {
+                    return res.status(401).json({
+                        success: false,
+                        message: 'Invalid access token: ' + tokenError.message
+                    });
+                }
             }
         }
 
-        // ─── Step 4: Load User & Attach to Request ───────────────────────
-        const userQuery = {};
-        if (decoded.userId && OBJECT_ID_REGEX.test(decoded.userId.toString())) {
-            userQuery.$or = [{ _id: decoded.userId }, { uid: decoded.userId }];
+        // ─── Step 3: Load User ──────────────────────────────────────────
+        let userQuery;
+        const trimmedId = String(decoded.userId).trim();
+        if (trimmedId.includes('@')) {
+            userQuery = { $or: [{ email: trimmedId.toLowerCase() }, { uid: trimmedId }] };
+        } else if (OBJECT_ID_REGEX.test(trimmedId)) {
+            userQuery = { $or: [{ uid: trimmedId }, { _id: trimmedId }] };
         } else {
-            userQuery.uid = decoded.userId;
+            userQuery = { uid: trimmedId };
         }
         const user = await User.findOne(userQuery);
 
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'User associated with this token was not found.'
+                message: 'Your session has expired.',
+                code: 'SESSION_EXPIRED',
+                accountDeleted: true,
+                sessionExpired: true
             });
+        }
+
+        // Enforce server-side expiration check for pilot recruiters
+        if (user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your session has expired.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true,
+                    sessionExpired: true
+                });
+            }
         }
 
         req.user = user;
         req.tokenRefreshed = tokenRefreshed;
 
-        // ─── Client-Level Verification for Recruiter Role ────────────────
-        if (user.role === 'recruiter' && clientId === 'hire1percent_web_client') {
-            return res.status(403).json({
-                success: false,
-                message: "Access denied. Recruiters must use a registered custom Client ID and Client Secret.",
-                requiredAction: 'Please configure your custom Client ID and Client Secret in the app.'
-            });
-        }
-
         // ─── Step 5: Role-Based Resource Access Check ────────────────────
         const userRoles = getUserRoles(user);
         const clientRoles = await getClientRoles(clientId);
-        const combinedRoles = [...new Set([...userRoles, ...clientRoles])];
 
-        req.userRoles = combinedRoles;
-
-        const hasAccess = await checkResourceAccess(combinedRoles, fullPath, req.method);
-        if (!hasAccess) {
+        const hasResourceAccess = await checkResourceAccess(userRoles, fullPath, req.method);
+        if (!hasResourceAccess) {
             return res.status(403).json({
                 success: false,
-                message: "You don't have access to this resource.",
-                requiredAction: 'Contact your administrator to request access.'
+                message: `Forbidden: Your role(s) [${userRoles.join(', ')}] do not have access to ${req.method} ${fullPath}`
             });
         }
 
-        // ─── Client-Level Access Restriction Check (Option A - Intersection Check) ───
-        // If the client has specific roles assigned, verify that the client itself has permission
-        // to access this resource. This prevents restricted clients from performing disallowed actions.
-        if (clientRoles && clientRoles.length > 0) {
-            const clientHasAccess = await checkResourceAccess(clientRoles, fullPath, req.method);
-            if (!clientHasAccess) {
-                return res.status(403).json({
-                    success: false,
-                    message: "You don't have access to this resource.",
-                    requiredAction: 'Contact your administrator to request access.'
-                });
-            }
-        }
+        req.userRoles = userRoles;
+        req.clientRoles = clientRoles;
 
-        // ─── Access Granted ──────────────────────────────────────────────
-        console.log(`[GATEWAY] ✅ Access granted: ${req.method} ${fullPath} | User: ${user.email} | Roles: [${combinedRoles.join(', ')}]`);
         next();
-
     } catch (error) {
-        console.error('[GATEWAY] ❌ Unexpected error:', error.message);
+        console.error('Gateway Middleware Error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Gateway internal error.',
-            error: error.message
+            message: 'Gateway authentication error: ' + error.message
         });
     }
 };
 
-/**
- * Lightweight version of gateway middleware — only validates client credentials
- * Use this for public endpoints that need client identification but not user auth
- */
-const clientOnlyGateway = async (req, res, next) => {
-    try {
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
-
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required.'
-            });
-        }
-
-        const client = await validateClient(clientId, clientSecret);
-        if (!client) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid client credentials.'
-            });
-        }
-
-        req.client = client;
-        next();
-    } catch (error) {
-        console.error('[GATEWAY-CLIENT] Error:', error.message);
-        return res.status(500).json({
-            success: false,
-            message: 'Gateway error.',
-            error: error.message
-        });
-    }
-};
-
-module.exports = { gatewayMiddleware, clientOnlyGateway };
+module.exports = { gatewayMiddleware, PUBLIC_ROUTES };

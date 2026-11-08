@@ -3,8 +3,8 @@ const blogService = require('../services/blogService');
 const BlogCategory = require('../models/BlogCategory');
 const BlogPost = require('../models/BlogPost');
 const Lead = require('../../models/Lead');
-const cloudinary = require('../../config/cloudinary');
 const mongoose = require('mongoose');
+const { invalidateCache } = require('../../middleware/cacheMiddleware');
 
 class BlogController {
     // ==========================================
@@ -16,7 +16,7 @@ class BlogController {
      */
     async getBlogPosts(req, res) {
         try {
-            const { page = 1, limit = 9, category, search } = req.query;
+            const { page = 1, limit = 1000, category, search } = req.query;
             const result = await blogRepository.findPublishedPosts({
                 categorySlug: category,
                 searchQuery: search,
@@ -162,7 +162,7 @@ class BlogController {
      */
     async adminGetBlogPosts(req, res) {
         try {
-            const { page = 1, limit = 20, status, search } = req.query;
+            const { page = 1, limit = 1000, status, search } = req.query;
             const result = await blogRepository.findAdminPosts({
                 status,
                 searchQuery: search,
@@ -249,12 +249,15 @@ class BlogController {
 
             const slug = await blogService.generateUniqueSlug(title);
 
+            // Keep base64 cover image directly for database storage
+            let resolvedCoverImage = coverImage;
+
             const post = await blogRepository.createPost({
                 title,
                 slug,
                 subtitle,
                 content,
-                coverImage,
+                coverImage: resolvedCoverImage,
                 authorId,
                 category: categoryId,
                 tags,
@@ -262,6 +265,14 @@ class BlogController {
                 publishedAt: publishedAt || new Date(),
                 seo
             });
+
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
+            }
 
             return res.status(201).json({
                 success: true,
@@ -291,7 +302,10 @@ class BlogController {
                 return res.status(404).json({ success: false, message: 'Blog post not found' });
             }
 
-            const updateData = { subtitle, content, coverImage, tags, status, publishedAt, seo };
+            // Keep base64 cover image directly for database storage
+            let resolvedCoverImage = coverImage;
+
+            const updateData = { subtitle, content, coverImage: resolvedCoverImage, tags, status, publishedAt, seo };
 
             // Dynamic slug update
             if (slug && slug.trim()) {
@@ -314,6 +328,14 @@ class BlogController {
             }
 
             const updatedPost = await blogRepository.updatePost(id, updateData);
+
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
+            }
 
             return res.json({
                 success: true,
@@ -341,6 +363,14 @@ class BlogController {
                 return res.status(404).json({ success: false, message: 'Blog post not found' });
             }
 
+            // Invalidate cached blog & dashboard queries
+            try {
+                invalidateCache('/api/v1/blogs');
+                invalidateCache('/api/dashboard');
+            } catch (cacheErr) {
+                console.warn('[BLOG-CONTROLLER] Cache invalidation error:', cacheErr.message);
+            }
+
             return res.json({
                 success: true,
                 message: 'Blog post deleted successfully'
@@ -352,7 +382,7 @@ class BlogController {
     }
 
     /**
-     * Upload cover image buffer directly to Cloudinary
+     * Upload cover image — converts to Base64 Data URI for direct MongoDB storage
      */
     async uploadCoverImage(req, res) {
         try {
@@ -360,33 +390,20 @@ class BlogController {
                 return res.status(400).json({ success: false, message: 'No file uploaded' });
             }
 
-            const uploadResult = await new Promise((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream(
-                    {
-                        folder: 'blog-covers',
-                        resource_type: 'image',
-                        public_id: `cover_${Date.now()}`
-                    },
-                    (error, result) => {
-                        if (error) {
-                            console.error('[BLOG-CLOUDINARY-UPLOAD-ERROR]:', error);
-                            reject(error);
-                        } else {
-                            resolve(result);
-                        }
-                    }
-                );
-                uploadStream.end(req.file.buffer);
-            });
+            const mimeType = req.file.mimetype || 'image/jpeg';
+            const base64 = req.file.buffer.toString('base64');
+            const dataUri = `data:${mimeType};base64,${base64}`;
+
+            let imageUrl = dataUri;
 
             return res.json({
                 success: true,
-                message: 'Cover image uploaded successfully',
-                url: uploadResult.secure_url
+                message: 'Cover image processed successfully',
+                url: imageUrl
             });
         } catch (error) {
             console.error('[BLOG-CONTROLLER] uploadCoverImage error:', error);
-            return res.status(500).json({ success: false, message: 'Failed to upload cover image', error: error.message });
+            return res.status(500).json({ success: false, message: 'Failed to process cover image', error: error.message });
         }
     }
 }

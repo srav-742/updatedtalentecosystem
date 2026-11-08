@@ -2,8 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HelmetProvider } from 'react-helmet-async'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import axios from 'axios'
 import './index.css'
 import App from './App.jsx'
+import { initRoutePrefetcher } from './utils/routePrefetcher'
+import apiClient, { API_URL, pingBackendWarmup } from './utils/apiClient'
+import { getGatewayHeaders } from './config'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,17 +20,13 @@ const queryClient = new QueryClient({
       retry: 1,
       // Don't re-fetch when user re-focuses the tab (reduces unnecessary calls)
       refetchOnWindowFocus: false,
+      // Offline-first strategy: return cached query immediately without waiting for network handshake
+      networkMode: 'offlineFirst',
     },
   },
 });
-import axios from 'axios';
-import apiClient, { CLIENT_ID, CLIENT_SECRET } from './utils/apiClient'
 
 window.apiClient = apiClient;
-window.CLIENT_ID = CLIENT_ID;
-window.CLIENT_SECRET = CLIENT_SECRET;
-
-const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5000/api' : 'https://api.hire1percent.com/api');
 
 // --- Axios Request Interceptor ---
 axios.interceptors.request.use(
@@ -35,8 +35,7 @@ axios.interceptors.request.use(
     const isTargetApi = urlStr.startsWith('http') ? urlStr.includes('/api') : urlStr.startsWith('/api');
     
     if (isTargetApi) {
-      config.headers['X-Client-ID'] = CLIENT_ID;
-      config.headers['X-Client-Secret'] = CLIENT_SECRET;
+      Object.assign(config.headers, getGatewayHeaders());
 
       const accessToken = localStorage.getItem('accessToken');
       if (accessToken && !config.headers['Authorization']) {
@@ -69,8 +68,30 @@ axios.interceptors.response.use(
     // Those are gateway-level rejections (invalid/missing token for that service).
     // Only handle session clearing for Node backend (port 5000) 401s.
     const isGatewayRequest = requestUrl.includes(':9090');
+    const resData = error.response?.data;
+    const status = error.response?.status;
 
-    if (error.response && error.response.status === 401 && !originalRequest._retry && !isGatewayRequest) {
+    // Check if pilot account expired or was deleted by admin
+    const isPilotExpiredOrRevoked = 
+      resData?.pilotExpired || 
+      resData?.code === 'PILOT_EXPIRED' || 
+      resData?.accountDeleted || 
+      (status === 403 && (resData?.code === 'PILOT_EXPIRED' || resData?.pilotExpired)) ||
+      (status === 401 && (resData?.accountDeleted || resData?.sessionExpired));
+
+    if (isPilotExpiredOrRevoked) {
+      console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Pilot account expired or credentials deleted. Immediate logout.');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login?expired=true';
+      }
+      return Promise.reject(error);
+    }
+
+    if (error.response && status === 401 && originalRequest && !originalRequest._retry && !isGatewayRequest) {
       const errCode = error.response.data?.code;
       if (errCode === 'TOKEN_EXPIRED' || errCode === 'INVALID_TOKEN') {
         originalRequest._retry = true;
@@ -81,10 +102,7 @@ axios.interceptors.response.use(
           const refreshRes = await axios.post(`${API_URL}/gateway/refresh`, {
             refreshToken
           }, {
-            headers: {
-              'X-Client-ID': CLIENT_ID,
-              'X-Client-Secret': CLIENT_SECRET
-            }
+            headers: getGatewayHeaders()
           });
 
           const refreshPayload = refreshRes.data?.data || refreshRes.data;
@@ -96,16 +114,30 @@ axios.interceptors.response.use(
           }
         } catch (refreshErr) {
           console.error('[GLOBAL-AXIOS-INTERCEPTOR] Silent refresh failed:', refreshErr.message);
+          // Protect candidates in active assessments from being booted to login
+          if (window.location.pathname.includes('/candidate/apply')) {
+            localStorage.removeItem('accessToken');
+            console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Suppressed redirect — candidate is in active assessment.');
+          } else {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+            window.location.href = '/login?expired=true';
+          }
+        }
+      } else if (errCode === 'SESSION_EXPIRED') {
+        // Protect candidates in active assessments from being booted to login
+        if (window.location.pathname.includes('/candidate/apply')) {
+          localStorage.removeItem('accessToken');
+          console.warn('[GLOBAL-AXIOS-INTERCEPTOR] Suppressed SESSION_EXPIRED redirect — candidate is in active assessment.');
+        } else {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+          sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+          window.location.href = '/login?expired=true';
         }
-      } else if (errCode === 'SESSION_EXPIRED') {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
@@ -127,8 +159,7 @@ window.fetch = async function (url, options = {}) {
   if (isTargetApi) {
     options.headers = {
       ...options.headers,
-      'X-Client-ID': CLIENT_ID,
-      'X-Client-Secret': CLIENT_SECRET
+      ...getGatewayHeaders()
     };
 
     const accessToken = localStorage.getItem('accessToken');
@@ -144,10 +175,30 @@ window.fetch = async function (url, options = {}) {
 
   const response = await originalFetch(url, options);
 
-  if (isTargetApi && response.headers) {
-    const newAccessToken = response.headers.get('X-New-Access-Token');
-    if (newAccessToken) {
-      localStorage.setItem('accessToken', newAccessToken);
+  if (isTargetApi && response) {
+    if (response.headers) {
+      const newAccessToken = response.headers.get('X-New-Access-Token');
+      if (newAccessToken) {
+        localStorage.setItem('accessToken', newAccessToken);
+      }
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      try {
+        const cloned = response.clone();
+        const data = await cloned.json();
+        if (data?.pilotExpired || data?.code === 'PILOT_EXPIRED' || data?.accountDeleted || data?.sessionExpired) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login?expired=true';
+          }
+        }
+      } catch (parseError) {
+        console.warn('[GLOBAL-FETCH-INTERCEPTOR] Unable to inspect auth response:', parseError.message);
+      }
     }
   }
 
@@ -163,3 +214,14 @@ createRoot(document.getElementById('root')).render(
     </HelmetProvider>
   </StrictMode>,
 )
+// Activate viewport-based route prefetching (preloads chunks when links are visible)
+initRoutePrefetcher();
+
+// Non-blocking asynchronous backend warmup ping — scheduled during idle time after page render
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(() => pingBackendWarmup(), { timeout: 3000 });
+  } else {
+    setTimeout(pingBackendWarmup, 2000);
+  }
+}

@@ -17,7 +17,31 @@ const AI_TYPES = new Set([
   "MULTIPLE_PEOPLE",
   "PHONE_DETECTED",
   "HEADPHONES_DETECTED",
-  "OBJECT_DETECTED"
+  "OBJECT_DETECTED",
+  "multiple_faces_detected",
+  "no_face_detected",
+  
+  // Multi-layer proctoring event types
+  "mobile_phone_detected",
+  "looking_away",
+  "continuous_talking",
+  "phone_near_face",
+  "phone_near_ear",
+  "eyes_closed",
+  "head_turned",
+  "hand_near_lap",
+  "multiple_voices",
+  "new_object_appeared",
+  "secondary_laptop_detected",
+  "book_detected",
+  "tablet_detected",
+  "earphone_detected",
+  "suspicious_object_detected",
+  "person_count_violation",
+  "rapid_gaze_movement",
+  "hand_leaving_frame",
+  "background_noise",
+  "environment_change"
 ]);
 
 const BLOCKED_COMBOS = [
@@ -83,8 +107,6 @@ export function useStrictProctoring({
   examId,
   userId,
   isActive,
-  warningLimit = 3,
-  resetLimit = 4,
   onResetRequired,
   gracePeriod = 3000,
 }) {
@@ -119,6 +141,11 @@ export function useStrictProctoring({
       return;
     }
 
+    // Browsers reject requestFullscreen if not initiated by a user gesture
+    if (navigator.userActivation && !navigator.userActivation.isActive) {
+      return;
+    }
+
     const element = document.documentElement;
     const request =
       element.requestFullscreen
@@ -130,7 +157,12 @@ export function useStrictProctoring({
       return;
     }
 
-    Promise.resolve(request.call(element)).catch(() => null);
+    try {
+      const p = request.call(element);
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => null);
+      }
+    } catch (_) {}
   }, []);
 
   const lockSession = useCallback((message, mode = "warning") => {
@@ -179,23 +211,31 @@ export function useStrictProctoring({
     setViolations((previousViolations) => [...previousViolations, violation]);
     logViolation({ examId, userId, ...violation });
 
-    // Suppress warning modal/popup for AI-enhanced and tab-switch/blur/fullscreen-exit violations
-    if (!SUPPRESSED_OVERLAY_TYPES.has(type)) {
-      lockSession(
-        `Warning: ${detail}\n\nTotal warnings/flags logged: ${count}\n\nClick "Return to Exam" to continue.`,
-        "warning"
-      );
-    } else {
-      console.log(`[useStrictProctoring] Suppressed popup warning overlay for violation: ${type}`);
-    }
-  }, [examId, isActive, lockSession, userId]);
+    // Candidate-facing violation warnings and modals are suppressed per requirement.
+    // Detection, violation generation, local count/state, and backend logging continue fully.
+    console.log(`[useStrictProctoring] Violation logged (candidate-facing overlay suppressed): ${type}`);
+  }, [examId, isActive, userId]);
 
   useEffect(() => {
     if (!isActive) {
       return;
     }
 
-    requestFullscreen();
+    if (!document.fullscreenElement && navigator.userActivation?.isActive) {
+      requestFullscreen();
+    }
+
+    // On user's first click anywhere on screen, smoothly enter fullscreen
+    const handleUserInteraction = () => {
+      if (!document.fullscreenElement) {
+        requestFullscreen();
+      }
+    };
+
+    window.addEventListener("click", handleUserInteraction, { capture: true, once: true });
+    return () => {
+      window.removeEventListener("click", handleUserInteraction, { capture: true });
+    };
   }, [isActive, requestFullscreen]);
 
   useEffect(() => {
@@ -203,8 +243,14 @@ export function useStrictProctoring({
       return;
     }
 
+    let fullscreenTimer = null;
+
     const handleFullscreenChange = () => {
       if (document.fullscreenElement || resetTriggeredRef.current) {
+        if (fullscreenTimer) {
+          clearTimeout(fullscreenTimer);
+          fullscreenTimer = null;
+        }
         return;
       }
 
@@ -213,12 +259,13 @@ export function useStrictProctoring({
         return;
       }
 
-      setTimeout(() => {
+      // Ignore if candidate immediately returns to fullscreen within 2 seconds
+      fullscreenTimer = setTimeout(() => {
         if (!document.fullscreenElement && !resetTriggeredRef.current) {
           requestFullscreen();
-          triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 3)");
+          triggerViolation("FULLSCREEN_EXIT", "You exited fullscreen mode. (Ranking: 1)");
         }
-      }, 400);
+      }, 2000);
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -227,6 +274,7 @@ export function useStrictProctoring({
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      if (fullscreenTimer) clearTimeout(fullscreenTimer);
     };
   }, [isActive, requestFullscreen, triggerViolation, gracePeriod]);
 
@@ -235,15 +283,26 @@ export function useStrictProctoring({
       return;
     }
 
+    let visibilityTimer = null;
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 2)");
+        // Trigger only if window remains hidden for more than 3 seconds
+        visibilityTimer = setTimeout(() => {
+          triggerViolation("TAB_SWITCH", "You switched to another tab. (Ranking: 1)");
+        }, 3000);
+      } else {
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (visibilityTimer) clearTimeout(visibilityTimer);
     };
   }, [isActive, triggerViolation]);
 
@@ -252,28 +311,35 @@ export function useStrictProctoring({
       return;
     }
 
+    let blurTimer = null;
+
     const handleBlur = () => {
-      // Ignore blur events during initial startup grace period to allow permission popups & focus shifts
+      // Ignore blur events during initial startup grace period
       if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
         return;
       }
 
-      // Small delay to verify if candidate actually left the page/window or if focus remains on document
-      setTimeout(() => {
-        if (!document.hidden && document.hasFocus()) {
-          return; // Candidate is still focused on page elements
+      // Ignore accidental blur events. Trigger only if window remains hidden/unfocused for more than 3 seconds.
+      blurTimer = setTimeout(() => {
+        if (!document.hidden && !document.hasFocus()) {
+          triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 1)");
         }
-        if (document.hidden) {
-          // Handled by visibilitychange as TAB_SWITCH
-          return;
-        }
-        triggerViolation("WINDOW_BLUR", "You switched to another application or window. (Ranking: 2)");
-      }, 350);
+      }, 3000);
+    };
+
+    const handleFocus = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
     };
 
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     return () => {
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      if (blurTimer) clearTimeout(blurTimer);
     };
   }, [isActive, triggerViolation, gracePeriod]);
 

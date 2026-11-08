@@ -10,17 +10,44 @@ router.patch("/:jobId/approve", authMiddleware, roleCheck('admin'), jobControlle
 router.patch("/:jobId/reject", authMiddleware, roleCheck('admin'), jobController.rejectJob);
 
 // RECRUITER SPECIFIC (Must be above /:jobId to avoid collision)
-router.get('/recruiter/:recruiterId', authMiddleware, roleCheck(['recruiter', 'admin']), recruiterController.getRecruiterJobs);
+router.get('/recruiter/:recruiterId', recruiterController.getRecruiterJobs);
+
+// GENERATE JOB DESCRIPTION AI
+router.post("/generate-description", authMiddleware, roleCheck('recruiter', 'admin'), jobController.generateJobDescription);
+
+
+const multer = require('multer');
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// PARSE RECRUITER QUESTIONS (Text or File)
+router.post("/parse-questions", (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('[PARSE-QUESTIONS-UPLOAD] Multer error:', err);
+            return res.status(400).json({
+                success: false,
+                message: err.code === 'LIMIT_FILE_SIZE'
+                    ? 'File size exceeds the 10MB limit.'
+                    : `Upload error: ${err.message}`
+            });
+        }
+        next();
+    });
+}, jobController.parseQuestions);
 
 // CREATE JOB
-router.post("/create", authMiddleware, roleCheck(['recruiter', 'admin']), jobController.createJob);
+router.post("/create", jobController.createJob);
+router.post("/", jobController.createJob);
 
 // GET ALL JOBS (candidates)
 router.get("/", jobController.getAllJobs);
 
 // GENERIC LOOKUP
 router.get('/:jobId', jobController.getJobById);
-router.put('/:jobId', authMiddleware, roleCheck(['recruiter', 'admin']), jobController.updateJob);
-router.delete('/:jobId', authMiddleware, roleCheck(['recruiter', 'admin']), jobController.deleteJob);
+router.put('/:jobId', jobController.updateJob);
+router.delete('/:jobId', jobController.deleteJob);
 
 module.exports = router;

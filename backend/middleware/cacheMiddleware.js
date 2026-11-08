@@ -1,70 +1,67 @@
 /**
- * Production API Response Cache Middleware
- * 
- * Uses node-cache for fast in-memory caching of API responses.
- * - Serves cached responses instantly (sub-millisecond)
- * - Automatically expires based on per-route TTL
- * - Skips cache for authenticated user-specific routes
- * - Sets HTTP Cache-Control headers so browsers + CDN cache too
+ * In-memory response cache middleware for high-traffic read endpoints.
+ * Reduces DB load and response time to <5ms for cached responses.
+ *
+ * Usage:
+ *   router.get('/jobs', cacheMiddleware(300), jobController.getJobs); // 5 min cache
+ *   router.get('/profile', cacheMiddleware(60, { varyByUser: true }), ...);
  */
 
-const NodeCache = require('node-cache');
-
-// Main cache store: TTL in seconds, check period every 120s
-const apiCache = new NodeCache({
-    stdTTL: 60,         // default 60s TTL
-    checkperiod: 120,   // sweep expired keys every 2 minutes
-    useClones: false,   // don't clone objects (faster, lower memory)
-    deleteOnExpire: true,
-});
+const mcache = require('memory-cache');
 
 /**
- * Creates a caching middleware for a specific route.
- * 
- * @param {number} ttlSeconds - How long to cache the response (seconds)
- * @param {Object} options
- * @param {string} [options.httpMaxAge] - Cache-Control max-age for browser/CDN (default: same as ttl)
- * @param {number} [options.staleWhileRevalidate] - Stale-while-revalidate seconds (default: 5x TTL)
- * @param {boolean} [options.varyByUser] - Include user ID in cache key (for user-specific data)
+ * @param {number} ttlSeconds - Time to live in seconds
+ * @param {object} [options]
+ * @param {boolean} [options.varyByUser=false] - If true, cache key includes x-user-id header
+ * @param {number} [options.httpMaxAge] - If set, sets HTTP Cache-Control max-age header (browser caching)
+ * @param {number} [options.staleWhileRevalidate] - stale-while-revalidate duration in seconds
  */
 const cacheMiddleware = (ttlSeconds = 60, options = {}) => {
     const {
-        httpMaxAge = ttlSeconds,
-        staleWhileRevalidate = ttlSeconds * 5,
         varyByUser = false,
+        httpMaxAge = 0,
+        staleWhileRevalidate = 0,
     } = options;
 
     return (req, res, next) => {
-        // Bypass cache for admin/recruiter routes and non-GET requests
+        // Bypass cache for admin/recruiter paths, non-GET requests, or explicit no-cache headers
         const urlLower = req.originalUrl.toLowerCase();
-        if (req.method !== 'GET' || urlLower.includes('/admin') || urlLower.includes('/recruiter')) {
+        const isNoCache = req.headers['cache-control'] && req.headers['cache-control'].includes('no-cache');
+        const hasCacheBuster = Boolean(req.query && (req.query._t || req.query.timestamp));
+        if (req.method !== 'GET' || urlLower.includes('/admin') || urlLower.includes('/recruiter') || isNoCache || hasCacheBuster) {
             return next();
         }
 
         // Build cache key
         const userId = varyByUser
-            ? (req.headers['x-user-id'] || req.user?.uid || req.user?.id || 'anon')
+            ? (req.headers['x-user-id'] || req.user?.uid || req.user?.id || req.params?.userId || 'anon')
             : '';
         const cacheKey = `${req.originalUrl}__${userId}`;
 
-        // Check if cached response exists
-        const cached = apiCache.get(cacheKey);
-        if (cached !== undefined) {
-            res.set('X-Cache', 'HIT');
-            res.set('Cache-Control', `public, max-age=${httpMaxAge}, stale-while-revalidate=${staleWhileRevalidate}`);
-            return res.json(cached);
+        const cachedBody = mcache.get(cacheKey);
+        if (cachedBody) {
+            res.setHeader('X-Cache', 'HIT');
+            if (httpMaxAge > 0) {
+                const swr = staleWhileRevalidate ? `, stale-while-revalidate=${staleWhileRevalidate}` : '';
+                res.setHeader('Cache-Control', `public, max-age=${httpMaxAge}${swr}`);
+            }
+            return res.json(cachedBody);
         }
 
-        // Override res.json to intercept and cache the response
+        // Intercept res.json to store response before sending
+        res.setHeader('X-Cache', 'MISS');
+        if (httpMaxAge > 0) {
+            const swr = staleWhileRevalidate ? `, stale-while-revalidate=${staleWhileRevalidate}` : '';
+            res.setHeader('Cache-Control', `public, max-age=${httpMaxAge}${swr}`);
+        }
+
         const originalJson = res.json.bind(res);
-        res.json = (data) => {
-            // Only cache successful responses
+        res.json = (body) => {
+            // Only cache successful 2xx responses
             if (res.statusCode >= 200 && res.statusCode < 300) {
-                apiCache.set(cacheKey, data, ttlSeconds);
-                res.set('X-Cache', 'MISS');
-                res.set('Cache-Control', `public, max-age=${httpMaxAge}, stale-while-revalidate=${staleWhileRevalidate}`);
+                mcache.put(cacheKey, body, ttlSeconds * 1000);
             }
-            return originalJson(data);
+            return originalJson(body);
         };
 
         next();
@@ -72,30 +69,22 @@ const cacheMiddleware = (ttlSeconds = 60, options = {}) => {
 };
 
 /**
- * Invalidates all cached keys matching a given prefix pattern.
- * Call this after POST/PUT/DELETE operations.
- * 
- * Example: invalidateCache('/api/jobs') clears all job listing caches.
+ * Invalidate cache for a specific URL prefix.
+ * Call this in mutation controllers (e.g., after creating/updating a job).
+ * @param {string} urlPrefix - e.g. '/api/jobs'
  */
 const invalidateCache = (urlPrefix) => {
-    const keys = apiCache.keys();
-    const deleted = [];
-    for (const key of keys) {
+    const keys = mcache.keys();
+    let count = 0;
+    keys.forEach((key) => {
         if (key.startsWith(urlPrefix)) {
-            apiCache.del(key);
-            deleted.push(key);
+            mcache.del(key);
+            count++;
         }
+    });
+    if (count > 0) {
+        console.log(`[Cache] Invalidated ${count} entries for prefix: ${urlPrefix}`);
     }
-    if (deleted.length > 0) {
-        console.log(`[CACHE] Invalidated ${deleted.length} key(s) matching "${urlPrefix}"`);
-    }
-    return deleted.length;
 };
 
-/**
- * Returns current cache statistics for monitoring.
- */
-const getCacheStats = () => apiCache.getStats();
-
-// Export the cache instance too for manual operations
-module.exports = { cacheMiddleware, invalidateCache, getCacheStats, apiCache };
+module.exports = { cacheMiddleware, invalidateCache };

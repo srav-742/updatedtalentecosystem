@@ -1,11 +1,13 @@
 const mongoose = require("mongoose");
+require("./BlogCategory");
+require("../../models/User");
 
 const blogPostSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   slug: { type: String, required: true, unique: true, index: true },
   subtitle: { type: String, trim: true },
   content: { type: String, required: true }, // Markdown content
-  coverImage: { type: String }, // Cloudinary image URL
+  coverImage: { type: String }, // Base64 Data URI
   authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'BlogCategory', required: true, index: true },
   tags: [{ type: String, index: true }],
@@ -26,5 +28,6 @@ const blogPostSchema = new mongoose.Schema({
 
 // Add text index for optimized native text search
 blogPostSchema.index({ title: "text", content: "text", subtitle: "text" });
+blogPostSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.models.BlogPost || mongoose.model("BlogPost", blogPostSchema);

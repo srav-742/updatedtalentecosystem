@@ -4,6 +4,7 @@ import { useScreenShare } from "../../hooks/useScreenShare";
 import { useStrictProctoringEnhanced } from "../../hooks/useStrictProctoringEnhanced";
 import { useAIProctoring } from "../../hooks/useAIProctoring";
 import StrictScreenSharePrompt from "./StrictScreenSharePrompt";
+import { API_URL } from "../../firebase";
 
 /**
  * SecureExamWrapperEnhanced
@@ -32,6 +33,13 @@ const requestFullscreen = () => {
     Promise.resolve(request.call(element)).catch(() => null);
 };
 
+const isSuspiciousUI = (className) => {
+    if (!className) return false;
+    const c = className.toLowerCase();
+    const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case'];
+    return TARGET_OBJECTS.some(w => c.includes(w));
+};
+
 export default function SecureExamWrapperEnhanced({
     examId,
     userId,
@@ -40,20 +48,33 @@ export default function SecureExamWrapperEnhanced({
     requireScreenShare = true,
     requireCamera = false,
     cameraStream = null,
+    onCameraReady = null,
+    screenStream = null,
+    onScreenShareStart = null,
+    preserveScreenOnUnmount = false,
     showWebcamPreview = true,
     isAnswering = false,
+    questionIndex = null,
+    questionId = null,
     warningLimit = 3,
     resetLimit = 4,
     onSecurityReset,
     aiThresholds = {},
+    enableSnapshots = true,
+    showOnScreenFlags = false, // Violation flags/toasts hidden from candidate
 }) {
+    const isCodingExam = typeof examId === 'string' && examId.startsWith('coding');
+    const allowSnapshots = enableSnapshots !== false && !isCodingExam;
+
+    const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
     const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
     const [resetting, setResetting] = useState(false);
     const [localCameraStream, setLocalCameraStream] = useState(null);
-    const [webcamPosition, setWebcamPosition] = useState({ x: 16, y: 16 });
+    const [webcamPosition, setWebcamPosition] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [toasts, setToasts] = useState([]);
 
+    const webcamContainerRef = useRef(null);
     const resetInFlightRef = useRef(false);
     const videoRef = useRef(null);
     const [videoEl, setVideoEl] = useState(null);
@@ -63,26 +84,72 @@ export default function SecureExamWrapperEnhanced({
         setVideoEl(el);
     }, []);
 
+    const isAnsweringRef = useRef(isAnswering);
+    useEffect(() => {
+        isAnsweringRef.current = isAnswering;
+    }, [isAnswering]);
+
+    const questionIndexRef = useRef(questionIndex);
+    useEffect(() => {
+        questionIndexRef.current = questionIndex;
+    }, [questionIndex]);
+
+    const questionIdRef = useRef(questionId);
+    useEffect(() => {
+        questionIdRef.current = questionId;
+    }, [questionId]);
+
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const triggerViolationRef = useRef(null);
     const logEnhancedViolationRef = useRef(null);
+    // Track the current video track ID to avoid constantly creating new MediaStreams
+    const currentVideoTrackIdRef = useRef(null);
+    const stableStreamRef = useRef(null);
+    const objectModelTypeRef = useRef('COCO-SSD');
 
     // ── Screen share ────────────────────────────────────────────────────────
     const handleScreenShareStopped = useCallback(() => {
         setScreenShareInterrupted(true);
-        triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)");
-        logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 10)", {
-            isAnswering: isAnswering,
+        triggerViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)");
+        logEnhancedViolationRef.current?.("SCREEN_SHARE_STOPPED", "Screen sharing was stopped. (Ranking: 1)", {
+            isAnswering: isAnsweringRef.current,
+            questionIndex: questionIndexRef.current,
+            questionId: questionIdRef.current,
             metadata: { stopped: true }
         });
-    }, [isAnswering]);
+
+        // Also notify the pipeline backend directly
+        try {
+            fetch(`${API_URL}/proctoring-pipeline/event`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    examId,
+                    userId,
+                    eventType: "SCREEN_SHARE_STOPPED",
+                    detail: "Screen sharing was stopped. (Ranking: 1)",
+                    severity: "critical",
+                    isAnswering: isAnsweringRef.current,
+                    questionIndex: questionIndexRef.current,
+                    questionId: questionIdRef.current,
+                }),
+            }).catch(() => {});
+        } catch (_) {}
+    }, [examId, userId]);
 
     const {
         isSharing,
         error: screenShareError,
+        stream: activeScreenStream,
         startScreenShare,
         clearError,
-    } = useScreenShare({ onStopped: handleScreenShareStopped });
+    } = useScreenShare({
+        onStopped: handleScreenShareStopped,
+        externalStream: screenStream,
+        preserveOnUnmount: preserveScreenOnUnmount,
+        onStarted: onScreenShareStart,
+    });
 
     // ── Security reset ──────────────────────────────────────────────────────
     const handleSecurityReset = useCallback(async (violation) => {
@@ -127,18 +194,20 @@ export default function SecureExamWrapperEnhanced({
     const activeStream = cameraStream || localCameraStream;
 
     useEffect(() => {
-        if (!requireCamera || !proctoringIsActive || cameraStream) return;
+        const hasLivePropCamera = Boolean(cameraStream?.getVideoTracks?.().some(t => t.readyState === 'live' && !(t.getSettings?.().displaySurface)));
+        if (!requireCamera || !proctoringIsActive || hasLivePropCamera) return;
 
         let cancelled = false;
 
         const requestCamera = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 640, height: 480, facingMode: "user" },
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
                     audio: false,
                 });
                 if (!cancelled) {
                     setLocalCameraStream(stream);
+                    onCameraReady?.(stream);
                 }
             } catch (err) {
                 console.warn("[SecureExamWrapperEnhanced] Camera access denied:", err);
@@ -150,15 +219,42 @@ export default function SecureExamWrapperEnhanced({
         return () => {
             cancelled = true;
         };
-    }, [requireCamera, proctoringIsActive, cameraStream]);
+    }, [requireCamera, proctoringIsActive, cameraStream, onCameraReady]);
 
     // Pipe stream to video element
+    // CRITICAL FIX: Only create a new MediaStream when the underlying video track
+    // actually changes (by ID). Previously, a new MediaStream was created on every
+    // render cycle causing `srcObject !== stream` to always be true, which made
+    // MediaPipe receive unstable video references.
     useEffect(() => {
         if (videoRef.current && activeStream) {
-            const videoTrack = activeStream.getVideoTracks?.()[0];
+            const videoTracks = activeStream.getVideoTracks?.() || [];
+            const isDisplay = (t) => {
+                if (!t) return false;
+                const s = t.getSettings ? t.getSettings() : {};
+                if (s.displaySurface) return true;
+                const l = (t.label || '').toLowerCase();
+                return l.includes('screen') || l.includes('monitor') || l.includes('window') || l.includes('display');
+            };
+            const videoTrack = videoTracks.find(t => !isDisplay(t) && t.readyState === 'live') ||
+                               videoTracks.find(t => !isDisplay(t)) ||
+                               videoTracks[0];
+
             if (videoTrack) {
-                videoRef.current.srcObject = new MediaStream([videoTrack]);
+                // Only reassign if the track actually changed
+                if (currentVideoTrackIdRef.current !== videoTrack.id) {
+                    currentVideoTrackIdRef.current = videoTrack.id;
+                    const stream = new MediaStream([videoTrack]);
+                    stableStreamRef.current = stream;
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.play().catch(() => {});
+                }
             }
+        } else if (videoRef.current && !activeStream) {
+            // Stream removed — clear
+            currentVideoTrackIdRef.current = null;
+            stableStreamRef.current = null;
+            videoRef.current.srcObject = null;
         }
     }, [activeStream, videoEl]);
 
@@ -172,26 +268,98 @@ export default function SecureExamWrapperEnhanced({
     }, [localCameraStream]);
 
     // ── AI violation handler ────────────────────────────────────────────────
+    // CRITICAL FIX: Send to /api/proctoring-pipeline/event (the authoritative
+    // scoring path) instead of only /api/proctoring-enhanced/violation.
+    // The pipeline endpoint creates the ProctoringViolationEnhanced record,
+    // triggers report compilation, and calculates the proctoring score.
+    // We still call triggerViolation() for the local warning overlay system.
     const handleAIViolation = useCallback(
         (type, detail, meta = {}) => {
+            console.log(`[PROCTORING-EVENT] ✔ AI Violation detected: ${type} — ${detail}`);
+            // Local strict proctoring tracking (counts violations)
             triggerViolation(type, detail);
-            logEnhancedViolation(type, detail, {
-                isAnswering: meta.isAnswering || false,
-                confidence: meta.confidence || null,
-                metadata: meta,
-            });
 
-            // Trigger non-blocking toast overlay for candidate
-            const toastId = Date.now() + Math.random();
-            setToasts((prev) => [...prev, { id: toastId, type, detail }]);
-            setTimeout(() => {
-                setToasts((prev) => prev.filter((t) => t.id !== toastId));
-            }, 4000);
+            // Candidate-facing violation toasts suppressed per requirement (backend logging and scoring continues)
+
+            const effectiveIsAnswering = meta.isAnswering !== undefined ? meta.isAnswering : isAnsweringRef.current;
+            const effectiveQuestionIndex = meta.questionIndex !== undefined ? meta.questionIndex : questionIndexRef.current;
+            const effectiveQuestionId = meta.questionId !== undefined ? meta.questionId : questionIdRef.current;
+            const effectiveEvidence = allowSnapshots
+                ? (meta.evidenceFrames || (meta.snapshot ? [meta.snapshot] : []))
+                : [];
+            const effectiveSnapshot = allowSnapshots
+                ? (meta.snapshot || (effectiveEvidence[0] || null))
+                : null;
+            const effectiveModel = meta.model || (type.includes('PHONE') || type.includes('OBJECT') ? (objectModelTypeRef.current || 'COCO-SSD') : 'FaceMesh');
+            const effectiveSeverity = meta.severity || (type.includes('PHONE') || type === 'MULTIPLE_PEOPLE' ? 'critical' : 'medium');
+
+            // Path 1: Send to the pipeline backend (authoritative scoring path)
+            try {
+                fetch(`${API_URL}/proctoring-pipeline/event`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        examId,
+                        userId,
+                        eventType: type,
+                        detail: detail,
+                        confidence: meta.confidence || null,
+                        durationMs: meta.duration ? Math.round(meta.duration * 1000) : null,
+                        severity: effectiveSeverity,
+                        isAnswering: effectiveIsAnswering,
+                        questionIndex: effectiveQuestionIndex,
+                        questionId: effectiveQuestionId,
+                        signals: {
+                            model: effectiveModel,
+                            direction: meta.direction || null,
+                            headTurnRatio: meta.headTurnRatio || null,
+                            gazeRatio: meta.gazeRatio || null,
+                            faceCount: meta.faceCount || null,
+                            snapshot: effectiveSnapshot,
+                            evidenceFrames: effectiveEvidence,
+                            duration: meta.duration || 0,
+                            isAnswering: effectiveIsAnswering,
+                            questionIndex: effectiveQuestionIndex,
+                            questionId: effectiveQuestionId,
+                        },
+                    }),
+                }).then((resp) => {
+                    if (!resp.ok) console.warn(`[PROCTORING] Pipeline event response: ${resp.status}`);
+                }).catch((err) => {
+                    console.warn('[SecureExamWrapperEnhanced] Pipeline event send failed:', err.message);
+                });
+            } catch (_) {
+                // Fire-and-forget — do not block the detection loop
+            }
+
+            // Path 2: Also send to the enhanced violation endpoint (creates violation record
+            // used by the recruiter's detailed timeline view)
+            logEnhancedViolation(type, detail, {
+                confidence: meta.confidence || null,
+                severity: effectiveSeverity,
+                direction: meta.direction || null,
+                headTurnRatio: meta.headTurnRatio || null,
+                gazeRatio: meta.gazeRatio || null,
+                faceCount: meta.faceCount || null,
+                duration: meta.duration || 0,
+                isAnswering: effectiveIsAnswering,
+                questionIndex: effectiveQuestionIndex,
+                questionId: effectiveQuestionId,
+                model: effectiveModel,
+                snapshot: effectiveSnapshot,
+                evidenceFrames: effectiveEvidence,
+            });
         },
-        [triggerViolation, logEnhancedViolation]
+        [triggerViolation, logEnhancedViolation, examId, userId, allowSnapshots]
     );
 
     // ── AI proctoring engine ────────────────────────────────────────────────
+    const aiIsActive = proctoringIsActive && requireCamera && !!activeStream;
+
+    useEffect(() => {
+        console.log(`[PROCTORING] AI hook activation: active=${aiIsActive}, proctoringIsActive=${proctoringIsActive}, requireCamera=${requireCamera}, hasStream=${!!activeStream}, hasVideoEl=${!!videoEl}`);
+    }, [aiIsActive, proctoringIsActive, requireCamera, activeStream, videoEl]);
     const {
         faceMeshReady,
         objectModelReady,
@@ -203,29 +371,23 @@ export default function SecureExamWrapperEnhanced({
         detections,
     } = useAIProctoring({
         videoElement: videoEl,
-        isActive: proctoringIsActive && requireCamera && !!activeStream,
+        isActive: aiIsActive,
         isAnswering,
         onViolation: handleAIViolation,
         thresholds: aiThresholds,
+        enableSnapshots: allowSnapshots,
     });
+
+    useEffect(() => {
+        if (objectModelType) {
+            objectModelTypeRef.current = objectModelType;
+        }
+    }, [objectModelType]);
 
     // ── Show toasts for tab switch / window blur / fullscreen exit ──────────
     const prevViolationsLengthRef = useRef(0);
     useEffect(() => {
         if (violations && violations.length > prevViolationsLengthRef.current) {
-            const newViolations = violations.slice(prevViolationsLengthRef.current);
-            newViolations.forEach((v) => {
-                if (v.type === "TAB_SWITCH" || v.type === "WINDOW_BLUR" || v.type === "FULLSCREEN_EXIT") {
-                    // Toasts suppressed for candidate
-                    /*
-                    const toastId = Date.now() + Math.random();
-                    setToasts((prev) => [...prev, { id: toastId, type: v.type, detail: v.detail }]);
-                    setTimeout(() => {
-                        setToasts((prev) => prev.filter((t) => t.id !== toastId));
-                    }, 4000);
-                    */
-                }
-            });
             prevViolationsLengthRef.current = violations.length;
         } else if (violations && violations.length === 0) {
             prevViolationsLengthRef.current = 0;
@@ -253,23 +415,43 @@ export default function SecureExamWrapperEnhanced({
     // ── Screen share handler ────────────────────────────────────────────────
     const handleShare = useCallback(async () => {
         clearError();
+        requestFullscreen(); // Trigger immediately inside user interaction gesture
         const started = await startScreenShare();
-        if (!started) return;
+        if (!started) {
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            } catch (_) {}
+            return;
+        }
         setScreenShareInterrupted(false);
-        setTimeout(() => requestFullscreen(), 200);
     }, [clearError, startScreenShare]);
 
     // ── Webcam drag handling ────────────────────────────────────────────────
     const handleDragStart = useCallback((e) => {
-        e.preventDefault();
+        // Only trigger on primary mouse button or touch
+        if (e.type === 'mousedown' && e.button !== 0) return;
+
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const el = webcamContainerRef.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
         dragOffsetRef.current = {
-            x: clientX - webcamPosition.x,
-            y: clientY - webcamPosition.y,
+            x: clientX - rect.left,
+            y: clientY - rect.top,
         };
+
+        // Fix coordinates immediately so switching to top/left coordinate system has zero jump
+        setWebcamPosition({
+            x: rect.left,
+            y: rect.top,
+        });
         setIsDragging(true);
-    }, [webcamPosition]);
+    }, []);
 
     useEffect(() => {
         if (!isDragging) return;
@@ -277,26 +459,68 @@ export default function SecureExamWrapperEnhanced({
         const handleMove = (e) => {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const el = webcamContainerRef.current;
+            const width = el ? el.offsetWidth : 200;
+            const height = el ? el.offsetHeight : 150;
+
+            const margin = 8;
+            const minX = margin;
+            const maxX = Math.max(margin, window.innerWidth - width - margin);
+            const minY = margin;
+            const maxY = Math.max(margin, window.innerHeight - height - margin);
+
+            const rawX = clientX - dragOffsetRef.current.x;
+            const rawY = clientY - dragOffsetRef.current.y;
+
             setWebcamPosition({
-                x: clientX - dragOffsetRef.current.x,
-                y: clientY - dragOffsetRef.current.y,
+                x: Math.min(Math.max(rawX, minX), maxX),
+                y: Math.min(Math.max(rawY, minY), maxY),
             });
+
+            if (e.cancelable) {
+                e.preventDefault();
+            }
         };
 
         const handleEnd = () => setIsDragging(false);
 
-        window.addEventListener("mousemove", handleMove);
+        window.addEventListener("mousemove", handleMove, { passive: true });
         window.addEventListener("mouseup", handleEnd);
         window.addEventListener("touchmove", handleMove, { passive: false });
         window.addEventListener("touchend", handleEnd);
+        window.addEventListener("touchcancel", handleEnd);
 
         return () => {
             window.removeEventListener("mousemove", handleMove);
             window.removeEventListener("mouseup", handleEnd);
             window.removeEventListener("touchmove", handleMove);
             window.removeEventListener("touchend", handleEnd);
+            window.removeEventListener("touchcancel", handleEnd);
         };
     }, [isDragging]);
+
+    // Keep webcam inside viewport if window is resized
+    useEffect(() => {
+        const handleResize = () => {
+            setWebcamPosition((prev) => {
+                if (!prev || prev.x === null || prev.y === null) return prev;
+                const el = webcamContainerRef.current;
+                const width = el ? el.offsetWidth : 200;
+                const height = el ? el.offsetHeight : 150;
+                const margin = 8;
+                const maxX = Math.max(margin, window.innerWidth - width - margin);
+                const maxY = Math.max(margin, window.innerHeight - height - margin);
+                return {
+                    x: Math.min(Math.max(prev.x, margin), maxX),
+                    y: Math.min(Math.max(prev.y, margin), maxY),
+                };
+            });
+        };
+
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     // ── Derived state ───────────────────────────────────────────────────────
     const needsScreenShare = requireScreenShare && isActive && !isSharing;
@@ -307,15 +531,11 @@ export default function SecureExamWrapperEnhanced({
     // ── AI status indicator ─────────────────────────────────────────────────
     const getAIStatusColor = () => {
         if (!faceMeshReady && !objectModelReady) return "bg-gray-400";
-        if (faceCount === 0) return "bg-red-500 animate-pulse";
-        if (faceCount > 1) return "bg-orange-500 animate-pulse";
         return "bg-emerald-500";
     };
 
     const getAIStatusText = () => {
         if (!faceMeshReady && !objectModelReady) return "AI Loading…";
-        if (faceCount === 0) return "No face detected";
-        if (faceCount > 1) return `${faceCount} faces`;
         return "AI Active";
     };
 
@@ -382,75 +602,51 @@ export default function SecureExamWrapperEnhanced({
                 </div>
             )*/}
 
-            {/* ── Security status badge (top right) ────────────────────────── */}
-            {isActive && (
-                <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                        <ShieldCheck size={14} />
-                    </span>
-                    <span>Protected session</span>
 
-                    {/* AI status indicator */}
-                    {requireCamera && (
-                        <>
-                            <span className="mx-1 h-4 w-px bg-black/10" />
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] uppercase tracking-wider text-gray-400">
-                                AI Active
-                            </span>
-                        </>
-                    )}
-                </div>
-            )}
 
             {/* ── Floating webcam preview (draggable) ──────────────────────── */}
             {requireCamera && isActive && activeStream && showWebcamPreview && (
                 <div
-                    className="fixed z-[8999] cursor-grab select-none active:cursor-grabbing"
+                    ref={webcamContainerRef}
+                    className="fixed z-[9999] select-none"
                     style={{
-                        right: `${webcamPosition.x}px`,
-                        bottom: `${webcamPosition.y}px`,
+                        position: "fixed",
                         width: "200px",
+                        cursor: isDragging ? "grabbing" : "grab",
+                        touchAction: "none",
+                        ...(webcamPosition && webcamPosition.x !== null && webcamPosition.y !== null
+                            ? {
+                                  left: `${webcamPosition.x}px`,
+                                  top: `${webcamPosition.y}px`,
+                                  right: "auto",
+                                  bottom: "auto",
+                              }
+                            : {
+                                  right: "24px",
+                                  bottom: "90px",
+                              }),
                     }}
                     onMouseDown={handleDragStart}
                     onTouchStart={handleDragStart}
                 >
-                    <div className="overflow-hidden rounded-2xl border-2 border-black/10 bg-black shadow-2xl">
+                    <div className="overflow-hidden rounded-2xl border-2 border-white/20 bg-black shadow-2xl relative group">
                         <video
                             ref={videoRefCallback}
                             autoPlay
                             muted
                             playsInline
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover pointer-events-none"
                             style={{ transform: "scaleX(-1)", aspectRatio: "4/3" }}
                         />
-
-                        {/* AI telemetry warning badges */}
-                        <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-                            {faceMeshReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Eye size={8} />
-                                    {faceCount === 1 ? "1 face" : `${faceCount} faces`}
-                                </span>
-                            )}
-                            {objectModelReady && (
-                                <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                                    <Camera size={8} />
-                                    {objectModelType?.toUpperCase()}
-                                </span>
-                            )}
-                            {detections.some((d) => d.class === "cell phone") && (
-                                <span className="flex items-center gap-1 rounded-full bg-red-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Smartphone size={8} />
-                                    PHONE
-                                </span>
-                            )}
-                            {faceCount > 1 && (
-                                <span className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2 py-0.5 text-[9px] font-bold text-white animate-pulse">
-                                    <Users size={8} />
-                                    {faceCount}
-                                </span>
-                            )}
+                        {/* Subtle visual drag hint / pill */}
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity">
+                            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-[10px] font-medium text-white/90">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Proctor
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[9px] text-white/70">
+                                ⠿ Drag
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -476,48 +672,8 @@ export default function SecureExamWrapperEnhanced({
                 />
             )}
 
-            {/* ── Real-time Non-blocking Toasts (bottom left) ───────────────── */}
-            <div className="fixed bottom-6 left-6 z-[9999] flex flex-col gap-3 max-w-sm pointer-events-none">
-                {toasts.map((toast) => {
-                    const getToastIcon = () => {
-                        switch (toast.type) {
-                            case "PHONE_DETECTED":
-                            case "OBJECT_DETECTED":
-                                return <Smartphone className="text-red-500 shrink-0" size={18} />;
-                            case "MULTIPLE_PEOPLE":
-                            case "NO_PEOPLE":
-                                return <Users className="text-orange-500 shrink-0" size={18} />;
-                            case "EYE_LOOKING_AWAY":
-                            case "EYE_LOOKING_AWAY_WHILE_ANSWERING":
-                                return <Eye className="text-amber-500 shrink-0" size={18} />;
-                            case "HEAD_TURNED":
-                            case "HEAD_TURNED_WHILE_ANSWERING":
-                                return <Camera className="text-amber-500 shrink-0" size={18} />;
-                            default:
-                                return <AlertTriangle className="text-amber-500 shrink-0" size={18} />;
-                        }
-                    };
-                    return (
-                        <div
-                            key={toast.id}
-                            className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-amber-200/40 bg-white/70 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-300 animate-in slide-in-from-left-5 fade-in"
-                            style={{
-                                fontFamily: "'Outfit', 'Inter', sans-serif",
-                            }}
-                        >
-                            {getToastIcon()}
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">
-                                    {toast.type.replace(/_/g, " ")}
-                                </p>
-                                <p className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-700">
-                                    {toast.detail}
-                                </p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+            {/* ── Candidate-facing violation flags/toasts suppressed ── */}
+
 
             {/* ── Main content ─────────────────────────────────────────────── */}
             <div
@@ -529,6 +685,65 @@ export default function SecureExamWrapperEnhanced({
             >
                 {children}
             </div>
+
+            {/* ── Debug Telemetry Panel (gated by url query debug=true) ─────── */}
+            {showDebugPanel && (
+                <div className="fixed bottom-24 left-6 z-[9999] w-72 rounded-2xl border border-blue-500/30 bg-slate-950/95 p-4 text-xs font-mono text-blue-400 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
+                    <h3 className="mb-2 text-sm font-bold text-white border-b border-blue-500/20 pb-1 flex items-center justify-between">
+                        <span>PIPELINE TELEMETRY</span>
+                        <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+                    </h3>
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Camera Stream:</span>
+                            <span className={activeStream ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{activeStream ? "ACTIVE" : "INACTIVE"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>FaceMesh Ready:</span>
+                            <span className={faceMeshReady ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{faceMeshReady ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>COCO-SSD Ready:</span>
+                            <span className={objectModelReady ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>{objectModelReady ? "YES" : "NO"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Model Engine:</span>
+                            <span className="text-white font-bold">{objectModelType || "none"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Face Count:</span>
+                            <span className="text-white font-bold">{faceCount}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Head Turn Ratio:</span>
+                            <span className="text-white font-bold">{headTurnRatio.toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Gaze Ratio:</span>
+                            <span className="text-white font-bold">{gazeRatio.toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-0.5">
+                            <span>Last Check:</span>
+                            <span className="text-white font-bold">{new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div className="pt-1">
+                            <span className="text-white font-bold block mb-1">Detections:</span>
+                            <div className="max-h-20 overflow-y-auto bg-black/40 p-1.5 rounded border border-white/10 text-[10px]">
+                                {detections.length === 0 ? (
+                                    <span className="text-gray-500">No objects detected</span>
+                                ) : (
+                                    detections.map((d, i) => (
+                                        <div key={i} className="flex justify-between">
+                                            <span className="text-amber-400">{d.class}</span>
+                                            <span className="text-white">{(d.score * 100).toFixed(0)}%</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

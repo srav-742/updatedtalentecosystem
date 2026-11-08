@@ -25,4 +25,11 @@ router.get('/summary', proctoringControllerEnhanced.getViolationsSummary);
 // Get overall report by exam ID
 router.get('/report/:examId', proctoringControllerEnhanced.getReportByExam);
 
+// Get all proctoring reports across candidates
+router.get('/reports', proctoringControllerEnhanced.getAllReports);
+
+// Submit recruiter audit / human review
+const proctoringEventController = require('../controllers/proctoringEventController');
+router.post('/review/:examId', proctoringEventController.submitHumanReview);
+
 module.exports = router;

@@ -8,23 +8,17 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
     const location = useLocation();
 
     useEffect(() => {
-        const checkAuth = () => {
+        try {
             const storedUser = localStorage.getItem('user');
-            if (import.meta.env.DEV) console.log("[ProtectedRoute] Stored user:", storedUser);
             if (storedUser) {
-                try {
-                    const parsedUser = JSON.parse(storedUser);
-                    if (import.meta.env.DEV) console.log("[ProtectedRoute] Parsed user role:", parsedUser?.role);
-                    setUser(parsedUser);
-                } catch (e) {
-                    console.error("Failed to parse user from localStorage", e);
-                }
+                setUser(JSON.parse(storedUser));
             }
+        } catch (error) {
+            console.error('Failed to parse user from localStorage:', error);
+        } finally {
             setIsLoading(false);
-        };
-        checkAuth();
+        }
     }, []);
-
 
     if (isLoading) {
         return (
@@ -34,39 +28,55 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
         );
     }
 
-    if (import.meta.env.DEV) console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
-
     if (!user || (!user.uid && !user._id && !user.id)) {
-        if (import.meta.env.DEV) console.log("[ProtectedRoute] No valid user, redirecting to login");
         if (window.location.pathname.includes('AdminContentPage')) {
             return <Navigate to="/login" replace />;
         }
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // ─── Role-Based Access Check ─────────────────────────────────
-    // Support both legacy `role` prop (single string) and new `allowedRoles` prop (array)
+    if (user.role === 'recruiter' && user.accountType === 'pilot' && user.pilotExpiresAt) {
+        const expiresAt = new Date(user.pilotExpiresAt);
+        if (Number.isFinite(expiresAt.getTime()) && Date.now() > expiresAt.getTime()) {
+            console.warn('[ProtectedRoute] Pilot account expired.');
+            try {
+                localStorage.removeItem('user');
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
+            } catch (error) {
+                console.error('[ProtectedRoute] Failed to clear expired session:', error);
+            }
+            return (
+                <Navigate
+                    to="/login?expired=true"
+                    state={{
+                        from: location,
+                        pilotExpired: true,
+                        sessionExpired: true,
+                        message: 'Your session has expired.'
+                    }}
+                    replace
+                />
+            );
+        }
+    }
+
     const effectiveAllowedRoles = allowedRoles
         ? (Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles])
         : (role ? [role] : null);
 
     if (effectiveAllowedRoles && !effectiveAllowedRoles.includes(user.role)) {
-        if (import.meta.env.DEV) console.log(`[ProtectedRoute] Role mismatch: Expected one of [${effectiveAllowedRoles.join(', ')}], got "${user.role}". Redirecting...`);
         const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker';
-        
-        // Hard fallback if Navigate seems to be ignored
+
         if (window.location.pathname.includes('AdminContentPage') && user.role !== 'admin') {
             return <Navigate to={redirectPath} replace />;
         }
-        
+
         return <Navigate to={redirectPath} replace />;
     }
 
-
-    if (import.meta.env.DEV) console.log("[ProtectedRoute] Access Granted");
     return children;
 };
 
-
 export default ProtectedRoute;
-

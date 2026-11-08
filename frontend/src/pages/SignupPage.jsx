@@ -1,11 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck } from 'lucide-react';
+import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { signupWithEmail, saveUserProfile, signInWithGoogle, getUserProfile } from '../firebase';
-import Navbar from '../components/Navbar';
+import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import apiClient from '../utils/apiClient';
+import SEO from '../components/SEO';
+import { trackEvent } from '../utils/analytics';
+
+const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
+const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
+const normalizeRole = (value) => value === 'seeker' ? 'candidate' : value;
+const isSupportedRole = (value) => ['recruiter', 'candidate', 'admin'].includes(value);
+
+// Retry wrapper for critical operations
+const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxAttempts) {
+                const delay = Math.min(300 * Math.pow(2, attempt - 1), 5000);
+                console.warn(`[SIGNUP-RETRY] ${label} failed (attempt ${attempt}/${maxAttempts}): ${error.message}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    throw lastError;
+};
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -13,15 +37,56 @@ const SignupPage = () => {
 
     const [role, setRole] = useState(() => {
         const queryParams = new URLSearchParams(location.search);
-        return queryParams.get('role') || location.state?.role || null;
-    }); // 'recruiter' or 'seeker'
+        const requestedRole = normalizeRole(queryParams.get('role') || location.state?.role);
+        return isSupportedRole(requestedRole) ? requestedRole : null;
+    }); // 'recruiter' or 'candidate'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
+
+    // Email verification state for email/password signups
+    const [verificationPending, setVerificationPending] = useState(null); // { email, user, role, profileData, savedProfile }
+    const [checkingVerification, setCheckingVerification] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const [verificationNotice, setVerificationNotice] = useState({ type: '', text: '' });
+
+    // Resend cooldown timer countdown
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setResendCooldown(prev => Math.max(0, prev - 1));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
+
+    // Handle Google Redirect Result (for mobile / popup-blocked browsers)
+    React.useEffect(() => {
+        const checkRedirect = async () => {
+            try {
+                const redirectRes = await getGoogleRedirectResult();
+                if (redirectRes && redirectRes.user) {
+                    const savedRole = normalizeRole(sessionStorage.getItem('pendingRole') || role || 'candidate');
+                    if (!isSupportedRole(savedRole)) {
+                        throw new Error('Please select a valid role before continuing.');
+                    }
+                    setRole(savedRole);
+                    await processGoogleSignupUser(redirectRes.user, savedRole);
+                    sessionStorage.removeItem('pendingRole');
+                }
+            } catch (err) {
+                console.error('[SIGNUP-REDIRECT] Error:', err);
+                setMessage({ type: 'error', text: `Google signup failed: ${err.message}` });
+            }
+        };
+        checkRedirect();
+    }, []);
 
     const handleRoleSelect = (selectedRole) => {
-        setRole(selectedRole);
+        const normalizedRole = normalizeRole(selectedRole);
+        if (!isSupportedRole(normalizedRole)) return;
+        setRole(normalizedRole);
         setMessage({ type: '', text: '' });
     };
 
@@ -33,6 +98,107 @@ const SignupPage = () => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleCheckVerification = async () => {
+        if (!verificationPending) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationPending.user || auth.currentUser;
+            const refreshedUser = await reloadFirebaseUser(currentUser);
+
+            if (refreshedUser && refreshedUser.emailVerified) {
+                // Email is successfully verified! Establish session and navigate
+                await withRetry(
+                    () => apiClient.initializeGatewaySession(verificationPending.email, refreshedUser.uid),
+                    3,
+                    'gatewaySession'
+                ).catch(err => {
+                    console.warn('[SIGNUP] Gateway session warning:', err.message);
+                });
+                localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
+
+                if (verificationPending.role === 'recruiter' && verificationPending.savedProfile && verificationPending.savedProfile.client) {
+                    setClientCredentials(verificationPending.savedProfile.client);
+                    setVerificationPending(null);
+                } else {
+                    if (verificationPending.role === 'admin') navigate('/admin');
+                    else if (verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
+                    else navigate('/candidate');
+                }
+            } else {
+                setVerificationNotice({
+                    type: 'warning',
+                    text: "Email not verified yet. Please check your inbox (and spam/junk folder), click the verification link, and then click this button again."
+                });
+            }
+        } catch (err) {
+            console.error("[CHECK-VERIFICATION-ERR]", err);
+            setVerificationNotice({
+                type: 'error',
+                text: "Unable to verify status. Please check your internet connection and try again."
+            });
+        } finally {
+            setCheckingVerification(false);
+        }
+    };
+
+    const handleResendEmail = async () => {
+        if (resendCooldown > 0 || !verificationPending) return;
+        setCheckingVerification(true);
+        setVerificationNotice({ type: '', text: '' });
+
+        try {
+            const currentUser = verificationPending.user || auth.currentUser;
+            if (!currentUser) {
+                setVerificationNotice({
+                    type: 'error',
+                    text: "Session expired. Please navigate back to login to verify your email."
+                });
+                return;
+            }
+
+            // Check if already verified
+            const refreshedUser = await reloadFirebaseUser(currentUser);
+            if (refreshedUser && refreshedUser.emailVerified) {
+                setVerificationNotice({
+                    type: 'success',
+                    text: "Your email is already verified! Navigating to dashboard..."
+                });
+                await handleCheckVerification();
+                return;
+            }
+
+            // Send native verification email
+            await sendVerificationEmail(currentUser);
+
+            // Also trigger backend branded email with CTA button
+            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }, {
+                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+            }).catch(e => {
+                console.warn('[SIGNUP] Backend resend-verification warning (non-fatal):', e.message);
+            });
+
+            setVerificationNotice({
+                type: 'success',
+                text: `Verification email sent to ${verificationPending.email}! Please check your inbox and spam folder.`
+            });
+            setResendCooldown(60);
+        } catch (err) {
+            console.error("[RESEND-VERIFICATION-ERR]", err);
+            let msg = "Failed to resend verification email. Please try again.";
+            if (err.code === 'auth/too-many-requests') {
+                msg = "Too many requests. Please wait a minute before requesting another email.";
+                setResendCooldown(60);
+            } else if (err.code === 'auth/network-request-failed') {
+                msg = "Network error: Unable to reach verification server. Please check your connection.";
+            }
+            setVerificationNotice({ type: 'error', text: msg });
+        } finally {
+            setCheckingVerification(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -47,57 +213,191 @@ const SignupPage = () => {
         }
 
         try {
+            const normalizedEmail = formData.email.toLowerCase().trim();
+
             // 1. Firebase Auth Signup
-            const userCredential = await signupWithEmail(formData.email, formData.password);
+            const userCredential = await signupWithEmail(normalizedEmail, formData.password);
             const user = userCredential.user;
 
-            // 2. Prepare Profile (Optimistic)
+            // 2. Send Firebase Native Verification Email
+            try {
+                await sendVerificationEmail(user);
+                console.log("[SIGNUP] Verification email dispatched to:", normalizedEmail);
+            } catch (emailErr) {
+                console.warn("[SIGNUP] Initial verification email send warning:", emailErr.message);
+            }
+
+            // 3. Prepare Profile
             const profileData = {
                 uid: user.uid,
                 name: formData.name,
-                email: formData.email,
+                email: normalizedEmail,
                 role: role,
                 createdAt: new Date().toISOString()
             };
 
-            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            const savedProfile = await saveUserProfile(user.uid, profileData);
+            // 4. Save to MongoDB via BOTH endpoints for maximum reliability:
+            const [, savedProfile] = await Promise.all([
+                // 4a. Backend signup — persists password hash + UID to MongoDB
+                withRetry(async () => {
+                    await axios.post(`${API_URL}/signup`, {
+                        name: formData.name,
+                        email: normalizedEmail,
+                        password: formData.password,
+                        role: role,
+                        uid: user.uid
+                    }, {
+                        headers: {
+                            'X-Client-ID': CLIENT_ID,
+                            'X-Client-Secret': CLIENT_SECRET
+                        }
+                    });
+                }, 3, 'backendSignup'),
+                // 4b. Profile save — upserts full profile
+                withRetry(
+                    () => saveUserProfile(user.uid, profileData),
+                    3, 'saveProfile'
+                )
+            ]).catch(err => {
+                console.warn('[SIGNUP] Parallel save partial failure:', err.message);
+                return [null, null];
+            });
 
-            // Clear any old leftover session tokens/client IDs
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('h1p_client_id');
-            localStorage.removeItem('h1p_client_secret');
+            // 4c. Also call /users/sync for UID consistency
+            await withRetry(async () => {
+                await apiClient.post('/users/sync', {
+                    uid: user.uid,
+                    email: normalizedEmail,
+                    name: formData.name,
+                    role: role
+                });
+            }, 3, 'userSync').catch(err => {
+                console.warn('[SIGNUP] Sync call failed (non-fatal):', err.message);
+            });
 
-            // 3. Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(profileData.email, profileData.uid);
+            // 4d. Initialize Gateway session tokens
+            // 4e. Trigger backend branded verification email
+            axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }, {
+                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+            }).catch(err => {
+                console.warn('[SIGNUP] Backend verification email warning (non-fatal):', err.message);
+            });
 
-            // 4. Store and Navigate
-            if (profileData.uid) {
-                localStorage.setItem('h1p_client_id', `client_${profileData.uid}`);
-            }
-            localStorage.setItem('user', JSON.stringify(profileData));
+            // Track GA4 sign_up conversion event (zero PII)
+            trackEvent('sign_up', { method: 'email', role: role || 'candidate' });
 
-            setMessage({ type: 'success', text: "Account created successfully!" });
-            if (role === 'admin') navigate('/admin');
-            else if (role === 'recruiter') navigate('/recruiter');
-            else navigate('/seeker');
+            // 5. DO NOT navigate to dashboard yet — show verification-pending state!
+            setVerificationPending({
+                email: normalizedEmail,
+                user: user,
+                role: role,
+                profileData: profileData,
+                savedProfile: savedProfile
+            });
+            setLoading(false);
+            setResendCooldown(60);
 
         } catch (error) {
-            console.error("Firebase Signup Error:", error);
+            console.error("Signup Error:", error);
             let userFriendlyMessage = error.message || 'Signup failed. Please try again.';
 
             if (error.code === 'auth/email-already-in-use') {
                 userFriendlyMessage = "This email is already registered. Try logging in.";
             } else if (error.code === 'auth/weak-password') {
                 userFriendlyMessage = "Password is too weak. Please use at least 6 characters.";
+            } else if (error.code === 'auth/network-request-failed') {
+                userFriendlyMessage = "Network error: Unable to reach authentication server. Please check your internet connection or disable ad-blockers/shields and try again.";
             }
 
             setMessage({
                 type: 'error',
                 text: userFriendlyMessage
             });
-            setLoading(false); // Only unset loading on error, otherwise we are navigating
+            setLoading(false);
+        }
+    };
+
+    const processGoogleSignupUser = async (googleUser, targetRole) => {
+        setLoading(true);
+        try {
+            targetRole = normalizeRole(targetRole);
+            if (!isSupportedRole(targetRole)) {
+                throw new Error('Please select a valid role before continuing.');
+            }
+            const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
+
+            // Check for role mismatch if existing profile in DB
+            const existingProfile = await getUserProfile(normalizedEmail).catch(() => null);
+            if (existingProfile && existingProfile.role) {
+                const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                const targetIsStaff  = targetRole === 'recruiter' || targetRole === 'admin';
+                if (existingIsStaff !== targetIsStaff) {
+                    const friendlyExisting = (existingProfile.role === 'candidate' || existingProfile.role === 'seeker') ? 'Candidate' : 'Recruiter / Admin';
+                    throw new Error(
+                        `This email is already registered as a ${existingProfile.role}. ` +
+                        `Please go to the Login page and select "${friendlyExisting}".`
+                    );
+                }
+            }
+
+            // Prepare Profile
+            const newProfile = {
+                uid: googleUser.uid,
+                name: googleUser.displayName || normalizedEmail.split('@')[0],
+                email: normalizedEmail,
+                profilePic: googleUser.photoURL || '',
+                role: targetRole,
+                createdAt: new Date().toISOString(),
+                isOptimistic: true
+            };
+
+            // Save to MongoDB — call BOTH endpoints in parallel for complete resilience
+            const [savedProfile] = await Promise.all([
+                withRetry(
+                    () => saveUserProfile(googleUser.uid, newProfile),
+                    3, 'googleSaveProfile'
+                ).catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] saveUserProfile warning:', err.message);
+                    return newProfile;
+                }),
+                withRetry(async () => {
+                    return await apiClient.post('/users/sync', {
+                        uid: googleUser.uid,
+                        email: normalizedEmail,
+                        name: googleUser.displayName || normalizedEmail.split('@')[0],
+                        profilePic: googleUser.photoURL || '',
+                        role: targetRole
+                    });
+                }, 3, 'googleUserSync').catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] /users/sync warning:', err.message);
+                }),
+                withRetry(
+                    () => apiClient.initializeGatewaySession(normalizedEmail, googleUser.uid),
+                    3, 'googleGatewaySession'
+                ).catch(err => {
+                    console.warn('[GOOGLE-SIGNUP] Gateway session warning:', err.message);
+                })
+            ]);
+
+            // Store & Navigate
+            localStorage.setItem('user', JSON.stringify(newProfile));
+
+            // Track GA4 sign_up conversion event (zero PII)
+            trackEvent('sign_up', { method: 'google', role: targetRole || 'candidate' });
+
+            if (targetRole === 'recruiter' && savedProfile && savedProfile.client) {
+                setClientCredentials(savedProfile.client);
+            } else {
+                setMessage({ type: 'success', text: "Account created! Logging in..." });
+                if (targetRole === 'admin') navigate('/admin');
+                else navigate('/candidate');
+            }
+
+        } catch (error) {
+            console.error(error);
+            setMessage({ type: 'error', text: error.message || "Google signup failed." });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -112,126 +412,93 @@ const SignupPage = () => {
         }
         setLoading(true);
         try {
-            // 1. Authenticate (Immediate)
             const googleUser = await signInWithGoogle();
-
-            // 1.5 Check for role mismatch
-            const existingProfile = await getUserProfile(googleUser.uid);
-            if (existingProfile && existingProfile.role) {
-                const existingIsStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
-                const targetIsStaff  = role === 'recruiter' || role === 'admin';
-                if (existingIsStaff !== targetIsStaff) {
-                    const friendlyExisting = existingProfile.role === 'seeker' ? 'Candidate' : 'Recruiter / Admin';
-                    throw new Error(
-                        `This email is already registered as a ${existingProfile.role}. ` +
-                        `Please go to the Login page and select "${friendlyExisting}".`
-                    );
-                }
-            }
-
-            // 2. Prepare Profile (Optimistic)
-            const newProfile = {
-                uid: googleUser.uid,
-                name: googleUser.displayName,
-                email: googleUser.email,
-                profilePic: googleUser.photoURL,
-                role: role,
-                createdAt: new Date().toISOString(),
-                isOptimistic: true
-            };
-
-            // 2.5 Save profile to MongoDB first so the Gateway token endpoint can find the user record
-            const savedProfile = await saveUserProfile(googleUser.uid, newProfile);
-
-            // Clear any old leftover session tokens/client IDs
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('h1p_client_id');
-            localStorage.removeItem('h1p_client_secret');
-
-            // 3. Initialize Gateway session tokens
-            await apiClient.initializeGatewaySession(newProfile.email, newProfile.uid);
-
-            // 4. Store & Navigate IMMEDIATELY
-            if (newProfile.uid) {
-                localStorage.setItem('h1p_client_id', `client_${newProfile.uid}`);
-            }
-            localStorage.setItem('user', JSON.stringify(newProfile));
-
-            setMessage({ type: 'success', text: "Account created! Logging in..." });
-            if (role === 'admin') navigate('/admin');
-            else if (role === 'recruiter') navigate('/recruiter');
-            else navigate('/seeker');
-
+            await processGoogleSignupUser(googleUser, role);
         } catch (error) {
-            console.error(error);
-            setMessage({ type: 'error', text: "Google signup failed." });
-        } finally {
-            setLoading(false);
+            console.error("Popup Signup Failed:", error);
+            if (error.code === 'auth/popup-blocked' || error.message?.toLowerCase().includes('popup')) {
+                console.warn("Popup blocked. Switching to Redirect method...");
+                sessionStorage.setItem('pendingRole', role);
+                try {
+                    await signInWithGoogleRedirect();
+                } catch (redirErr) {
+                    console.error("Redirect failed:", redirErr);
+                    setMessage({ type: 'error', text: "Google Signup failed. Please try again." });
+                    setLoading(false);
+                }
+            } else {
+                setMessage({ type: 'error', text: error.message || "Google signup failed." });
+                setLoading(false);
+            }
         }
     };
 
-
-
     const renderRoleSelection = () => (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="max-w-4xl mx-auto text-center"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="max-w-4xl mx-auto text-center py-6"
         >
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">Choose Your Path</h1>
-            <p className="text-gray-400 mb-12 text-lg">Are you looking to hire top talent or start your dream career?</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 text-[#C99A45] text-xs font-bold uppercase tracking-wider mb-4">
+                Get Started
+            </div>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-[#20263A] tracking-tight mb-3">Choose Your Path</h1>
+            <p className="text-[#5E6577] mb-8 text-base md:text-lg max-w-md mx-auto leading-relaxed">
+                Are you looking to hire top talent or start your dream career?
+            </p>
 
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                 {/* Recruiter Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(59, 130, 246, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
                     onClick={() => handleRoleSelect('recruiter')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Briefcase className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#20263A] rounded-2xl flex items-center justify-center text-[#E6BC6B] mb-6 shadow-md group-hover:scale-110 group-hover:bg-[#151A2D] transition-all">
                         <Briefcase className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">I am a Recruiter</h3>
-                    <p className="text-gray-400 text-sm mb-6">Find, assess, and hire the best talent using our AI-driven system.</p>
-                    <button className="px-6 py-2 rounded-full border border-blue-500/30 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">I am a Recruiter</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Find, assess, and hire the best talent using our AI-driven system.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl bg-[#20263A] group-hover:bg-[#151A2D] text-white transition-all text-sm font-bold shadow-sm">
                         Get Started
                     </button>
                 </motion.div>
 
                 {/* Candidate Card */}
                 <motion.div
-                    initial={{ scale: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                    whileHover={{ scale: 1.02, borderColor: 'rgba(20, 184, 166, 0.5)' }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-
-                    onClick={() => handleRoleSelect('seeker')}
-                    className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 cursor-pointer transition-all group relative overflow-hidden"
+                    onClick={() => handleRoleSelect('candidate')}
+                    className="p-8 md:p-10 rounded-[2rem] bg-white border border-[#E3E5EC] hover:border-[#C99A45] cursor-pointer transition-all duration-300 group relative overflow-hidden shadow-[0_10px_35px_rgba(32,38,58,0.06)] hover:shadow-[0_22px_55px_rgba(32,38,58,0.12)] text-center flex flex-col items-center"
                 >
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <div className="absolute top-0 right-0 p-6 text-[#20263A]/5 group-hover:text-[#C99A45]/10 transition-colors pointer-events-none">
                         <Users className="w-32 h-32" />
                     </div>
-                    <div className="w-16 h-16 bg-teal-500/20 rounded-2xl flex items-center justify-center text-teal-400 mb-6 mx-auto group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-[#F4EBDD] border border-[#E6BC6B]/40 rounded-2xl flex items-center justify-center text-[#C99A45] mb-6 shadow-sm group-hover:scale-110 group-hover:bg-[#EEDFC6] transition-all">
                         <Users className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-4">I am a Candidate</h3>
-                    <p className="text-gray-400 text-sm mb-6">Verify your skills, build your AI resume, and land top roles.</p>
-                    <button className="px-6 py-2 rounded-full border border-teal-500/30 text-teal-400 group-hover:bg-teal-500 group-hover:text-white transition-all text-sm font-bold">
+                    <h3 className="text-2xl font-bold text-[#20263A] mb-3">I am a Candidate</h3>
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-xs">
+                        Verify your skills, build your AI resume, and land top roles.
+                    </p>
+                    <button className="px-7 py-2.5 rounded-xl border-2 border-[#20263A] text-[#20263A] group-hover:bg-[#20263A] group-hover:text-white transition-all text-sm font-bold shadow-sm">
                         Get Started
                     </button>
                 </motion.div>
-
             </div>
 
-            <div className="mt-12 text-gray-500 text-sm">
-                Already have an account? <Link to="/login" className="text-blue-400 hover:underline">Login here</Link>
+            <div className="mt-10 text-[#5E6577] text-sm">
+                Already have an account?{' '}
+                <Link to="/login" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors ml-1">
+                    Login here
+                </Link>
             </div>
         </motion.div>
     );
@@ -241,72 +508,80 @@ const SignupPage = () => {
 
         return (
             <motion.div
-                initial={{ opacity: 0, x: 50 }}
+                initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                className="flex flex-col lg:flex-row h-full w-full bg-[#0c0f16] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
+                exit={{ opacity: 0, x: -30 }}
+                className="flex flex-col lg:flex-row w-full max-w-5xl bg-white border border-[#E3E5EC] rounded-[2.5rem] overflow-hidden shadow-[0_20px_60px_rgba(32,38,58,0.1)] my-auto"
             >
-                {/* Left Side: Illustration / Info */}
+                {/* Left Side: Brand Panel */}
                 <motion.div
-                    initial={{ opacity: 0, x: -50 }}
+                    initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className={`lg:w-1/2 p-10 flex flex-col justify-center relative overflow-hidden bg-gradient-to-br ${isRecruiter ? 'from-blue-600/20 to-blue-900/40' : role === 'admin' ? 'from-purple-600/20 to-purple-900/40' : 'from-teal-600/20 to-teal-900/40'}`}
+                    transition={{ delay: 0.1 }}
+                    className="lg:w-5/12 p-8 sm:p-12 flex flex-col justify-between relative overflow-hidden bg-[#20263A] text-white"
                 >
-                    {/* Animated Background Element */}
-                    <div className={`absolute top-0 left-0 w-full h-full opacity-10 ${isRecruiter ? 'bg-[radial-gradient(circle_at_50%_50%,#3b82f6,transparent)]' : role === 'admin' ? 'bg-[radial-gradient(circle_at_50%_50%,#a855f7,transparent)]' : 'bg-[radial-gradient(circle_at_50%_50%,#14b8a6,transparent)]'} animate-pulse`} />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(201,154,69,0.22),transparent_55%)] pointer-events-none" />
 
                     <div className="relative z-10">
                         <button
                             onClick={handleBack}
-                            className="flex items-center gap-2 text-white/50 hover:text-white mb-8 transition-colors group"
+                            className="flex items-center gap-2 text-[#E3E5EB]/80 hover:text-white mb-6 transition-colors group cursor-pointer text-sm font-medium"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Selection
                         </button>
-                        <h2 className="text-3xl font-bold mb-4">
+
+                        <div className="flex items-center gap-2.5 mb-6">
+                            <div className="w-9 h-9 rounded-lg bg-[#20263A] border border-[#D4AC5F] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                <img src="/logo.png" alt="Hire1Percent" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-lg font-extrabold tracking-tight text-white">Hire<span className="text-[#D5A54F]">1</span>Percent</span>
+                        </div>
+
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3 tracking-tight">
                             {role === 'admin' ? 'System Oversight & Control' : isRecruiter ? 'Recruit with AI Precision' : 'Unlock Your Potential'}
                         </h2>
-                        <p className="text-gray-400 mb-6 text-sm max-w-md">
+                        <p className="text-[#C5CAD8] mb-8 text-sm leading-relaxed">
                             {role === 'admin'
-                                ? 'Register as a system administrator to manage news content, job requests, and platform settings.'
+                                ? 'Register as a system administrator to manage platform settings, questions, and reports.'
                                 : isRecruiter
-                                    ? 'Join thousands of employers using our AI matching system to find the world\'s most exceptional technical talent.'
-                                    : 'Build your career identity and get matched with the most innovative projects in the space.'
+                                    ? 'Join forward-thinking hiring teams using evidence-led assessments to hire top developers.'
+                                    : 'Demonstrate real coding skills, verify your competence, and get hired faster.'
                             }
                         </p>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3.5">
                             {[
                                 role === 'admin' ? "Content management" : isRecruiter ? "Skill-based ranking" : "AI Resume Analysis",
                                 role === 'admin' ? "Job request oversight" : isRecruiter ? "Automated interviewing" : "Verified skill badges",
                                 role === 'admin' ? "System analytics" : isRecruiter ? "Seamless candidate management" : "Smart job matching"
                             ].map((text, i) => (
-                                <div key={i} className="flex items-center gap-4">
-                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isRecruiter ? 'bg-blue-500/20 text-blue-400' : 'bg-teal-500/20 text-teal-400'}`}>
-                                        <CheckCircle className="w-3 h-3" />
+                                <div key={i} className="flex items-center gap-3 text-sm">
+                                    <div className="w-5 h-5 rounded-full bg-[#C99A45]/20 border border-[#C99A45]/40 flex items-center justify-center text-[#E6BC6B] shrink-0">
+                                        <CheckCircle className="w-3.5 h-3.5" />
                                     </div>
-                                    <span className="text-gray-300 text-sm font-medium">{text}</span>
+                                    <span className="text-[#E3E5EB] font-medium">{text}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Floating UI Elements Mockup */}
-                    <div className="absolute bottom-10 right-10 opacity-20 pointer-events-none">
+                    <div className="absolute -bottom-6 -right-6 opacity-10 text-[#C99A45] pointer-events-none">
                         {role === 'admin' ? <ShieldCheck size={200} /> : isRecruiter ? <Briefcase size={200} /> : <Users size={200} />}
                     </div>
                 </motion.div>
 
                 {/* Right Side: Form */}
-                <div className="lg:w-1/2 p-10 flex flex-col justify-center">
+                <div className="lg:w-7/12 p-8 sm:p-12 flex flex-col justify-center bg-white">
                     <div className="max-w-md mx-auto w-full">
                         <div className="mb-6">
-                            <h3 className="text-2xl font-bold mb-1">Create {role === 'admin' ? 'Admin' : isRecruiter ? 'Recruiter' : 'Candidate'} Account</h3>
-                            <p className="text-gray-500 text-sm">Fill in the details to get started.</p>
+                            <h3 className="text-2xl sm:text-3xl font-extrabold text-[#20263A] mb-1.5 tracking-tight">
+                                Create {role === 'admin' ? 'Admin' : isRecruiter ? 'Recruiter' : 'Candidate'} Account
+                            </h3>
+                            <p className="text-[#5E6577] text-sm">Fill in the details to get started.</p>
                         </div>
 
                         {message.text && (
-                            <div className={`mb-4 p-3 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>
+                            <div className={`mb-4 p-3.5 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
                                 {message.text}
                             </div>
                         )}
@@ -314,7 +589,7 @@ const SignupPage = () => {
                         <form className="space-y-4" onSubmit={handleSubmit}>
                             <div className="space-y-3">
                                 <div className="relative group">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="text"
                                         name="name"
@@ -322,11 +597,11 @@ const SignupPage = () => {
                                         onChange={handleChange}
                                         placeholder="Full Name"
                                         required
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="email"
                                         name="email"
@@ -334,11 +609,11 @@ const SignupPage = () => {
                                         onChange={handleChange}
                                         placeholder="Work Email"
                                         required
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#9AA0B2] group-focus-within:text-[#20263A] transition-colors" />
                                     <input
                                         type="password"
                                         name="password"
@@ -347,49 +622,47 @@ const SignupPage = () => {
                                         placeholder="Password"
                                         required
                                         autoComplete="new-password"
-                                        className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all text-sm"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] focus:border-[#20263A] focus:bg-white focus:ring-2 focus:ring-[#20263A]/10 outline-none transition-all text-sm text-[#20263A] placeholder-[#9AA0B2]"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-3 py-2 px-1">
+                            <div className="flex items-start gap-3 py-1 px-1">
                                 <input 
                                     type="checkbox" 
                                     id="terms" 
                                     checked={acceptedTerms}
                                     onChange={(e) => setAcceptedTerms(e.target.checked)}
-                                    className="mt-1 w-4 h-4 rounded border-white/10 bg-white/5 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+                                    className="mt-1 w-4 h-4 rounded border-[#E3E5EC] text-[#20263A] focus:ring-[#20263A]/20 cursor-pointer"
                                 />
-                                <label htmlFor="terms" className="text-xs text-gray-400 leading-relaxed cursor-pointer select-none">
-                                    I agree to the <Link to="/terms" target="_blank" className="text-white hover:underline">Terms & Conditions</Link> and <Link to="/privacy" target="_blank" className="text-white hover:underline">Privacy Policy</Link>.
+                                <label htmlFor="terms" className="text-xs text-[#5E6577] leading-relaxed cursor-pointer select-none">
+                                    I agree to the <Link to="/terms" target="_blank" className="text-[#20263A] font-semibold hover:text-[#C99A45] underline ml-0.5">Terms & Conditions</Link> and <Link to="/privacy" target="_blank" className="text-[#20263A] font-semibold hover:text-[#C99A45] underline ml-0.5">Privacy Policy</Link>.
                                 </label>
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`w-full py-3 rounded-2xl font-bold transition-all shadow-xl active:scale-95 text-sm flex items-center justify-center gap-2 ${role === 'admin'
-                                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/10'
-                                    : isRecruiter
-                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10'
-                                        : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-500/10'
-                                    } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-[0_4px_14px_rgba(32,38,58,0.14)] hover:-translate-y-0.5 active:translate-y-0 text-sm flex items-center justify-center gap-2 bg-[#20263A] hover:bg-[#151A2D] text-white cursor-pointer ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {loading ? 'Creating Account...' : 'Create Account'}
                             </button>
 
-                            <div className="relative flex items-center gap-2 py-1">
-                                <div className="flex-1 h-px bg-white/10" />
-                                <span className="text-[10px] text-gray-500 uppercase tracking-widest">Or continue with</span>
-                                <div className="flex-1 h-px bg-white/10" />
+                            <div className="relative flex items-center justify-center py-2">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-[#E3E5EC]" />
+                                </div>
+                                <span className="relative bg-white px-3 text-[11px] font-bold text-[#8C93A4] uppercase tracking-wider">
+                                    Or continue with
+                                </span>
                             </div>
 
                             <div className="grid grid-cols-1 gap-3">
                                 <button
                                     type="button"
                                     onClick={handleGoogleSignup}
-                                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-xs"
+                                    className="flex items-center justify-center gap-2.5 py-3 rounded-xl border border-[#E3E5EC] bg-white hover:bg-[#F8F8FA] text-[#20263A] font-semibold text-sm transition-all shadow-sm hover:border-[#D1D5DF] cursor-pointer"
                                 >
                                     <svg className="w-4 h-4" viewBox="0 0 24 24">
                                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -402,7 +675,7 @@ const SignupPage = () => {
                             </div>
                         </form>
 
-                        <p className="mt-8 text-center text-gray-500 text-xs">
+                        <p className="mt-8 text-center text-[#5E6577] text-xs">
                             Secure 256-bit encrypted signup.
                         </p>
                     </div>
@@ -411,21 +684,248 @@ const SignupPage = () => {
         );
     };
 
+    const renderVerificationPending = () => {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#20263A]/50 backdrop-blur-md overflow-hidden">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-full max-w-[440px] bg-white rounded-[2.2rem] sm:rounded-[2.5rem] shadow-[0_25px_70px_rgba(32,38,58,0.2)] border border-[#E3E5EC] p-8 sm:p-10 text-center relative z-10"
+                >
+                    {/* Envelope with @ Badge Icon + Floating Dots */}
+                    <div className="relative w-24 h-24 mx-auto rounded-full bg-[#F4EBDD] border border-[#E6BC6B]/40 flex items-center justify-center mb-6 shadow-sm">
+                        {/* 4 Floating dots */}
+                        <motion.span 
+                            animate={{ y: [0, -4, 0] }}
+                            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                            className="absolute top-2 left-3 w-2.5 h-2.5 rounded-full bg-[#C99A45]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, 3, 0] }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+                            className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#20263A]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, -3, 0] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+                            className="absolute bottom-3 right-4 w-2 h-2 rounded-full bg-[#D4AC5F]"
+                        />
+                        <motion.span 
+                            animate={{ y: [0, 4, 0] }}
+                            transition={{ duration: 2.7, repeat: Infinity, ease: 'easeInOut', delay: 0.9 }}
+                            className="absolute bottom-5 left-3 w-1.5 h-1.5 rounded-full bg-[#20263A]"
+                        />
+
+                        {/* Envelope Illustration */}
+                        <div className="relative">
+                            <svg width="60" height="46" viewBox="0 0 68 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="6" width="64" height="42" rx="8" fill="#ffffff" stroke="#E3E5EC" strokeWidth="2" />
+                                <path d="M4 12 L34 32 L64 12" fill="#F4EBDD" stroke="#E6BC6B" strokeWidth="1.5" />
+                                <path d="M2 46 L26 24" stroke="#E3E5EC" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M66 46 L42 24" stroke="#E3E5EC" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+
+                            {/* Center Circular Badge with @ */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#20263A] text-[#E6BC6B] flex items-center justify-center shadow-md border-2 border-white">
+                                <span className="text-xs font-bold leading-none select-none">@</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Primary Title */}
+                    <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#20263A] mb-2.5 tracking-tight">
+                        Authenticate Your Email Address
+                    </h1>
+
+                    {/* Subtitle / Email */}
+                    <p className="text-[#5E6577] text-sm leading-relaxed mb-6 max-w-sm mx-auto">
+                        An email has been sent to{' '}
+                        <span className="font-semibold underline text-[#20263A] break-all">
+                            {verificationPending?.email}
+                        </span>
+                        . Please check your inbox to verify your account.
+                    </p>
+
+                    {/* Notice alert */}
+                    {verificationNotice.text && (
+                        <div className={`w-full mb-4 p-3 rounded-xl text-xs border font-medium text-left ${
+                            verificationNotice.type === 'success'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : verificationNotice.type === 'warning'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                            {verificationNotice.text}
+                        </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={handleCheckVerification}
+                            disabled={checkingVerification}
+                            className={`w-full py-3.5 px-6 rounded-xl bg-[#20263A] hover:bg-[#151A2D] text-white font-bold text-sm transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer ${checkingVerification ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                            {checkingVerification ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Checking verification...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>I've Verified My Email</span>
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVerificationPending(null);
+                                setVerificationNotice({ type: '', text: '' });
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl border border-[#E3E5EC] hover:bg-[#F8F8FA] text-[#20263A] font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>Update email</span>
+                        </button>
+                    </div>
+
+                    {/* Footer Subtext */}
+                    <p className="text-xs text-[#5E6577] mt-6 flex items-center justify-center gap-1">
+                        <span>Email not received?</span>
+                        <button
+                            type="button"
+                            onClick={handleResendEmail}
+                            disabled={checkingVerification || resendCooldown > 0}
+                            className={`font-semibold underline transition-colors cursor-pointer ${
+                                resendCooldown > 0
+                                    ? 'text-gray-400 cursor-not-allowed'
+                                    : 'text-[#20263A] hover:text-[#C99A45]'
+                            }`}
+                        >
+                            {resendCooldown > 0 ? `Wait (${resendCooldown}s)` : 'Send it once more.'}
+                        </button>
+                    </p>
+                </motion.div>
+            </div>
+        );
+    };
+
     return (
-        <div className="h-screen bg-[#0c0f16] text-white flex flex-col relative overflow-hidden">
-            {/* Background Decor */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
+        <div className="min-h-screen bg-[#F8F8FA] text-[#20263A] flex flex-col relative overflow-x-hidden selection:bg-[#C99A45]/20 selection:text-[#20263A]">
+            <SEO 
+                title="Create an Account | Hire1Percent" 
+                description="Join Hire1Percent as a candidate or recruiter to access automated coding assessments and technical screening." 
+                robots="noindex, follow" 
+            />
+            {/* Background Decor matching homepage hero warmth */}
+            <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-[#C99A45]/10 blur-[130px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[550px] h-[550px] bg-[#20263A]/5 blur-[130px] rounded-full pointer-events-none" />
 
-            <Navbar />
-
-            <main className="flex-1 flex items-center justify-center px-6 pb-6 overflow-hidden pt-24">
-                <div className="w-full max-w-6xl h-full max-h-[800px] flex items-center justify-center">
+            <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-24 sm:py-28">
+                <div className="w-full max-w-5xl flex items-center justify-center my-auto">
                     <AnimatePresence mode="wait">
-                        {!role ? renderRoleSelection() : renderSignupForm()}
+                        {verificationPending ? (
+                            renderVerificationPending()
+                        ) : !role ? (
+                            renderRoleSelection()
+                        ) : (
+                            renderSignupForm()
+                        )}
                     </AnimatePresence>
                 </div>
             </main>
+
+            {/* Recruiter API Client Credentials Modal */}
+            <AnimatePresence>
+                {clientCredentials && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20263A]/60 backdrop-blur-md p-6">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="w-full max-w-lg bg-white border border-[#E3E5EC] rounded-[2rem] p-8 sm:p-10 shadow-[0_25px_70px_rgba(32,38,58,0.2)] relative overflow-hidden"
+                        >
+                            <div className="flex items-center gap-3 mb-6 relative z-10">
+                                <div className="w-12 h-12 rounded-2xl bg-[#F4EBDD] border border-[#E6BC6B]/40 flex items-center justify-center text-[#C99A45]">
+                                    <ShieldCheck className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-[#20263A]">Signup Successful</h2>
+                                    <p className="text-[#5E6577] text-xs">Your API client credentials have been generated.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-5 mb-8 relative z-10">
+                                {/* Client ID */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client ID</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={clientCredentials.clientId}
+                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(clientCredentials.clientId);
+                                                alert("Client ID copied!");
+                                            }}
+                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Client Secret */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client Secret</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={clientCredentials.clientSecret}
+                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(clientCredentials.clientSecret);
+                                                alert("Client Secret copied!");
+                                            }}
+                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    <p className="text-amber-800 text-xs mt-2 font-medium flex items-center gap-1.5">
+                                        ⚠️ The Client Secret will never be shown again.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setClientCredentials(null);
+                                    navigate('/recruiter');
+                                }}
+                                className="w-full py-3.5 bg-[#20263A] hover:bg-[#151A2D] text-white font-bold rounded-xl shadow-md transition-all text-sm uppercase tracking-wider relative z-10 cursor-pointer"
+                            >
+                                Close & Continue to Dashboard
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

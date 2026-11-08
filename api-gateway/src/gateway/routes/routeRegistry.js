@@ -567,6 +567,22 @@ const registryRaw = [
     tags: ['Attempts']
   },
 
+
+  // ─── Coding Assessment Service ─────────────────────────
+  {
+    version: 'v1',
+    method: '*',
+    path: '/api/v1/coding-assessments/*',
+    serviceKey: ServiceKeys.BACKEND,
+    authRequired: true,
+    permissions: [],
+    policies: ['RecruiterPolicy'],
+    timeout: { gateway: 10000, downstream: 9000 },
+    rateLimit: 'default',
+    bodyLimit: '2MB',
+    tags: ['CodingAssessments']
+  },
+
   // ─── Interview Service ────────────────────────────────
   {
     version: 'v1',

@@ -35,8 +35,9 @@ const {
     roundToTenth,
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
+const { sanitizeTranscript, isInvalidTranscript } = require('../utils/transcriptSanitizer');
 
-const MAX_INTERVIEW_QUESTIONS = 5;
+const MAX_INTERVIEW_QUESTIONS = 10;
 
 // ─── In-memory session cache (mirrors the one in aiInterviewRoutes.js) ──────
 // Sessions created by /start are persisted to MongoDB. This cache avoids
@@ -107,7 +108,8 @@ async function saveSession(sessionId, session) {
 
 async function deleteSession(sessionId) {
     fastSessionCache.delete(sessionId);
-    await InterviewSession.deleteOne({ sessionId }).catch(() => null);
+    // Preserving data: do not delete the session from MongoDB
+    // await InterviewSession.deleteOne({ sessionId }).catch(() => null);
 }
 
 // ─── JSON Parsing Helpers ───────────────────────────────────────────────────
@@ -598,24 +600,40 @@ async function finalizeInterview(session, sessionId) {
             ? Math.round(ownershipEvals.reduce((sum, e) => sum + e.marks, 0) / ownershipEvals.length)
             : 0;
 
+        // Fetch existing application to avoid overwriting fuller rescued answers
+        const existingApp = await Application.findOne({ userId: session.userId, jobId: session.jobId }).lean();
+        const finalAnswers = session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry, idx) => {
+            const existing = existingApp?.interviewAnswers?.[idx];
+            const useExisting = existing?.answer && existing.answer.trim().length > (entry.answer || "").trim().length + 5;
+            
+            return {
+                question: entry.question || existing?.question || "",
+                answer: useExisting ? existing.answer : (entry.answer || ""),
+                score: useExisting && typeof existing.score === 'number' ? existing.score : (entry.score || 0),
+                marks: useExisting && typeof existing.marks === 'number' ? existing.marks : (entry.marks || 0),
+                feedback: useExisting && existing.feedback ? existing.feedback : (entry.feedback || "")
+            };
+        });
+
+        const hasEvaluations = session.answerEvaluations && session.answerEvaluations.length > 0;
+
         // Update Application document
+        const updatePayload = {
+            status: 'APPLIED',
+            resultsVisibleAt: new Date(),
+            metrics: {
+                ownershipMindset: ownershipScore
+            },
+            interviewAnswers: finalAnswers
+        };
+
+        if (hasEvaluations) {
+            updatePayload.interviewScore = Math.round(evaluation.score * 0.70);
+        }
+
         await Application.findOneAndUpdate(
             { userId: session.userId, jobId: session.jobId },
-            {
-                interviewScore: Math.round(evaluation.score * 0.70),
-                status: 'APPLIED',
-                resultsVisibleAt: new Date(),
-                metrics: {
-                    ownershipMindset: ownershipScore
-                },
-                interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map(entry => ({
-                    question: entry.question,
-                    answer: entry.answer,
-                    score: entry.score,
-                    marks: entry.marks,
-                    feedback: entry.feedback
-                }))
-            },
+            updatePayload,
             { upsert: true }
         );
 
@@ -624,13 +642,35 @@ async function finalizeInterview(session, sessionId) {
         if (app) {
             const r = Number(app.resumeMatchPercent || 0);
             const a = Number(app.assessmentScore || 0);
+            const c = Number(app.codingScore || 0);
             const i = Number(app.interviewScore || 0);
             const job = app.jobId;
 
+            // Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
             app.finalScore = r + a + i;
 
-            if (app.finalScore >= 55) app.status = 'SHORTLISTED';
-            await app.save();
+            const codingEnabled = job?.codingAssessment?.enabled === true;
+            const isCodingDone = !codingEnabled || (app.codingScore !== null && app.codingScore !== undefined);
+            const isCodingPassed = !codingEnabled || (app.codingScore >= (job?.codingAssessment?.passingScore || 70));
+
+            if (app.finalScore >= 55 && isCodingDone && isCodingPassed) {
+                app.status = 'SHORTLISTED';
+            } else {
+                app.status = 'APPLIED';
+            }
+            await Application.findByIdAndUpdate(app._id, {
+                $set: {
+                    interviewScore: app.interviewScore,
+                    finalScore: app.finalScore,
+                    status: app.status
+                }
+            });
+            try {
+                const { invalidateCache } = require('../middleware/cacheMiddleware');
+                invalidateCache('/api/applications');
+            } catch (cacheErr) {
+                // ignore
+            }
             console.log(`[FAST-FINAL-EVAL] Application Updated. Final Score: ${app.finalScore}`);
         }
 
@@ -668,7 +708,8 @@ router.post('/next-fast', async (req, res) => {
         const session = await loadSession(sessionId);
         if (!session) return res.status(404).json({ message: "Session not found" });
 
-        const normalizedAnswer = String(answerText || '').trim();
+        const rawAnswer = String(answerText || '').trim();
+        const normalizedAnswer = sanitizeTranscript(rawAnswer);
 
         const interviewers = session.history.filter(h => h.role === 'interviewer');
         const currentQuestionNumber = interviewers.length;
@@ -776,31 +817,26 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
 
             try {
                 const transcriptionService = require('../transcription_service');
-                const transcript = await transcriptionService.transcribeAudio(audioPath);
-                console.log(`[FAST-AUDIO-ASYNC] Background transcription: "${transcript}"`);
+                const rawTranscript = await transcriptionService.transcribeAudio(audioPath);
+                const transcript = sanitizeTranscript(rawTranscript);
+                console.log(`[FAST-AUDIO-ASYNC] Background transcription sanitized: "${transcript}"`);
 
                 if (transcript && transcript.trim().length > 0 && targetSessionId) {
-                    const normalizedBg = transcript.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
-                    const invalidWhisperPhrases = [
-                        "thank you", "e ai", "legend by", "watching", "by subtitle", 
-                        "subtitles by", "english subtitles", "you", "e aí",
-                        "i am describing my technical experience and relevant skills for this specific role"
-                    ];
-                    const isBgInvalid = invalidWhisperPhrases.includes(normalizedBg);
+                    const isBgInvalid = isInvalidTranscript(transcript);
 
                     if (!isBgInvalid) {
                         const session = await loadSession(targetSessionId);
+                        const targetQNum = Number(questionNumber) || 1;
+                        const fullAnswer = transcript.trim();
+
                         if (session) {
-                            const targetQNum = Number(questionNumber) || session.answerEvaluations?.length || 1;
                             const targetEvalIndex = (session.answerEvaluations || []).findIndex(e => e.questionNumber === targetQNum);
                             const existingEval = targetEvalIndex !== -1 ? session.answerEvaluations[targetEvalIndex] : null;
                             const currentStoredAnswer = existingEval ? existingEval.answer : (localTranscript || "");
 
                             // Rescue: If background transcript has more content or existing answer is short/empty
-                            if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || transcript.trim().length > currentStoredAnswer.trim().length + 5) {
-                                console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB with full STT transcript (${transcript.length} chars vs stored ${currentStoredAnswer.length} chars)`);
-                                
-                                const fullAnswer = transcript.trim();
+                            if (!currentStoredAnswer || currentStoredAnswer.trim().length < 5 || fullAnswer.length > currentStoredAnswer.trim().length + 5) {
+                                console.log(`[FAST-RESCUE] Upgrading Q${targetQNum} in MongoDB session with full STT transcript (${fullAnswer.length} chars vs stored ${currentStoredAnswer.length} chars)`);
                                 
                                 // Re-evaluate score with full answer
                                 const heuristic = scoreInterviewAnswer({
@@ -844,13 +880,93 @@ router.post('/upload-audio-async', require('../middleware/secureUpload').single(
                                             app.interviewAnswers[idx].score = heuristic.score;
                                             app.interviewAnswers[idx].marks = heuristic.marks;
                                             app.interviewAnswers[idx].feedback = heuristic.feedback;
+
+                                            // Recalculate average interview score and final score
+                                            const totalQuestions = app.interviewAnswers.length;
+                                            const scoresList = app.interviewAnswers.map(a => a.score || 0);
+                                            const marksList = app.interviewAnswers.map(a => a.marks || 0);
+                                            const avgScore = Math.round(scoresList.reduce((sum, s) => sum + s, 0) / Math.max(totalQuestions, 1));
+                                            
+                                            app.interviewScore = Math.round(avgScore * 0.70);
+                                            app.finalScore = Number(app.resumeMatchPercent || 0) + Number(app.assessmentScore || 0) + app.interviewScore;
+                                            if (app.finalScore >= 55) {
+                                                app.status = 'SHORTLISTED';
+                                            } else {
+                                                app.status = 'APPLIED';
+                                            }
+
+                                            const halfIndex = Math.ceil(totalQuestions / 2);
+                                            const ownershipMarks = marksList.slice(halfIndex - 1);
+                                            app.metrics = {
+                                                ...app.metrics,
+                                                ownershipMindset: ownershipMarks.length > 0
+                                                    ? Math.round(ownershipMarks.reduce((sum, m) => sum + m, 0) / ownershipMarks.length)
+                                                    : 0
+                                            };
+
                                             await app.save();
-                                            console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers updated for Q${targetQNum}`);
+                                            console.log(`[FAST-RESCUE] MongoDB Application.interviewAnswers & overall score updated for Q${targetQNum}`);
                                         }
                                     }
                                 } catch (dbErr) {
                                     console.error("[FAST-RESCUE] DB update error:", dbErr.message);
                                 }
+                            }
+                        } else if (targetSessionId) {
+                            // Direct Rescue Fallback: If session was deleted upon finalization, update Application directly
+                            try {
+                                const app = await Application.findOne({
+                                    $or: [
+                                        { recordingSessionId: targetSessionId },
+                                        ...(mongoose.Types.ObjectId.isValid(targetSessionId) ? [{ _id: targetSessionId }] : [])
+                                    ]
+                                });
+                                if (app && app.interviewAnswers && app.interviewAnswers.length >= targetQNum) {
+                                    const idx = targetQNum - 1;
+                                    const currentAppAnswer = app.interviewAnswers[idx]?.answer || "";
+                                    if (!currentAppAnswer || currentAppAnswer.trim().length < 5 || fullAnswer.length > currentAppAnswer.trim().length + 5) {
+                                        console.log(`[FAST-RESCUE-DIRECT] Upgrading finalized Application Q${targetQNum} answer (${fullAnswer.length} chars)`);
+                                        const heuristic = scoreInterviewAnswer({
+                                            questionText: app.interviewAnswers[idx]?.question || "",
+                                            answerText: fullAnswer,
+                                            jobSkills: [],
+                                            jobDescription: ""
+                                        });
+
+                                        app.interviewAnswers[idx].answer = fullAnswer;
+                                        app.interviewAnswers[idx].score = heuristic.score;
+                                        app.interviewAnswers[idx].marks = heuristic.marks;
+                                        app.interviewAnswers[idx].feedback = heuristic.feedback;
+
+                                        // Recalculate average interview score and final score
+                                        const totalQuestions = app.interviewAnswers.length;
+                                        const scoresList = app.interviewAnswers.map(a => a.score || 0);
+                                        const marksList = app.interviewAnswers.map(a => a.marks || 0);
+                                        const avgScore = Math.round(scoresList.reduce((sum, s) => sum + s, 0) / Math.max(totalQuestions, 1));
+                                        
+                                        app.interviewScore = Math.round(avgScore * 0.70);
+                                        app.finalScore = Number(app.resumeMatchPercent || 0) + Number(app.assessmentScore || 0) + app.interviewScore;
+                                        if (app.finalScore >= 55) {
+                                            app.status = 'SHORTLISTED';
+                                        } else {
+                                            app.status = 'APPLIED';
+                                        }
+
+                                        const halfIndex = Math.ceil(totalQuestions / 2);
+                                        const ownershipMarks = marksList.slice(halfIndex - 1);
+                                        app.metrics = {
+                                            ...app.metrics,
+                                            ownershipMindset: ownershipMarks.length > 0
+                                                ? Math.round(ownershipMarks.reduce((sum, m) => sum + m, 0) / ownershipMarks.length)
+                                                : 0
+                                        };
+
+                                        await app.save();
+                                        console.log(`[FAST-RESCUE-DIRECT] MongoDB Application updated directly for Q${targetQNum}`);
+                                    }
+                                }
+                            } catch (directErr) {
+                                console.error("[FAST-RESCUE-DIRECT] DB update error:", directErr.message);
                             }
                         }
                     }

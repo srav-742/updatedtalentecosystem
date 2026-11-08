@@ -4,6 +4,8 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const User = require('../models/User');
 const Job = require('../models/Job');
+const CodingQuestion = require('../models/CodingQuestion');
+const CodingRound = require('../models/CodingRound');
 const { callInterviewAI } = require('../utils/aiClients');
 const mongoose = require('mongoose');
 
@@ -20,14 +22,29 @@ const getRecommendationSummary = async (req, res) => {
         }
 
         // 1. Fetch the application
-        const application = await Application.findById(applicationId);
+        const application = await Application.findById(applicationId).populate('codingAnswers.questionId');
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
 
+        const isForce = req.query.force === 'true' || req.query.refresh === 'true';
+
         // 2. Check if recommendation summary already exists
-        if (application.recommendationSummary && application.recommendationSummary.overallSummary) {
-            return res.json(application.recommendationSummary);
+        const hasExisting = application.recommendationSummary && application.recommendationSummary.overallSummary;
+        const hasCodingAnswers = Array.isArray(application.codingAnswers) && application.codingAnswers.length > 0;
+        const isStaleCodingSummary = hasCodingAnswers && application.recommendationSummary && (
+            /no skill assessment/i.test(application.recommendationSummary.overallSummary || '') ||
+            /no assessment/i.test(application.recommendationSummary.overallSummary || '') ||
+            (Array.isArray(application.recommendationSummary.weaknesses) && application.recommendationSummary.weaknesses.some(w => /no skill assessment/i.test(w)))
+        );
+
+        if (hasExisting && !isForce && !isStaleCodingSummary) {
+            const rec = application.recommendationSummary?.toObject ? application.recommendationSummary.toObject() : (application.recommendationSummary || {});
+            const proctoringScore = application.integrityPenalty || 0;
+            return res.json({
+                ...rec,
+                proctoringScore
+            });
         }
 
         // 3. Gather data to build the AI prompt context
@@ -38,8 +55,11 @@ const getRecommendationSummary = async (req, res) => {
         const user = await User.findOne({ uid: userId }).lean();
         const resumeProfile = await ResumeProfile.findOne({ userId }).lean();
         const resumeAnalysis = await ResumeAnalysis.findOne({ userId, jobId }).lean();
-        const assessment = await AssessmentSubmission.findOne({ applicationId }).lean()
-            || await AssessmentSubmission.findOne({ userId, jobId }).lean();
+        const assessment = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+            : null)
+            || await AssessmentSubmission.findOne({ applicationId }).lean()
+            || await AssessmentSubmission.findOne({ userId, jobId }).sort({ submittedAt: -1 }).lean();
 
         // 4. Construct helper data structures for prompt
         const candidateName = application.applicantName || user?.name || 'Candidate';
@@ -57,14 +77,44 @@ Skills Feedback: ${resumeAnalysis.skillsFeedback || ''}
 Experience Feedback: ${resumeAnalysis.experienceFeedback || ''}
 ` : 'N/A';
 
-        // Skill Assessment
+        // Skill Assessment (MCQ)
         const assessmentScore = application.assessmentScore !== null && application.assessmentScore !== undefined 
             ? application.assessmentScore 
             : (assessment?.score || 0);
-        let assessmentDetails = 'No assessment taken';
+        let assessmentDetails = 'No MCQ assessment taken';
         if (assessment) {
             const qaList = (assessment.answers || []).map((a, i) => `Q${i+1}: ${a.question}\nCorrect: ${a.isCorrect ? 'Yes' : 'No'}\nCandidate Answer: ${a.userAnswer}\nCorrect Answer: ${a.correctAnswer}`).join('\n\n');
             assessmentDetails = `Score: ${assessmentScore}/20\nCorrect Answers: ${assessment.correctAnswers}/${assessment.totalQuestions}\n\nQuestions & Answers:\n${qaList}`;
+        }
+
+        // Coding Assessment Details
+        const codingScore = application.codingScore !== null && application.codingScore !== undefined 
+            ? application.codingScore 
+            : 0;
+        let codingDetails = 'No coding assessment taken';
+        if (hasCodingAnswers) {
+            const qaList = application.codingAnswers.map((ca, i) => {
+                const qDoc = ca.questionId && typeof ca.questionId === 'object' ? ca.questionId : {};
+                const qTitle = ca.questionTitle || qDoc.title || `Coding Challenge ${i+1}`;
+                const diff = ca.difficulty || qDoc.difficulty || 'MEDIUM';
+                const obtMarks = ca.obtainedMarks !== undefined && ca.obtainedMarks !== null ? ca.obtainedMarks : (ca.score || 0);
+                const maxMarks = ca.maximumMarks || qDoc.marks || 10;
+                const testPassed = ca.testCasesPassed !== undefined && ca.testCasesPassed !== null ? ca.testCasesPassed : 0;
+                const testTotal = ca.totalTestCases || 10;
+                const verdict = ca.correctnessVerdict || (obtMarks > 0 ? 'Partially Correct' : 'Incorrect');
+
+                return `Problem ${i+1}: ${qTitle} (${diff})
+Status / Verdict: ${verdict}
+Score: ${obtMarks}/${maxMarks} marks (${testPassed}/${testTotal} test cases passed)
+Language: ${ca.language || 'Python'}
+Candidate Submitted Code:
+\`\`\`${ca.language || 'python'}
+${ca.code ? ca.code.slice(0, 800) : 'No code submitted'}
+\`\`\`
+Evaluator Feedback: ${ca.feedback ? ca.feedback.slice(0, 600) : 'N/A'}`;
+            }).join('\n\n');
+
+            codingDetails = `Overall Coding Score: ${codingScore}/100\nTotal Challenges: ${application.codingAnswers.length}\n\nCandidate Coding Submissions:\n${qaList}`;
         }
 
         // Interview Details
@@ -82,9 +132,14 @@ Experience Feedback: ${resumeAnalysis.experienceFeedback || ''}
         const thinkingLatency = application.metrics?.thinkingLatency !== undefined ? application.metrics.thinkingLatency : 'N/A';
         const ownershipScore = application.metrics?.ownershipMindset !== undefined ? application.metrics.ownershipMindset : 'N/A';
 
+        // Proctoring details
+        const proctoringScore = (application.proctoringScore !== undefined && application.proctoringScore !== null)
+            ? application.proctoringScore
+            : (application.integrityPenalty || 0);
+
         // 5. Build prompt
         const prompt = `
-You are an expert executive talent assessor and recruiter. Your task is to analyze a candidate's complete application profile and generate a comprehensive, highly refined evaluation summary and hire recommendation.
+You are an expert executive talent assessor and technical recruiter. Your task is to analyze a candidate's complete application profile and generate a comprehensive, highly refined evaluation summary and hire recommendation.
 
 === CANDIDATE PROFILE ===
 Name: ${candidateName}
@@ -101,21 +156,28 @@ ${resumeAnalysisText}
 === SKILL ASSESSMENT TRANSCRIPT ===
 ${assessmentDetails}
 
-=== AI INTERVIEW TRANSCRIPT ===
+=== CODING ASSESSMENT TRANSCRIPT ===
+${codingDetails}
+
+=== INTERVIEW TRANSCRIPT ===
 ${interviewDetails}
 Communication Delta Score: ${commDelta}
 Thinking Latency Score: ${thinkingLatency}
 Ownership Mindset Score: ${ownershipScore}
 
+=== PROCTORING AUDIT ===
+Total Proctoring Score: ${proctoringScore} (sum of all flag points)
+
 === TASK ===
-Analyze the details above to extract a professional, cohesive assessment. Write the summary in a constructive, objective, and professional tone.
+Analyze the candidate's complete performance: resume match, practical coding assessment performance (problem-solving velocity, test case pass rate, code quality, algorithms, and correctness), skill assessment, and interview transcripts.
+
 Provide the output ONLY as a JSON object with the following structure:
 {
-  "keyStrengths": ["Strength 1 (specific to their answers/experience)", "Strength 2...", "Strength 3..."],
-  "weaknesses": ["Weakness 1 (specific gaps/shortcomings)", "Weakness 2..."],
-  "areasToImprove": ["Area 1 (specific guidance on where they can upskill)", "Area 2..."],
-  "communication": "Provide a concise assessment of the candidate's communication style, articulation, and clarity based on their interview transcript and communication metrics.",
-  "overallSummary": "A highly refined, professional 3-4 sentence overall summary of the candidate's profile, assessment performance, and suitability for the role."
+  "keyStrengths": ["Strength 1 (specific to their answers, coding skills, or experience)", "Strength 2...", "Strength 3..."],
+  "weaknesses": ["Weakness 1 (specific technical gaps, failed test cases, or proctoring alerts)", "Weakness 2..."],
+  "areasToImprove": ["Area 1 (specific guidance on where they can upskill in coding/domain)", "Area 2..."],
+  "communication": "Provide a concise assessment of candidate communication style, or note if the role evaluation was primarily code-based.",
+  "overallSummary": "A highly refined, professional 3-4 sentence overall summary synthesizing the candidate's background, test results, integrity status, and hiring suitability for this role."
 }
 `;
 
@@ -269,18 +331,25 @@ Provide the output ONLY as a JSON object with the following structure:
 
         // Validate and clean up arrays
         const cleanArray = (arr) => Array.isArray(arr) ? arr.map(s => String(s).trim()).filter(Boolean) : [];
+        const weaknesses = cleanArray(parsed.weaknesses);
+
         const summaryObj = {
             keyStrengths: cleanArray(parsed.keyStrengths),
-            weaknesses: cleanArray(parsed.weaknesses),
+            weaknesses,
             areasToImprove: cleanArray(parsed.areasToImprove),
             communication: String(parsed.communication || '').trim(),
             overallSummary: String(parsed.overallSummary || '').trim(),
+            proctoringScore,
             calculatedAt: new Date()
         };
 
         // 7. Save to application
         application.recommendationSummary = summaryObj;
-        await application.save();
+        await Application.findByIdAndUpdate(
+            applicationId,
+            { $set: { recommendationSummary: summaryObj } },
+            { runValidators: false }
+        );
 
         console.log(`[RECOMMENDATION] Successfully generated and stored recommendation summary for application: ${applicationId}`);
         return res.json(summaryObj);

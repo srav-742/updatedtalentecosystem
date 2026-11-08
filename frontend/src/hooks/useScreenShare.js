@@ -1,18 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useScreenShare(options = {}) {
-  const { onStopped } = options;
+  const {
+    onStopped,
+    externalStream = null,
+    preserveOnUnmount = false,
+    onStarted = null,
+  } = options;
 
-  const [isSharing, setIsSharing] = useState(false);
+  const initialTrack = externalStream?.getVideoTracks?.()[0];
+  const isInitiallyActive = Boolean(initialTrack && initialTrack.readyState === "live");
+
+  const [isSharing, setIsSharing] = useState(isInitiallyActive);
   const [error, setError] = useState(null);
 
-  const streamRef = useRef(null);
-  const callbacksRef = useRef({ onStopped });
+  const streamRef = useRef(externalStream || null);
+  const callbacksRef = useRef({ onStopped, onStarted });
   const silentStopRef = useRef(false);
+  const preserveOnUnmountRef = useRef(preserveOnUnmount);
 
   useEffect(() => {
     callbacksRef.current.onStopped = onStopped;
-  }, [onStopped]);
+    callbacksRef.current.onStarted = onStarted;
+  }, [onStopped, onStarted]);
+
+  useEffect(() => {
+    preserveOnUnmountRef.current = preserveOnUnmount;
+  }, [preserveOnUnmount]);
 
   const clearCurrentStream = useCallback(() => {
     streamRef.current = null;
@@ -30,6 +44,20 @@ export function useScreenShare(options = {}) {
       callbacksRef.current.onStopped?.();
     }
   }, [clearCurrentStream]);
+
+  useEffect(() => {
+    if (externalStream) {
+      const track = externalStream.getVideoTracks?.()[0];
+      if (track && track.readyState === "live") {
+        streamRef.current = externalStream;
+        setIsSharing(true);
+        track.addEventListener("ended", handleTrackEnded, { once: true });
+        return () => {
+          track.removeEventListener("ended", handleTrackEnded);
+        };
+      }
+    }
+  }, [externalStream, handleTrackEnded]);
 
   const stopScreenShare = useCallback((options = {}) => {
     const { silent = false } = options;
@@ -82,6 +110,7 @@ export function useScreenShare(options = {}) {
 
       setIsSharing(true);
       setError(null);
+      callbacksRef.current.onStarted?.(stream);
       return true;
     } catch (err) {
       setError(
@@ -99,13 +128,16 @@ export function useScreenShare(options = {}) {
 
   useEffect(() => {
     return () => {
-      stopScreenShare({ silent: true });
+      if (!preserveOnUnmountRef.current) {
+        stopScreenShare({ silent: true });
+      }
     };
   }, [stopScreenShare]);
 
   return {
     isSharing,
     error,
+    stream: streamRef.current,
     startScreenShare,
     stopScreenShare,
     clearError,

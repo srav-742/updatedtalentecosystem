@@ -1,12 +1,110 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { useNoiseDetector } from '../../../hooks/useNoiseDetector';
+import NoiseWarningOverlay from '../../../components/NoiseWarningOverlay';
 
-const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
+const isDisplayTrack = (t) => {
+    if (!t) return false;
+    const settings = t.getSettings ? t.getSettings() : {};
+    if (settings.displaySurface) return true;
+    const label = (t.label || '').toLowerCase();
+    return label.includes('screen') || label.includes('monitor') || label.includes('window') || label.includes('display');
+};
+
+const isCameraTrack = (t) => {
+    if (!t || t.kind !== 'video') return false;
+    if (isDisplayTrack(t)) return false;
+    return t.readyState === 'live';
+};
+
+const getCameraTrack = (stream) => {
+    if (!stream) return null;
+    const tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+    const liveCam = tracks.find(isCameraTrack);
+    if (liveCam) return liveCam;
+    const nonDisplay = tracks.find(t => t.readyState === 'live' && !(t.getSettings?.().displaySurface));
+    if (nonDisplay) return nonDisplay;
+    return tracks.find(t => t.readyState === 'live') || null;
+};
+
+// ── Voice Wave Visualizer Component ──────────────────────────────────────────
+const VoiceVisualizer = ({ isRecording }) => {
+    // 24 animated wave bars with varying harmonic heights and speeds
+    const bars = [
+        { duration: 0.6, delay: 0.05, h: ['20%', '85%', '35%', '95%', '20%'] },
+        { duration: 0.75, delay: 0.15, h: ['30%', '65%', '90%', '45%', '30%'] },
+        { duration: 0.55, delay: 0.1, h: ['25%', '95%', '40%', '80%', '25%'] },
+        { duration: 0.7, delay: 0.2, h: ['35%', '100%', '55%', '90%', '35%'] },
+        { duration: 0.8, delay: 0.08, h: ['20%', '70%', '100%', '50%', '20%'] },
+        { duration: 0.5, delay: 0.25, h: ['40%', '85%', '60%', '100%', '40%'] },
+        { duration: 0.85, delay: 0.12, h: ['25%', '90%', '35%', '75%', '25%'] },
+        { duration: 0.6, delay: 0.3, h: ['45%', '100%', '65%', '95%', '45%'] },
+        { duration: 0.7, delay: 0.05, h: ['30%', '80%', '45%', '100%', '30%'] },
+        { duration: 0.55, delay: 0.18, h: ['35%', '95%', '55%', '85%', '35%'] },
+        { duration: 0.65, delay: 0.22, h: ['25%', '75%', '100%', '60%', '25%'] },
+        { duration: 0.75, delay: 0.14, h: ['35%', '90%', '45%', '100%', '35%'] },
+        { duration: 0.5, delay: 0.07, h: ['20%', '85%', '60%', '90%', '20%'] },
+        { duration: 0.6, delay: 0.26, h: ['40%', '100%', '50%', '80%', '40%'] },
+        { duration: 0.7, delay: 0.11, h: ['25%', '70%', '95%', '45%', '25%'] },
+        { duration: 0.8, delay: 0.19, h: ['35%', '90%', '60%', '100%', '35%'] },
+        { duration: 0.55, delay: 0.09, h: ['20%', '80%', '40%', '95%', '20%'] },
+        { duration: 0.65, delay: 0.23, h: ['30%', '95%', '70%', '85%', '30%'] },
+        { duration: 0.75, delay: 0.16, h: ['20%', '65%', '90%', '40%', '20%'] },
+        { duration: 0.6, delay: 0.28, h: ['30%', '85%', '50%', '100%', '30%'] },
+        { duration: 0.7, delay: 0.13, h: ['25%', '75%', '90%', '45%', '25%'] },
+        { duration: 0.55, delay: 0.21, h: ['35%', '95%', '60%', '85%', '35%'] },
+        { duration: 0.8, delay: 0.06, h: ['20%', '80%', '45%', '100%', '20%'] },
+        { duration: 0.65, delay: 0.17, h: ['30%', '90%', '55%', '75%', '30%'] }
+    ];
+
+    return (
+        <div className="flex items-center justify-center gap-1 h-10 px-2">
+            {bars.map((bar, i) => (
+                <motion.div
+                    key={i}
+                    animate={
+                        isRecording
+                            ? { height: bar.h, opacity: 1 }
+                            : { height: '4px', opacity: 0.35 }
+                    }
+                    transition={
+                        isRecording
+                            ? {
+                                  repeat: Infinity,
+                                  repeatType: 'reverse',
+                                  duration: bar.duration,
+                                  delay: bar.delay,
+                                  ease: 'easeInOut'
+                              }
+                            : { duration: 0.3 }
+                    }
+                    className={`w-1 min-w-[3px] rounded-full flex-shrink-0 transition-colors duration-300 ${
+                        isRecording
+                            ? 'bg-gradient-to-t from-red-600 via-rose-500 to-amber-400'
+                            : 'bg-gray-300'
+                    }`}
+                    style={{ minHeight: isRecording ? '8px' : '4px', maxHeight: '36px' }}
+                />
+            ))}
+        </div>
+    );
+};
+
+const AIInterview = ({
+    job,
+    user,
+    onComplete,
+    onSecurityReset,
+    sharedStream = null,
+    sharedScreenStream = null,
+    setSharedScreenStream = null,
+    ...rest
+}) => {
     const [step, setStep] = useState('ready');
     const [sessionId, setSessionId] = useState(null);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -15,6 +113,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     const [recording, setRecording] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [answerSubmitted, setAnswerSubmitted] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState(null);
     const [finalScore, setFinalScore] = useState(null);
@@ -29,7 +128,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
     // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
     // receives the correct stream via props and triggers a proper re-render
-    const [cameraStreamState, setCameraStreamState] = useState(null);
+    const [cameraStreamState, setCameraStreamState] = useState(sharedStream || null);
 
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
@@ -38,7 +137,126 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
-    const fullSessionStreamRef = useRef(null);
+    const fullSessionStreamRef = useRef(sharedStream || null);
+    const miniCamVideoRef = useRef(null);
+
+    useEffect(() => {
+        if (sharedStream && !fullSessionStreamRef.current) {
+            fullSessionStreamRef.current = sharedStream;
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
+        }
+        if (sharedScreenStream) {
+            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
+            if (screenTrack && screenTrack.readyState === 'live') {
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
+                if (!existing) {
+                    fullSessionStreamRef.current.addTrack(screenTrack);
+                }
+            }
+        }
+    }, [sharedStream, sharedScreenStream]);
+
+    // Keep camera stream state synced with the sharedStream prop
+    useEffect(() => {
+        if (sharedStream) {
+            fullSessionStreamRef.current = sharedStream;
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
+        }
+    }, [sharedStream]);
+
+    const cameraAcquiringRef = useRef(false);
+
+    // Auto-acquire / maintain candidate webcam feed if missing or inactive
+    useEffect(() => {
+        let isMounted = true;
+
+        const ensureCameraActive = async () => {
+            const currentCam = getCameraTrack(cameraStreamState);
+            if (currentCam && currentCam.readyState === 'live') {
+                return;
+            }
+
+            const sharedCam = getCameraTrack(sharedStream);
+            if (sharedCam && sharedCam.readyState === 'live') {
+                if (isMounted) {
+                    setCameraStreamState(sharedStream);
+                }
+                return;
+            }
+
+            if (cameraAcquiringRef.current) return;
+            cameraAcquiringRef.current = true;
+
+            try {
+                let stream = null;
+                // 1. First try requesting video + audio
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+                } catch (audioVideoErr) {
+                    // 2. If microphone is in use or audio constraint fails, fall back to video only
+                    console.warn("[AIInterview] Video+audio getUserMedia failed, retrying video only:", audioVideoErr);
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: false
+                    });
+                }
+
+                if (!stream) return;
+
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                stream.getTracks().forEach(track => {
+                    const existing = fullSessionStreamRef.current.getTracks().some(t => t.id === track.id);
+                    if (!existing) {
+                        fullSessionStreamRef.current.addTrack(track);
+                    }
+                });
+
+                if (isMounted) {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }
+            } catch (err) {
+                console.warn("[AIInterview] Camera auto-init error:", err);
+            } finally {
+                cameraAcquiringRef.current = false;
+            }
+        };
+
+        ensureCameraActive();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [cameraStreamState, sharedStream, setSharedStream, step]);
+
+    // Keep mini webcam preview bound and playing
+    useEffect(() => {
+        const videoEl = miniCamVideoRef.current;
+        if (!videoEl) return;
+
+        const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+        if (camTrack && camTrack.readyState === 'live') {
+            const currentTrackId = videoEl.srcObject?.getVideoTracks?.()[0]?.id;
+            if (currentTrackId !== camTrack.id) {
+                videoEl.srcObject = new MediaStream([camTrack]);
+            }
+            videoEl.play().catch(() => {});
+        }
+    }, [cameraStreamState, sharedStream, step]);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -53,6 +271,14 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     // AI state for interaction: 'idle' | 'speaking' | 'listening' | 'processing'
     const [coreState, setCoreState] = useState('idle');
     const latestTranscriptRef = useRef('');
+
+    // ── Noise / disturbance detection ────────────────────────────────────────
+    // Runs only while the candidate is listening/idle (not while AI is speaking)
+    // Uses the already-open fullSessionStreamRef — no new getUserMedia call.
+    const noiseDetector = useNoiseDetector(
+        step === 'interview' ? fullSessionStreamRef.current : null,
+        { enabled: step === 'interview' && coreState !== 'speaking' }
+    );
     // Accumulates ALL finalized speech segments across SpeechRecognition restarts
     // so the full answer is never lost when the API auto-restarts
     const confirmedTranscriptRef = useRef('');
@@ -136,6 +362,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 { type: blobType }
             );
             const url = URL.createObjectURL(audioBlob);
+            
+            // Clear error listener before pausing/resetting to prevent unwanted triggers
+            audioPlayerRef.current.onerror = null;
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
 
@@ -162,7 +391,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.playbackRate = 0.95; // Gentle, measured pace — not too slow
-            audioPlayerRef.current.play().catch(speakInBrowser);
+            audioPlayerRef.current.play().catch((err) => {
+                // Ignore AbortError caused by normal play interruptions
+                if (err && err.name !== 'AbortError') {
+                    speakInBrowser();
+                }
+            });
         } catch (err) {
             speakInBrowser();
         }
@@ -199,7 +433,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             // Create a clean record stream with 1 video track and 1 audio track to prevent MediaRecorder multiple video track errors
             const recordTracks = [];
-            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+            const camVideoTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
             const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
 
             let recordingAudioTrack = audioTrack;
@@ -245,7 +479,13 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
             const recordStream = new MediaStream(recordTracks);
 
-            const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            let fullSessionRecorder;
+            try {
+                fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            } catch (mimeErr) {
+                console.warn("[MediaRecorder] Failed to initialize with options, trying default constructor:", mimeErr);
+                fullSessionRecorder = new MediaRecorder(recordStream);
+            }
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
             chunkUploadsRef.current = [];
@@ -296,8 +536,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         const formData = new FormData();
-        formData.append('userId', user.uid);
-        formData.append('jobId', job._id);
+        formData.append('userId', user?.uid || user?._id || user?.id || '');
+        formData.append('jobId', job?._id || job?.id || '');
         formData.append('recordingSessionId', activeRecordingSessionId || '');
         formData.append(
             'recording',
@@ -327,8 +567,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     // The actual merge+upload happens in the background on the server.
                     const response = await axios.post(`${API_URL}/finalize-recording`, {
                         sessionId: recordingSessionId || sessionId,
-                        userId: user.uid,
-                        jobId: job._id
+                        userId: user?.uid || user?._id || user?.id || '',
+                        jobId: job?._id || job?.id || ''
                     });
                     resolve(response.data);
                 } catch (err) {
@@ -353,8 +593,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         setStep('loading');
         try {
             const res = await axios.post(`${API_URL}/interview/start`, {
-                jobId: job._id,
-                userId: user.uid
+                jobId: job?._id || job?.id || '',
+                userId: user?.uid || user?._id || user?.id || ''
             });
             const firstQuestion = normalizeQuestionText(res.data.question);
             const activeSessionId = res.data.sessionId;
@@ -409,10 +649,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 setTranscript('');
                 setError(null);
                 setDisplayText('');
+                setAnswerSubmitted(false);
                 playAudio(nextRes.data.audio, nextQuestion, nextRes.data.audioMimeType);
             }
         } catch (err) {
             setError(err.message || "Response processing error.");
+            setAnswerSubmitted(false);
             setCoreState('idle');
         } finally {
             setProcessing(false);
@@ -443,6 +685,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             }
 
             setRecording(false);
+            setAnswerSubmitted(true);
             setCoreState('processing');
             // Remove setProcessing(true) here as it causes a race condition inside submitUserAnswer
             return;
@@ -450,6 +693,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
         try {
             isRecordingRef.current = true;
+            setAnswerSubmitted(false);
             setTranscript('');
             latestTranscriptRef.current = '';
             // Reset confirmed transcript for this new answer
@@ -500,11 +744,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                             
                             // Check for standard Whisper hallucinations/fallbacks
                             const invalidWhisperPhrases = [
-                                "thank you", "e ai", "legend by", "watching", "by subtitle", 
-                                "subtitles by", "english subtitles", "you", "e aí",
+                                "thank you", "thank you for watching", "thanks for watching", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí", "amaraorg", "subtitles", "subscribe",
                                 "i am describing my technical experience and relevant skills for this specific role"
                             ];
-                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper);
+                            const nonEnglishRegex = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/;
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper) || nonEnglishRegex.test(whisperText);
 
                             if (!isWhisperInvalid) {
                                 // Prefer whichever transcript has more text content to avoid truncating candidate answers
@@ -519,6 +764,17 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         }
                     } catch (e) {
                         console.error("Audio upload/STT failed:", e);
+                    }
+
+                    if (answerText) {
+                        answerText = answerText
+                            .replace(/[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/g, '')
+                            .replace(/\b(uh|um|okey|hmm+|hmmm+|er+)\b/gi, '')
+                            .replace(/^(yeah|yea|ah|oh)\b[,\s]*/gi, '')
+                            .replace(/\b(yeah|yea)\b/gi, 'yes')
+                            .replace(/^(okey|okay)\b[,\s]*/gi, '')
+                            .replace(/\s{2,}/g, ' ')
+                            .trim();
                     }
 
                     if (!answerText || answerText.trim().length < 2) {
@@ -558,40 +814,42 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                     rec.lang = 'en-US';
                     rec.continuous = true;
                     rec.interimResults = true;
+                    rec.maxAlternatives = 1;
+
+                    // Track finalized words within this recognition session separately
+                    let sessionFinalText = '';
 
                     rec.onresult = (e) => {
-                        // Process only new results from e.resultIndex to avoid
-                        // reprocessing old results after a recognition restart
-                        let newFinalText = '';
+                        // Walk only from e.resultIndex to pick up the new/changed result
                         let interimText = '';
                         for (let i = e.resultIndex; i < e.results.length; i++) {
-                            const r = e.results[i];
-                            if (r.isFinal) {
-                                newFinalText += r[0].transcript;
+                            const resultText = e.results[i][0].transcript;
+                            if (e.results[i].isFinal) {
+                                sessionFinalText += resultText + ' ';
                             } else {
-                                interimText += r[0].transcript;
+                                interimText = resultText;
                             }
                         }
-                        // Append finalized text to cross-restart accumulator
-                        if (newFinalText) {
-                            confirmedTranscriptRef.current = (confirmedTranscriptRef.current + ' ' + newFinalText).trim();
-                        }
-                        // Full display = all confirmed text + current interim
-                        const full = (confirmedTranscriptRef.current + ' ' + interimText).trim();
+                        // Combine: previous sessions' confirmed text + this session's finals + current interim
+                        const prevText = confirmedTranscriptRef.current ? confirmedTranscriptRef.current + ' ' : '';
+                        const full = (prevText + sessionFinalText + interimText).trim();
                         setTranscript(full);
                         latestTranscriptRef.current = full;
                     };
 
                     rec.onerror = (ev) => {
+                        console.warn("[SpeechRec] Error:", ev.error);
                         if (ev.error === 'aborted') return;
-                        if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 300);
-                        }
                     };
 
                     rec.onend = () => {
+                        // Save this session's full text as confirmed before restarting
+                        if (latestTranscriptRef.current) {
+                            confirmedTranscriptRef.current = latestTranscriptRef.current;
+                        }
                         if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 150);
+                            if (recognitionTimeoutRef.current) clearTimeout(recognitionTimeoutRef.current);
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 100);
                         }
                     };
 
@@ -692,17 +950,51 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         stopStreamTracks(answerStreamRef.current);
         answerStreamRef.current = null;
 
+        const activeRecId = recordingSessionId || sessionId;
+
         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-            fullSessionRecorderRef.current.onstop = null;
-            fullSessionRecorderRef.current.onerror = null;
-            fullSessionRecorderRef.current.stop();
+            const recorder = fullSessionRecorderRef.current;
+            recorder.onstop = async () => {
+                try {
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
+                    }
+                    if (activeRecId) {
+                        await axios.post(`${API_URL}/finalize-recording`, {
+                            sessionId: activeRecId,
+                            userId: user?.uid || user?._id || user?.id || '',
+                            jobId: job?._id || job?.id || ''
+                        });
+                    }
+                } catch (err) {
+                    console.error("Finalization failed on security reset:", err);
+                } finally {
+                    stopStreamTracks(fullSessionStreamRef.current);
+                    if (mixedStreamDestRef.current) {
+                        stopStreamTracks(mixedStreamDestRef.current.stream);
+                        mixedStreamDestRef.current = null;
+                    }
+                    fullSessionStreamRef.current = null;
+                    fullSessionRecorderRef.current = null;
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
+                }
+            };
+            try { recorder.stop(); } catch (_) {}
+        } else {
+            stopStreamTracks(fullSessionStreamRef.current);
+            if (mixedStreamDestRef.current) {
+                stopStreamTracks(mixedStreamDestRef.current.stream);
+                mixedStreamDestRef.current = null;
+            }
+            fullSessionStreamRef.current = null;
+            fullSessionRecorderRef.current = null;
         }
 
-        stopStreamTracks(fullSessionStreamRef.current);
-        if (mixedStreamDestRef.current) {
-            stopStreamTracks(mixedStreamDestRef.current.stream);
-            mixedStreamDestRef.current = null;
-        }
         if (audioContextRef.current) {
             try {
                 audioContextRef.current.close();
@@ -710,8 +1002,6 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
             audioContextRef.current = null;
         }
         mediaElementSourceRef.current = null;
-        fullSessionStreamRef.current = null;
-        fullSessionRecorderRef.current = null;
 
         await onSecurityReset?.({
             stage: 'interview',
@@ -791,8 +1081,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     }
 
     if (step === 'lobby') {
-        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+        const hasCamera = Boolean(getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState));
+        const hasScreen = Boolean(fullSessionStreamRef.current?.getVideoTracks().some(isDisplayTrack) || sharedScreenStream?.getVideoTracks().some(isDisplayTrack));
 
         return (
             <div className="max-w-4xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl">
@@ -808,8 +1098,14 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                            if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            const camTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
+                                            if (camTrack && camTrack.readyState === 'live') {
+                                                const stream = new MediaStream([camTrack]);
+                                                if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                    el.srcObject = stream;
+                                                    el.play().catch(() => {});
+                                                }
+                                            }
                                         }
                                     }}
                                     className="w-full h-full object-cover"
@@ -824,16 +1120,25 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         <button 
                             onClick={async () => {
                                 try {
-                                    const camStream = await navigator.mediaDevices.getUserMedia({ 
-                                        video: { width: 1280, height: 720 },
-                                        audio: { echoCancellation: true, noiseSuppression: true }
-                                    });
+                                    let camStream = null;
+                                    try {
+                                        camStream = await navigator.mediaDevices.getUserMedia({ 
+                                            video: { width: 1280, height: 720 },
+                                            audio: { echoCancellation: true, noiseSuppression: true }
+                                        });
+                                    } catch (audioErr) {
+                                        camStream = await navigator.mediaDevices.getUserMedia({ 
+                                            video: { width: 1280, height: 720 },
+                                            audio: false
+                                        });
+                                    }
                                     if (!fullSessionStreamRef.current) {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     camStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
                                     // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
+                                    setCameraStreamState(camStream);
+                                    setSharedStream?.(camStream);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Camera access denied."); }
                             }}
@@ -852,7 +1157,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+                                            const screenTrack = fullSessionStreamRef.current?.getVideoTracks().find(isDisplayTrack) || sharedScreenStream?.getVideoTracks().find(isDisplayTrack);
                                             if (screenTrack) el.srcObject = new MediaStream([screenTrack]);
                                         }
                                     }}
@@ -873,8 +1178,7 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
-                                    // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
+                                    setSharedScreenStream?.(screenStream);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Screen share denied."); }
                             }}
@@ -921,12 +1225,16 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
     if (step === 'interview') {
         return (
             <SecureExamWrapper
-                examId={`interview:${job._id}:${recordingSessionId || sessionId || 'pending'}`}
-                userId={user.uid}
+                examId={`interview:${job?._id || job?.id || 'job'}:${recordingSessionId || sessionId || 'pending'}`}
+                userId={user?.uid || user?._id || user?.id || ''}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
                 requireCamera={true}
                 cameraStream={cameraStreamState}
+                onCameraReady={(stream) => {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }}
                 showWebcamPreview={false}
                 isAnswering={coreState === 'listening'}
                 warningLimit={3}
@@ -951,14 +1259,21 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            if(el && fullSessionStreamRef.current) {
-                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                                if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            miniCamVideoRef.current = el;
+                                            if (el) {
+                                                const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+                                                if (camTrack && camTrack.readyState === 'live') {
+                                                    if (!el.srcObject || el.srcObject.getVideoTracks?.()[0]?.id !== camTrack.id) {
+                                                        el.srcObject = new MediaStream([camTrack]);
+                                                    }
+                                                    el.play().catch(() => {});
+                                                }
                                             }
                                         }}
-                                        className="w-full h-full object-cover mirrored"
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: "scaleX(-1)" }}
                                     />
-                                    {!fullSessionStreamRef.current && (
+                                    {!(getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current)) && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>
@@ -1008,35 +1323,112 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
 
                     {/* Interaction Section */}
                     <div className="flex flex-col items-center gap-6">
-                        <div className="flex items-center gap-8">
+                        <div className="flex flex-wrap items-center justify-center gap-6 p-4 rounded-3xl bg-white border border-gray-100 shadow-sm">
+                            {/* Mic Button */}
                             <motion.button
-                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                whileHover={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 1.05 }}
+                                whileTap={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 0.95 }}
                                 onClick={toggleRecording}
-                                disabled={processing || !displayText}
-                                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
-                                    ? 'bg-red-500 text-white shadow-red-500/30'
-                                    : !displayText ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-white text-indigo-600 border border-gray-200 hover:bg-indigo-50'
+                                disabled={processing || !displayText || coreState === 'speaking' || answerSubmitted}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 flex-shrink-0 ${
+                                    answerSubmitted
+                                        ? 'bg-emerald-500 text-white shadow-emerald-500/30 ring-4 ring-emerald-100'
+                                        : recording
+                                        ? 'bg-red-600 text-white shadow-red-600/40 ring-4 ring-red-200'
+                                        : (!displayText || coreState === 'speaking')
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none border border-gray-200'
+                                        : 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-red-100/50'
                                     }`}
                             >
-                                {recording ? <StopCircle size={32} /> : <Mic size={32} />}
+                                {answerSubmitted ? (
+                                    <Check size={32} className="text-white stroke-[2.5]" />
+                                ) : recording ? (
+                                    <StopCircle size={32} className="text-white animate-pulse" />
+                                ) : (
+                                    <Mic size={32} className={(!displayText || coreState === 'speaking') ? 'text-gray-400' : 'text-red-600'} />
+                                )}
                             </motion.button>
 
-                            <div className="flex flex-col">
+                            {/* Voice Wave (BESIDE the button: zero at initial state, up-and-down when speaking) */}
+                            <div className="flex flex-col justify-center px-4 py-2 border-l border-r border-gray-100 min-w-[200px]">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 flex items-center gap-1.5">
+                                    {recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            <span className="text-red-600">Voice Wave • Active</span>
+                                        </>
+                                    ) : answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            <span className="text-emerald-600">Voice Wave • Captured</span>
+                                        </>
+                                    ) : (
+                                        <span>Voice Wave • Idle</span>
+                                    )}
+                                </span>
+                                <VoiceVisualizer isRecording={recording} />
+                            </div>
+
+                            {/* Current State */}
+                            <div className="flex flex-col pr-2 min-w-[170px]">
                                 <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Current State</span>
-                                <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
-                                    {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
+                                <span className={`text-sm font-medium flex items-center gap-2 ${
+                                    answerSubmitted
+                                        ? 'text-emerald-600'
+                                        : recording
+                                        ? 'text-red-600'
+                                        : 'text-gray-900'
+                                }`}>
+                                    {answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            Answer Submitted • Analyzing Response
+                                        </>
+                                    ) : recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            Recording Answer • Touch to Finish
+                                        </>
+                                    ) : processing ? (
+                                        'Analyzing response...'
+                                    ) : (
+                                        'Touch mic to speak'
+                                    )}
                                 </span>
                             </div>
                         </div>
 
                         {/* Transcript Preview */}
                         <AnimatePresence>
-                            {transcript && (
+                            {(recording || transcript || answerSubmitted || processing) && (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                    className="w-full max-w-2xl p-6 bg-gray-50 rounded-2xl border border-gray-200 italic font-light text-gray-700 text-center"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden"
                                 >
-                                    "{transcript}"
+                                    <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 flex items-center gap-2">
+                                        {recording ? (
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                        ) : answerSubmitted ? (
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        ) : null}
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
+                                            {recording ? 'Live Transcription' : 'Your Answer'}
+                                        </span>
+                                    </div>
+                                    <div className="p-4 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                        {transcript ? (
+                                            <p className="text-sm text-gray-700 font-light leading-relaxed text-left whitespace-pre-wrap break-words">
+                                                {transcript}
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-gray-400 italic text-center">
+                                                Listening... Start speaking and your words will appear here.
+                                            </p>
+                                        )}
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -1048,6 +1440,9 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                         </div>
                     )}
                 </div>
+
+                {/* ── Noise Disturbance Overlay ── */}
+                <NoiseWarningOverlay {...noiseDetector} />
             </SecureExamWrapper>
         );
     }
@@ -1060,8 +1455,8 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
                 feedback={feedback}
                 totalQuestions={5}
                 attemptedQuestions={currentQNum}
-                userId={user.uid}
-                jobId={job._id}
+                userId={user?.uid || user?._id || user?.id || ''}
+                jobId={job?._id || job?.id || ''}
                 interviewId={sessionId}
                 recordingNotice={recordingNotice}
                 onDone={() => onComplete({ interviewScore: finalScore })}
@@ -1069,7 +1464,12 @@ const AIInterview = ({ job, user, onComplete, onSecurityReset }) => {
         );
     }
 
-    return null;
+    return (
+        <div className="py-24 text-center">
+            <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 font-light tracking-wide italic">Preparing your interview session...</p>
+        </div>
+    );
 };
 
 export default AIInterview;

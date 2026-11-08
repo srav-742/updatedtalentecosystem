@@ -1,31 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, Zap, Briefcase } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { ApplicantsSkeleton } from '../../components/Skeleton';
-import AssessmentDetail from './AssessmentDetail';
-import InterviewDetail from './InterviewDetail';
+import AssessmentDetail, { prefetchAssessmentDetails } from './AssessmentDetail';
+import CodingAssessmentDetail, { prefetchCodingDetails } from './CodingAssessmentDetail';
+import InterviewDetail, { prefetchInterviewDetails } from './InterviewDetail';
 import ProctoringDetail from './ProctoringDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import './recruiter-theme.css';
 import TopUpModal from '../../components/TopUpModal';
 import ShareModal from '../../components/ShareModal';
+import RecruiterTranscriptPage from './RecruiterTranscriptPage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Applicants = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    
-    const userId = user.uid || user._id || user.id;
-    const storedClientId = localStorage.getItem('h1p_client_id');
-    // Prioritize active user ID so switching accounts automatically uses client_<userId>
-    const effectiveClientId = (userId ? `client_${userId}` : '') || storedClientId || '';
-    const effectiveClientSecret = (storedClientId === `client_${userId}` ? localStorage.getItem('h1p_client_secret') : null) || user.clientSecret || '';
-
     const [isPro, setIsPro] = useState(() => {
         const u = JSON.parse(localStorage.getItem('user') || '{}');
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
@@ -37,6 +33,8 @@ const Applicants = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchParams] = useSearchParams();
     const targetJobId = searchParams.get('jobId');
+
+    const userId = user.uid || user._id || user.id;
 
     // Fetch wallet balance
     const { data: walletBalance = user.walletBalance || 0 } = useQuery({
@@ -55,57 +53,35 @@ const Applicants = () => {
         queryFn: async () => {
             if (!userId) return null;
             const res = await axios.get(`${API_URL}/profile/${userId}`);
-            if (res.data) {
-                const isPremium = res.data.hiringPattern === "Premium Recruiter" || res.data.isPro === true;
-                setIsPro(isPremium);
-                return res.data;
-            }
-            return null;
+            return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId,
+        staleTime: 5 * 60 * 1000
     });
 
-    // Fetch recruiter's jobs to filter applicants
-    const { data: jobs = [], isLoading: loadingJobs } = useQuery({
-        queryKey: ['recruiterJobs', userId],
-        queryFn: async () => {
-            if (!userId) return [];
-            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
-            return res.data || [];
-        },
-        enabled: !!userId
-    });
+    useEffect(() => {
+        if (profile) {
+            const isPremium = profile.hiringPattern === "Premium Recruiter" || profile.isPro === true;
+            setIsPro(isPremium);
+            const updatedUser = { ...user, ...profile, isPro: isPremium, role: user.role };
+            try {
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+            } catch (e) {}
+        }
+    }, [profile]);
 
     // Fetch applicants list using React Query
-    const { data: rawApplicants = [], isLoading: loading, error } = useQuery({
+    const { data: rawApplicants = [], isLoading: loading } = useQuery({
         queryKey: ['applicants', userId],
         queryFn: async () => {
             if (!userId) return [];
-            
-            // Get session token directly from logged-in user session
-            const accessTokenUUID = localStorage.getItem('accessToken') || user.accessToken || user.token || '';
-
-            // Directly call backend via gateway on port 9090
-            try {
-                const res = await axios.get(`http://localhost:9090/backend_service/api/applications?recruiterId=${userId}`, {
-                    headers: {
-                        'ACCESS_TOKEN': accessTokenUUID
-                    }
-                });
-                return res.data;
-            } catch (err) {
-                if (err.response?.status === 403) {
-                    const forbidden = new Error('Forbidden');
-                    forbidden.status = 403;
-                    throw forbidden;
-                }
-                throw err;
-            }
+            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
+            return res.data;
         },
         enabled: !!userId,
-        retry: false
+        staleTime: 5 * 60 * 1000,
+        placeholderData: (previousData) => previousData
     });
-
 
     const applicants = useMemo(() => {
         let mapped = rawApplicants.map((app, index) => ({
@@ -121,20 +97,33 @@ const Applicants = () => {
             job: app.jobId?.title || 'Unknown Job',
             resumeScore: app.resumeMatchPercent,
             assessmentScore: app.assessmentScore,
+            codingScore: app.codingScore,
             interviewScore: app.interviewScore,
             ownershipScore: app.metrics?.ownershipMindset || 0,
             githubUrl: app.user?.githubUrl,
             linkedinUrl: app.user?.linkedinUrl,
             resumeUrl: app.user?.resumeUrl,
             finalScore: app.finalScore,
-            proctoringScore: app.proctoringScore || 0,
+            integrityPenalty: app.integrityPenalty !== undefined ? app.integrityPenalty : 0,
+            proctoringScore: app.proctoringScore !== undefined && app.proctoringScore !== null
+                ? app.proctoringScore
+                : (app.integrityScore !== undefined && app.integrityScore !== null
+                    ? app.integrityScore
+                    : (app.integrityPenalty > 0 ? Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)) : null)),
             proctoringFlags: app.proctoringFlags || [],
             status: app.status,
             teamFit: app.teamFit,
             videoIntroUrl: app.videoIntroUrl,
             resultsVisibleAt: app.resultsVisibleAt,
             interviewAnswerCount: app.interviewAnswers?.length || 0,
-            recordingStatus: app.recordingStatus || 'pending'
+            recordingStatus: app.recordingStatus || 'pending',
+            hasAssessment: app.jobId?.assessment?.enabled === true,
+            hasCoding: Boolean(app.jobId?.codingAssessment?.enabled === true || (app.jobId?.title && /python/i.test(app.jobId.title) && app.jobId?.codingAssessment?.enabled !== false)),
+            hasInterview: app.jobId?.mockInterview?.enabled !== false,
+            // Timestamps for "Recent Candidates" sorting
+            appliedAt: app.appliedAt,
+            recordingUploadedAt: app.recordingUploadedAt,
+            assessmentRecordingUploadedAt: app.assessmentRecordingUploadedAt
         }));
 
         if (targetJobId) {
@@ -186,6 +175,20 @@ const Applicants = () => {
         unlockMutation.mutate({ applicationId, itemType });
     };
 
+    const handleGrantRetest = async (applicationId, round) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await axios.post(`${API_URL}/applications/${applicationId}/grant-retest`, { round }, { headers });
+            if (res.data.success) {
+                alert(`Retest access granted for ${round}. The candidate can now retest this round from their dashboard.`);
+                queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+            }
+        } catch (err) {
+            console.error('Failed to grant retest access:', err);
+            alert('Failed to grant retest access. Please try again later.');
+        }
+    };
+
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
         if (storedUser.role !== 'recruiter' && storedUser.role !== 'admin') {
@@ -208,7 +211,7 @@ const Applicants = () => {
     const [filterVideo, setFilterVideo] = useState('All');
     const [minResumeScore, setMinResumeScore] = useState(0);
     const [minAssessmentScore, setMinAssessmentScore] = useState(0);
-    const [sortBy, setSortBy] = useState('none');
+    const [sortBy, setSortBy] = useState('finalScore');
     const [sortOrder, setSortOrder] = useState('desc');
 
     // Menu State
@@ -216,6 +219,7 @@ const Applicants = () => {
 
     // Assessment Detail Modal
     const [showAssessmentDetail, setShowAssessmentDetail] = useState(false);
+    const [showCodingDetail, setShowCodingDetail] = useState(false);
     const [selectedApplicationId, setSelectedApplicationId] = useState(null);
 
     // Interview Detail Modal
@@ -230,93 +234,101 @@ const Applicants = () => {
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [selectedVideoUrl, setSelectedVideoUrl] = useState(null);
     const [selectedVideoApplicationId, setSelectedVideoApplicationId] = useState(null);
+    const [selectedVideoCandidateName, setSelectedVideoCandidateName] = useState('');
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [shareApplicationId, setShareApplicationId] = useState(null);
     const [shareCandidateName, setShareCandidateName] = useState('');
 
     const handleShareInterview = (applicationId, candidateName) => {
         if (!applicationId) return;
-        const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
         const formattedCandidate = candidateName || 'Candidate';
-
-        if (navigator.share) {
-            navigator.share({
-                title: `AI Interview Review: ${formattedCandidate}`,
-                text: `Review candidate ${formattedCandidate}'s AI interview recording on hire1percent:`,
-                url: shareUrl
-            })
-            .then(() => console.log('Native share successful'))
-            .catch((err) => {
-                // If sharing was aborted/cancelled by user, ignore. Otherwise, fall back.
-                if (err.name !== 'AbortError') {
-                    console.error('Native share failed:', err);
-                    setShareApplicationId(applicationId);
-                    setShareCandidateName(formattedCandidate);
-                    setIsShareModalOpen(true);
-                }
-            });
-        } else {
-            setShareApplicationId(applicationId);
-            setShareCandidateName(formattedCandidate);
-            setIsShareModalOpen(true);
-        }
+        setShareApplicationId(applicationId);
+        setShareCandidateName(formattedCandidate);
+        setIsShareModalOpen(true);
     };
 
     // Generated Resume Modal
     const [showGeneratedResumeModal, setShowGeneratedResumeModal] = useState(false);
     const [selectedResumeUserId, setSelectedResumeUserId] = useState(null);
 
+    // Candidate Evaluation Report In-Page View Modal
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [selectedReportApplicationId, setSelectedReportApplicationId] = useState(null);
+
     // Bulk Resume Upload Modal
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
-
     // Handle Filters and Sorting
-    const filteredApplicants = applicants
-        .filter(app => {
-            // 1. Text Search Filter
-            const term = searchTerm.toLowerCase();
-            const matchesSearch = !term ||
-                app.name.toLowerCase().includes(term) ||
-                app.job.toLowerCase().includes(term) ||
-                app.email.toLowerCase().includes(term);
+    const filteredApplicants = useMemo(() => {
+        return applicants
+            .filter(app => {
+                // 1. Text Search Filter
+                const term = searchTerm.toLowerCase();
+                const matchesSearch = !term ||
+                    app.name.toLowerCase().includes(term) ||
+                    app.job.toLowerCase().includes(term) ||
+                    app.email.toLowerCase().includes(term);
 
-            // 2. Status Filter
-            const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
+                // 2. Status Filter
+                const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
 
-            // 3. Video Intro Filter
-            const matchesVideo = filterVideo === 'All' ||
-                (filterVideo === 'Yes' && app.videoIntroUrl) ||
-                (filterVideo === 'No' && !app.videoIntroUrl);
+                // 3. Video Intro Filter
+                const matchesVideo = filterVideo === 'All' ||
+                    (filterVideo === 'Yes' && app.videoIntroUrl) ||
+                    (filterVideo === 'No' && !app.videoIntroUrl);
 
-            // 5. Resume Score Filter
-            const matchesResume = app.resumeScore >= minResumeScore;
+                // 5. Resume Score Filter
+                const matchesResume = app.resumeScore >= minResumeScore;
 
-            // 6. Assessment Score Filter
-            const matchesAssessment = minAssessmentScore === 0 ||
-                (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
+                // 6. Assessment Score Filter
+                const matchesAssessment = minAssessmentScore === 0 ||
+                    (app.assessmentScore !== null && app.assessmentScore !== undefined && app.assessmentScore >= minAssessmentScore);
 
-            return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
-        })
-        .sort((a, b) => {
-            if (sortBy === 'none') return 0;
-            
-            let valA = a[sortBy];
-            let valB = b[sortBy];
-            
-            if (valA === null || valA === undefined) valA = -1;
-            if (valB === null || valB === undefined) valB = -1;
-            
-            return sortOrder === 'desc' ? valB - valA : valA - valB;
-        });
+                return matchesSearch && matchesStatus && matchesVideo && matchesResume && matchesAssessment;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'recentActivity') {
+                    const getLatestActivity = (app) => {
+                        const dates = [
+                            app.appliedAt,
+                            app.resultsVisibleAt,
+                            app.recordingUploadedAt,
+                            app.assessmentRecordingUploadedAt
+                        ].filter(Boolean).map(d => new Date(d).getTime());
+                        return dates.length > 0 ? Math.max(...dates) : 0;
+                    };
+                    return sortOrder === 'desc'
+                        ? getLatestActivity(b) - getLatestActivity(a)
+                        : getLatestActivity(a) - getLatestActivity(b);
+                }
+                if (sortBy === 'none') {
+                    let valA = a.finalScore;
+                    let valB = b.finalScore;
+                    if (valA === null || valA === undefined) valA = -1;
+                    if (valB === null || valB === undefined) valB = -1;
+                    return valB - valA;
+                }
+                
+                let valA = a[sortBy];
+                let valB = b[sortBy];
+                
+                if (valA === null || valA === undefined) valA = -1;
+                if (valB === null || valB === undefined) valB = -1;
+                
+                return sortOrder === 'desc' ? valB - valA : valA - valB;
+            });
+    }, [applicants, searchTerm, filterStatus, filterVideo, minResumeScore, minAssessmentScore, sortBy, sortOrder]);
 
     // Group filtered applicants by job title
-    const groupedApplicants = filteredApplicants.reduce((acc, app) => {
-        const jobTitle = app.job || 'Unknown Job';
-        if (!acc[jobTitle]) {
-            acc[jobTitle] = [];
-        }
-        acc[jobTitle].push(app);
-        return acc;
-    }, {});
+    const groupedApplicants = useMemo(() => {
+        return filteredApplicants.reduce((acc, app) => {
+            const jobTitle = app.job || 'Unknown Job';
+            if (!acc[jobTitle]) {
+                acc[jobTitle] = [];
+            }
+            acc[jobTitle].push(app);
+            return acc;
+        }, {});
+    }, [filteredApplicants]);
 
     // Handle Status Update
     const handleStatusUpdate = async (id, newStatus) => {
@@ -344,6 +356,16 @@ const Applicants = () => {
         }
         setSelectedApplicationId(applicationId);
         setShowAssessmentDetail(true);
+    };
+
+    // Handle View Coding Assessment
+    const handleViewCodingAssessment = (applicationId, isAssessmentLocked) => {
+        if (isAssessmentLocked) {
+            setUnlockingItem({ id: applicationId, type: 'assessment', cost: 5 });
+            return;
+        }
+        setSelectedApplicationId(applicationId);
+        setShowCodingDetail(true);
     };
 
     // Handle View Interview
@@ -407,114 +429,83 @@ const Applicants = () => {
         };
     };
 
-    if (loadingJobs || loading) {
-        return <ApplicantsSkeleton />;
-    }
-
-    if (jobs.length === 0) {
-        return (
-            <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900 animate-in fade-in duration-300">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none" />
-                <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-6 border border-blue-500/20">
-                    <Briefcase className="w-8 h-8" />
-                </div>
-                <h2 className="text-2xl font-bold mb-3">Post a Job to View Applicants</h2>
-                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-                    You haven't posted any jobs yet. Post a job first to start receiving and viewing candidate applications.
-                </p>
-                <button
-                    type="button"
-                    onClick={() => navigate('/recruiter/post-job')}
-                    className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
-                >
-                    Post a Job Now
-                </button>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35 }}
-                className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900"
-            >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[60px] rounded-full pointer-events-none" />
-                <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 border border-amber-500/20">
-                    <Zap className="w-8 h-8" />
-                </div>
-                <h2 className="text-2xl font-bold mb-3">Access Required</h2>
-                <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-                    You don't have access to view applicants. Contact the hire1percent team to get the access for viewing applicants.
-                </p>
-                <button
-                    onClick={() => queryClient.invalidateQueries({ queryKey: ['applicants'] })}
-                    className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
-                >
-                    Check Access Again
-                </button>
-            </motion.div>
-        );
-    }
-
     return (
         <div className="space-y-8 min-h-[80vh]" onClick={() => setActiveMenuId(null)}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-3xl font-bold mb-2">Applicants</h1>
-                    <p className="text-gray-400">Review and shortlist candidates based on skill match scores.</p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search applicants..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all w-64 text-sm font-medium"
-                        />
-                    </div>
-                    {targetJobId && (
-                        <button
-                            onClick={() => setUploadModalOpen(true)}
-                            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-                        >
-                            <UploadCloud size={16} />
-                            Bulk Upload
-                        </button>
-                    )}
-                    {/* Wallet balance display pill */}
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 shadow-lg shadow-black/5">
-                        <Wallet size={16} className="text-blue-400" />
-                        <div className="text-xs font-semibold text-gray-300">
-                            Wallet: <span className="text-white font-extrabold">₹{walletBalance.toFixed(2)}</span>
+            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
+                                Talent Review
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                                {filteredApplicants.length} Candidates Found
+                            </span>
                         </div>
-                        <button 
-                            onClick={() => setIsTopUpOpen(true)}
-                            className="ml-1.5 p-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors border border-blue-500/20 cursor-pointer"
-                            title="Top Up Wallet"
-                        >
-                            <Plus size={12} />
-                        </button>
+                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
+                            Candidate <span className="rec-text-gradient">Applications</span>
+                        </h1>
+                        <p className="text-xs md:text-sm text-slate-600 max-w-xl font-normal line-clamp-1 md:line-clamp-none">
+                            Review AI-screened candidate matches, proctored coding performance, and interview evaluations.
+                        </p>
                     </div>
 
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm border transition-all ${
-                            showFilters
-                                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:border-white/20'
-                        }`}
-                    >
-                        <Filter size={16} />
-                        Filters
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                        {/* Search Input */}
+                        <div className="relative min-w-[190px] md:min-w-[210px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="rec-input pl-8.5 pr-3 py-2 text-xs w-full rounded-xl"
+                            />
+                        </div>
+
+                        {targetJobId && (
+                            <button
+                                onClick={() => setUploadModalOpen(true)}
+                                className="rec-btn-primary px-3.5 py-2 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded-xl shadow-xs cursor-pointer"
+                            >
+                                <UploadCloud size={14} />
+                                <span>Bulk Upload</span>
+                            </button>
+                        )}
+
+                        {/* Wallet balance display pill */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                            <Wallet size={14} className="text-slate-500" />
+                            <div className="text-xs font-semibold text-slate-700">
+                                ₹<span className="font-bold text-slate-900">{walletBalance.toFixed(2)}</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsTopUpOpen(true)}
+                                className="w-4.5 h-4.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                                title="Top Up Wallet"
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        {/* Filter Toggle Button */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                showFilters 
+                                    ? 'bg-slate-900 border-slate-900 text-white shadow-xs' 
+                                    : 'bg-white border-slate-200/80 hover:bg-slate-50 text-slate-700'
+                            }`}
+                        >
+                            <Filter size={14} />
+                            <span>Filters</span>
+                            {(minResumeScore > 0 || minAssessmentScore > 0 || filterStatus !== 'All' || filterVideo !== 'All' || sortBy !== 'none') && (
+                                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </header>
 
             {/* Expandable Filter Panel */}
             {showFilters && (
@@ -523,7 +514,7 @@ const Applicants = () => {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="p-6 rounded-[2rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden"
+                    className="rec-card p-6 md:p-8 space-y-6 shadow-md overflow-hidden"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* 1. Status Dropdown */}
@@ -568,9 +559,11 @@ const Applicants = () => {
                                     <option value="none" className="bg-[#1a1d24] text-white">None (Standard)</option>
                                     <option value="resumeScore" className="bg-[#1a1d24] text-white">Resume Score</option>
                                     <option value="assessmentScore" className="bg-[#1a1d24] text-white">Assessment Score</option>
+                                    <option value="codingScore" className="bg-[#1a1d24] text-white">Coding Score</option>
                                     <option value="interviewScore" className="bg-[#1a1d24] text-white">Interview Score</option>
                                     <option value="proctoringScore" className="bg-[#1a1d24] text-white">Integrity Trust Score</option>
                                     <option value="finalScore" className="bg-[#1a1d24] text-white">Final Score</option>
+                                    <option value="recentActivity" className="bg-[#1a1d24] text-white">Recent Candidates</option>
                                 </select>
                                 {sortBy !== 'none' && (
                                     <button
@@ -645,59 +638,67 @@ const Applicants = () => {
             {loading ? (
                 <ApplicantsSkeleton />
             ) : filteredApplicants.length > 0 ? (
-                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => (
-                    <div key={jobTitle} className="space-y-4 mb-10">
-                        <h2 className="text-xl font-bold uppercase tracking-tight text-white flex items-center gap-3">
+                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => {
+                    const firstApp = jobApplicants[0];
+                    const showAssessment = firstApp?.hasAssessment ?? true;
+                    const showCoding = Boolean(firstApp?.hasCoding);
+                    const showInterview = firstApp?.hasInterview ?? true;
+
+                    return (
+                    <div key={jobTitle} className={`space-y-4 mb-10 relative ${jobApplicants.some(app => app.id === activeMenuId) ? 'z-50' : 'z-0'}`}>
+                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
                             <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
                             {jobTitle}
-                            <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-xl border border-blue-500/20">
+                            <span className="rec-badge-blue px-2.5 py-0.5 text-[11px] font-bold">
                                 {jobApplicants.length} {jobApplicants.length === 1 ? 'Candidate' : 'Candidates'}
                             </span>
                         </h2>
                         
-                        <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl overflow-visible relative">
+                        <div className="rec-card p-6 md:p-8 space-y-4 overflow-visible relative shadow-sm">
                             <div className="absolute top-0 right-0 p-8 opacity-[0.01] pointer-events-none">
                                 <Users size={150} />
                             </div>
                             <table className="w-full text-left relative z-10" style={{ tableLayout: 'fixed' }}>
                                 <colgroup>
+                                    <col style={{ width: '4%' }} />
+                                    <col style={{ width: '18%' }} />
                                     <col style={{ width: '5%' }} />
-                                    <col style={{ width: '20%' }} />
-                                    <col style={{ width: '8%' }} />
-                                    <col style={{ width: '11%' }} />
-                                    <col style={{ width: '11%' }} />
-                                    <col style={{ width: '11%' }} />
-                                    <col style={{ width: '11%' }} />
-                                    <col style={{ width: '11%' }} />
+                                    <col style={{ width: '9%' }} />
+                                    {showAssessment && <col style={{ width: '9%' }} />}
+                                    {showCoding && <col style={{ width: '9%' }} />}
+                                    {showInterview && <col style={{ width: '10%' }} />}
+                                    <col style={{ width: '15%' }} />
+                                    <col style={{ width: '9%' }} />
                                     <col style={{ width: '7%' }} />
                                     <col style={{ width: '5%' }} />
                                 </colgroup>
                                 <thead>
-                                    <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase font-bold tracking-wider bg-white/[0.01]">
-                                        <th className="pb-4 pt-4 text-center">S.No</th>
-                                        <th className="pb-4 pt-4 pl-4 text-left">Candidate Info</th>
-                                        <th className="pb-4 pt-4 text-center">Video Intro</th>
-                                        <th className="pb-4 pt-4 text-center">Resume Match</th>
-                                        <th className="pb-4 pt-4 text-center">Assessment</th>
-                                        <th className="pb-4 pt-4 text-center">Interview</th>
-                                        <th className="pb-4 pt-4 text-center text-red-400">Proctoring Score</th>
-                                        <th className="pb-4 pt-4 text-center">Final Score</th>
-                                        <th className="pb-4 pt-4 text-center">Status</th>
-                                        <th className="pb-4 pt-4 text-right pr-6">Action</th>
+                                    <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold tracking-wider bg-slate-50/80">
+                                        <th className="pb-4 pt-4 px-2 text-center">S.No</th>
+                                        <th className="pb-4 pt-4 pl-4 pr-2 text-left">Candidate Info</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Video Intro</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Resume Match</th>
+                                        {showAssessment && <th className="pb-4 pt-4 px-2 text-center">Assessment</th>}
+                                        {showCoding && <th className="pb-4 pt-4 px-2 text-center">Coding</th>}
+                                        {showInterview && <th className="pb-4 pt-4 px-2 text-center">Interview</th>}
+                                        <th className="pb-4 pt-4 px-2 text-center text-red-400">Proctoring Score</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Final Score</th>
+                                        <th className="pb-4 pt-4 px-2 text-center">Status</th>
+                                        <th className="pb-4 pt-4 pr-6 pl-2 text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {jobApplicants.map((app, index) => {
                                         const interviewMeta = getInterviewMeta(app);
                                         return (
-                                            <tr key={app.id} className="group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0" style={{ verticalAlign: 'middle' }}>
-                                                <td className="py-5 text-center text-xs font-semibold text-gray-500">
+                                            <tr key={app.id} className={`group transition-all hover:bg-white/[0.03] border-b border-white/5 last:border-b-0 ${activeMenuId === app.id ? 'relative z-50' : ''}`} style={{ verticalAlign: 'middle' }}>
+                                                <td className="py-5 px-2 text-center text-xs font-semibold text-gray-500">
                                                     {index + 1}
                                                 </td>
-                                                <td className="py-5 pl-4" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <td className="py-5 pl-4 pr-2" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-0.5">
-                                                            <p className="font-bold text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{app.name}</p>
+                                                            <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">{app.name}</p>
                                                             {app.isResumeLocked && (
                                                                 <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-400 border border-amber-500/20">
                                                                     Locked
@@ -718,7 +719,7 @@ const Applicants = () => {
                                                         <p className="text-xs text-gray-500 font-medium lowercase tracking-normal">{app.email}</p>
                                                     </div>
                                                 </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                     <div className="flex items-center justify-center">
                                                         {app.isInterviewLocked ? (
                                                             <button
@@ -736,6 +737,8 @@ const Applicants = () => {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setSelectedVideoUrl(app.videoIntroUrl);
+                                                                    setSelectedVideoApplicationId(app.id);
+                                                                    setSelectedVideoCandidateName(app.name);
                                                                     setShowVideoModal(true);
                                                                 }}
                                                                 className="w-10 h-10 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/5 group/video"
@@ -747,10 +750,10 @@ const Applicants = () => {
                                                             <span className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">N/A</span>
                                                         )}
                                                     </div>
-                                                </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 </td>
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-base shadow-sm">
+                                                         <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-sm shadow-sm">
                                                              <span>{app.resumeScore}/10</span>
                                                              {app.isResumeLocked ? (
                                                                  <button
@@ -758,7 +761,7 @@ const Applicants = () => {
                                                                          e.stopPropagation();
                                                                          setUnlockingItem({ id: app.id, type: 'resume', cost: 3 });
                                                                      }}
-                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
                                                                      title="Unlock Candidate Resume (₹3)"
                                                                  >
                                                                      <Eye size={15} />
@@ -770,7 +773,7 @@ const Applicants = () => {
                                                                          setSelectedResumeUserId(app.userId);
                                                                          setShowGeneratedResumeModal(true);
                                                                      }}
-                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95"
                                                                      title="View AI Parsed Resume"
                                                                  >
                                                                      <Eye size={15} />
@@ -779,36 +782,63 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                 {showAssessment && (
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                      <div className="flex items-center justify-center">
+                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-sm shadow-sm">
+                                                              <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
+                                                              {app.assessmentScore !== null && app.assessmentScore !== undefined && (
+                                                                  <button
+                                                                      onMouseEnter={() => !app.isAssessmentLocked && prefetchAssessmentDetails(app.id)}
+                                                                      onClick={(e) => {
+                                                                          e.stopPropagation();
+                                                                          handleViewAssessment(app.id, app.isAssessmentLocked);
+                                                                      }}
+                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
+                                                                      title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
+                                                                  >
+                                                                      <Eye size={15} />
+                                                                  </button>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  </td>
+                                                 )}
+                                                 {showCoding && (
+                                                 <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                      <div className="flex items-center justify-center">
+                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-teal-500/5 border border-teal-500/10 text-teal-400 font-extrabold text-sm shadow-sm">
+                                                              <span>{app.codingScore !== null && app.codingScore !== undefined ? `${app.codingScore}/100` : '-'}</span>
+                                                              {app.codingScore !== null && app.codingScore !== undefined && (
+                                                                  <button
+                                                                      onMouseEnter={() => !app.isAssessmentLocked && prefetchCodingDetails(app.id)}
+                                                                      onClick={(e) => {
+                                                                          e.stopPropagation();
+                                                                          handleViewCodingAssessment(app.id, app.isAssessmentLocked);
+                                                                      }}
+                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-teal-400/80 hover:text-teal-300 hover:bg-teal-500/10'}`}
+                                                                      title={app.isAssessmentLocked ? "Unlock Coding Details (₹5)" : "View Coding Details"}
+                                                                  >
+                                                                      <Eye size={15} />
+                                                                  </button>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  </td>
+                                                 )}
+                                                 {showInterview && (
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-base shadow-sm">
-                                                             <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
-                                                             {app.assessmentScore !== null && app.assessmentScore !== undefined && (
-                                                                 <button
-                                                                     onClick={(e) => {
-                                                                         e.stopPropagation();
-                                                                         handleViewAssessment(app.id, app.isAssessmentLocked);
-                                                                     }}
-                                                                     className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
-                                                                     title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
-                                                                 >
-                                                                     <Eye size={15} />
-                                                                 </button>
-                                                             )}
-                                                         </div>
-                                                     </div>
-                                                 </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                     <div className="flex items-center justify-center">
-                                                         <div className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${interviewMeta.pillClass} shadow-sm`}>
+                                                         <div className={`inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl border ${interviewMeta.pillClass} shadow-sm font-extrabold text-sm`}>
                                                              <span>{interviewMeta.label}</span>
                                                              {interviewMeta.canView && (
                                                                  <button
+                                                                     onMouseEnter={() => !app.isInterviewLocked && prefetchInterviewDetails(app.id)}
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
                                                                          handleViewInterview(app.id, app.isInterviewLocked);
                                                                      }}
-                                                                     className={`p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
+                                                                     className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
                                                                      title={app.isInterviewLocked ? "Unlock Interview Status (₹10)" : "View Interview Status"}
                                                                  >
                                                                      <Eye size={15} />
@@ -817,30 +847,43 @@ const Applicants = () => {
                                                          </div>
                                                      </div>
                                                  </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                     <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-red-500 font-extrabold text-base shadow-sm" title={`Raw Penalty Points: ${app.integrityPenalty || 0}`}>
-                                                             <span>{app.integrityPenalty ?? app.proctoringScore ?? 0}</span>
-                                                             <button
-                                                                 onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     handleViewProctoring(app.id);
-                                                                 }}
-                                                                 className="p-0.5 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                                                 title="View Proctoring Report"
-                                                             >
-                                                                 <Eye size={15} />
-                                                             </button>
-                                                         </div>
-                                                     </div>
-                                                </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                    <div className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
+                                                 )}
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                      <div className="flex items-center justify-center">
+                                                          <div className={`inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl font-extrabold text-sm shadow-sm border ${
+                                                              app.proctoringScore != null
+                                                                  ? (app.proctoringScore >= 80 
+                                                                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
+                                                                      : app.proctoringScore >= 50 
+                                                                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                                                                          : "bg-red-500/10 border-red-500/20 text-red-400")
+                                                                  : "bg-gray-500/10 border-gray-500/20 text-gray-400"
+                                                          }`} title={app.proctoringScore != null ? `Integrity Trust Score: ${app.proctoringScore} | Penalty Points: ${app.integrityPenalty || 0}` : 'Proctoring data not available for this session'}>
+                                                              {app.proctoringScore != null ? (
+                                                                  <span>{app.proctoringScore}</span>
+                                                              ) : (
+                                                                  <span>-</span>
+                                                              )}
+                                                              <button
+                                                                  onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      handleViewProctoring(app.id);
+                                                                  }}
+                                                                  className="p-1 rounded-lg transition-all hover:scale-110 active:scale-95 cursor-pointer opacity-80 hover:opacity-100 hover:bg-black/10"
+                                                                  title="View Proctoring Report"
+                                                              >
+                                                                  <Eye size={15} />
+                                                              </button>
+                                                          </div>
+                                                      </div>
+                                                 </td>
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/10 to-teal-600/10 border border-teal-500/20 text-teal-300 font-extrabold text-sm shadow-md shadow-teal-500/5">
                                                         {app.finalScore !== null && app.finalScore !== undefined ? `${app.finalScore}/100` : '-'}
                                                     </div>
                                                 </td>
-                                                <td className="py-5 text-center" style={{ whiteSpace: 'nowrap' }}>
-                                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${app.status === 'SHORTLISTED'
+                                                <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
+                                                    <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${app.status === 'SHORTLISTED'
                                                         ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5'
                                                         : app.status === 'REJECTED'
                                                             ? 'bg-red-500/5 text-red-400 border-red-500/20 shadow-sm shadow-red-500/5'
@@ -851,7 +894,7 @@ const Applicants = () => {
                                                         {app.status}
                                                     </span>
                                                 </td>
-                                                <td className="py-5 text-right pr-6 relative" style={{ whiteSpace: 'nowrap' }}>
+                                                <td className="py-5 text-right pr-6 pl-2 relative" style={{ whiteSpace: 'nowrap' }}>
                                                     <>
                                                         <button
                                                             onClick={(e) => {
@@ -883,6 +926,30 @@ const Applicants = () => {
                                                                     >
                                                                         <Sparkles size={14} /> Mark Hired (AI Learn)
                                                                     </button>
+                                                                    {app.hasAssessment && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'assessment'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-orange-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Assessment Retest
+                                                                        </button>
+                                                                    )}
+                                                                    {app.hasCoding && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'coding'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-teal-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Coding Retest
+                                                                        </button>
+                                                                    )}
+                                                                    {app.hasInterview && (
+                                                                        <button
+                                                                            onClick={() => { setActiveMenuId(null); handleGrantRetest(app.id, 'interview'); }}
+                                                                            className="w-full text-left px-4 py-3 text-xs font-bold text-purple-400 hover:bg-white/5 flex items-center gap-2 border-t border-white/5"
+                                                                        >
+                                                                            <RotateCcw size={14} /> Grant Interview Retest
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         onClick={() => handleStatusUpdate(app.id, 'ELIGIBLE')}
                                                                         className="w-full text-left px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-100/50 flex items-center gap-2 border-t border-gray-100"
@@ -897,6 +964,16 @@ const Applicants = () => {
                                                                             <Share2 size={14} /> Share Interview
                                                                         </button>
                                                                     )}
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setActiveMenuId(null);
+                                                                            setSelectedReportApplicationId(app.id);
+                                                                            setShowReportModal(true);
+                                                                        }}
+                                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-indigo-400 hover:bg-white/[0.02] flex items-center gap-2 border-t border-white/5 cursor-pointer"
+                                                                    >
+                                                                        <FileText size={14} /> Report
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -909,22 +986,34 @@ const Applicants = () => {
                             </table>
                         </div>
                     </div>
-                ))
+                )})
             ) : (
-                <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-xl overflow-hidden relative">
-                    <div className="min-h-[400px] flex flex-col items-center justify-center">
-                        <div className="flex flex-col items-center opacity-40">
-                            <Users size={48} className="mb-4" />
-                            <p className="text-xl font-bold uppercase tracking-widest">{searchTerm ? 'No matches found' : 'No Applicants Yet'}</p>
-                            <p className="text-xs mt-2 font-medium">{searchTerm ? 'Try adjusting your search criteria.' : 'Candidates will appear here once they apply to your jobs.'}</p>
-                        </div>
+                <div className="rec-card p-16 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <Users size={28} />
                     </div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                        {searchTerm ? 'No matching applicants' : 'No candidates in this pipeline yet'}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                        {searchTerm 
+                            ? `No applicants matched "${searchTerm}". Try adjusting your search query or filters.`
+                            : 'Candidates will appear here once they apply to your open job requisitions.'}
+                    </p>
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="rec-btn-secondary px-4 py-2 text-xs cursor-pointer"
+                        >
+                            Clear search
+                        </button>
+                    )}
                 </div>
             )}
 
-            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 text-xs text-gray-500 italic">
-                <CheckCircle2 size={16} className="text-emerald-500 flex-none" />
-                <p>Status logic is automatically handled by the system based on matching score, but you can manually override decisions using the action menu.</p>
+            <div className="rec-card p-4 rounded-2xl flex items-center gap-3 text-xs text-slate-600 bg-slate-50/60 border border-slate-200/80 shadow-xs">
+                <CheckCircle2 size={16} className="text-emerald-600 flex-none" />
+                <p className="font-medium">Status logic is automatically handled based on resume match and assessment benchmarks. You can manually adjust candidate decisions anytime using the actions menu.</p>
             </div>
 
             {/* Assessment Detail Modal */}
@@ -934,6 +1023,29 @@ const Applicants = () => {
                     onClose={() => {
                         setShowAssessmentDetail(false);
                         setSelectedApplicationId(null);
+                    }}
+                />
+            )}
+
+            {/* Coding Detail Modal */}
+            {showCodingDetail && (
+                <CodingAssessmentDetail
+                    applicationId={selectedApplicationId}
+                    onScoreUpdate={(newScore) => {
+                        queryClient.setQueryData(['applicants', userId], (oldData) => {
+                            if (!Array.isArray(oldData)) return oldData;
+                            return oldData.map(app => 
+                                (String(app._id) === String(selectedApplicationId) || String(app.id) === String(selectedApplicationId))
+                                    ? { ...app, codingScore: newScore }
+                                    : app
+                            );
+                        });
+                        queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+                    }}
+                    onClose={() => {
+                        setShowCodingDetail(false);
+                        setSelectedApplicationId(null);
+                        queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
                     }}
                 />
             )}
@@ -956,6 +1068,10 @@ const Applicants = () => {
                     onClose={() => {
                         setShowProctoringDetail(false);
                         setSelectedProctoringApplicationId(null);
+                        queryClient.invalidateQueries({ queryKey: ['applicants'] });
+                    }}
+                    onUpdate={() => {
+                        queryClient.invalidateQueries({ queryKey: ['applicants'] });
                     }}
                 />
             )}
@@ -968,16 +1084,20 @@ const Applicants = () => {
                             <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleShareInterview(selectedVideoApplicationId, jobApplicants.find(a => a.id === selectedVideoApplicationId)?.name)}
+                                    onClick={() => handleShareInterview(
+                                        selectedVideoApplicationId,
+                                        selectedVideoCandidateName || applicants?.find(a => a.id === selectedVideoApplicationId)?.name
+                                    )}
                                     className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Share2 size={13} />
-                                    Share Interview
+                                    Share Intro
                                 </button>
                                 <button
                                     onClick={() => {
                                         setShowVideoModal(false);
                                         setSelectedVideoApplicationId(null);
+                                        setSelectedVideoCandidateName('');
                                     }}
                                     className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
                                 >
@@ -1099,6 +1219,19 @@ const Applicants = () => {
                 }}
                 currentBalance={walletBalance}
             />
+
+            {/* In-Page Candidate Evaluation Report View / Modal */}
+            {showReportModal && selectedReportApplicationId && (
+                <div className="fixed inset-0 z-[100] flex flex-col bg-gray-50 overflow-y-auto animate-in fade-in duration-200">
+                    <RecruiterTranscriptPage
+                        applicationId={selectedReportApplicationId}
+                        onClose={() => {
+                            setShowReportModal(false);
+                            setSelectedReportApplicationId(null);
+                        }}
+                    />
+                </div>
+            )}
         </div>
 
     );

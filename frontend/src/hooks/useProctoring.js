@@ -102,57 +102,71 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
       setViolations((prev) => [...prev, violation]);
       logViolation({ examId, userId, ...violation });
 
-      if (count === 1) {
-        lockSession(
-          `Warning (1/3): ${detail}.\n\nPlease stay on this page in fullscreen mode. Click "Return to Exam" to continue.`
-        );
-      } else if (count === 2) {
-        lockSession(
-          `FINAL WARNING (2/3): ${detail}.\n\nOne more violation will automatically submit your exam. Click "Return to Exam" to continue.`
-        );
-      } else if (count >= 3) {
-        lockSession(
-          `EXAM TERMINATED: You have exceeded the maximum allowed violations (3/3).\n\nYour exam is being automatically submitted.`
-        );
+      // Candidate-facing violation warnings are suppressed.
+      // Full logging and auto-submit logic remain active.
+      if (count >= 3) {
         setTimeout(() => {
           onAutoSubmit?.(count);
-        }, 3000);
+        }, 1000);
       }
     },
-    [examId, userId, lockSession, onAutoSubmit]
+    [examId, userId, onAutoSubmit]
   );
 
   // ── 1. Tab visibility (catches switching tabs, minimizing window) ─────
   useEffect(() => {
     if (!isActive) return;
+    let visibilityTimer = null;
+
     const handler = () => {
       if (document.hidden) {
-        recordViolation("TAB_SWITCH", "You switched to another tab");
+        visibilityTimer = setTimeout(() => {
+          recordViolation("TAB_SWITCH", "You switched to another tab");
+        }, 3000);
+      } else {
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
       }
     };
     document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
+    return () => {
+      document.removeEventListener("visibilitychange", handler);
+      if (visibilityTimer) clearTimeout(visibilityTimer);
+    };
   }, [isActive, recordViolation]);
 
   // ── 2. Window blur (catches Alt+Tab, second window, clicking taskbar) ─
   useEffect(() => {
     if (!isActive) return;
-    const handler = () => {
+    let blurTimer = null;
+
+    const handleBlur = () => {
       if (activatedAtRef.current && Date.now() - activatedAtRef.current < gracePeriod) {
         return;
       }
-      setTimeout(() => {
-        if (!document.hidden && document.hasFocus()) {
-          return;
+      blurTimer = setTimeout(() => {
+        if (!document.hidden && !document.hasFocus()) {
+          recordViolation("WINDOW_BLUR", "You switched to another application or window");
         }
-        if (document.hidden) {
-          return; // Handled by visibilitychange as TAB_SWITCH
-        }
-        recordViolation("WINDOW_BLUR", "You switched to another application or window");
-      }, 350);
+      }, 3000);
     };
-    window.addEventListener("blur", handler);
-    return () => window.removeEventListener("blur", handler);
+
+    const handleFocus = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
+    };
+
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      if (blurTimer) clearTimeout(blurTimer);
+    };
   }, [isActive, recordViolation, gracePeriod]);
 
   // ── 3. Keyboard shortcut blocking ─────────────────────────────────────
@@ -231,6 +245,6 @@ export function useProctoring({ examId, userId, isActive, onAutoSubmit, gracePer
     showWarning,
     warningMessage,
     examLocked,
-    dismissWarning: unlockExam, // only unlocks if < MAX_VIOLATIONS
+    dismissWarning: unlockSession, // only unlocks if < MAX_VIOLATIONS
   };
 }

@@ -6,6 +6,9 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  esbuild: {
+    drop: ['console', 'debugger'],
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -39,14 +42,13 @@ export default defineConfig(({ mode }) => ({
     // esbuild (default) is safe and fast — terser was causing blank page issues
     // due to aggressive code elimination on React initialization code
     minify: 'esbuild',
-    target: 'es2020',
+    target: 'es2022',
     cssCodeSplit: true,
+    cssMinify: 'lightningcss',   // ~3x faster CSS minification than default
     chunkSizeWarningLimit: 1200,
     sourcemap: false,
     rollupOptions: {
       output: {
-        // Safe chunk splitting — React core + React DOM must stay together
-        // to avoid initialization order issues that cause blank pages
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
@@ -54,7 +56,8 @@ export default defineConfig(({ mode }) => ({
           if (
             id.includes('@tensorflow') ||
             id.includes('coco-ssd') ||
-            id.includes('face-api')
+            id.includes('face-api') ||
+            id.includes('onnxruntime-web')
           ) {
             return 'chunk-tensorflow';
           }
@@ -64,15 +67,66 @@ export default defineConfig(({ mode }) => ({
             return 'chunk-firebase';
           }
 
-          // Group all other packages (React, Router, Framer Motion, Tanstack Query, Lucide icons, etc.)
-          // into a single vendor chunk to avoid cross-chunk circular dependencies and initialization errors.
-          return 'chunk-vendor';
+          // TipTap rich-text editor — only loaded on blog editor page
+          if (id.includes('@tiptap') || id.includes('prosemirror')) {
+            return 'chunk-editor';
+          }
+
+          // Framer Motion — animation library used across many pages
+          if (id.includes('framer-motion')) {
+            return 'chunk-framer';
+          }
+
+          // react-international-phone — only used in CalibrationModal
+          if (id.includes('react-international-phone')) {
+            return 'chunk-phone';
+          }
+          
+          // React core framework — isolates React so it is not bundled into chunk-editor
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router/') ||
+            id.includes('node_modules/react-router-dom/') ||
+            id.includes('node_modules/scheduler/')
+          ) {
+            return 'chunk-react-core';
+          }
+          
+          // Let Rollup handle the rest automatically to prevent initialization order bugs
         },
       },
     },
   },
 
   server: {
+    headers: {
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';",
+      'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-DNS-Prefetch-Control': 'on'
+    },
+    warmup: {
+      clientFiles: [
+        './src/main.jsx',
+        './src/App.jsx',
+        './src/pages/AssessmentsHome.jsx',
+        './src/pages/recruiter/RecruiterLayout.jsx',
+        './src/pages/recruiter/RecruiterDashboard.jsx',
+        './src/pages/recruiter/Applicants.jsx',
+        './src/pages/recruiter/MyJobs.jsx',
+        './src/pages/recruiter/PostJob.jsx',
+        './src/pages/seeker/SeekerDashboard.jsx',
+        './src/components/Skeleton.jsx'
+      ]
+    },
+    fs: {
+      cachedChecks: true
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -82,20 +136,31 @@ export default defineConfig(({ mode }) => ({
     },
   },
 
+  preview: {
+    headers: {
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';",
+      'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-DNS-Prefetch-Control': 'on'
+    },
+  },
+
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
+      'react-dom/client',
       'react-router-dom',
       '@tanstack/react-query',
-      'framer-motion',
       'lucide-react',
       'axios',
       'firebase/app',
       'firebase/auth',
-      '@tensorflow/tfjs',
-      '@tensorflow-models/coco-ssd',
-      'face-api.js'
+      'react-helmet-async'
     ]
   }
 }))

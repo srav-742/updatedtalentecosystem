@@ -15,30 +15,52 @@ import {
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 
+// Module-level in-memory cache for instant zero-delay reopening
+const assessmentCache = new Map();
+
+export const prefetchAssessmentDetails = async (applicationId) => {
+    if (!applicationId || assessmentCache.has(applicationId)) return;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`, { headers });
+        if (res.data) assessmentCache.set(applicationId, res.data);
+    } catch (e) {}
+};
+
 const AssessmentDetail = ({ applicationId, onClose }) => {
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState(null);
+    const cachedData = applicationId ? assessmentCache.get(applicationId) : null;
+    const [loading, setLoading] = useState(!cachedData);
+    const [data, setData] = useState(cachedData);
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchAssessmentDetails = async () => {
-            setLoading(true);
+            if (!cachedData) setLoading(true);
             setError(null);
             try {
                 const headers = await getAuthHeaders();
                 const res = await axios.get(`${API_URL}/assessment-details/${applicationId}`, { headers });
-                setData(res.data);
+                if (isMounted) {
+                    setData(res.data);
+                    assessmentCache.set(applicationId, res.data);
+                }
             } catch (err) {
                 console.error("Failed to fetch assessment details:", err);
-                setError(err.response?.data?.message || 'Failed to load assessment details');
+                if (isMounted && !cachedData) {
+                    setError(err.response?.data?.message || 'Failed to load assessment details');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         if (applicationId) {
             fetchAssessmentDetails();
         }
+        return () => { isMounted = false; };
     }, [applicationId]);
 
     if (loading) {
@@ -217,9 +239,11 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest ${q.type === 'mcq'
                                                         ? 'bg-blue-500 text-white'
-                                                        : 'bg-purple-500 text-white'
+                                                        : (q.type === 'paragraph' || q.type === 'descriptive' || q.type === 'subjective')
+                                                            ? 'bg-emerald-600 text-white'
+                                                            : 'bg-purple-500 text-white'
                                                     }`}>
-                                                    {q.type === 'mcq' ? 'MCQ' : 'Coding'}
+                                                    {q.type === 'mcq' ? 'MCQ' : (q.type === 'paragraph' || q.type === 'descriptive' || q.type === 'subjective') ? 'Paragraph' : 'Coding'}
                                                 </span>
                                                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-700 uppercase tracking-widest">
                                                     {q.skill}
@@ -234,31 +258,68 @@ const AssessmentDetail = ({ applicationId, onClose }) => {
                                 </div>
 
                                 {q.type === 'mcq' ? (
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         <div className="text-sm font-bold text-gray-600 mb-2">Options:</div>
-                                        {q.options.map((opt, optIdx) => {
-                                            const isCorrectOption = optIdx === q.correctAnswer;
-                                            const isUserSelected = q.userAnswer === opt;
-                                            return (
-                                                <div
-                                                    key={optIdx}
-                                                    className={`p-3 rounded-xl border-2 font-medium ${isCorrectOption
-                                                            ? 'border-green-500 bg-green-100 text-green-800'
-                                                            : isUserSelected
-                                                                ? 'border-red-500 bg-red-100 text-red-800'
-                                                                : 'border-gray-200 bg-white text-gray-600'
-                                                        }`}
-                                                >
-                                                    {opt}
-                                                    {isCorrectOption && (
-                                                        <span className="ml-2 text-green-700 font-black">✓ Correct</span>
-                                                    )}
-                                                    {isUserSelected && !isCorrectOption && (
-                                                        <span className="ml-2 text-red-700 font-black">✗ Your Answer</span>
-                                                    )}
+                                        <div className="space-y-2">
+                                            {q.options.map((opt, optIdx) => {
+                                                const isCorrectOption = optIdx === q.correctAnswer;
+                                                const isUserSelected = (q.selectedOption || q.userAnswer) === opt;
+                                                return (
+                                                    <div
+                                                        key={optIdx}
+                                                        className={`p-3 rounded-xl border-2 font-medium ${isCorrectOption
+                                                                ? 'border-green-500 bg-green-100 text-green-800'
+                                                                : isUserSelected
+                                                                    ? 'border-red-500 bg-red-100 text-red-800'
+                                                                    : 'border-gray-200 bg-white text-gray-600'
+                                                            }`}
+                                                    >
+                                                        {opt}
+                                                        {isCorrectOption && (
+                                                            <span className="ml-2 text-green-700 font-black">✓ Correct</span>
+                                                        )}
+                                                        {isUserSelected && !isCorrectOption && (
+                                                            <span className="ml-2 text-red-700 font-black">✗ Candidate's Choice</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Candidate's written explanation & AI reasoning analysis */}
+                                        {q.explanation && (
+                                            <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                                <div className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                                    Candidate's Written Explanation:
                                                 </div>
-                                            );
-                                        })}
+                                                <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed font-medium">
+                                                    "{q.explanation}"
+                                                </p>
+                                                {q.aiFeedback && (
+                                                    <div className="mt-2.5 pt-2.5 border-t border-slate-200 text-xs text-indigo-700 bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-100">
+                                                        <span className="font-bold uppercase tracking-wider block mb-1">AI Reasoning Analysis:</span>
+                                                        {q.aiFeedback}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (q.type === 'paragraph' || q.type === 'descriptive' || q.type === 'subjective') ? (
+                                    <div className="space-y-4">
+                                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                            <div className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                                Candidate Written Response:
+                                            </div>
+                                            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed font-medium">
+                                                "{q.explanation || q.userAnswer || '(No answer provided)'}"
+                                            </p>
+                                            {q.aiFeedback && (
+                                                <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-indigo-700 bg-indigo-50/70 p-3 rounded-lg border border-indigo-100">
+                                                    <span className="font-bold uppercase tracking-wider block mb-1">AI Technical Assessment:</span>
+                                                    {q.aiFeedback}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-3">

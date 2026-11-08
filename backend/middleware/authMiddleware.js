@@ -2,78 +2,72 @@ const admin = require('../config/firebase');
 const User = require('../models/User');
 
 const authMiddleware = async (req, res, next) => {
+    if (req.user) {
+        return next();
+    }
+
     const authHeader = req.headers.authorization;
-    const userIdHeader = req.headers['x-user-id']; // Fallback header
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Unauthorized: Missing valid token' });
+    }
 
     try {
-        // Method 1: Firebase Token Verification (Preferred)
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            try {
-                if (admin.apps.length > 0) {
-                    const token = authHeader.split(' ')[1];
-                    const decodedToken = await admin.auth().verifyIdToken(token);
-                    const user = await User.findOne({ uid: decodedToken.uid });
-                    if (user) {
-                        req.user = user;
-                        return next();
-                    }
-                }
-            } catch (fbError) {
-                // Only log if it's not a "no app" error, to keep console clean
-                if (!fbError.message.includes('app does not exist')) {
-                    console.warn("[AUTH-MIDDLEWARE] Firebase verification failed:", fbError.message);
-                }
-            }
+        if (admin.apps.length === 0) {
+            return res.status(401).json({ message: 'Unauthorized: Authentication service unavailable' });
         }
 
-        // Method 2: Fallback to x-user-id (if Firebase Admin is missing or token fails)
-        if (userIdHeader) {
-            const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
-            const query = OBJECT_ID_REGEX.test(userIdHeader)
-                ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
-                : { uid: userIdHeader };
-            const user = await User.findOne(query);
-            if (user) {
-                req.user = user;
-                return next();
-            }
+        const token = authHeader.slice('Bearer '.length);
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const user = await User.findOne({ uid: decodedToken.uid });
+
+        if (!user) {
+            return res.status(401).json({
+                message: 'Your session has expired.',
+                code: 'SESSION_EXPIRED',
+                accountDeleted: true,
+                sessionExpired: true
+            });
         }
 
-        return res.status(401).json({ message: "Unauthorized: Please login" });
+        if (user.role === 'recruiter' && user.accountType === 'pilot'
+            && user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+            return res.status(403).json({
+                message: 'Your session has expired.',
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
+        req.user = user;
+        return next();
     } catch (error) {
-        // Final fallback: If we have a userId header, try one last time to find the user
-        if (userIdHeader) {
-            try {
-                const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
-                const query = OBJECT_ID_REGEX.test(userIdHeader)
-                    ? { $or: [{ uid: userIdHeader }, { _id: userIdHeader }] }
-                    : { uid: userIdHeader };
-                const user = await User.findOne(query);
-                if (user) { req.user = user; return next(); }
-            } catch (e) {}
-        }
-
-        
-        return res.status(401).json({ message: "Unauthorized" });
+        console.warn('[AUTH-MIDDLEWARE] Token verification failed:', error.message);
+        return res.status(401).json({ message: 'Authentication failed' });
     }
 };
 
-
+const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
 
 const roleCheck = (roles) => {
     return (req, res, next) => {
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: 'Unauthorized' });
         }
 
         const userRole = req.user.role;
         const allowedRoles = Array.isArray(roles) ? roles : [roles];
+        const isAdminByEmail = req.user.email && ADMIN_EMAILS.includes(req.user.email.toLowerCase().trim());
+        const normalizedRole = userRole === 'seeker' ? 'candidate' : userRole;
+        const normalizedAllowed = allowedRoles.map((role) => role === 'seeker' ? 'candidate' : role);
 
-        if (!allowedRoles.includes(userRole)) {
-            return res.status(403).json({ message: "Forbidden: Access denied" });
+        if (userRole === 'admin' || isAdminByEmail
+            || allowedRoles.includes(userRole)
+            || normalizedAllowed.includes(normalizedRole)) {
+            return next();
         }
 
-        next();
+        return res.status(403).json({ message: 'Forbidden: Access denied' });
     };
 };
 

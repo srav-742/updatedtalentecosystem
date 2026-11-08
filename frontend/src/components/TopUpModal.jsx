@@ -76,7 +76,7 @@ export default function TopUpModal({ isOpen, onClose, onSuccess, currentBalance 
                 currency: currency,
                 name: "Talent EcoSystem Wallet",
                 description: `Wallet Top Up - ₹${topUpAmount}`,
-                image: "https://hire1percent.com/assets/logo.png",
+                image: "https://www.hire1percent.com/logo.png",
                 order_id: orderId,
                 handler: async function (response) {
                     setLoading(true);

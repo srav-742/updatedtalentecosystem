@@ -1,0 +1,1229 @@
+import React, { useState, useEffect, useRef, Component } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
+import { API_URL, getAuthHeaders } from '../../firebase';
+import { motion } from 'framer-motion';
+import { ArrowLeft, User, Mail, Phone, MapPin, CheckCircle, XCircle, Award, FileText, Code, MessageSquare, BarChart2, Printer, ExternalLink, ShieldAlert, ShieldCheck, Clock, AlertTriangle, Code2, Terminal, Sparkles, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
+
+// ── Error Boundary ──────────────────────────────────────────────────────
+class TranscriptErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[TRANSCRIPT-CRASH]', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+          <div className='text-center text-gray-900 max-w-md'>
+            <XCircle size={48} className='mx-auto mb-4 text-red-500' />
+            <p className='font-bold text-xl mb-2'>Transcript Rendering Error</p>
+            <p className='text-sm text-gray-500 mb-4'>{this.state.error?.message || 'An unexpected error occurred while rendering the transcript.'}</p>
+            <button onClick={() => window.history.back()} className='px-6 py-3 bg-black/10 rounded-xl font-bold'>Go Back</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const ScoreRing = ({ value, color = '#3b82f6', size = 80, max = 100 }) => {
+  const r = 28;
+  const circ = 2 * Math.PI * r;
+  const pct = (value || 0) / max;
+  return (
+    <svg width={size} height={size} viewBox='0 0 80 80'>
+      <circle cx='40' cy='40' r={r} fill='none' stroke='rgba(0,0,0,0.1)' strokeWidth='8' />
+      <circle cx='40' cy='40' r={r} fill='none' stroke={color} strokeWidth='8'
+        strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+        strokeLinecap='round' transform='rotate(-90 40 40)' />
+      <text x='40' y='44' textAnchor='middle' fill='#111827' fontSize='13' fontWeight='900'>
+        {value != null ? `${Math.round(value)}/${max}` : '-'}
+      </text>
+    </svg>
+  );
+};
+
+const Sec = ({ title, icon, children, grad = 'from-blue-500 to-purple-500' }) => (
+  <div className='mb-8 relative z-10'>
+    <div className={'flex items-center gap-3 mb-5 pb-3 border-b border-black/10'}>
+      <div className={'p-2 rounded-xl bg-gradient-to-br text-white shadow-sm ' + grad}>{icon}</div>
+      <h2 className='text-lg font-black text-gray-900 uppercase tracking-wide'>{title}</h2>
+    </div>
+    {children}
+  </div>
+);
+
+const CandidateTranscriptPage = ({ applicationId: propAppId, onClose }) => {
+  const params = useParams();
+  const applicationId = propAppId || params.applicationId;
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  // Detect ?autoprint=true for auto-triggering print after data loads
+  const location = useLocation();
+  const autoPrint = new URLSearchParams(location.search).get('autoprint') === 'true';
+  const autoPrintFired = useRef(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const h = await getAuthHeaders();
+        const r = await axios.get(API_URL + '/transcripts/' + applicationId, { headers: h });
+        // Defensive: ensure critical nested objects exist
+        const d = r.data || {};
+        if (!d.candidate) d.candidate = {};
+        if (!d.job) d.job = {};
+        if (!d.application) d.application = {};
+        if (!d.scores) d.scores = {};
+        if (!d.interview) d.interview = { questions: [], proctoringViolations: [] };
+        if (!d.interview.questions) d.interview.questions = [];
+        if (!d.interview.proctoringViolations) d.interview.proctoringViolations = [];
+        if (d.assessment && !Array.isArray(d.assessment.answers)) d.assessment.answers = [];
+        setData(d);
+      } catch (e) {
+        console.error('[TRANSCRIPT] Load error:', e);
+        setError(e.response?.data?.message || e.message || 'Failed to load transcript');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [applicationId]);
+
+  useEffect(() => {
+    if (!data) return;
+    const loadSummary = async () => {
+      setLoadingSummary(true);
+      setSummaryError(null);
+      try {
+        const h = await getAuthHeaders();
+        const r = await axios.get(API_URL + '/transcripts/' + applicationId + '/recommendation', { headers: h });
+        setSummary(r.data);
+      } catch (e) {
+        setSummaryError(e.response?.data?.message || 'Failed to load recommendation summary');
+      } finally {
+        setLoadingSummary(false);
+      }
+    };
+    loadSummary();
+  }, [applicationId, data]);
+
+  // Auto-print after data and summary are fully loaded (when opened via ?autoprint=true)
+  useEffect(() => {
+    if (!autoPrint || loading || !data || loadingSummary || autoPrintFired.current) return;
+    autoPrintFired.current = true;
+    // Give the browser a moment to finish rendering all DOM updates
+    const timer = setTimeout(() => window.print(), 1200);
+    return () => clearTimeout(timer);
+  }, [autoPrint, loading, data, loadingSummary]);
+
+  if (loading) return (
+    <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+      <div className='text-center'>
+        <div className='w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4' />
+        <p className='text-gray-900 font-bold text-lg'>Building Transcript...</p>
+      </div>
+    </div>
+  );
+
+  if (error || !data) return (
+    <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+      <div className='text-center text-gray-900'>
+        <XCircle size={48} className='mx-auto mb-4 text-red-500' />
+        <p className='font-bold text-xl mb-4'>{error || 'No data'}</p>
+        <button 
+          onClick={() => {
+            if (onClose) { onClose(); return; }
+            if (window.history.length > 1) { navigate(-1); } else {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              navigate(u.role === 'admin' ? '/admin?tab=transcripts' : '/recruiter/applicants');
+            }
+          }} 
+          className='px-6 py-3 bg-black/10 hover:bg-black/20 rounded-xl font-bold cursor-pointer transition-colors'
+        >
+          Back
+        </button>
+      </div>
+    </div>
+  );
+
+  const { candidate, job, application, resume, assessment, interview, scores, generatedAt } = data;
+  const isJobCoding = job?.codingAssessment?.enabled === true || (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false);
+  const codingData = isJobCoding ? (data.coding && Array.isArray(data.coding.answers) && data.coding.answers.length > 0 ? data.coding : (
+    application?.codingAnswers?.length > 0 ? {
+      score: scores?.codingScore ?? application.codingScore ?? 0,
+      passingScore: job?.codingAssessment?.passingScore || 60,
+      isPassed: (scores?.codingScore ?? application.codingScore ?? 0) >= (job?.codingAssessment?.passingScore || 60),
+      codingDetails: application.codingDetails || {
+        totalQuestions: application.codingAnswers.length,
+        totalMaximumMarks: 100,
+        totalObtainedMarks: scores?.codingScore ?? application.codingScore ?? 0,
+        finalPercentage: scores?.codingScore ?? application.codingScore ?? 0
+      },
+      answers: application.codingAnswers
+    } : null
+  )) : null;
+
+  // Use the single source of truth from the backend's unified score calculator
+  const dynResume = scores?.resumeMatch || 0;
+  const dynAssessment = scores?.assessmentScore || 0;
+  const dynInterview = scores?.interviewScore || 0;
+  const dynCoding = scores?.codingScore !== undefined && scores?.codingScore !== null ? scores.codingScore : (codingData?.score || 0);
+  const fs = scores?.finalScore || 0;
+  
+  const verdict = fs >= 80 ? { l: 'Strongly Recommended', c: 'text-emerald-600', b: 'bg-emerald-50 border-emerald-200' }
+    : fs >= 60 ? { l: 'Recommended', c: 'text-blue-600', b: 'bg-blue-50 border-blue-200' }
+    : fs >= 40 ? { l: 'Needs Review', c: 'text-amber-600', b: 'bg-amber-50 border-amber-200' }
+    : { l: 'Not Recommended', c: 'text-red-600', b: 'bg-red-50 border-red-200' };
+
+  return (
+    <div className='candidate-transcript-root min-h-screen w-full bg-gray-50 text-gray-900 relative'>
+      <style>{`
+        .min-h-screen, .bg-white, .bg-orange-50, .bg-purple-50, .bg-blue-50, .bg-emerald-50, .bg-red-50, .bg-blue-50\\/70, .bg-purple-50\\/70, .bg-amber-50, .bg-emerald-50\\/70, .bg-teal-50, .bg-indigo-50, .bg-indigo-50\\/70, .bg-amber-50\\/70 {
+          background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczNTAnIGhlaWdodD0nMzUwJyB2aWV3Qm94PScwIDAgMzUwIDM1MCc+PHRleHQgeD0nNTAlJyB5PSc1MCUnIGZpbGw9JyNlY2VjZWMnIGZvbnQtc2l6ZT0nMjQnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtZmFtaWx5PSdzYW5zLXNlcmlmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyB0cmFuc2Zvcm09J3JvdGF0ZSgtNDUgMTc1IDE3NSknPkhJUkUgT05FIFBFUkNFTlQ8L3RleHQ+PC9zdmc+") !important;
+          background-repeat: repeat !important;
+        }
+        @media print {
+          /* 1. Hide all layout chrome from RecruiterLayout and top bar */
+          .no-print,
+          aside,
+          nav,
+          button[aria-label="Toggle navigation menu"],
+          .recruiter-light-theme > button,
+          .recruiter-light-theme > aside,
+          .recruiter-light-theme > div[class*="fixed"],
+          .recruiter-light-theme > div[class*="backdrop"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
+          }
+
+          /* 2. Reset RecruiterLayout & outer wrapper scroll constraints */
+          html,
+          body,
+          #root,
+          .recruiter-light-theme,
+          main,
+          .recruiter-content,
+          .recruiter-content > div {
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background-color: #f9fafb !important;
+            background-image: none !important;
+            position: static !important;
+          }
+
+          body { 
+            background-color: #f9fafb !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            color: #111827 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          * { 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+          }
+
+          /* 3. Report container & watermark */
+          .candidate-transcript-root {
+            width: 100% !important;
+            min-height: auto !important;
+            background-color: #f9fafb !important;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczNTAnIGhlaWdodD0nMzUwJyB2aWV3Qm94PScwIDAgMzUwIDM1MCc+PHRleHQgeD0nNTAlJyB5PSc1MCUnIGZpbGw9JyNlY2VjZWMnIGZvbnQtc2l6ZT0nMjQnIGZvbnQtd2VpZ2h0PSc5MDAnIGZvbnQtZmFtaWx5PSdzYW5zLXNlcmlmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyB0cmFuc2Zvcm09J3JvdGF0ZSgtNDUgMTc1IDE3NSknPkhJUkUgT05FIFBFUkNFTlQ8L3RleHQ+PC9zdmc+") !important;
+            background-repeat: repeat !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          .candidate-transcript-container {
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 4px !important;
+            margin: 0 auto !important;
+          }
+
+          /* 4. Enforce desktop side-by-side layout in print (overrides 700px mobile fallback) */
+          .transcript-header-flex {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            flex-wrap: nowrap !important;
+            gap: 1.5rem !important;
+          }
+
+          .transcript-profile-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 1rem !important;
+          }
+
+          .grid { display: grid !important; }
+          .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .md\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+          /* 5. Page break control - avoid broken cards across pages */
+          .mb-8, .mb-10, .rounded-3xl, .rounded-2xl, .rounded-xl, .p-8, .p-6, .p-5, .p-4 {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .bg-gradient-to-br, .bg-gradient-to-r {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+        @page {
+          size: A4 portrait;
+          margin: 10mm 12mm;
+        }
+      `}</style>
+      
+
+      <div className='no-print sticky top-0 z-50 bg-gray-50/90 backdrop-blur border-b border-black/10 px-6 py-4 flex items-center justify-between'>
+        <button 
+          onClick={() => {
+            if (onClose) {
+              onClose();
+              return;
+            }
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              if (u.role === 'admin') {
+                sessionStorage.setItem('admin_active_tab', 'transcripts');
+                navigate('/admin?tab=transcripts');
+              } else {
+                navigate('/recruiter/applicants');
+              }
+            }
+          }} 
+          className='flex items-center gap-2 text-gray-600 hover:text-gray-900 font-bold text-sm cursor-pointer'
+        >
+          <ArrowLeft size={18} />
+          {(() => {
+            const u = JSON.parse(localStorage.getItem('user') || '{}');
+            return u.role === 'admin' ? 'Back to Transcripts' : 'Back to Applicants';
+          })()}
+        </button>
+        <button onClick={() => {
+          // When rendered as a modal (onClose is set), open the dedicated
+          // transcript route in a new tab with ?autoprint=true so the page
+          // auto-triggers print AFTER all data has finished loading.
+          if (onClose) {
+            const url = `${window.location.origin}/recruiter/transcript/${applicationId}?autoprint=true`;
+            window.open(url, '_blank');
+            return;
+          }
+          // When used as a standalone page, print directly
+          window.print();
+        }} className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-md'><Printer size={15} />Download PDF</button>
+      </div>
+      
+      <div className='candidate-transcript-container max-w-5xl mx-auto px-4 md:px-6 py-10 relative z-10'>
+        <div className='mb-10 p-8 rounded-3xl bg-white border border-black/10 shadow-sm'>
+          <div className='transcript-header-flex flex items-start justify-between flex-wrap gap-6'>
+            <div>
+              <div className='text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-2'>Hire1Percent - Candidate Evaluation Report</div>
+              <h1 className='text-4xl font-black text-gray-900 mb-1'>{candidate.name}</h1>
+              <p className='text-gray-600 font-medium text-lg'>{job.title}{job.company ? ' @ ' + job.company : ''}</p>
+              <p className='text-gray-500 text-xs mt-2'>Generated: {new Date(generatedAt).toLocaleString()}</p>
+            </div>
+            <div className={'px-8 py-5 rounded-2xl border text-center min-w-[140px] ' + verdict.b}>
+              <p className={'text-4xl font-black ' + verdict.c}>{fs != null ? Math.round(fs) : '--'}</p>
+              <p className={'text-xs font-black uppercase tracking-widest mt-1 ' + verdict.c}>Final Score</p>
+              <p className={'text-[10px] font-bold mt-2 ' + verdict.c}>{verdict.l}</p>
+            </div>
+          </div>
+        </div>
+
+        <Sec title='Candidate Profile' icon={<User size={16} />} grad='from-blue-500 to-cyan-500'>
+          <div className='transcript-profile-grid grid md:grid-cols-2 gap-4'>
+            <div className='space-y-3'>
+              {candidate.email && <div className='flex items-center gap-3'><Mail size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.email}</span></div>}
+              {candidate.phone && <div className='flex items-center gap-3'><Phone size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.phone}</span></div>}
+              {candidate.location && <div className='flex items-center gap-3'><MapPin size={14} className='text-gray-500' /><span className='text-sm text-gray-700'>{candidate.location}</span></div>}
+              {candidate.linkedinUrl && <a href={candidate.linkedinUrl} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-blue-600 text-sm font-bold hover:underline'><ExternalLink size={14} />LinkedIn</a>}
+              {candidate.githubUrl && <a href={candidate.githubUrl} target='_blank' rel='noopener noreferrer' className='flex items-center gap-2 text-teal-600 text-sm font-bold hover:underline'><ExternalLink size={14} />GitHub</a>}
+            </div>
+            <div className='p-5 rounded-2xl bg-white shadow-sm border border-black/5 space-y-2 text-sm'>
+              <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Application Info</p>
+              <div className='flex justify-between'><span className='text-gray-500'>Applied</span><span className='font-bold text-gray-900'>{new Date(application.appliedAt).toLocaleDateString()}</span></div>
+              <div className='flex justify-between'><span className='text-gray-500'>Status</span><span className='font-black text-emerald-600 uppercase'>{application.status}</span></div>
+              <div className='flex justify-between'><span className='text-gray-500'>Role</span><span className='font-bold text-gray-900'>{job.title}</span></div>
+            </div>
+          </div>
+        </Sec>
+
+        {resume?.profile && (
+          <Sec title='Resume Summary' icon={<FileText size={16} />} grad='from-teal-500 to-green-500'>
+            {resume.profile.summary && <p className='text-gray-700 text-sm leading-relaxed mb-5 p-4 rounded-2xl bg-white shadow-sm border border-black/5 italic'>"{resume.profile.summary}"</p>}
+            {resume.profile.workExperience?.length > 0 && (
+              <div className='mb-5'>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3'>Work Experience</p>
+                <div className='space-y-3'>
+                  {resume.profile.workExperience.map((w, i) => (
+                    <div key={i} className='p-4 rounded-2xl bg-white shadow-sm border border-black/5'>
+                      <div className='flex justify-between flex-wrap gap-2 mb-1'>
+                        <div>
+                          <p className='font-black text-gray-900 text-sm'>{w.position}</p>
+                          <p className='text-gray-600 text-xs'>{w.company}</p>
+                        </div>
+                        <p className='text-gray-500 text-xs'>{w.startYear} - {w.currentlyWorking ? 'Present' : w.endYear}</p>
+                      </div>
+                      {w.description && <p className='text-gray-600 text-xs mt-2 leading-relaxed'>{w.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {resume.profile.education?.length > 0 && (
+              <div className='mb-5'>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3'>Education</p>
+                <div className='space-y-2'>
+                  {resume.profile.education.map((e, i) => (
+                    <div key={i} className='p-4 rounded-2xl bg-white shadow-sm border border-black/5'>
+                      <p className='font-black text-gray-900 text-sm'>{e.degree} in {e.field}</p>
+                      <p className='text-gray-600 text-xs'>{e.institution} - {e.startYear} - {e.currentlyStudying ? 'Present' : e.endYear}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {resume.profile.skills && typeof resume.profile.skills === 'object' && (
+              <div className='mb-5'>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3'>Skills</p>
+                <div className='flex flex-wrap gap-1.5'>
+                  {[...(Array.isArray(resume.profile.skills.programming) ? resume.profile.skills.programming : []), ...(Array.isArray(resume.profile.skills.frameworks) ? resume.profile.skills.frameworks : []), ...(Array.isArray(resume.profile.skills.databases) ? resume.profile.skills.databases : []), ...(Array.isArray(resume.profile.skills.tools) ? resume.profile.skills.tools : [])].map((s, i) => (
+                    <span key={i} className='px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-800'>{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {resume.profile.projects?.length > 0 && (
+              <div>
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3'>Projects</p>
+                <div className='space-y-2'>
+                  {resume.profile.projects.map((p, i) => (
+                    <div key={i} className='p-3 rounded-xl bg-white shadow-sm border border-black/5'>
+                      <p className='font-black text-sm text-gray-900'>{p.name}</p>
+                      {p.tech?.length > 0 && <p className='text-xs text-gray-500'>{p.tech.join(', ')}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Sec>
+        )}
+
+        {resume?.analysis && (
+          <Sec title='Resume Evaluation' icon={<BarChart2 size={16} />} grad='from-emerald-500 to-teal-500'>
+            <div className='flex justify-center mb-6'>
+              <div className='p-6 rounded-2xl bg-white shadow-sm border border-black/5 text-center flex flex-col items-center min-w-[240px]'>
+                <ScoreRing value={scores?.resumeMatch} color='#3b82f6' size={100} max={10} />
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-4'>Overall Resume Match</p>
+              </div>
+            </div>
+            {resume.analysis.explanation && <p className='text-gray-700 text-sm leading-relaxed p-4 rounded-2xl bg-white shadow-sm border border-black/5 mb-3'>{resume.analysis.explanation}</p>}
+            {resume.analysis.skillsFeedback && <p className='text-gray-700 text-xs p-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-2'><span className='font-black text-emerald-600'>Skills: </span>{resume.analysis.skillsFeedback}</p>}
+            {resume.analysis.experienceFeedback && <p className='text-gray-700 text-xs p-3 rounded-xl bg-blue-50 border border-blue-200'><span className='font-black text-blue-600'>Experience: </span>{resume.analysis.experienceFeedback}</p>}
+          </Sec>
+        )}
+
+        {assessment && (
+          <Sec title='Skill Assessment Transcript' icon={<Code size={16} />} grad='from-orange-500 to-amber-500'>
+            <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-orange-50 border border-orange-200'>
+              <div className='text-center'><p className='text-4xl font-black text-orange-600'>{dynAssessment > 0 || assessment.totalQuestions > 0 ? `${dynAssessment}/20` : 'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
+              <div className='text-center'><p className='text-4xl font-black text-gray-900'>{assessment.correctAnswers}/{assessment.totalQuestions}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Correct</p></div>
+            </div>
+            <div className='space-y-4'>
+              {(Array.isArray(assessment.answers) ? assessment.answers : []).map((a, i) => (
+                <div key={i} className={'p-4 rounded-2xl border bg-white shadow-sm ' + (a.isCorrect ? 'border-emerald-200' : 'border-red-200')}>
+                  <div className='flex items-center justify-between mb-2'>
+                    <div className='flex items-center gap-2'>{a.isCorrect ? <CheckCircle size={15} className='text-emerald-500' /> : <XCircle size={15} className='text-red-500' />}<span className='text-[10px] font-black uppercase tracking-widest text-gray-500'>Q{i + 1} - {a.skill || 'General'} - {(a.questionType || 'mcq').toUpperCase()}</span></div>
+                    <span className={'text-xs font-black ' + (a.isCorrect ? 'text-emerald-600' : 'text-red-600')}>{a.isCorrect ? 'Correct' : 'Incorrect'}</span>
+                  </div>
+                  <p className='text-sm font-bold text-gray-900 mb-2'>{a.question || 'Question not available'}</p>
+                  <div className='grid md:grid-cols-2 gap-2 text-xs'>
+                    <div className='p-2 rounded-lg bg-gray-50 border border-gray-100'><span className='font-black text-gray-600'>Your Answer: </span><span className='text-gray-800'>{String(a.userAnswer ?? '--')}</span></div>
+                    <div className='p-2 rounded-lg bg-gray-50 border border-gray-100'><span className='font-black text-gray-600'>Correct: </span><span className='font-bold text-emerald-600'>{String(a.correctAnswer ?? '--')}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Sec>
+        )}
+
+        {codingData && (
+          <Sec title='Coding Assessment Transcript' icon={<Code2 size={16} />} grad='from-cyan-500 to-blue-600'>
+            <div className='flex flex-wrap items-center justify-between gap-4 mb-6 p-5 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50 border border-cyan-200/80 shadow-sm'>
+              <div className='flex items-center gap-6'>
+                <div className='text-center'>
+                  <p className='text-4xl font-black text-cyan-600'>{codingData.score != null ? `${Math.round(codingData.score)}/100` : '0/100'}</p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Coding Score</p>
+                </div>
+                <div className='h-10 w-px bg-cyan-200'></div>
+                <div className='text-center'>
+                  <p className='text-3xl font-black text-gray-900'>{codingData.answers.length}</p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Challenges</p>
+                </div>
+                <div className='h-10 w-px bg-cyan-200'></div>
+                <div className='text-center'>
+                  <p className='text-3xl font-black text-indigo-600'>
+                    {codingData.answers.reduce((acc, cur) => acc + (cur.testCasesPassed || 0), 0)} / {codingData.answers.reduce((acc, cur) => acc + (cur.totalTestCases || 10), 0)}
+                  </p>
+                  <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Test Cases Passed</p>
+                </div>
+              </div>
+              <div className='flex items-center gap-3'>
+                <div className={'px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border ' + (codingData.isPassed ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300')}>
+                  {codingData.isPassed ? '✓ Target Score Cleared' : 'Below Passing Target'}
+                </div>
+                <span className='text-[11px] font-bold text-gray-500'>Target: {codingData.passingScore || 60}%</span>
+              </div>
+            </div>
+
+            <div className='space-y-6'>
+              {codingData.answers.map((a, i) => {
+                const diff = (a.difficulty || 'MEDIUM').toUpperCase();
+                const diffBadge = diff === 'LOW' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : diff === 'HIGH' ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200';
+                
+                const isPassed = a.testCasesPassed > 0 && a.testCasesPassed === a.totalTestCases;
+                const isPartial = a.testCasesPassed > 0 && a.testCasesPassed < a.totalTestCases;
+                const verdictClass = isPassed ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : isPartial ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200';
+
+                return (
+                  <div key={i} className='rounded-2xl border border-cyan-200/80 bg-white shadow-sm overflow-hidden'>
+                    <div className='flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-gradient-to-r from-cyan-50/70 to-blue-50/70 border-b border-cyan-100'>
+                      <div className='flex items-center gap-3'>
+                        <div className='w-8 h-8 rounded-full bg-cyan-600 text-white flex items-center justify-center font-black text-sm'>
+                          {i + 1}
+                        </div>
+                        <div>
+                          <div className='flex items-center gap-2 flex-wrap'>
+                            <h4 className='text-sm font-black text-gray-900'>{a.questionTitle || `Coding Challenge ${i + 1}`}</h4>
+                            <span className={'text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ' + diffBadge}>
+                              {diff}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className='flex items-center gap-3'>
+                        <span className={'text-[11px] font-black px-2.5 py-1 rounded-lg border ' + verdictClass}>
+                          {a.correctnessVerdict || (isPassed ? 'Correct' : isPartial ? 'Partially Correct' : 'Incorrect')}
+                        </span>
+                        <div className='text-right'>
+                          <span className='text-sm font-black text-gray-900'>{a.obtainedMarks != null ? Number(a.obtainedMarks).toFixed(1) : '0.0'}/{a.maximumMarks || 10}</span>
+                          <span className='text-[10px] font-bold text-gray-500 ml-1'>marks</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='p-5 space-y-4'>
+                      <div>
+                        <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 flex items-center gap-1.5'>
+                          <FileText size={12} className='text-cyan-600' /> Problem Statement
+                        </p>
+                        <div className='p-4 rounded-xl bg-gray-50 border border-black/5 text-xs text-gray-800 leading-relaxed font-medium whitespace-pre-wrap'>
+                          {a.questionDescription || 'No description provided.'}
+                        </div>
+                      </div>
+
+                      {(a.constraints || a.expectedApproach) && (
+                        <div className='grid md:grid-cols-2 gap-3'>
+                          {a.constraints && (
+                            <div className='p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/60'>
+                              <p className='text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1'>Constraints</p>
+                              <p className='text-xs text-gray-700 font-medium leading-normal'>{a.constraints}</p>
+                            </div>
+                          )}
+                          {a.expectedApproach && (
+                            <div className='p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/60'>
+                              <p className='text-[10px] font-black uppercase tracking-widest text-blue-800 mb-1'>Expected Approach</p>
+                              <p className='text-xs text-gray-700 font-medium leading-normal'>{a.expectedApproach}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className='flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs'>
+                        <span className='font-bold text-gray-600'>Test Cases Outcome:</span>
+                        <span className='font-black text-indigo-700'>{a.testCasesPassed ?? 0} / {a.totalTestCases || 10} passed</span>
+                        {a.testCasesPassed === a.totalTestCases && a.totalTestCases > 0 ? (
+                          <span className='text-[10px] font-bold text-emerald-600 flex items-center gap-1'><CheckCircle size={12} /> All test cases passed</span>
+                        ) : (
+                          <span className='text-[10px] font-bold text-amber-600 flex items-center gap-1'><AlertCircle size={12} /> Some or all test cases failed</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className='flex items-center justify-between mb-1.5'>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5'>
+                            <Terminal size={12} className='text-cyan-600' /> Candidate Solution ({a.language || 'Python'})
+                          </p>
+                          {a.code && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(a.code);
+                                setCopiedIndex(i);
+                                setTimeout(() => setCopiedIndex(null), 2000);
+                              }}
+                              className='flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-gray-900 px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors'
+                            >
+                              {copiedIndex === i ? <Check size={11} className='text-emerald-600' /> : <Copy size={11} />}
+                              {copiedIndex === i ? 'Copied' : 'Copy Code'}
+                            </button>
+                          )}
+                        </div>
+                        {a.code && a.code.trim() ? (
+                          <pre className='p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner'>
+                            <code>{a.code}</code>
+                          </pre>
+                        ) : (
+                          <p className='p-4 rounded-xl bg-gray-100 text-gray-500 text-xs italic font-medium'>No code was submitted for this question.</p>
+                        )}
+                      </div>
+
+                      {a.feedback && (
+                        <div className='p-4 rounded-xl bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border border-indigo-200/70 space-y-1.5'>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-indigo-800 flex items-center gap-1.5'>
+                            <Sparkles size={12} className='text-indigo-600' /> Automated Code Evaluation & Feedback
+                          </p>
+                          <p className='text-xs text-gray-800 leading-relaxed font-medium whitespace-pre-wrap'>
+                            {a.feedback}
+                          </p>
+                        </div>
+                      )}
+
+                      {a.suggestedCode && (
+                        <div>
+                          <p className='text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1.5 flex items-center gap-1.5'>
+                            <CheckCircle size={12} className='text-emerald-600' /> Recommended Optimal Implementation
+                          </p>
+                          <pre className='p-4 rounded-xl bg-[#0f172a] text-[#86efac] font-mono text-xs overflow-x-auto leading-relaxed border border-emerald-950/40 shadow-inner'>
+                            <code>{a.suggestedCode}</code>
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Sec>
+        )}
+
+        {interview?.questions?.length > 0 && (
+          <Sec title='Interview Transcript' icon={<MessageSquare size={16} />} grad='from-purple-500 to-indigo-500'>
+            <div className='flex items-center gap-8 mb-6 p-5 rounded-2xl bg-purple-50 border border-purple-200'>
+              <div className='text-center'><p className='text-4xl font-black text-purple-600'>{dynInterview > 0 || interview.questions.length > 0 ? `${dynInterview}/70` : 'N/A'}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Score</p></div>
+              <div className='text-center'><p className='text-4xl font-black text-gray-900'>{interview.totalQuestions}</p><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1'>Questions</p></div>
+            </div>
+            <div className='space-y-5'>
+              {(Array.isArray(interview.questions) ? interview.questions : []).map((q, i) => (
+                <div key={i} className='rounded-2xl border border-purple-200 bg-white shadow-sm overflow-hidden'>
+                  <div className='flex items-center justify-between px-5 py-3 bg-purple-50 border-b border-purple-100'>
+                    <div className='flex items-center gap-3'><div className='w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center font-black text-sm'>{q.questionNumber || i + 1}</div><span className='text-[10px] font-black uppercase tracking-widest text-purple-700'>Question {q.questionNumber || i + 1}</span></div>
+                    <div className='flex items-center gap-2'><span className='text-sm font-black text-gray-900'>{typeof q.marks === 'number' ? q.marks.toFixed(1) : '0.0'}/10</span><span className='text-[10px] text-purple-600'>({q.score || 0}%)</span></div>
+                  </div>
+                  <div className='p-5 space-y-4'>
+                    <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Question</p><p className='text-sm font-bold text-gray-900 p-3 rounded-xl bg-gray-50 border border-black/5'>{q.question}</p></div>
+                    {q.isAttempted ? <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Candidate Answer</p><p className='text-sm text-gray-800 p-3 rounded-xl bg-indigo-50 border border-indigo-100 leading-relaxed'>{q.answer}</p></div> : <p className='text-xs text-red-500 font-bold italic'>Not attempted</p>}
+                    {q.feedback && <div><p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2'>Reason for Assessment</p><p className='text-xs text-gray-700 p-3 rounded-xl bg-emerald-50 border border-emerald-100 leading-relaxed'>{q.feedback}</p></div>}
+                    
+                    {/* Inline Proctoring Events linked to this question/answer */}
+                    {q.proctoringEvents && q.proctoringEvents.length > 0 && (
+                      <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200">
+                        <div className="flex items-center gap-2 text-amber-800 font-black text-[11px] uppercase tracking-wider mb-2">
+                          <AlertTriangle size={14} className="text-amber-600" />
+                          <span>Proctoring Flag Detected During Answer ({q.proctoringEvents.length})</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {q.proctoringEvents.map((evt, evtIdx) => (
+                            <div key={evtIdx} className="flex items-center justify-between text-xs text-gray-700 bg-white p-2.5 rounded-lg border border-amber-100 shadow-2xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-gray-900">{evt.canonicalEventType || evt.type}:</span>
+                                <span>{evt.detail}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500">
+                                {evt.duration > 0 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">{evt.duration}s</span>}
+                                {evt.confidence && <span>{Math.round(evt.confidence > 1 ? evt.confidence : evt.confidence * 100)}% conf</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Sec>
+        )}
+
+        {/* ── Live Technical Problem-Solving Round Review Section ── */}
+        {(data.technicalRound || interview?.technicalRound) && (() => {
+          const tech = data.technicalRound || interview.technicalRound;
+          const ev = tech.evaluation || {};
+
+          return (
+            <Sec title="Live Technical Problem-Solving Round" icon={<Code2 size={16} />} grad="from-teal-600 to-emerald-600">
+              <div className="rounded-2xl border border-teal-200 bg-white shadow-sm overflow-hidden mb-6">
+                {/* Header with Title and Scores */}
+                <div className="p-6 bg-gradient-to-r from-teal-50 via-emerald-50 to-indigo-50 border-b border-teal-100 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+                        {tech.category || 'Live Coding Round'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Difficulty: {tech.difficulty || 'Medium'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-gray-100 text-gray-700">
+                        {tech.language || 'Python'}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                      {tech.problemTitle || 'Live Technical Challenge'}
+                    </h3>
+                  </div>
+
+                  {/* Multi-Dimensional Score Rings / Badges */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Approach</span>
+                      <span className="text-base font-black text-teal-700">{ev.approachScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Correctness</span>
+                      <span className="text-base font-black text-emerald-700">{ev.correctnessScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Complexity</span>
+                      <span className="text-base font-black text-indigo-700">{ev.complexityScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-white px-3.5 py-2 rounded-xl border border-teal-100 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Communication</span>
+                      <span className="text-base font-black text-purple-700">{ev.communicationScore ?? '-'}%</span>
+                    </div>
+                    <div className="text-center bg-teal-600 text-white px-4 py-2 rounded-xl shadow-md">
+                      <span className="text-[10px] font-bold text-teal-200 uppercase tracking-wider block">Total Score</span>
+                      <span className="text-lg font-black">{ev.totalScore != null ? `${ev.totalScore}/100` : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Problem Statement */}
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Problem Statement</h4>
+                    <p className="text-sm text-gray-800 p-4 rounded-xl bg-gray-50 border border-gray-200 whitespace-pre-wrap leading-relaxed">
+                      {tech.statement || 'Problem details recorded in live session.'}
+                    </p>
+                  </div>
+
+                  {/* Candidate Approach */}
+                  {tech.approachExplanation && (
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">Candidate's Initial Approach & Reasoning</h4>
+                      <p className="text-sm text-gray-800 p-4 rounded-xl bg-teal-50/60 border border-teal-200 whitespace-pre-wrap leading-relaxed font-sans">
+                        {tech.approachExplanation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Submitted Code */}
+                  {tech.submittedCode && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-700">Submitted Code Solution</h4>
+                        <span className="text-[11px] font-mono text-gray-500">{tech.language || 'Python'}</span>
+                      </div>
+                      <pre className="p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner">
+                        <code>{tech.submittedCode}</code>
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Test Execution Summary */}
+                  {tech.testResults && (
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-2">
+                        <Terminal size={16} className="text-teal-600" />
+                        <span className="text-xs font-bold text-gray-900">Sandbox Test Execution:</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800">
+                          {tech.testResults.passed || 0} / {tech.testResults.total || 0} Test Cases Passed
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-gray-500">
+                        Runtime: {tech.testResults.executionTime || 0}ms
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Follow-Up Discussion */}
+                  {(tech.followUpQuestion || tech.followUpAnswer) && (
+                    <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 space-y-3">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-800 flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-indigo-600" /> AI Follow-Up Question & Candidate Response
+                      </h4>
+                      {tech.followUpQuestion && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-500 block">Question Asked:</span>
+                          <p className="text-xs font-bold text-gray-900">{tech.followUpQuestion}</p>
+                        </div>
+                      )}
+                      {tech.followUpAnswer && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-500 block">Candidate Answer:</span>
+                          <p className="text-xs text-gray-800 leading-relaxed font-sans">{tech.followUpAnswer}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Evaluation Summary */}
+                  {ev.summary && (
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 space-y-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900 flex items-center gap-1.5">
+                        <CheckCircle size={12} className="text-emerald-600" /> Hiring Committee Evaluation Summary
+                      </p>
+                      <p className="text-xs text-emerald-950 font-medium leading-relaxed">
+                        {ev.summary}
+                      </p>
+                      {ev.strengths && (
+                        <p className="text-[11px] text-gray-700 pt-1">
+                          <strong>Key Strength:</strong> {ev.strengths}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Sec>
+          );
+        })()}
+
+        {interview && (
+          <Sec title="Security & Proctoring Audit" icon={<ShieldAlert size={16} />} grad="from-red-500 to-orange-500">
+            {(() => {
+              const summary = interview.proctoringSummary || {};
+              const report = interview.proctoringReport || {};
+              const integrityScore = summary.integrityScore ?? (report.integrityScore ?? (application.integrityScore ?? 100));
+              const riskLevel = summary.riskLevel ?? (report.riskLevel ?? (application.riskLevel || (integrityScore < 50 ? 'HIGH RISK' : (integrityScore < 60 ? 'REVIEW REQUIRED' : (integrityScore < 70 ? 'RECOMMENDED' : 'LOW RISK')))));
+              const criticalCount = summary.criticalIncidents ?? (report.criticalIncidents ?? (interview.proctoringViolations || []).filter(v => v.severity === 'critical').length);
+              const standardCount = summary.standardIncidents ?? (report.standardIncidents ?? (interview.proctoringViolations || []).filter(v => v.severity !== 'critical').length);
+              const scoreFactors = summary.scoreFactors || report.scoreFactors || [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Integrity Score</span>
+                      <div className="mt-3 flex items-baseline gap-1.5">
+                        <span className="text-3xl font-black text-gray-900">{integrityScore}</span>
+                        <span className="text-xs text-gray-400 font-semibold">/ 100</span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Risk Classification</span>
+                      <div className="mt-3">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider border ${
+                          riskLevel === 'HIGH RISK' ? 'bg-red-50 text-red-700 border-red-200' :
+                          riskLevel === 'REVIEW REQUIRED' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          riskLevel === 'RECOMMENDED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {riskLevel === 'HIGH RISK' && <ShieldAlert size={12} className="text-red-600" />}
+                          {riskLevel === 'REVIEW REQUIRED' && <AlertTriangle size={12} className="text-orange-600" />}
+                          {riskLevel === 'RECOMMENDED' && <AlertTriangle size={12} className="text-amber-600" />}
+                          {riskLevel === 'LOW RISK' && <ShieldCheck size={12} className="text-emerald-600" />}
+                          {riskLevel === 'LOW RISK' ? 'HIGH TRUST' : riskLevel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Incidents Logged</span>
+                      <div className="mt-3 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-red-600">{criticalCount} Crit</span>
+                        <span className="text-xs text-gray-400 font-bold">/ {standardCount} Std</span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-black/10 shadow-sm flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Engine Protocol</span>
+                      <div className="mt-3">
+                        <span className="text-xs font-mono font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg border border-gray-200">
+                          {report.scoreVersion || 'v2 Authoritative'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Score Factors Breakdown if available */}
+                  {scoreFactors.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-gray-50 border border-black/5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Score Analysis Factors</p>
+                      <div className="flex flex-wrap gap-2">
+                        {scoreFactors.map((factor, fIdx) => (
+                          <span key={fIdx} className="text-xs font-medium px-3 py-1 rounded-lg bg-white border border-black/10 text-gray-700 shadow-2xs">
+                            • {factor}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Violations List or Clean state */}
+                  {(!interview.proctoringViolations || interview.proctoringViolations.length === 0) ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
+                      <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                      <div>
+                        <h4 className="font-bold text-sm">Clean Session</h4>
+                        <p className="text-xs text-emerald-700/90 mt-0.5">No proctoring violations or tab-switching events were detected during this interview session.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th className="py-3.5 px-4">Event Type & Category</th>
+                            <th className="py-3.5 px-4">Details & Evidence</th>
+                            <th className="py-3.5 px-4 text-center">Rating</th>
+                            <th className="py-3.5 px-4 text-center">Severity</th>
+                            <th className="py-3.5 px-4 text-right">Time Detected</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                          {(Array.isArray(interview?.proctoringViolations) ? interview.proctoringViolations : []).map((v, vIdx) => {
+                            let severityClass = "bg-gray-100 text-gray-700";
+                            if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
+                            else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
+                            else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
+                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+
+                            const typeLabel = String(v.canonicalEventType || v.type).replace(/_/g, ' ');
+                            const category = v.category || 'ENVIRONMENT';
+
+                            return (
+                              <tr key={v.id || v.timestamp || vIdx} className="hover:bg-gray-50/50">
+                                <td className="py-3.5 px-4 font-bold text-gray-800 uppercase tracking-tight">
+                                  <div>{typeLabel}</div>
+                                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200">
+                                    {category}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600 leading-normal">
+                                  <div className="font-semibold text-gray-800 flex items-center gap-2">
+                                    <span>{v.detail}</span>
+                                    {v.isAnswering && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-extrabold uppercase">
+                                        While Answering
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Metadata specs */}
+                                  <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-gray-500 font-bold">
+                                    {v.model && <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Detector: {v.model}</span>}
+                                    {v.duration > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">Duration: {v.duration}s</span>}
+                                    {(v.confidence > 0 || v.maxConfidence > 0) && (
+                                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                        Confidence: {Math.round(((v.confidence || v.maxConfidence) > 1 ? (v.confidence || v.maxConfidence) : (v.confidence || v.maxConfidence) * 100))}%
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Evidence Frames Thumbnails */}
+                                  {v.evidenceFrames && v.evidenceFrames.length > 0 && (
+                                    <div className="mt-2.5 flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-gray-400 uppercase">Frames:</span>
+                                      <div className="flex gap-2 overflow-x-auto">
+                                        {v.evidenceFrames.map((frame, fIdx) => (
+                                          <img
+                                            key={fIdx}
+                                            src={frame}
+                                            alt={`Evidence frame ${fIdx + 1}`}
+                                            onClick={() => setSelectedImage(frame)}
+                                            className="h-10 w-14 rounded-lg object-cover border border-gray-200 cursor-zoom-in hover:scale-105 transition-transform shadow-2xs"
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center font-bold text-red-600 bg-red-50/10">
+                                  +{v.rating || 0}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${severityClass}`}>
+                                    {v.severity || 'medium'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right text-gray-400 font-medium whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Clock size={12} />
+                                    {new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </Sec>
+        )}
+
+        <Sec title='Overall Evaluation Summary' icon={<Award size={16} />} grad='from-yellow-500 to-orange-500'>
+          <div className={'grid gap-4 mb-6 ' + (codingData ? 'grid-cols-2 md:grid-cols-4 lg:grid-cols-5' : 'grid-cols-2 md:grid-cols-4')}>
+            {[
+              { l: 'Resume Match', v: dynResume, c: '#3b82f6', m: 10 },
+              ...(assessment?.totalQuestions > 0 ? [{ l: 'MCQ Assessment', v: dynAssessment, c: '#f97316', m: 20 }] : []),
+              ...(codingData ? [{ l: 'Coding Test', v: codingData.score, c: '#06b6d4', m: 100 }] : []),
+              { l: 'Interview', v: dynInterview, c: '#8b5cf6', m: 70 },
+              { l: 'Final Score', v: fs, c: '#f59e0b', m: 100 }
+            ].map((s, i) => (
+              <div key={i} className='p-4 rounded-2xl bg-white shadow-sm border border-black/5 flex flex-col items-center'>
+                <ScoreRing value={s.v} color={s.c} size={80} max={s.m} />
+                <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2'>{s.l}</p>
+              </div>
+            ))}
+          </div>
+          <div className={'flex items-center justify-between p-6 rounded-3xl border shadow-sm ' + verdict.b}>
+            <div>
+              <p className='text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1'>Hire Recommendation</p>
+              <p className={'text-3xl font-black ' + verdict.c}>{verdict.l}</p>
+            </div>
+            <div className='text-right'>
+              <p className={'text-5xl font-black ' + verdict.c}>{fs != null ? Math.round(fs) : '--'}</p>
+              <p className='text-[10px] font-black uppercase tracking-widest text-gray-500'>Overall Score</p>
+            </div>
+          </div>
+
+          {loadingSummary && (
+            <div className='mt-6 p-6 rounded-3xl bg-white border border-black/5 shadow-sm space-y-4 animate-pulse no-print'>
+              <div className='h-4 bg-gray-200 rounded w-1/4 mb-4'></div>
+              <div className='space-y-2'>
+                <div className='h-3 bg-gray-200 rounded w-full'></div>
+                <div className='h-3 bg-gray-200 rounded w-5/6'></div>
+              </div>
+              <div className='grid md:grid-cols-2 gap-4 pt-4'>
+                <div className='space-y-2'>
+                  <div className='h-3 bg-gray-200 rounded w-1/3'></div>
+                  <div className='h-3 bg-gray-200 rounded w-full'></div>
+                </div>
+                <div className='space-y-2'>
+                  <div className='h-3 bg-gray-200 rounded w-1/3'></div>
+                  <div className='h-3 bg-gray-200 rounded w-full'></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {summaryError && (
+            <div className='mt-6 p-6 rounded-3xl bg-red-50 border border-red-200 shadow-sm text-center no-print'>
+              <p className='text-sm font-bold text-red-800 mb-1'>Failed to load AI recommendation summary</p>
+              <p className='text-xs text-red-600 mb-4'>{summaryError}</p>
+              <button 
+                onClick={async () => {
+                  setLoadingSummary(true);
+                  setSummaryError(null);
+                  try {
+                    const h = await getAuthHeaders();
+                    const r = await axios.get(API_URL + '/transcripts/' + applicationId + '/recommendation', { headers: h });
+                    setSummary(r.data);
+                  } catch (e) {
+                    setSummaryError(e.response?.data?.message || 'Failed to load recommendation summary');
+                  } finally {
+                    setLoadingSummary(false);
+                  }
+                }}
+                className='px-5 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:scale-105 transition-transform'
+              >
+                Retry Generation
+              </button>
+            </div>
+          )}
+
+          {summary && (
+            <div className='mt-6 space-y-6 page-break-inside-avoid'>
+              <div className='p-6 rounded-3xl bg-gradient-to-br from-blue-50/70 to-purple-50/70 border border-purple-100/50 shadow-sm relative overflow-hidden'>
+                <div className='absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-2xl -mr-6 -mt-6'></div>
+                <div className='flex items-center justify-between mb-3'>
+                  <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 flex items-center gap-1.5'>
+                    <span className='w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse'></span>
+                    Refined Overall Summary
+                  </h3>
+                  <button 
+                    onClick={async () => {
+                      setLoadingSummary(true);
+                      setSummaryError(null);
+                      try {
+                        const h = await getAuthHeaders();
+                        const r = await axios.get(API_URL + '/transcripts/' + applicationId + '/recommendation?force=true', { headers: h });
+                        setSummary(r.data);
+                      } catch (e) {
+                        setSummaryError(e.response?.data?.message || 'Failed to reload recommendation summary');
+                      } finally {
+                        setLoadingSummary(false);
+                      }
+                    }}
+                    className='px-3 py-1 bg-white hover:bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-200 transition-colors flex items-center gap-1.5 shadow-sm no-print'
+                    title='Re-evaluate recommendation with AI including coding test performance'
+                  >
+                    <RefreshCw size={11} className={loadingSummary ? 'animate-spin' : ''} />
+                    Re-evaluate with AI
+                  </button>
+                </div>
+                <p className='text-sm text-gray-800 leading-relaxed font-semibold italic'>
+                  "{summary.refineSummary || summary.overallSummary}"
+                </p>
+              </div>
+
+              <div className='grid md:grid-cols-2 gap-6'>
+                <div className='p-6 rounded-3xl bg-white border border-emerald-100 shadow-sm'>
+                  <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 mb-4 flex items-center gap-2'>
+                    <CheckCircle size={15} className='text-emerald-500' />
+                    Key Strengths
+                  </h3>
+                  {summary.keyStrengths?.length > 0 ? (
+                    <ul className='space-y-3'>
+                      {summary.keyStrengths.map((str, idx) => (
+                        <li key={idx} className='flex items-start gap-2.5 text-xs text-gray-700 leading-relaxed'>
+                          <span className='flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-[9px] mt-0.5'>✓</span>
+                          <span>{str}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className='text-xs text-gray-500 italic'>No specific strengths listed.</p>
+                  )}
+                </div>
+
+                <div className='p-6 rounded-3xl bg-white border border-amber-100 shadow-sm space-y-6'>
+                  <div>
+                    <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 mb-4 flex items-center gap-2'>
+                      <XCircle size={15} className='text-amber-500' />
+                      Identified Weaknesses
+                    </h3>
+                    {(summary.weaknesses || summary.skillsToImprove)?.length > 0 ? (
+                      <ul className='space-y-3'>
+                        {(summary.weaknesses || summary.skillsToImprove).map((weak, idx) => (
+                          <li key={idx} className='flex items-start gap-2.5 text-xs text-gray-700 leading-relaxed'>
+                            <span className='flex-shrink-0 w-4 h-4 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-[9px] mt-0.5'>!</span>
+                            <span>{weak}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className='text-xs text-gray-500 italic'>No critical weaknesses identified.</p>
+                    )}
+                  </div>
+
+                  {(summary.areasToImprove || summary.skillsToImprove)?.length > 0 && (
+                    <div className='pt-5 border-t border-gray-100'>
+                      <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700 mb-4 flex items-center gap-2'>
+                        <Award size={15} className='text-indigo-500' />
+                        Areas to Improve
+                      </h3>
+                      <ul className='space-y-3'>
+                        {(summary.areasToImprove || summary.skillsToImprove).map((area, idx) => (
+                          <li key={idx} className='flex items-start gap-2.5 text-xs text-gray-700 leading-relaxed'>
+                            <span className='flex-shrink-0 w-4 h-4 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[9px] mt-0.5'>→</span>
+                            <span>{area}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {summary.communication && (
+                <div className='p-6 rounded-3xl bg-white border border-blue-100 shadow-sm'>
+                  <h3 className='text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 mb-3 flex items-center gap-2'>
+                    <MessageSquare size={15} className='text-blue-500' />
+                    Communication Assessment
+                  </h3>
+                  <p className='text-xs text-gray-700 leading-relaxed'>
+                    {summary.communication}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </Sec>
+      </div>
+
+      {/* Fullscreen Evidence Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="max-w-4xl max-h-[85vh] relative bg-white/5 p-2 rounded-3xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedImage} alt="Proctoring Evidence" className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl" />
+            <button
+              className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-2.5 hover:bg-black/80 transition-colors shadow-lg border border-white/10 cursor-pointer"
+              onClick={() => setSelectedImage(null)}
+            >
+              <XCircle size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CandidateTranscriptPageWithBoundary = (props) => (
+  <TranscriptErrorBoundary>
+    <CandidateTranscriptPage {...props} />
+  </TranscriptErrorBoundary>
+);
+
+export default CandidateTranscriptPageWithBoundary;

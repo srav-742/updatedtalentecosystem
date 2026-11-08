@@ -4,12 +4,21 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const User = require('../models/User');
 const Job = require('../models/Job');
+const CodingQuestion = require('../models/CodingQuestion');
+const CodingRound = require('../models/CodingRound');
 const mongoose = require('mongoose');
 const ProctoringViolation = require('../models/ProctoringViolation');
 const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
-const { getViolationRating } = require('../utils/proctoringScoring');
+const {
+    getViolationRating,
+    CANONICAL_EVENT_MAP,
+    CANONICAL_CATEGORY_MAP,
+    REDMARK_VIOLATIONS,
+    evaluateIntegrity,
+} = require('../utils/proctoringScoring');
 const ProctoringReport = require('../models/ProctoringReport');
 const { updateProctoringReport } = require('./proctoringControllerEnhanced');
+const { sanitizeTranscript } = require('../utils/transcriptSanitizer');
 
 const sanitizeViolationDetail = (type, detail, rating) => {
     if (!detail) return '';
@@ -55,12 +64,16 @@ const calculateCandidateScores = (app, assessmentSubmission) => {
         dynAssessment = Math.round((assessmentSubmission.correctAnswers / assessmentSubmission.totalQuestions) * 20);
     }
 
+    const dynCoding = app.codingScore || 0;
+
+    // Final Score strictly derived from present rounds (Resume + MCQ + Interview = 100 max)
     const computedFinalScore = dynResume + dynAssessment + dynInterview;
 
     return {
         resumeScore: dynResume,
         assessmentScore: dynAssessment,
         interviewScore: dynInterview,
+        codingScore: dynCoding,
         finalScore: computedFinalScore
     };
 };
@@ -77,8 +90,10 @@ const getTranscript = async (req, res) => {
             return res.status(400).json({ message: 'Invalid application ID' });
         }
 
-        // 1. Fetch the application (populated with job)
-        const application = await Application.findById(applicationId).lean();
+        // 1. Fetch the application (populated with job and coding question details)
+        const application = await Application.findById(applicationId)
+            .populate('codingAnswers.questionId')
+            .lean();
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
@@ -99,19 +114,28 @@ const getTranscript = async (req, res) => {
         const resumeAnalysis = await ResumeAnalysis.findOne({ userId, jobId }).lean();
 
         // 6. Fetch skill assessment submission
-        const assessment = await AssessmentSubmission.findOne({ applicationId }).lean()
-            || await AssessmentSubmission.findOne({ userId, jobId }).lean();
+        const assessment = (application.assessmentSubmissionId 
+            ? await AssessmentSubmission.findById(application.assessmentSubmissionId).lean() 
+            : null)
+            || await AssessmentSubmission.findOne({ applicationId }).lean()
+            || await AssessmentSubmission.findOne({ userId, jobId }).sort({ submittedAt: -1 }).lean();
 
         // 6.5 Query Proctoring Violations
         const jobIdStr = jobId?.toString();
         const sessionIdStr = application.recordingSessionId;
 
         const queryConditions = [];
-        if (jobIdStr && sessionIdStr) {
-            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        if (userId && jobIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(jobIdStr) } 
+            });
         }
-        if (userId) {
-            queryConditions.push({ userId });
+        if (userId && sessionIdStr) {
+            queryConditions.push({ 
+                userId, 
+                examId: { $regex: new RegExp(sessionIdStr) } 
+            });
         }
 
         let baseViolations = [];
@@ -136,46 +160,141 @@ const getTranscript = async (req, res) => {
             });
         }
 
-        const mappedViolations = [
+        const hasInterview = Boolean(
+            (application.interviewAnswers && application.interviewAnswers.length > 0) ||
+            application.recordingSessionId ||
+            application.recordingUrl ||
+            application.recordingPlaybackUrl ||
+            (typeof application.interviewScore === 'number' && application.interviewScore > 0)
+        );
+
+        let mappedViolations = [
             ...baseViolations.map(v => {
                 const rating = v.rating || getViolationRating(v.type, v.metadata);
+                const canonicalEventType = CANONICAL_EVENT_MAP[v.type] || v.type;
+                const category = CANONICAL_CATEGORY_MAP[canonicalEventType] || 'ENVIRONMENT';
                 return {
                     id: v._id,
                     type: v.type,
+                    canonicalEventType,
+                    category,
                     detail: sanitizeViolationDetail(v.type, v.detail, rating),
                     count: v.count,
                     severity: 'medium',
                     rating,
+                    confidence: null,
+                    maxConfidence: null,
+                    duration: 0,
+                    evidenceFrames: [],
+                    evidenceAvailable: false,
                     isAnswering: false,
                     timestamp: v.timestamp || v.createdAt
                 };
             }),
             ...enhancedViolations.map(v => {
                 const rating = v.rating || getViolationRating(v.type, v.metadata);
+                const canonicalEventType = v.canonicalEventType || CANONICAL_EVENT_MAP[v.type] || v.type;
+                const category = v.category || CANONICAL_CATEGORY_MAP[canonicalEventType] || 'ENVIRONMENT';
+                const confidence = typeof v.confidence === 'number' ? v.confidence : (typeof v.maxConfidence === 'number' ? v.maxConfidence : null);
+                const evidenceFrames = Array.isArray(v.evidenceFrames) ? v.evidenceFrames : [];
                 return {
                     id: v._id,
                     type: v.type,
+                    canonicalEventType,
+                    category,
                     detail: sanitizeViolationDetail(v.type, v.detail, rating),
                     count: v.count,
-                    severity: v.severity || 'medium',
+                    severity: v.severity || (REDMARK_VIOLATIONS.has(v.type) ? 'critical' : 'medium'),
                     rating,
+                    confidence,
+                    maxConfidence: v.maxConfidence || confidence,
+                    duration: v.duration || 0,
+                    evidenceFrames,
+                    evidenceAvailable: evidenceFrames.length > 0,
+                    model: v.model || 'Detector',
                     isAnswering: v.isAnswering || false,
+                    questionId: v.questionId || null,
+                    answerId: v.answerId || null,
+                    reviewStatus: v.reviewStatus || 'UNREVIEWED',
+                    reviewReason: v.reviewReason || null,
                     timestamp: v.timestamp || v.createdAt
                 };
             })
         ];
 
+        // Fallback: if session-specific query yielded no violations but user has violations in DB
+        if (mappedViolations.length === 0 && userId) {
+            const userBase = await ProctoringViolation.find({ userId }).sort({ timestamp: 1 }).lean();
+            const userEnhanced = await ProctoringViolationEnhanced.find({ userId }).sort({ timestamp: 1 }).lean();
+            
+            if (userBase.length > 0 || userEnhanced.length > 0) {
+                const fallbackViolations = [
+                    ...userBase.map(v => ({
+                        id: v._id,
+                        type: v.type,
+                        detail: sanitizeViolationDetail(v.type, v.detail, v.rating || getViolationRating(v.type, v.metadata)),
+                        count: v.count,
+                        severity: 'medium',
+                        rating: v.rating || getViolationRating(v.type, v.metadata),
+                        isAnswering: false,
+                        timestamp: v.timestamp || v.createdAt
+                    })),
+                    ...userEnhanced.map(v => ({
+                        id: v._id,
+                        type: v.type,
+                        detail: sanitizeViolationDetail(v.type, v.detail, v.rating || getViolationRating(v.type, v.metadata)),
+                        count: v.count,
+                        severity: v.severity || 'medium',
+                        rating: v.rating || getViolationRating(v.type, v.metadata),
+                        isAnswering: false,
+                        timestamp: v.timestamp || v.createdAt
+                    }))
+                ];
+                mappedViolations.push(...fallbackViolations);
+            }
+        }
+
         mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
+        let proctoringFlags = Array.from(new Set(mappedViolations.map(v => v.type)));
+        const calculatedViolationsPenalty = mappedViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
+        let proctoringScore = calculatedViolationsPenalty;
+
+        // Authoritative Integrity Score & Risk Level calculation
+        const evalResult = evaluateIntegrity(mappedViolations);
+        const integrityScore = evalResult.integrityScore;
+        const riskLevel = evalResult.riskLevel;
+        const verdict = evalResult.verdict;
+
         // ── Query Proctoring Report ──
-        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
+        const queryExamIds = [];
+        if (jobIdStr && sessionIdStr) queryExamIds.push(`interview:${jobIdStr}:${sessionIdStr}`);
+        if (sessionIdStr) {
+            queryExamIds.push(sessionIdStr);
+            queryExamIds.push(`interview:${sessionIdStr}`);
+        }
+        if (jobIdStr) {
+            queryExamIds.push(`interview:${jobIdStr}`);
+        }
+        if (enhancedViolations[0]?.examId && !queryExamIds.includes(enhancedViolations[0].examId)) {
+            queryExamIds.unshift(enhancedViolations[0].examId);
+        }
+        if (baseViolations[0]?.examId && !queryExamIds.includes(baseViolations[0].examId)) {
+            queryExamIds.unshift(baseViolations[0].examId);
+        }
+
+        const reportOr = [];
+        if (queryExamIds.length > 0) reportOr.push({ examId: { $in: queryExamIds } });
+        if (sessionIdStr) reportOr.push({ examId: new RegExp(sessionIdStr, 'i') });
+        if (jobIdStr) reportOr.push({ examId: new RegExp(jobIdStr, 'i') });
+
         let proctoringReport = null;
-        if (examIdStr) {
-            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
+        if (reportOr.length > 0) {
+            proctoringReport = await ProctoringReport.findOne({ $or: reportOr }).sort({ updatedAt: -1 }).lean();
             if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
-                // Compile on-the-fly if violations exist but report doesn't
                 try {
-                    proctoringReport = await updateProctoringReport(examIdStr, userId);
+                    const primaryExamId = queryExamIds[0] || `interview:${jobIdStr || ''}:${sessionIdStr || ''}`;
+                    proctoringReport = await updateProctoringReport(primaryExamId, userId);
                 } catch (reportErr) {
                     console.warn('[TRANSCRIPT-REPORT-ON-THE-FLY] Generation failed:', reportErr);
                 }
@@ -191,6 +310,58 @@ const getTranscript = async (req, res) => {
                 { _id: application._id },
                 { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
             ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL] Error updating DB:', err));
+        }
+
+        // 6.8 Build Coding Assessment Data if present (strictly for coding/Python jobs)
+        const isJobCoding = Boolean(
+            job?.codingAssessment?.enabled === true || 
+            (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false)
+        );
+        let codingData = null;
+        if (isJobCoding && application.codingAnswers && application.codingAnswers.length > 0) {
+            const answers = application.codingAnswers.map((a, idx) => {
+                const qDoc = (a.questionId && typeof a.questionId === 'object' && a.questionId.title) ? a.questionId : {};
+                const maxMarks = a.maximumMarks !== undefined && a.maximumMarks !== null ? a.maximumMarks : (qDoc.marks || 10);
+                const obtMarks = a.obtainedMarks !== undefined && a.obtainedMarks !== null ? a.obtainedMarks : (a.score !== undefined ? a.score : 0);
+
+                return {
+                    questionId: a.questionId?._id || a.questionId,
+                    questionTitle: a.questionTitle || qDoc.title || `Problem ${idx + 1}`,
+                    questionDescription: a.questionDescription || qDoc.description || '',
+                    difficulty: a.difficulty || qDoc.difficulty || 'MEDIUM',
+                    difficultyWeight: a.difficultyWeight || 1,
+                    maximumMarks: maxMarks,
+                    obtainedMarks: obtMarks,
+                    testCasesPassed: a.testCasesPassed !== undefined ? a.testCasesPassed : null,
+                    totalTestCases: a.totalTestCases || 10,
+                    constraints: a.constraints || qDoc.constraints || '',
+                    correctAnswer: a.correctAnswer || qDoc.expectedApproach || '',
+                    expectedApproach: a.expectedApproach || qDoc.expectedApproach || '',
+                    code: a.code || '',
+                    language: a.language || 'Python',
+                    score: obtMarks,
+                    feedback: a.feedback || '',
+                    suggestedCode: a.suggestedCode || '',
+                    aiEvaluationStatus: a.aiEvaluationStatus || 'success',
+                    correctnessVerdict: a.correctnessVerdict || 'Evaluated'
+                };
+            });
+
+            const passingScore = job?.codingAssessment?.passingScore || 60;
+            const codingScore = application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : (scoreData.codingScore || 0);
+
+            codingData = {
+                score: codingScore,
+                passingScore,
+                isPassed: codingScore >= passingScore,
+                codingDetails: application.codingDetails || {
+                    totalQuestions: answers.length,
+                    totalMaximumMarks: 100,
+                    totalObtainedMarks: codingScore,
+                    finalPercentage: codingScore
+                },
+                answers
+            };
         }
 
         // 7. Build the unified transcript
@@ -222,6 +393,9 @@ const getTranscript = async (req, res) => {
                 resultsVisibleAt: application.resultsVisibleAt,
                 videoIntroUrl: application.videoIntroUrl || null,
                 recordingUrl: application.recordingPlaybackUrl || application.recordingUrl || null,
+                assessmentRecordingUrl: application.assessmentRecordingPlaybackUrl || application.assessmentRecordingUrl || null,
+                proctoringScore: proctoringScore,
+                proctoringFlags: proctoringFlags,
             },
             resume: {
                 profile: resumeProfile ? {
@@ -259,30 +433,76 @@ const getTranscript = async (req, res) => {
                     score: a.score || 0,
                 })),
             } : null,
+            coding: codingData,
+            technicalRound: application.technicalEvaluation || null,
             interview: {
+                hasInterview,
+                technicalRound: application.technicalEvaluation || null,
                 score: scoreData.interviewScore,
                 totalQuestions: application.interviewAnswers?.length || 0,
-                completedAt: application.updatedAt || null,
-                questions: (application.interviewAnswers || []).map((q, idx) => ({
-                    questionNumber: q.questionNumber || idx + 1,
-                    question: q.question || '',
-                    answer: q.answer || '',
-                    score: q.score || 0,
-                    marks: q.marks || 0,
-                    feedback: q.feedback || '',
-                    isAttempted: !!(q.answer && q.answer.trim()),
-                })),
+                completedAt: hasInterview ? (application.updatedAt || null) : null,
+                questions: (application.interviewAnswers || []).map((q, idx) => {
+                    const qIdStr = q._id ? q._id.toString() : (q.questionNumber ? `q_${q.questionNumber}` : null);
+                    const qNumber = q.questionNumber || (idx + 1);
+                    const questionViolations = mappedViolations.filter(v => {
+                        if (v.questionId && (v.questionId.toString() === qIdStr || v.questionId === qNumber || v.questionId.toString() === String(qNumber))) return true;
+                        if (v.answerId && q._id && v.answerId.toString() === q._id.toString()) return true;
+                        return false;
+                    });
+
+                    return {
+                        questionNumber: qNumber,
+                        questionId: q._id || null,
+                        question: q.question || '',
+                        answer: sanitizeTranscript(q.answer || ''),
+                        score: q.score || 0,
+                        marks: q.marks || 0,
+                        feedback: q.feedback || '',
+                        isAttempted: !!(q.answer && q.answer.trim()),
+                        proctoringEvents: questionViolations,
+                        hasProctoringFlag: questionViolations.length > 0,
+                        answeringProctoringEventsCount: questionViolations.length
+                    };
+                }),
                 proctoringViolations: mappedViolations,
                 proctoringReport: proctoringReport || null,
+                proctoringFlags: proctoringFlags,
+                proctoringSummary: {
+                    proctoringScore: proctoringScore,
+                    integrityScore: integrityScore,
+                    riskLevel: riskLevel,
+                    verdict: verdict,
+                    totalIncidents: proctoringReport?.totalIncidents ?? mappedViolations.length,
+                    standardIncidents: proctoringReport?.standardIncidents ?? mappedViolations.filter(v => v.severity !== 'critical').length,
+                    criticalIncidents: proctoringReport?.criticalIncidents ?? mappedViolations.filter(v => v.severity === 'critical').length,
+                    eventSummary: proctoringReport?.eventSummary || evalResult.eventSummary || {},
+                    scoreFactors: proctoringReport?.scoreFactors || evalResult.scoreFactors || [],
+                    reviewStatus: proctoringReport?.reviewStatus || 'UNREVIEWED',
+                    reviewedBy: proctoringReport?.reviewedBy || null,
+                    reviewedAt: proctoringReport?.reviewedAt || null,
+                    reviewReason: proctoringReport?.reviewReason || null
+                }
             },
             scores: {
                 resumeMatch: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
+                codingScore: isJobCoding ? (application.codingScore !== undefined && application.codingScore !== null ? application.codingScore : scoreData.codingScore) : null,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 ownershipScore: application.metrics?.ownershipMindset || null,
                 teamFitScore: application.teamFit?.score || null,
+                proctoringScore: proctoringScore,
+                integrityScore: integrityScore,
+                riskLevel: riskLevel,
+                verdict: verdict,
             },
+            hasInterview,
+            proctoringFlags: proctoringFlags,
+            proctoringScore: proctoringScore,
+            integrityScore: integrityScore,
+            riskLevel: riskLevel,
+            verdict: verdict,
+            proctoringReport: proctoringReport || null,
         };
 
         return res.json(transcript);
@@ -305,9 +525,17 @@ const getJobCandidates = async (req, res) => {
             return res.status(400).json({ message: 'Invalid job ID' });
         }
 
-        const applications = await Application.find({ jobId })
-            .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus')
-            .lean();
+        const [job, applications] = await Promise.all([
+            Job.findById(jobId).lean(),
+            Application.find({ jobId })
+                .select('_id userId applicantName applicantEmail applicantPic resumeMatchPercent assessmentScore codingScore interviewScore finalScore status appliedAt metrics teamFit interviewAnswers recordingStatus integrityPenalty proctoringScore codingAnswers integrityScore riskLevel')
+                .lean()
+        ]);
+
+        const isJobCoding = Boolean(
+            job?.codingAssessment?.enabled === true || 
+            (job?.title && /python/i.test(job.title) && job?.codingAssessment?.enabled !== false)
+        );
 
         const userIdList = applications.map(app => app.userId).filter(Boolean);
         const jobIdStr = jobId.toString();
@@ -325,9 +553,10 @@ const getJobCandidates = async (req, res) => {
         ]);
 
         const userPenaltyMap = {};
-        const addRating = (userId, examId, type, metadata) => {
+        const userFlagsMap = {};
+        const addRating = (userId, examId, type, metadata, ratingFromDb) => {
             if (!userId) return;
-            const rating = getViolationRating(type, metadata);
+            const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
             
             let jobId = null;
             if (examId && typeof examId === 'string') {
@@ -338,20 +567,68 @@ const getJobCandidates = async (req, res) => {
             }
             const key = jobId ? `${userId}_${jobId}` : userId;
             userPenaltyMap[key] = (userPenaltyMap[key] || 0) + rating;
+            if (!userFlagsMap[key]) userFlagsMap[key] = new Set();
+            userFlagsMap[key].add(type);
+            if (!userFlagsMap[userId]) userFlagsMap[userId] = new Set();
+            userFlagsMap[userId].add(type);
         };
 
         baseViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                return;
+            }
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         enhancedViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
+            if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                return;
+            }
+            addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
         });
 
         const candidates = applications.map(app => {
+            const hasInterview = Boolean(
+                (app.interviewAnswers && app.interviewAnswers.length > 0) ||
+                app.recordingSessionId ||
+                app.recordingUrl ||
+                app.recordingPlaybackUrl ||
+                (typeof app.interviewScore === 'number' && app.interviewScore > 0)
+            );
+
+            let proctoringScore = 0;
+            let proctoringFlags = [];
+
             const key = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = userPenaltyMap[key] !== undefined ? userPenaltyMap[key] : (userPenaltyMap[app.userId] || 0);
-            const proctoringScore = rawPenalty;
+            const flags = userFlagsMap[key] || userFlagsMap[app.userId];
+            const flagSum = (userPenaltyMap[key] !== undefined && userPenaltyMap[key] !== null)
+                ? userPenaltyMap[key]
+                : (userPenaltyMap[app.userId] || 0);
+
+            if (flagSum > 0 || (flags && flags.size > 0)) {
+                proctoringFlags = flags ? Array.from(flags) : [];
+                proctoringScore = flagSum > 0 ? flagSum : (app.integrityPenalty || 0);
+            } else {
+                proctoringFlags = [];
+                proctoringScore = 0;
+            }
+
+            let integrityScore = Math.max(0, 100 - Math.round(proctoringScore * 2.5));
+            const hasCriticalFlag = proctoringFlags.some(f => REDMARK_VIOLATIONS.has(f));
+            if (hasCriticalFlag) {
+                integrityScore = Math.min(integrityScore, 45);
+            }
+
+            let riskLevel = 'LOW RISK';
+            if (integrityScore >= 70) {
+                riskLevel = 'LOW RISK';
+            } else if (integrityScore >= 60) {
+                riskLevel = 'RECOMMENDED';
+            } else if (integrityScore >= 50) {
+                riskLevel = 'REVIEW REQUIRED';
+            } else {
+                riskLevel = 'HIGH RISK';
+            }
 
             // Compute live accurate scores using unified score calculator
             const scoreData = calculateCandidateScores(app, null);
@@ -363,6 +640,10 @@ const getJobCandidates = async (req, res) => {
                     { $set: { finalScore: scoreData.finalScore, interviewScore: scoreData.interviewScore } }
                 ).catch(err => console.error('[TRANSCRIPT-AUTO-HEAL-LIST] Error updating DB:', err));
             }
+            const hasCoding = isJobCoding && Boolean(
+                (app.codingAnswers && app.codingAnswers.length > 0) || 
+                (app.codingScore !== null && app.codingScore !== undefined && app.codingScore > 0)
+            );
             return {
                 applicationId: app._id,
                 name: app.applicantName || 'Unknown',
@@ -370,14 +651,18 @@ const getJobCandidates = async (req, res) => {
                 profilePic: app.applicantPic || null,
                 resumeScore: scoreData.resumeScore,
                 assessmentScore: scoreData.assessmentScore,
+                codingScore: isJobCoding ? (app.codingScore !== undefined && app.codingScore !== null ? app.codingScore : scoreData.codingScore) : null,
                 interviewScore: scoreData.interviewScore,
                 finalScore: scoreData.finalScore,
                 proctoringScore,
-                integrityPenalty: rawPenalty,
+                integrityScore,
+                riskLevel,
+                proctoringFlags,
                 status: app.status,
                 appliedAt: app.appliedAt,
                 hasAssessment: app.assessmentScore !== null && app.assessmentScore !== undefined,
-                hasInterview: (app.interviewAnswers?.length || 0) > 0,
+                hasCoding,
+                hasInterview,
                 ownershipScore: app.metrics?.ownershipMindset || null,
                 teamFitScore: app.teamFit?.score || null,
             };

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
     AlertCircle,
@@ -17,20 +17,65 @@ import {
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { useNoiseDetector } from '../../../hooks/useNoiseDetector';
+import NoiseWarningOverlay from '../../../components/NoiseWarningOverlay';
 
-const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => {
+const SkillAssessment = ({
+    job,
+    user,
+    onComplete,
+    onBack,
+    onSecurityReset,
+    sharedStream,
+    setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
+    sharedRecorder,
+    setSharedRecorder,
+    sharedSessionId,
+    setSharedSessionId,
+    sharedRecordingSessionId,
+    setSharedRecordingSessionId,
+    firstQuestionData,
+    setFirstQuestionData,
+    sharedChunkIndexRef,
+    sharedChunkUploadsRef
+}) => {
+    const currentUserId = user?.uid || user?._id || user?.id;
+    const currentJobId = job?._id || job?.id || '';
+    const [lobbyStarted, setLobbyStarted] = useState(false);
+    const [lobbyError, setLobbyError] = useState(null);
     const [started, setStarted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [questions, setQuestions] = useState([]);
     const [sessionId, setSessionId] = useState(null);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState({});
+    const [descriptions, setDescriptions] = useState({});
     const [score, setScore] = useState(null);
     const [error, setError] = useState(null);
     const [securityResetting, setSecurityResetting] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
-    const assessmentType = (job.assessment?.type || 'mcq').toUpperCase();
-    const totalQuestions = questions.length || job.assessment?.totalQuestions || 5;
+    const localRecordingSessionIdRef = useRef(null);
+    const localRecorderRef = useRef(null);
+    const latestStreamRef = useRef(sharedStream);
+
+    // ── Noise / disturbance detection ────────────────────────────────────────
+    // Reuses the already-open sharedStream — no new getUserMedia call.
+    const noiseDetector = useNoiseDetector(
+        started ? sharedStream : null,
+        { enabled: started && !submitting }
+    );
+
+    // Keep the ref in sync with the latest sharedStream state so async
+    // functions (startAssessment) never close over a stale null value.
+    useEffect(() => {
+        latestStreamRef.current = sharedStream;
+    }, [sharedStream]);
+
+    const assessmentType = (job?.assessment?.type || 'mcq').toUpperCase();
+    const totalQuestions = questions.length || job?.assessment?.totalQuestions || 5;
     const estimatedMinutes = Math.max(totalQuestions * 8, 20);
 
     // Auto-navigate to next step when completed
@@ -48,18 +93,166 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
         return ((currentQIndex + 1) / questions.length) * 100;
     }, [currentQIndex, questions.length]);
 
+    const enableMedia = async () => {
+        try {
+            setLobbyError(null);
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
+            setSharedStream(stream);
+        } catch (err) {
+            console.error("Camera/Mic access denied:", err);
+            setLobbyError("Camera and microphone access are required to proceed.");
+        }
+    };
+
+    const handleLobbyBack = () => {
+        if (sharedStream) {
+            sharedStream.getTracks().forEach(t => t.stop());
+            setSharedStream(null);
+        }
+        setLobbyStarted(false);
+    };
+
+    const getRecordingMimeType = () => {
+        const candidates = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+            'video/mp4;codecs=h264,aac',
+            'video/mp4'
+        ];
+        return candidates.find(type => window.MediaRecorder?.isTypeSupported?.(type)) || '';
+    };
+
+    const startFullSessionRecording = async (activeStream, activeRecordingSessionId) => {
+        try {
+            const mimeType = getRecordingMimeType();
+            const recorderOptions = mimeType
+                ? { mimeType, videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 }
+                : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
+
+            const recordTracks = [];
+            const camVideoTrack = activeStream.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+            const audioTrack = activeStream.getAudioTracks()[0];
+
+            if (camVideoTrack) recordTracks.push(camVideoTrack);
+            if (audioTrack) recordTracks.push(audioTrack);
+
+            const recordStream = new MediaStream(recordTracks);
+            
+            let fullSessionRecorder;
+            try {
+                fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            } catch (mimeErr) {
+                console.warn("[MediaRecorder] Failed to initialize with options, trying default constructor:", mimeErr);
+                fullSessionRecorder = new MediaRecorder(recordStream);
+            }
+
+            localRecorderRef.current = fullSessionRecorder;
+            setSharedRecorder(fullSessionRecorder);
+            sharedChunkIndexRef.current = 0;
+            sharedChunkUploadsRef.current = [];
+
+            const uploadChunkWithRetry = async (formData, index, retries = 3) => {
+                for (let attempt = 1; attempt <= retries; attempt++) {
+                    try {
+                        await axios.post(`${API_URL}/upload-recording-chunk`, formData);
+                        return;
+                    } catch (err) {
+                        console.warn(`Chunk ${index} upload attempt ${attempt} failed:`, err);
+                        if (attempt === retries) throw err;
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                }
+            };
+
+            fullSessionRecorder.ondataavailable = async (event) => {
+                if (event.data?.size > 0) {
+                    const chunk = event.data;
+                    const currentIndex = sharedChunkIndexRef.current;
+                    sharedChunkIndexRef.current++;
+
+                    const formData = new FormData();
+                    formData.append('sessionId', localRecordingSessionIdRef.current || activeRecordingSessionId);
+                    formData.append('chunkIndex', currentIndex);
+                    formData.append('chunk', chunk);
+
+                    const uploadPromise = uploadChunkWithRetry(formData, currentIndex);
+                    sharedChunkUploadsRef.current.push(uploadPromise);
+                }
+            };
+
+            fullSessionRecorder.start(30000);
+        } catch (err) {
+            console.error("Failed to start MediaRecorder:", err);
+        }
+    };
+
     const startAssessment = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const res = await axios.post(`${API_URL}/generate-full-assessment`, {
-                jobId: job._id,
-                userId: user.uid
-            });
+            const currentUserId = user?.uid || user?._id || user?.id || '';
+            const currentJobId = job?._id || job?.id || '';
 
-            if (!Array.isArray(res.data?.questions) || res.data.questions.length === 0) {
-                throw new Error('No questions in response');
+            // 1. Generate full assessment questions with retries
+            let res;
+            let lastErr;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    res = await axios.post(`${API_URL}/generate-full-assessment`, {
+                        jobId: currentJobId || job?._id || job?.id,
+                        userId: currentUserId
+                    });
+                    if (Array.isArray(res.data?.questions) && res.data.questions.length > 0) {
+                        break;
+                    }
+                    throw new Error('No questions in server response');
+                } catch (err) {
+                    lastErr = err;
+                    console.warn(`Assessment generation attempt ${attempt} failed:`, err);
+                    if (attempt < 3) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+            }
+
+            if (!res || !Array.isArray(res.data?.questions) || res.data.questions.length === 0) {
+                throw lastErr || new Error('Failed to retrieve assessment questions after multiple attempts.');
+            }
+
+            // 2. Pre-start interview session if enabled to get recordingSessionId
+            let interviewData = null;
+            if (job?.mockInterview?.enabled) {
+                try {
+                    const interviewRes = await axios.post(`${API_URL}/interview/start`, {
+                        jobId: currentJobId || job?._id || job?.id,
+                        userId: currentUserId
+                    });
+                    if (interviewRes.data?.success) {
+                        interviewData = interviewRes.data;
+                        setSharedSessionId(interviewRes.data.sessionId);
+                        setSharedRecordingSessionId(interviewRes.data.recordingSessionId);
+                        setFirstQuestionData(interviewRes.data);
+                    }
+                } catch (interviewErr) {
+                    console.warn("Failed to pre-start interview session:", interviewErr);
+                }
+            }
+
+            // 3. Generate distinct assessmentRecordingSessionId
+            const activeRecId = `assessment_${String(currentUserId || 'user').replace(/[^a-zA-Z0-9_-]/g, '')}_${String(currentJobId || job?._id || 'job').replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+            
+            localRecordingSessionIdRef.current = activeRecId;
+            // 4. Start the assessment recording. Keep the shared interview
+            // recording id intact so the next stage saves as AI interview.
+            // Use the ref instead of the closure variable to avoid stale null
+            const activeStream = latestStreamRef.current;
+            if (activeStream) {
+                await startFullSessionRecording(activeStream, activeRecId);
             }
 
             setQuestions(res.data.questions);
@@ -80,9 +273,33 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
         setAnswers((prev) => ({ ...prev, [currentQIndex]: value }));
     };
 
+    const handleDescription = (value) => {
+        setDescriptions((prev) => ({ ...prev, [currentQIndex]: value }));
+    };
+
+    const canProceed = useMemo(() => {
+        const q = questions[currentQIndex];
+        if (!q) return false;
+        const isParagraph = q.type === 'paragraph' || q.type === 'descriptive' || q.type === 'subjective';
+        const isMcqWithDesc = q.type === 'mcq' && Boolean(q.requiresDescription || q.requiresExplanation || q.hasDescription);
+
+        if (isParagraph) {
+            return Boolean((descriptions[currentQIndex] || answers[currentQIndex] || '').trim().length >= 10);
+        }
+        if (isMcqWithDesc) {
+            const hasOption = Boolean(answers[currentQIndex]);
+            const hasExplanation = Boolean((descriptions[currentQIndex] || '').trim().length >= 5);
+            return hasOption && hasExplanation;
+        }
+        if (q.type === 'mcq') {
+            return Boolean(answers[currentQIndex]);
+        }
+        return Boolean((answers[currentQIndex] || '').trim());
+    }, [questions, currentQIndex, answers, descriptions]);
+
     const nextQuestion = () => {
         if (currentQIndex < questions.length - 1) {
-            setCurrentQIndex((value) => value + 1);
+            setCurrentQIndex(currentQIndex + 1);
             return;
         }
 
@@ -90,63 +307,137 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
     };
 
     const finishAssessment = async () => {
+        setSubmitting(true);
+        setError(null);
         let correct = 0;
         const formattedAnswers = [];
 
         questions.forEach((question, index) => {
-            const userAnswer = answers[index];
+            const userAnswer = answers[index] || '';
+            const userExplanation = (descriptions[index] || '').trim();
             let isCorrect = false;
 
             if (question.type === 'mcq') {
-                if (question.options[question.correctAnswer] === userAnswer) {
+                if (question.options && question.options[question.correctAnswer] === userAnswer) {
                     correct += 1;
                     isCorrect = true;
                 }
-            } else if (question.type === 'coding') {
-                if (userAnswer && userAnswer.trim().length > 20) {
-                    correct += 1;
-                    isCorrect = true;
-                }
+            } else if (question.type === 'coding' || question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') {
+                // Frontend no longer scores coding/paragraph/descriptive questions (deferred to AI on backend)
+                // We leave isCorrect as null and let the backend evaluate it.
+                isCorrect = null; // Send null to indicate it's not pre-scored
             }
 
             formattedAnswers.push({
-                userAnswer,
+                userAnswer: userAnswer || userExplanation,
+                selectedOption: userAnswer,
+                explanation: userExplanation,
                 isCorrect
             });
         });
 
+        // This is a fallback/optimistic score for UI purposes if the backend doesn't return one
         const finalScore = Math.round((correct / questions.length) * 20);
 
         try {
-            const submitRes = await axios.post(`${API_URL}/submit-assessment`, {
-                jobId: job._id,
-                userId: user.uid,
-                sessionId,
+            const currentUserId = user?.uid || user?._id || user?.id || '';
+            const currentJobId = job?._id || job?.id || '';
+
+            const response = await axios.post(`${API_URL}/submit-assessment`, {
+                jobId: currentJobId || job?._id || job?.id,
+                userId: currentUserId,
+                sessionId: sessionId || sharedSessionId || `assessment_${Date.now()}`,
                 questions,
                 answers: formattedAnswers
             });
+            // Successfully submitted! Use the backend's definitive AI-calculated score if available.
+            setScore(response.data.score !== undefined ? response.data.score : finalScore);
 
-            await axios.post(`${API_URL}/applications`, {
-                jobId: job._id,
-                userId: user.uid,
-                assessmentScore: finalScore,
-                assessmentSubmissionId: submitRes.data.submissionId
-            });
+
+            // Always stop and finalize assessment recording on assessment complete!
+            const recorder = localRecorderRef.current || sharedRecorder;
+            const activeRecId = localRecordingSessionIdRef.current || sharedRecordingSessionId;
+
+            if (recorder) {
+                recorder.onstop = async () => {
+                    try {
+                        if (sharedChunkUploadsRef.current.length > 0) {
+                            await Promise.allSettled(sharedChunkUploadsRef.current);
+                        }
+                        if (activeRecId) {
+                            await axios.post(`${API_URL}/finalize-recording`, {
+                                sessionId: activeRecId,
+                                userId: currentUserId,
+                                jobId: currentJobId || job?._id || job?.id,
+                                type: "assessment"
+                            });
+                        }
+                    } catch (err) {
+                        console.error("Finalization failed:", err);
+                    } finally {
+                        setSharedRecorder(null);
+                    }
+                };
+                try {
+                    recorder.stop();
+                } catch (stopErr) {
+                    console.error("Failed to stop recorder:", stopErr);
+                }
+            }
         } catch (submitError) {
-            console.warn('Assessment score save failed:', submitError);
+            console.error('Assessment submission failed:', submitError);
+            setError(
+                submitError.response?.data?.message ||
+                submitError.message ||
+                'Failed to save your assessment. Please check your connection and try again.'
+            );
+        } finally {
+            setSubmitting(false);
         }
-
-        setScore(finalScore);
     };
 
     const handleAssessmentSecurityReset = async (violation) => {
         setSecurityResetting(true);
 
+        const activeRecId = localRecordingSessionIdRef.current || sharedRecordingSessionId;
+        const recorder = localRecorderRef.current || sharedRecorder;
+
+        if (recorder && recorder.state !== 'inactive') {
+            recorder.onstop = async () => {
+                try {
+                    if (sharedChunkUploadsRef.current.length > 0) {
+                        await Promise.allSettled(sharedChunkUploadsRef.current);
+                    }
+                    if (activeRecId) {
+                        await axios.post(`${API_URL}/finalize-recording`, {
+                            sessionId: activeRecId,
+                            userId: currentUserId || user?.uid || user?._id || user?.id || '',
+                            jobId: currentJobId || job?._id || job?.id,
+                            type: "assessment"
+                        });
+                    }
+                } catch (err) {
+                    console.error("Finalization failed on security reset:", err);
+                }
+            };
+            try { recorder.stop(); } catch (_) {}
+        }
+        if (sharedStream) {
+            sharedStream.getTracks().forEach(t => t.stop());
+            setSharedStream(null);
+        }
+        setSharedRecorder(null);
+        setSharedSessionId(null);
+        setSharedRecordingSessionId(null);
+        setFirstQuestionData(null);
+        sharedChunkIndexRef.current = 0;
+        sharedChunkUploadsRef.current = [];
+
         try {
             if (sessionId && questions.length > 0) {
                 await axios.post(`${API_URL}/submit-assessment`, {
-                    jobId: job._id,
-                    userId: user.uid,
+                    jobId: currentJobId || job?._id || job?.id,
+                    userId: currentUserId || user?.uid || user?._id || user?.id || '',
                     sessionId,
                     questions,
                     answers: [],
@@ -173,9 +464,100 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                 </div>
                 <h2 className="mt-6 text-3xl font-semibold tracking-tight text-gray-900">Preparing your assessment</h2>
                 <p className="mt-3 text-sm leading-7 text-gray-500">
-                    We are generating role-specific questions based on the recruiter requirements for {job.title}.
+                    We are generating role-specific questions based on the recruiter requirements for {job?.title || 'this role'}.
                 </p>
             </div>
+        );
+    }
+
+    if (lobbyStarted && !started && score === null) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="skill-assessment-lobby-card max-w-2xl mx-auto my-4 py-6 px-8 bg-white border border-black/10 rounded-[2.5rem] shadow-xl"
+            >
+                <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-2 tracking-tight text-center">Assessment Setup</h2>
+                <p className="text-gray-500 mb-4 font-medium leading-relaxed max-w-md mx-auto text-xs md:text-sm text-center">
+                    To ensure the integrity of the skill assessment and the subsequent AI interview, please enable your camera and microphone.
+                </p>
+
+                <div className="flex flex-col items-center gap-4 mb-5">
+                    <div className="skill-assessment-lobby-video w-full aspect-video bg-gray-900 rounded-3xl overflow-hidden relative border-2 border-gray-100 shadow-inner">
+                        {sharedStream ? (
+                            <video 
+                                autoPlay 
+                                muted 
+                                playsInline 
+                                ref={el => { 
+                                    if(el) {
+                                        const camTrack = sharedStream.getVideoTracks()[0];
+                                        if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                    }
+                                }}
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-3">
+                                <AlertCircle size={40} className="opacity-20" />
+                                <span className="text-xs font-bold uppercase tracking-widest opacity-40">Camera Inactive</span>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {!sharedStream ? (
+                        <button 
+                            onClick={enableMedia}
+                            className="px-6 py-2.5 bg-gray-600 hover:bg-gray-800 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-md cursor-pointer hover:shadow-lg"
+                        >
+                            Enable Camera & Mic
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2 text-green-600 font-semibold text-xs md:text-sm">
+                            <CheckCircle2 size={18} />
+                            <span>Camera and Microphone Active</span>
+                        </div>
+                    )}
+                </div>
+
+                {(lobbyError || error) && (
+                    <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+                        <AlertCircle size={15} />
+                        <span>{lobbyError || error}</span>
+                    </div>
+                )}
+
+                <div className="flex justify-between gap-4 border-t border-black/10 pt-4">
+                    <button
+                        disabled={loading}
+                        onClick={handleLobbyBack}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1] disabled:opacity-50"
+                    >
+                        <ArrowLeft size={16} />
+                        Back
+                    </button>
+
+                    <button
+                        disabled={!sharedStream || loading}
+                        onClick={startAssessment}
+                        className={`inline-flex items-center justify-center gap-2.5 rounded-[2rem] px-8 py-3.5 text-xs md:text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
+                            sharedStream && !loading ? 'bg-black text-white hover:bg-gray-800 cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Preparing Challenge...
+                            </>
+                        ) : (
+                            <>
+                                Begin Assessment
+                                <Play size={16} />
+                            </>
+                        )}
+                    </button>
+                </div>
+            </motion.div>
         );
     }
 
@@ -184,70 +566,72 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-8"
+                className="skill-assessment-landing max-w-5xl mx-auto space-y-4"
             >
-                <header className="rounded-[2.25rem] border border-black/10 bg-white px-8 py-7 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Skill assessment</p>
-                    <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <header className="rounded-2xl border border-black/10 bg-white px-6 py-4 shadow-sm">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Skill assessment</p>
+                    <div className="mt-1 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Assessment Center</h1>
-                            <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
+                            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-900">Assessment Center</h1>
+                            <p className="mt-0.5 max-w-2xl text-xs md:text-sm text-gray-500">
                                 Complete the next stage of your application through a secure, proctored challenge tailored to the job requirements.
                             </p>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
-                            Stage 2 of 4
+                        <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-3.5 py-1.5 text-xs font-semibold text-gray-700 shrink-0 self-start md:self-auto">
+                            Stage 3 of 4
                         </div>
                     </div>
                 </header>
 
-                <div className="rounded-[2.5rem] border border-black/10 bg-white p-8 shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-                    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-                        <div className="rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-8">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-black text-white">
-                                <Brain size={28} />
+                <div className="rounded-3xl border border-black/10 bg-white p-5 md:p-6 shadow-sm">
+                    <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                        <div className="rounded-2xl border border-black/10 bg-[#fbf8f3] p-5 flex flex-col justify-between">
+                            <div>
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
+                                    <Brain size={22} />
+                                </div>
+                                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready for the assessment?</h2>
+                                <p className="mt-1.5 text-xs md:text-sm text-gray-600">
+                                    This round checks how well your skills align with the role, then unlocks the next application stage.
+                                </p>
                             </div>
-                            <h2 className="mt-6 text-4xl font-semibold tracking-tight text-gray-900">Ready for the assessment?</h2>
-                            <p className="mt-4 text-sm leading-7 text-gray-600">
-                                This round checks how well your skills align with the role, then unlocks the next application stage.
-                            </p>
 
-                            <div className="mt-8 grid gap-4 md:grid-cols-3">
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <ListChecks size={20} />
+                            <div className="mt-4 grid gap-3 grid-cols-3">
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <ListChecks size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Format</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{assessmentType}</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Format</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{assessmentType}</p>
                                 </div>
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <BookOpenCheck size={20} />
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <BookOpenCheck size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Questions</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{totalQuestions}</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Questions</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{totalQuestions}</p>
                                 </div>
-                                <div className="rounded-[1.5rem] border border-black/10 bg-white p-5">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                        <Clock3 size={20} />
+                                <div className="rounded-xl border border-black/10 bg-white p-3 text-center">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f4efe6] text-gray-700 mx-auto">
+                                        <Clock3 size={16} />
                                     </div>
-                                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Estimated time</p>
-                                    <p className="mt-2 text-lg font-semibold text-gray-900">{estimatedMinutes} min</p>
+                                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Estimated time</p>
+                                    <p className="mt-1 text-sm md:text-base font-semibold text-gray-900">{estimatedMinutes} min</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="rounded-[1.75rem] border border-amber-200 bg-amber-50 p-6">
-                                <div className="flex items-center gap-3 text-amber-800">
-                                    <AlertCircle size={20} />
-                                    <h3 className="text-sm font-bold uppercase tracking-wider">Before you start</h3>
+                        <div className="space-y-3">
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <div className="flex items-center gap-2.5 text-amber-800">
+                                    <AlertCircle size={18} />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider">Before you start</h3>
                                 </div>
-                                <ul className="mt-4 space-y-3 text-xs leading-5 text-amber-700/80">
-                                    <li className="flex gap-2"><span>â€¢</span> Do not switch tabs or minimize the window.</li>
-                                    <li className="flex gap-2"><span>â€¢</span> Ensure you are in a quiet place with stable internet.</li>
-                                    <li className="flex gap-2"><span>â€¢</span> Screen sharing and camera must remain active.</li>
-                                    <li className="flex gap-2"><span>â€¢</span> Any attempt to copy-paste or search will be logged.</li>
+                                <ul className="mt-2.5 space-y-1.5 text-xs text-amber-700/80">
+                                    <li className="flex gap-2"><span>•</span> Do not switch tabs or minimize the window.</li>
+                                    <li className="flex gap-2"><span>•</span> Ensure you are in a quiet place with stable internet.</li>
+                                    <li className="flex gap-2"><span>•</span> Screen sharing and camera must remain active.</li>
+                                    <li className="flex gap-2"><span>•</span> Any attempt to copy-paste or search will be logged.</li>
                                 </ul>
                             </div>
 
@@ -266,12 +650,14 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                                 const Icon = item.icon;
 
                                 return (
-                                    <div key={item.title} className="rounded-[1.75rem] border border-black/10 bg-white p-6 shadow-sm">
-                                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                                            <Icon size={20} />
+                                    <div key={item.title} className="rounded-2xl border border-black/10 bg-white p-3.5 shadow-sm flex items-center gap-3.5">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f4efe6] text-gray-700">
+                                            <Icon size={18} />
                                         </div>
-                                        <h3 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">{item.title}</h3>
-                                        <p className="mt-2 text-sm leading-7 text-gray-500">{item.description}</p>
+                                        <div>
+                                            <h3 className="text-sm font-semibold tracking-tight text-gray-900">{item.title}</h3>
+                                            <p className="text-xs text-gray-500 leading-normal">{item.description}</p>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -279,27 +665,27 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                     </div>
 
                     {error ? (
-                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                            <AlertCircle size={18} />
+                        <div className="mt-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700">
+                            <AlertCircle size={16} />
                             {error}
                         </div>
                     ) : null}
 
-                    <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
+                    <div className="mt-5 flex justify-between items-center border-t border-black/10 pt-4">
                         <button
                             onClick={onBack}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-5 py-3 text-xs md:text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                         >
-                            <ArrowLeft size={18} />
+                            <ArrowLeft size={16} />
                             Back
                         </button>
 
                         <button
-                            onClick={startAssessment}
-                            className="inline-flex items-center justify-center gap-3 rounded-[2rem] bg-black px-10 py-5 text-sm font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-gray-800 shadow-2xl active:scale-95"
+                            onClick={() => setLobbyStarted(true)}
+                            className="inline-flex items-center justify-center gap-2.5 rounded-[2rem] bg-black px-8 py-3.5 text-xs md:text-sm font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-gray-800 shadow-xl active:scale-95 cursor-pointer"
                         >
                             Start Challenge
-                            <Play size={18} />
+                            <Play size={16} />
                         </button>
                     </div>
                 </div>
@@ -309,44 +695,60 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
 
     if (score !== null) {
         return (
-            <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-[2.5rem] border border-black/10 bg-white p-10 shadow-[0_30px_90px_rgba(15,23,42,0.08)]"
+            <SecureExamWrapper
+                examId={`assessment:${job?._id || job?.id || 'job'}:${sessionId || 'pending'}`}
+                userId={currentUserId || user?.uid || user?._id || user?.id || ''}
+                isActive={started && !securityResetting}
+                requireScreenShare={true}
+                requireCamera={true}
+                cameraStream={sharedStream}
+                screenStream={sharedScreenStream}
+                onScreenShareStart={setSharedScreenStream}
+                preserveScreenOnUnmount={true}
+                isAnswering={false}
+                warningLimit={3}
+                resetLimit={4}
+                onSecurityReset={handleAssessmentSecurityReset}
             >
-                <div className="mx-auto max-w-3xl text-center">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#eff9ef] text-emerald-600">
-                        <CheckCircle2 size={40} />
-                    </div>
-                    <h2 className="mt-6 text-4xl font-semibold tracking-tight text-gray-900">Assessment completed</h2>
-                    <p className="mt-4 text-sm leading-7 text-gray-500">
-                        Your responses have been recorded successfully. Continue to the interview stage to complete your application.
-                    </p>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="rounded-[2.5rem] border border-black/10 bg-white p-10 shadow-[0_30px_90px_rgba(15,23,42,0.08)]"
+                >
+                    <div className="mx-auto max-w-3xl text-center">
+                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#eff9ef] text-emerald-600">
+                            <CheckCircle2 size={40} />
+                        </div>
+                        <h2 className="mt-6 text-4xl font-semibold tracking-tight text-gray-900">Assessment completed</h2>
+                        <p className="mt-4 text-sm leading-7 text-gray-500">
+                            Your responses have been recorded successfully. Continue to the interview stage to complete your application.
+                        </p>
 
-                    <div className="mt-8 grid gap-4 md:grid-cols-3">
-                        <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Score</p>
-                            <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{score}/20</p>
+                        <div className="mt-8 grid gap-4 md:grid-cols-3">
+                            <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
+                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Score</p>
+                                <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{score}/20</p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
+                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Questions completed</p>
+                                <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{questions.length}</p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
+                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Next stage</p>
+                                <p className="mt-3 text-lg font-semibold text-gray-900">AI interview</p>
+                            </div>
                         </div>
-                        <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Questions completed</p>
-                            <p className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{questions.length}</p>
-                        </div>
-                        <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Next stage</p>
-                            <p className="mt-3 text-lg font-semibold text-gray-900">AI interview</p>
-                        </div>
-                    </div>
 
-                    <button
-                        onClick={() => onComplete(score)}
-                        className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-black px-7 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                    >
-                        Continue to Interview
-                        <ArrowRight size={18} />
-                    </button>
-                </div>
-            </motion.div>
+                        <button
+                            onClick={() => onComplete(score)}
+                            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-black px-7 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                        >
+                            Continue to Interview
+                            <ArrowRight size={18} />
+                        </button>
+                    </div>
+                </motion.div>
+            </SecureExamWrapper>
         );
     }
 
@@ -392,12 +794,18 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
 
     return (
         <SecureExamWrapper
-            examId={`assessment:${job._id}:${sessionId || 'pending'}`}
-            userId={user.uid}
+            examId={`assessment:${job?._id || job?.id || 'job'}:${sessionId || 'pending'}`}
+            userId={currentUserId || user?.uid || user?._id || user?.id || ''}
             isActive={started && !securityResetting}
             requireScreenShare={true}
             requireCamera={true}
+            cameraStream={sharedStream}
+            screenStream={sharedScreenStream}
+            onScreenShareStart={setSharedScreenStream}
+            preserveScreenOnUnmount={true}
             isAnswering={started && !securityResetting}
+            questionIndex={currentQIndex}
+            questionId={question?._id || question?.id || null}
             warningLimit={3}
             resetLimit={4}
             onSecurityReset={handleAssessmentSecurityReset}
@@ -412,7 +820,7 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Assessment in progress</p>
-                            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
+                            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">{job?.title || 'Assessment'}</h1>
                         </div>
                         <div className="rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
                             Question {currentQIndex + 1} of {questions.length}
@@ -432,8 +840,8 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                         <div className="max-w-3xl">
                             <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">
-                                {question.type === 'mcq' ? <ListChecks size={14} /> : <Code2 size={14} />}
-                                {question.type === 'mcq' ? 'Multiple choice' : 'Coding response'}
+                                {question.type === 'mcq' ? <ListChecks size={14} /> : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? <BookOpenCheck size={14} /> : <Code2 size={14} />}
+                                {question.type === 'mcq' ? 'Multiple choice' : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? 'Paragraph response' : 'Coding response'}
                             </div>
                             <h2 className="mt-6 text-3xl font-semibold leading-tight tracking-tight text-gray-900">
                                 {question.question}
@@ -442,25 +850,79 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                     </div>
 
                     {question.type === 'mcq' ? (
-                        <div className="mt-8 space-y-4">
-                            {question.options.map((option, index) => {
-                                const isSelected = answers[currentQIndex] === option;
+                        <div className="mt-8 space-y-6">
+                            <div className="space-y-4">
+                                {question.options.map((option, index) => {
+                                    const isSelected = answers[currentQIndex] === option;
 
-                                return (
-                                    <button
-                                        key={`${option}-${index}`}
-                                        onClick={() => handleAnswer(option)}
-                                        className={`w-full rounded-[1.5rem] border px-5 py-5 text-left transition ${isSelected ? 'border-black bg-black text-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]' : 'border-black/10 bg-[#fbf8f3] text-gray-700 hover:border-black/20 hover:bg-[#faf7f1]'}`}
-                                    >
-                                        <div className="flex items-start gap-4">
-                                            <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${isSelected ? 'bg-white text-black' : 'bg-white text-gray-500 border border-black/10'}`}>
-                                                {String.fromCharCode(65 + index)}
+                                    return (
+                                        <button
+                                            key={`${option}-${index}`}
+                                            onClick={() => handleAnswer(option)}
+                                            className={`w-full rounded-[1.5rem] border px-5 py-5 text-left transition ${isSelected ? 'border-black bg-black text-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]' : 'border-black/10 bg-[#fbf8f3] text-gray-700 hover:border-black/20 hover:bg-[#faf7f1]'}`}
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${isSelected ? 'bg-white text-black' : 'bg-white text-gray-500 border border-black/10'}`}>
+                                                    {String.fromCharCode(65 + index)}
+                                                </div>
+                                                <p className="text-base leading-7">{option}</p>
                                             </div>
-                                            <p className="text-base leading-7">{option}</p>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Descriptive explanation area ONLY when specifically requested for this particular MCQ */}
+                            {Boolean(question.requiresDescription || question.requiresExplanation || question.hasDescription) && (
+                                <div className="rounded-[1.75rem] border border-black/10 bg-[#fcfbf9] p-5 sm:p-6 transition-all focus-within:border-black/30">
+                                    <div className="mb-2.5 flex items-center justify-between">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                                            Describe your answer / solution reasoning
+                                        </label>
+                                        <span className="text-[11px] font-medium text-gray-400">
+                                            {(descriptions[currentQIndex] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        rows={4}
+                                        className="w-full rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-gray-800 placeholder-gray-400 outline-none transition focus:border-black/30 focus:ring-1 focus:ring-black/10"
+                                        value={descriptions[currentQIndex] || ''}
+                                        onChange={(event) => handleDescription(event.target.value)}
+                                        placeholder="Explain your reasoning or approach in detail for the chosen answer..."
+                                        maxLength={2000}
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Explain the technical principles behind your answer to support your choice.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective') ? (
+                        <div className="mt-8 space-y-4">
+                            <div className="rounded-[1.75rem] border border-black/10 bg-[#fcfbf9] p-5 sm:p-6 transition-all focus-within:border-black/30">
+                                <div className="mb-2.5 flex items-center justify-between">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                                        Written Response
+                                    </label>
+                                    <span className="text-[11px] font-medium text-gray-400">
+                                        {(descriptions[currentQIndex] || answers[currentQIndex] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                    </span>
+                                </div>
+                                <textarea
+                                    rows={8}
+                                    className="w-full rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-gray-800 placeholder-gray-400 outline-none transition focus:border-black/30 focus:ring-1 focus:ring-black/10"
+                                    value={descriptions[currentQIndex] || answers[currentQIndex] || ''}
+                                    onChange={(event) => {
+                                        handleDescription(event.target.value);
+                                        handleAnswer(event.target.value);
+                                    }}
+                                    placeholder="Type your complete answer or explanation here..."
+                                    maxLength={3000}
+                                />
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Provide a comprehensive answer covering the core concepts and edge cases.
+                                </p>
+                            </div>
                         </div>
                     ) : (
                         <div className="mt-8 space-y-4">
@@ -478,24 +940,57 @@ const SkillAssessment = ({ job, user, onComplete, onBack, onSecurityReset }) => 
                         </div>
                     )}
 
+                    {error ? (
+                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 animate-pulse">
+                            <AlertCircle size={18} />
+                            {error}
+                        </div>
+                    ) : null}
+
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <div className="text-sm text-gray-500">
-                            {question.type === 'mcq'
-                                ? 'Select the strongest answer before moving forward.'
-                                : 'Provide a complete response before continuing.'}
+                            {(() => {
+                                const isParagraph = question.type === 'paragraph' || question.type === 'descriptive' || question.type === 'subjective';
+                                const isMcqWithDesc = question.type === 'mcq' && Boolean(question.requiresDescription || question.requiresExplanation || question.hasDescription);
+
+                                if (isParagraph) {
+                                    return 'Provide a complete written response before continuing.';
+                                }
+                                if (isMcqWithDesc) {
+                                    if (!answers[currentQIndex]) return 'Select an option and describe your reasoning.';
+                                    if (!(descriptions[currentQIndex] || '').trim()) return 'Please provide a brief written explanation for your answer.';
+                                    return 'Select the strongest answer and verify your explanation before moving forward.';
+                                }
+                                if (question.type === 'mcq') {
+                                    return 'Select the strongest answer before moving forward.';
+                                }
+                                return 'Provide a complete response before continuing.';
+                            })()}
                         </div>
 
                         <button
                             onClick={nextQuestion}
-                            disabled={!answers[currentQIndex]}
-                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${answers[currentQIndex] ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
+                            disabled={!canProceed || submitting}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-semibold transition ${canProceed && !submitting ? 'bg-black text-white hover:bg-gray-800' : 'cursor-not-allowed border border-black/10 bg-gray-100 text-gray-400'}`}
                         >
-                            {currentQIndex === questions.length - 1 ? 'Finish assessment' : 'Next question'}
-                            <ArrowRight size={18} />
+                            {submitting ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    {currentQIndex === questions.length - 1 ? 'Finish assessment' : 'Next question'}
+                                    <ArrowRight size={18} />
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
             </motion.div>
+
+            {/* ── Noise Disturbance Overlay ── */}
+            <NoiseWarningOverlay {...noiseDetector} />
         </SecureExamWrapper>
     );
 };

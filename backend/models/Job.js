@@ -26,9 +26,68 @@ const jobSchema = new mongoose.Schema({
     },
     mockInterview: {
         enabled: { type: Boolean, default: true },
+        questionSource: {
+            type: String,
+            enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+            default: 'AI_GENERATED'
+        },
+        questionCount: { type: Number, default: 5 },
+        selectionMode: {
+            type: String,
+            enum: ['ORDERED', 'RANDOM'],
+            default: 'ORDERED'
+        },
+        recruiterQuestions: [{
+            questionId: { type: String },
+            question: { type: String },
+            text: { type: String },
+            order: { type: Number },
+            category: { type: String, default: 'General' },
+            difficulty: { type: String, default: 'Medium' },
+            questionType: { type: String, default: 'Conceptual' },
+            timeLimit: { type: Number, default: 120 },
+            source: { type: String, default: 'RECRUITER' }
+        }],
         passingScore: { type: Number, default: 70 }
     },
+    questionSource: {
+        type: String,
+        enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+        default: 'AI_GENERATED'
+    },
+    questionCount: { type: Number, default: 5 },
+    selectionMode: {
+        type: String,
+        enum: ['ORDERED', 'RANDOM'],
+        default: 'ORDERED'
+    },
+    recruiterQuestions: [{
+        questionId: { type: String },
+        question: { type: String },
+        text: { type: String },
+        order: { type: Number },
+        category: { type: String, default: 'General' },
+        difficulty: { type: String, default: 'Medium' },
+        questionType: { type: String, default: 'Conceptual' },
+        timeLimit: { type: Number, default: 120 },
+        source: { type: String, default: 'RECRUITER' }
+    }],
+    codingAssessment: {
+        enabled: { type: Boolean, default: false },
+        passingScore: { type: Number, default: 70 }
+    },
+    codingRoundId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodingRound', default: null },
     specialInstructions: { type: String, default: "" },
+    // Candidate capacity / seat limit
+    candidateLimit: { type: Number, default: null }, // e.g., 20 or null/0 for unlimited
+    candidateLimitTarget: {
+        type: String,
+        enum: ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'],
+        default: 'ALL'
+    },
+    // Whitelist / Listed candidates only
+    isRestrictedToWhitelist: { type: Boolean, default: false },
+    allowedCandidates: [{ type: String, trim: true, lowercase: true }],
     status: {
         type: String,
         enum: ['pending_approval', 'approved', 'rejected'],
@@ -43,6 +102,7 @@ const jobSchema = new mongoose.Schema({
 
 // Compound index for fast retrieval of live jobs sorted by date
 jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ createdAt: -1 });
 
 jobSchema.set('toJSON', { virtuals: true });
 jobSchema.set('toObject', { virtuals: true });

@@ -1,10 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Mic, StopCircle, Loader, ChevronRight, User, AlertTriangle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { API_URL } from '../../../firebase';
 import AIInterviewReport from './AIInterviewReport';
 import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhanced';
+import { trackEvent } from '../../../utils/analytics';
+import LiveTechnicalWorkspace from '../../../components/technicalInterview/LiveTechnicalWorkspace';
+
+const isDisplayTrack = (t) => {
+    if (!t) return false;
+    const settings = t.getSettings ? t.getSettings() : {};
+    if (settings.displaySurface) return true;
+    const label = (t.label || '').toLowerCase();
+    return label.includes('screen') || label.includes('monitor') || label.includes('window') || label.includes('display');
+};
+
+const isCameraTrack = (t) => {
+    if (!t || t.kind !== 'video') return false;
+    if (isDisplayTrack(t)) return false;
+    return t.readyState === 'live';
+};
+
+const getCameraTrack = (stream) => {
+    if (!stream) return null;
+    const tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+    const liveCam = tracks.find(isCameraTrack);
+    if (liveCam) return liveCam;
+    const nonDisplay = tracks.find(t => t.readyState === 'live' && !(t.getSettings?.().displaySurface));
+    if (nonDisplay) return nonDisplay;
+    return tracks.find(t => t.readyState === 'live') || null;
+};
 
 /**
  * ─── AIInterviewFast ────────────────────────────────────────────────────────
@@ -24,22 +50,112 @@ import SecureExamWrapper from '../../../components/exam/SecureExamWrapperEnhance
  * ────────────────────────────────────────────────────────────────────────────
  */
 
-const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
-    const [step, setStep] = useState('ready');
-    const [sessionId, setSessionId] = useState(null);
+// ── Voice Wave Visualizer Component ──────────────────────────────────────────
+const VoiceVisualizer = ({ isRecording }) => {
+    // 24 animated wave bars with varying harmonic heights and speeds
+    const bars = [
+        { duration: 0.6, delay: 0.05, h: ['20%', '85%', '35%', '95%', '20%'] },
+        { duration: 0.75, delay: 0.15, h: ['30%', '65%', '90%', '45%', '30%'] },
+        { duration: 0.55, delay: 0.1, h: ['25%', '95%', '40%', '80%', '25%'] },
+        { duration: 0.7, delay: 0.2, h: ['35%', '100%', '55%', '90%', '35%'] },
+        { duration: 0.8, delay: 0.08, h: ['20%', '70%', '100%', '50%', '20%'] },
+        { duration: 0.5, delay: 0.25, h: ['40%', '85%', '60%', '100%', '40%'] },
+        { duration: 0.85, delay: 0.12, h: ['25%', '90%', '35%', '75%', '25%'] },
+        { duration: 0.6, delay: 0.3, h: ['45%', '100%', '65%', '95%', '45%'] },
+        { duration: 0.7, delay: 0.05, h: ['30%', '80%', '45%', '100%', '30%'] },
+        { duration: 0.55, delay: 0.18, h: ['35%', '95%', '55%', '85%', '35%'] },
+        { duration: 0.65, delay: 0.22, h: ['25%', '75%', '100%', '60%', '25%'] },
+        { duration: 0.75, delay: 0.14, h: ['35%', '90%', '45%', '100%', '35%'] },
+        { duration: 0.5, delay: 0.07, h: ['20%', '85%', '60%', '90%', '20%'] },
+        { duration: 0.6, delay: 0.26, h: ['40%', '100%', '50%', '80%', '40%'] },
+        { duration: 0.7, delay: 0.11, h: ['25%', '70%', '95%', '45%', '25%'] },
+        { duration: 0.8, delay: 0.19, h: ['35%', '90%', '60%', '100%', '35%'] },
+        { duration: 0.55, delay: 0.09, h: ['20%', '80%', '40%', '95%', '20%'] },
+        { duration: 0.65, delay: 0.23, h: ['30%', '95%', '70%', '85%', '30%'] },
+        { duration: 0.75, delay: 0.16, h: ['20%', '65%', '90%', '40%', '20%'] },
+        { duration: 0.6, delay: 0.28, h: ['30%', '85%', '50%', '100%', '30%'] },
+        { duration: 0.7, delay: 0.13, h: ['25%', '75%', '90%', '45%', '25%'] },
+        { duration: 0.55, delay: 0.21, h: ['35%', '95%', '60%', '85%', '35%'] },
+        { duration: 0.8, delay: 0.06, h: ['20%', '80%', '45%', '100%', '20%'] },
+        { duration: 0.65, delay: 0.17, h: ['30%', '90%', '55%', '75%', '30%'] }
+    ];
+
+    return (
+        <div className="flex items-center justify-center gap-1 h-10 px-2">
+            {bars.map((bar, i) => (
+                <motion.div
+                    key={i}
+                    animate={
+                        isRecording
+                            ? { height: bar.h, opacity: 1 }
+                            : { height: '4px', opacity: 0.35 }
+                    }
+                    transition={
+                        isRecording
+                            ? {
+                                  repeat: Infinity,
+                                  repeatType: 'reverse',
+                                  duration: bar.duration,
+                                  delay: bar.delay,
+                                  ease: 'easeInOut'
+                              }
+                            : { duration: 0.3 }
+                    }
+                    className={`w-1 min-w-[3px] rounded-full flex-shrink-0 transition-colors duration-300 ${
+                        isRecording
+                            ? 'bg-gradient-to-t from-red-600 via-rose-500 to-amber-400'
+                            : 'bg-gray-300'
+                    }`}
+                    style={{ minHeight: isRecording ? '8px' : '4px', maxHeight: '36px' }}
+                />
+            ))}
+        </div>
+    );
+};
+
+const AIInterviewFast = ({
+    job,
+    user,
+    onComplete,
+    onSecurityReset,
+    sharedStream,
+    setSharedStream,
+    sharedScreenStream,
+    setSharedScreenStream,
+    sharedRecorder,
+    setSharedRecorder,
+    sharedSessionId,
+    setSharedSessionId,
+    sharedRecordingSessionId,
+    setSharedRecordingSessionId,
+    firstQuestionData,
+    setFirstQuestionData,
+    sharedChunkIndexRef,
+    sharedChunkUploadsRef
+}) => {
+    const [step, setStep] = useState(sharedSessionId ? 'interview' : 'ready');
+    const [sessionId, setSessionId] = useState(sharedSessionId || null);
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentQNum, setCurrentQNum] = useState(1);
+    const [totalQuestions, setTotalQuestions] = useState(10);
+    const [emptyTranscriptAttempt, setEmptyTranscriptAttempt] = useState(false);
     const [displayText, setDisplayText] = useState('');
 
     const [recording, setRecording] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [answerSubmitted, setAnswerSubmitted] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState(null);
     const [finalScore, setFinalScore] = useState(null);
     const [ownershipScore, setOwnershipScore] = useState(null);
     const [feedback, setFeedback] = useState('');
-    const [recordingSessionId, setRecordingSessionId] = useState(null);
+    const [recordingSessionId, setRecordingSessionId] = useState(sharedRecordingSessionId || null);
     const [recordingNotice, setRecordingNotice] = useState('');
+
+    // Live Technical Problem-Solving State
+    const [isTechnicalActive, setIsTechnicalActive] = useState(false);
+    const [technicalProblemData, setTechnicalProblemData] = useState(null);
+    const [technicalEvaluation, setTechnicalEvaluation] = useState(null);
 
     // Tab lock state
     const [interviewTerminated, setInterviewTerminated] = useState(false);
@@ -47,7 +163,20 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     // Camera stream state — must be React state (not just a ref) so SecureExamWrapper
     // receives the correct stream via props and triggers a proper re-render
-    const [cameraStreamState, setCameraStreamState] = useState(null);
+    const [cameraStreamState, setCameraStreamState] = useState(sharedStream || null);
+
+    // Check if technical round was active on session resume or refresh
+    useEffect(() => {
+        if (!sessionId || isTechnicalActive) return;
+        axios.get(`${API_URL}/interview/technical/state/${sessionId}`)
+            .then(res => {
+                if (res.data?.success && res.data.technicalStage && res.data.technicalStage !== 'NONE' && res.data.technicalStage !== 'COMPLETED') {
+                    setIsTechnicalActive(true);
+                    if (res.data.problem) setTechnicalProblemData(res.data.problem);
+                }
+            })
+            .catch(() => {});
+    }, [sessionId]);
 
     const mediaRecorderRef = useRef(null);
     const answerStreamRef = useRef(null);
@@ -56,7 +185,9 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const recognitionRef = useRef(null);
     const typewriterIntervalRef = useRef(null);
     const fullSessionRecorderRef = useRef(null);
-    const fullSessionStreamRef = useRef(null);
+    const fullSessionStreamRef = useRef(sharedStream || null);
+
+    const miniCamVideoRef = useRef(null);
     const chunkIndexRef = useRef(0);
     const securityResetRef = useRef(false);
     const chunkUploadsRef = useRef([]);
@@ -74,6 +205,126 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     // Accumulates ALL finalized speech segments across SpeechRecognition restarts
     // so the full answer is never lost when the API auto-restarts
     const confirmedTranscriptRef = useRef('');
+
+    useEffect(() => {
+        if (sharedStream && !fullSessionStreamRef.current) {
+            fullSessionStreamRef.current = sharedStream;
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
+        }
+        if (sharedScreenStream) {
+            const screenTrack = sharedScreenStream.getVideoTracks?.()[0];
+            if (screenTrack && screenTrack.readyState === 'live') {
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                const existing = fullSessionStreamRef.current.getVideoTracks?.().some(t => t.id === screenTrack.id);
+                if (!existing) {
+                    fullSessionStreamRef.current.addTrack(screenTrack);
+                }
+            }
+        }
+    }, [sharedStream, sharedScreenStream]);
+
+    // Keep camera stream state synced with the sharedStream prop so the
+    // video preview never goes blank when transitioning from SkillAssessment
+    useEffect(() => {
+        if (sharedStream) {
+            fullSessionStreamRef.current = sharedStream;
+            const camTrack = getCameraTrack(sharedStream);
+            if (camTrack && camTrack.readyState === 'live') {
+                setCameraStreamState(sharedStream);
+            }
+        }
+    }, [sharedStream]);
+
+    const cameraAcquiringRef = useRef(false);
+
+    // Auto-acquire / maintain candidate webcam feed if missing or inactive
+    useEffect(() => {
+        let isMounted = true;
+
+        const ensureCameraActive = async () => {
+            const currentCam = getCameraTrack(cameraStreamState);
+            if (currentCam && currentCam.readyState === 'live') {
+                return;
+            }
+
+            const sharedCam = getCameraTrack(sharedStream);
+            if (sharedCam && sharedCam.readyState === 'live') {
+                if (isMounted) {
+                    setCameraStreamState(sharedStream);
+                }
+                return;
+            }
+
+            if (cameraAcquiringRef.current) return;
+            cameraAcquiringRef.current = true;
+
+            try {
+                let stream = null;
+                // 1. First try requesting video + audio
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+                } catch (audioVideoErr) {
+                    // 2. If microphone is in use or audio constraint fails, fall back to video only
+                    console.warn("[AIInterviewFast] Video+audio getUserMedia failed, retrying video only:", audioVideoErr);
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                        audio: false
+                    });
+                }
+
+                if (!stream) return;
+
+                if (!fullSessionStreamRef.current) {
+                    fullSessionStreamRef.current = new MediaStream();
+                }
+                stream.getTracks().forEach(track => {
+                    const existing = fullSessionStreamRef.current.getTracks().some(t => t.id === track.id);
+                    if (!existing) {
+                        fullSessionStreamRef.current.addTrack(track);
+                    }
+                });
+
+                if (isMounted) {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }
+            } catch (err) {
+                console.warn("[AIInterviewFast] Camera auto-init error:", err);
+            } finally {
+                cameraAcquiringRef.current = false;
+            }
+        };
+
+        ensureCameraActive();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [cameraStreamState, sharedStream, setSharedStream, step]);
+
+    // Keep mini webcam preview bound and playing
+    useEffect(() => {
+        const videoEl = miniCamVideoRef.current;
+        if (!videoEl) return;
+
+        const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+        if (camTrack && camTrack.readyState === 'live') {
+            const currentTrackId = videoEl.srcObject?.getVideoTracks?.()[0]?.id;
+            if (currentTrackId !== camTrack.id) {
+                videoEl.srcObject = new MediaStream([camTrack]);
+            }
+            videoEl.play().catch(() => {});
+        }
+    }, [cameraStreamState, sharedStream, step]);
+
 
     const normalizeQuestionText = (text = '') =>
         String(text)
@@ -120,12 +371,27 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     const playDecoupledAudio = (base64, text, audioMimeType) => {
         try {
-            const mimeType = base64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
-            const audioBlob = new Blob(
-                [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
-                { type: mimeType }
-            );
+            // Auto-resume AudioContext if suspended
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume().catch(e => console.warn("[AUDIO-CONTEXT] Resume failed in playDecoupledAudio:", e));
+            }
+
+            const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+            const mimeType = cleanBase64.startsWith('UklGR') ? 'audio/wav' : (audioMimeType || 'audio/mpeg');
+            
+            // Highly optimized base64 to Uint8Array conversion (prevents call stack sizing and memory bottlenecks)
+            const binaryString = atob(cleanBase64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            const audioBlob = new Blob([bytes], { type: mimeType });
             const url = URL.createObjectURL(audioBlob);
+            
+            // Clear error listener before pausing/resetting to prevent unwanted triggers
+            audioPlayerRef.current.onerror = null;
             audioPlayerRef.current.pause();
             audioPlayerRef.current.currentTime = 0;
             
@@ -137,7 +403,12 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
             audioPlayerRef.current.src = url;
             audioPlayerRef.current.playbackRate = 0.90; // Slow down voice slightly for measured cadence
-            audioPlayerRef.current.play().catch(() => speakInBrowserFallback(text));
+            audioPlayerRef.current.play().catch((err) => {
+                // Ignore AbortError caused by normal play interruptions
+                if (err && err.name !== 'AbortError') {
+                    speakInBrowserFallback(text);
+                }
+            });
         } catch (err) {
             speakInBrowserFallback(text);
         }
@@ -145,6 +416,10 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
     const fetchAndPlayAudio = async (text, activeSessionId) => {
         setCoreState('speaking');
+        // Auto-resume AudioContext if suspended
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().catch(e => console.warn("[AUDIO-CONTEXT] Resume failed in fetchAndPlayAudio:", e));
+        }
         try {
             const res = await axios.post(`${API_URL}/interview/tts`, { 
                 text, 
@@ -191,7 +466,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 : { videoBitsPerSecond: 900000, audioBitsPerSecond: 96000 };
 
             const recordTracks = [];
-            const camVideoTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
+            const camVideoTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
             const audioTrack = fullSessionStreamRef.current.getAudioTracks()[0];
 
             let recordingAudioTrack = audioTrack;
@@ -237,7 +512,13 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
             const recordStream = new MediaStream(recordTracks);
 
-            const fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            let fullSessionRecorder;
+            try {
+                fullSessionRecorder = new MediaRecorder(recordStream, recorderOptions);
+            } catch (mimeErr) {
+                console.warn("[MediaRecorder] Failed to initialize with options, trying default constructor:", mimeErr);
+                fullSessionRecorder = new MediaRecorder(recordStream);
+            }
             fullSessionRecorderRef.current = fullSessionRecorder;
             chunkIndexRef.current = 0;
             chunkUploadsRef.current = [];
@@ -287,8 +568,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         }
 
         const formData = new FormData();
-        formData.append('userId', user.uid);
-        formData.append('jobId', job._id);
+        formData.append('userId', user?.uid || user?._id || user?.id || '');
+        formData.append('jobId', job?._id || job?.id || '');
         formData.append('recordingSessionId', activeRecordingSessionId || '');
         formData.append(
             'recording',
@@ -311,15 +592,16 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             recorder.onstop = async () => {
                 try {
                     // Wait for all in-flight chunk uploads to settle
-                    if (chunkUploadsRef.current.length > 0) {
-                        await Promise.allSettled(chunkUploadsRef.current);
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
                     }
                     // Finalize is now async on the server — it responds immediately.
                     // The actual merge+upload happens in the background on the server.
                     const response = await axios.post(`${API_URL}/finalize-recording`, {
                         sessionId: recordingSessionId || sessionId,
-                        userId: user.uid,
-                        jobId: job._id
+                        userId: user?.uid || user?._id || user?.id || '',
+                        jobId: job?._id || job?.id || ''
                     });
                     resolve(response.data);
                 } catch (err) {
@@ -333,7 +615,11 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     }
                     fullSessionStreamRef.current = null;
                     fullSessionRecorderRef.current = null;
-                    chunkUploadsRef.current = [];
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
                 }
             };
             recorder.stop();
@@ -343,10 +629,18 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     const startInterviewTrigger = async () => {
         setStep('loading');
         try {
+            // Resume AudioContext inside user click gesture
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume().catch(e => console.warn(e));
+            }
+
             // ── Uses the EXISTING /interview/start endpoint (no change needed) ──
             const res = await axios.post(`${API_URL}/interview/start`, {
-                jobId: job._id,
-                userId: user.uid
+                jobId: job?._id || job?.id || '',
+                userId: user?.uid || user?._id || user?.id || ''
             });
             const firstQuestion = normalizeQuestionText(res.data.question);
             const activeSessionId = res.data.sessionId;
@@ -355,7 +649,16 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             setRecordingSessionId(activeRecordingSessionId);
             setCurrentQuestion(firstQuestion);
             setCurrentQNum(1);
+            setTotalQuestions(res.data.totalQuestions || 10);
             await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
+
+            // Track GA4 interview_start event
+            trackEvent('interview_start', {
+                job_id: job?._id || job?.id || '',
+                session_id: activeSessionId,
+                interview_type: 'candidate_application'
+            });
+
             setStep('interview');
             typeText(firstQuestion);
             if (res.data?.audio) {
@@ -399,14 +702,31 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 setFinalScore(nextRes.data.finalScore);
                 setOwnershipScore(nextRes.data.ownershipScore);
                 setFeedback(nextRes.data.feedback);
+
+                // Track GA4 interview_complete event
+                trackEvent('interview_complete', {
+                    job_id: job?._id || job?.id || '',
+                    interview_type: 'candidate_application'
+                });
+
                 setStep('completed');
             } else {
+                if (nextRes.data.isTechnicalTrigger) {
+                    setIsTechnicalActive(true);
+                    if (nextRes.data.technicalProblem) {
+                        setTechnicalProblemData(nextRes.data.technicalProblem);
+                    }
+                }
                 const nextQuestion = normalizeQuestionText(nextRes.data.question);
                 setCurrentQuestion(nextQuestion);
                 setCurrentQNum(nextRes.data.currentQuestionNumber);
+                if (nextRes.data.totalQuestions) {
+                    setTotalQuestions(nextRes.data.totalQuestions);
+                }
                 setTranscript('');
                 setError(null);
                 setDisplayText('');
+                setAnswerSubmitted(false);
                 typeText(nextQuestion);
                 if (nextRes.data?.audio) {
                     setCoreState('speaking');
@@ -417,6 +737,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             }
         } catch (err) {
             setError(err.message || "Response processing error.");
+            setAnswerSubmitted(false);
             setCoreState('idle');
         } finally {
             setProcessing(false);
@@ -444,12 +765,14 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             }
 
             setRecording(false);
+            setAnswerSubmitted(true);
             setCoreState('processing');
             return;
         }
 
         try {
             isRecordingRef.current = true;
+            setAnswerSubmitted(false);
             setTranscript('');
             latestTranscriptRef.current = '';
             // Reset confirmed transcript for this new answer
@@ -458,11 +781,20 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             let stream;
             let isReusedStream = false;
             const existingAudioTracks = fullSessionStreamRef.current?.getAudioTracks();
-            if (existingAudioTracks && existingAudioTracks.length > 0) {
-                stream = new MediaStream([existingAudioTracks[0].clone()]);
-                isReusedStream = false;
+            // Only reuse an audio track if it is still live and enabled;
+            // ended or muted tracks produce silent recordings.
+            const liveAudioTrack = existingAudioTracks?.find(t => t.readyState === 'live' && t.enabled);
+            if (liveAudioTrack) {
+                try {
+                    stream = new MediaStream([liveAudioTrack.clone()]);
+                    isReusedStream = true;
+                } catch (cloneErr) {
+                    console.warn("[MIC] Failed to clone existing audio track, requesting fresh mic:", cloneErr);
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+                    isReusedStream = false;
+                }
             } else {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
                 isReusedStream = false;
             }
 
@@ -495,21 +827,86 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     // Capture current question number and transcript before submitting
                     const capturedQNum = currentQNum;
                     const localTranscriptText = latestTranscriptRef.current || "";
+                    let finalAnswerText = localTranscriptText;
 
-                    // ── FAST PATH: Submit answer immediately using local transcript ──
-                    await submitUserAnswer(localTranscriptText);
+                    const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('interviewId', sessionId);
+                    formData.append('sessionId', sessionId);
+                    formData.append('questionNumber', capturedQNum);
+                    formData.append('audio', blob, 'answer.wav');
+                    formData.append('localTranscript', localTranscriptText);
 
-                    // ── ASYNC BACKGROUND: Upload audio for archival/proctoring & transcript rescue ──
+                    // ── 1. SERVER STT (Whisper / ElevenLabs) for Complete Transcript ──
                     try {
-                        const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-                        const formData = new FormData();
-                        formData.append('interviewId', sessionId);
-                        formData.append('sessionId', sessionId);
-                        formData.append('questionNumber', capturedQNum);
-                        formData.append('audio', blob, 'answer.wav');
-                        formData.append('localTranscript', localTranscriptText);
+                        const trRes = await axios.post(`${API_URL}/upload-audio`, formData);
+                        if (trRes.data?.text) {
+                            const whisperText = trRes.data.text.trim();
+                            const normalizedWhisper = whisperText.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, "").trim();
+                            
+                            const invalidWhisperPhrases = [
+                                "thank you", "thank you for watching", "thanks for watching", "e ai", "legend by", "watching", "by subtitle", 
+                                "subtitles by", "english subtitles", "you", "e aí", "amaraorg", "subtitles", "subscribe",
+                                "i am describing my technical experience and relevant skills for this specific role"
+                            ];
+                            const nonEnglishRegex = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/;
+                            const isWhisperInvalid = !whisperText || invalidWhisperPhrases.includes(normalizedWhisper) || nonEnglishRegex.test(whisperText);
 
-                        // Fire-and-forget: does NOT block the UI
+                            if (!isWhisperInvalid) {
+                                // Keep local transcript only if it has significantly more text content
+                                if (localTranscriptText && localTranscriptText.trim().length > whisperText.length + 15 && localTranscriptText.trim().length > whisperText.length * 1.3) {
+                                    console.log("[FAST] Preserving local transcript (contains more spoken text):", { local: localTranscriptText, whisper: whisperText });
+                                    finalAnswerText = localTranscriptText;
+                                } else {
+                                    finalAnswerText = whisperText;
+                                }
+                            } else {
+                                console.log("[FAST] Whisper STT result invalid or hallucinated. Using local transcript:", localTranscriptText);
+                            }
+                        }
+                    } catch (sttErr) {
+                        console.warn("[FAST] Audio STT upload failed, falling back to local transcript:", sttErr.message);
+                    }
+
+                    // Clean filler words, foreign script remnants, and leading hesitation
+                    if (finalAnswerText) {
+                        finalAnswerText = finalAnswerText
+                            .replace(/[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/g, '')
+                            .replace(/\b(uh|um|okey|hmm+|hmmm+|er+)\b/gi, '')
+                            .replace(/^(yeah|yea|ah|oh)\b[,\s]*/gi, '')
+                            .replace(/\b(yeah|yea)\b/gi, 'yes')
+                            .replace(/^(okey|okay)\b[,\s]*/gi, '')
+                            .replace(/\s{2,}/g, ' ')
+                            .trim();
+                        setTranscript(finalAnswerText);
+                        latestTranscriptRef.current = finalAnswerText;
+                    }
+                    
+                    // ── 2. EMPTY TRANSCRIPT GUARD ──
+                    if (!finalAnswerText || finalAnswerText.trim().length < 5) {
+                        if (!emptyTranscriptAttempt) {
+                            setError("We couldn't capture any speech. Please check your mic and tap the microphone icon to try again. If your mic is broken, tap the mic icon again to skip this question.");
+                            setEmptyTranscriptAttempt(true);
+                            setTranscript('');
+                            latestTranscriptRef.current = '';
+                            setAnswerSubmitted(false);
+                            setProcessing(false);
+                            setCoreState('idle');
+                            return; // Stop processing and let them retry
+                        } else {
+                            // Reset for next question
+                            setEmptyTranscriptAttempt(false);
+                        }
+                    } else {
+                        // Reset for next question
+                        setEmptyTranscriptAttempt(false);
+                    }
+
+                    // ── 3. SUBMIT COMPLETE ANSWER TO /next-fast ──
+                    await submitUserAnswer(finalAnswerText);
+
+                    // ── 3. ASYNC BACKGROUND: Archival / proctoring audio upload ──
+                    try {
                         axios.post(`${API_URL}/interview/upload-audio-async`, formData).catch(bgErr => {
                             console.warn("[FAST] Background audio upload failed:", bgErr);
                         });
@@ -549,39 +946,40 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                     rec.interimResults = true;
                     rec.maxAlternatives = 1;
 
+                    // Track finalized words within this recognition session separately
+                    let sessionFinalText = '';
+
                     rec.onresult = (e) => {
-                        // Process only new results starting from e.resultIndex
-                        // to avoid reprocessing results from before this recognition session
-                        let newFinalText = '';
+                        // Walk only from e.resultIndex to pick up the new/changed result
                         let interimText = '';
                         for (let i = e.resultIndex; i < e.results.length; i++) {
-                            const result = e.results[i];
-                            if (result.isFinal) {
-                                newFinalText += result[0].transcript;
+                            const resultText = e.results[i][0].transcript;
+                            if (e.results[i].isFinal) {
+                                sessionFinalText += resultText + ' ';
                             } else {
-                                interimText += result[0].transcript;
+                                interimText = resultText;
                             }
                         }
-                        // Append any new finalized text to the confirmed (cross-restart) transcript
-                        if (newFinalText) {
-                            confirmedTranscriptRef.current = (confirmedTranscriptRef.current + ' ' + newFinalText).trim();
-                        }
-                        // Full display = everything confirmed so far + current interim
-                        const full = (confirmedTranscriptRef.current + ' ' + interimText).trim();
-                        setTranscript(full || '');
-                        latestTranscriptRef.current = full || '';
+                        // Combine: previous sessions' confirmed text + this session's finals + current interim
+                        const prevText = confirmedTranscriptRef.current ? confirmedTranscriptRef.current + ' ' : '';
+                        const full = (prevText + sessionFinalText + interimText).trim();
+                        setTranscript(full);
+                        latestTranscriptRef.current = full;
                     };
 
                     rec.onerror = (ev) => {
+                        console.warn("[SpeechRec] Error:", ev.error);
                         if (ev.error === 'aborted') return;
-                        if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 300);
-                        }
                     };
 
                     rec.onend = () => {
+                        // Save this session's full text as confirmed before restarting
+                        if (latestTranscriptRef.current) {
+                            confirmedTranscriptRef.current = latestTranscriptRef.current;
+                        }
                         if (isRecordingRef.current) {
-                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 150);
+                            if (recognitionTimeoutRef.current) clearTimeout(recognitionTimeoutRef.current);
+                            recognitionTimeoutRef.current = setTimeout(startSpeechRecognition, 100);
                         }
                     };
 
@@ -607,6 +1005,46 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         }
     };
 
+    // Pre-start loading effect
+    useEffect(() => {
+        if (sharedSessionId && firstQuestionData) {
+            const firstQuestion = normalizeQuestionText(firstQuestionData.question);
+            setCurrentQuestion(firstQuestion);
+            setDisplayText(firstQuestion);
+            
+            const activeSessionId = sharedSessionId;
+            const activeRecordingSessionId = firstQuestionData.recordingSessionId || null;
+            setSessionId(activeSessionId);
+            setRecordingSessionId(activeRecordingSessionId);
+            
+            // Set the stream ref
+            fullSessionStreamRef.current = sharedStream;
+            setCameraStreamState(sharedStream);
+            
+            // Transition to ready-shared step so we can get a user gesture
+            setStep('ready-shared');
+        }
+    }, [sharedSessionId]);
+
+    // Global User Gesture Listener to resume AudioContext
+    useEffect(() => {
+        const resumeAudio = () => {
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume()
+                    .then(() => console.log("[AUDIO-CONTEXT] Resumed via user gesture"))
+                    .catch(err => console.warn("[AUDIO-CONTEXT] Failed to resume via user gesture:", err));
+            }
+        };
+        window.addEventListener('click', resumeAudio);
+        window.addEventListener('touchstart', resumeAudio);
+        window.addEventListener('keydown', resumeAudio);
+        return () => {
+            window.removeEventListener('click', resumeAudio);
+            window.removeEventListener('touchstart', resumeAudio);
+            window.removeEventListener('keydown', resumeAudio);
+        };
+    }, []);
+
     // Warn users before they accidentally close the tab during an active recording
     useEffect(() => {
         const handleBeforeUnload = (e) => {
@@ -631,9 +1069,19 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 try { recognitionRef.current.stop(); } catch(_) {}
             }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
-            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') fullSessionRecorderRef.current.stop();
+            
+            // Always stop the interview recorder on unmount if active
+            if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
+                fullSessionRecorderRef.current.stop();
+            }
+            
             stopStreamTracks(answerStreamRef.current);
-            stopStreamTracks(fullSessionStreamRef.current);
+            
+            // Only stop camera stream tracks if it was created locally (not shared/passed as a prop)
+            if (!sharedStream) {
+                stopStreamTracks(fullSessionStreamRef.current);
+            }
+            
             if (mixedStreamDestRef.current) {
                 stopStreamTracks(mixedStreamDestRef.current.stream);
                 mixedStreamDestRef.current = null;
@@ -682,17 +1130,51 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
         stopStreamTracks(answerStreamRef.current);
         answerStreamRef.current = null;
 
+        const activeRecId = recordingSessionId || sessionId;
+
         if (fullSessionRecorderRef.current && fullSessionRecorderRef.current.state !== 'inactive') {
-            fullSessionRecorderRef.current.onstop = null;
-            fullSessionRecorderRef.current.onerror = null;
-            fullSessionRecorderRef.current.stop();
+            const recorder = fullSessionRecorderRef.current;
+            recorder.onstop = async () => {
+                try {
+                    const uploadsToAwait = sharedChunkUploadsRef ? sharedChunkUploadsRef.current : chunkUploadsRef.current;
+                    if (uploadsToAwait.length > 0) {
+                        await Promise.allSettled(uploadsToAwait);
+                    }
+                    if (activeRecId) {
+                        await axios.post(`${API_URL}/finalize-recording`, {
+                            sessionId: activeRecId,
+                            userId: user?.uid || user?._id || user?.id || '',
+                            jobId: job?._id || job?.id || ''
+                        });
+                    }
+                } catch (err) {
+                    console.error("Finalization failed on security reset:", err);
+                } finally {
+                    stopStreamTracks(fullSessionStreamRef.current);
+                    if (mixedStreamDestRef.current) {
+                        stopStreamTracks(mixedStreamDestRef.current.stream);
+                        mixedStreamDestRef.current = null;
+                    }
+                    fullSessionStreamRef.current = null;
+                    fullSessionRecorderRef.current = null;
+                    if (sharedChunkUploadsRef) {
+                        sharedChunkUploadsRef.current = [];
+                    } else {
+                        chunkUploadsRef.current = [];
+                    }
+                }
+            };
+            try { recorder.stop(); } catch (_) {}
+        } else {
+            stopStreamTracks(fullSessionStreamRef.current);
+            if (mixedStreamDestRef.current) {
+                stopStreamTracks(mixedStreamDestRef.current.stream);
+                mixedStreamDestRef.current = null;
+            }
+            fullSessionStreamRef.current = null;
+            fullSessionRecorderRef.current = null;
         }
 
-        stopStreamTracks(fullSessionStreamRef.current);
-        if (mixedStreamDestRef.current) {
-            stopStreamTracks(mixedStreamDestRef.current.stream);
-            mixedStreamDestRef.current = null;
-        }
         if (audioContextRef.current) {
             try {
                 audioContextRef.current.close();
@@ -700,8 +1182,6 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
             audioContextRef.current = null;
         }
         mediaElementSourceRef.current = null;
-        fullSessionStreamRef.current = null;
-        fullSessionRecorderRef.current = null;
 
         await onSecurityReset?.({
             stage: 'interview',
@@ -711,6 +1191,51 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     };
 
 
+
+    if (step === 'ready-shared') {
+        return (
+            <div className="max-w-2xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl text-center">
+                <div className="w-20 h-20 bg-black text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-2xl">
+                    <User size={36} />
+                </div>
+                <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight">AI Interview Ready</h2>
+                <p className="text-gray-500 mb-10 font-medium leading-relaxed max-w-md mx-auto text-sm">
+                    Your camera, screen sharing, and profile have been successfully initialized. Click below to begin the interview.
+                </p>
+                <button
+                    onClick={async () => {
+                        // Resume audio context on user gesture
+                        if (!audioContextRef.current) {
+                            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                        }
+                        const audioContext = audioContextRef.current;
+                        if (audioContext && audioContext.state === 'suspended') {
+                            await audioContext.resume().catch(e => console.warn(e));
+                        }
+                        
+                        const firstQuestion = normalizeQuestionText(firstQuestionData.question);
+                        const activeSessionId = sharedSessionId;
+                        const activeRecordingSessionId = firstQuestionData.recordingSessionId || null;
+                        
+                        setStep('interview');
+                        typeText(firstQuestion);
+                        
+                        await startFullSessionRecording(activeSessionId, activeRecordingSessionId);
+                        
+                        if (firstQuestionData.audio) {
+                            setCoreState('speaking');
+                            playDecoupledAudio(firstQuestionData.audio, firstQuestion, firstQuestionData.audioMimeType);
+                        } else {
+                            fetchAndPlayAudio(firstQuestion, activeSessionId);
+                        }
+                    }}
+                    className="w-full py-6 bg-black text-white font-black text-xs uppercase tracking-[0.2em] rounded-[2rem] hover:bg-gray-800 transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95"
+                >
+                    Start AI Interview <ChevronRight size={18} />
+                </button>
+            </div>
+        );
+    }
 
     if (step === 'ready') {
         return (
@@ -781,8 +1306,8 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     }
 
     if (step === 'lobby') {
-        const hasCamera = fullSessionStreamRef.current?.getVideoTracks().some(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-        const hasScreen = fullSessionStreamRef.current?.getVideoTracks().some(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+        const hasCamera = Boolean(getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState));
+        const hasScreen = Boolean(fullSessionStreamRef.current?.getVideoTracks().some(isDisplayTrack) || sharedScreenStream?.getVideoTracks().some(isDisplayTrack));
 
         return (
             <div className="max-w-4xl mx-auto py-12 px-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl">
@@ -798,8 +1323,14 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                            if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            const camTrack = getCameraTrack(fullSessionStreamRef.current) || getCameraTrack(cameraStreamState);
+                                            if (camTrack && camTrack.readyState === 'live') {
+                                                const stream = new MediaStream([camTrack]);
+                                                if (!el.srcObject || el.srcObject.getVideoTracks()[0]?.id !== camTrack.id) {
+                                                    el.srcObject = stream;
+                                                    el.play().catch(() => {});
+                                                }
+                                            }
                                         }
                                     }}
                                     className="w-full h-full object-cover"
@@ -815,7 +1346,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                             onClick={async () => {
                                 try {
                                     const camStream = await navigator.mediaDevices.getUserMedia({ 
-                                        video: { width: 1280, height: 720 },
+                                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
                                         audio: { echoCancellation: true, noiseSuppression: true }
                                     });
                                     if (!fullSessionStreamRef.current) {
@@ -823,7 +1354,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                     }
                                     camStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
                                     // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
+                                    setCameraStreamState(camStream);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Camera access denied."); }
                             }}
@@ -842,7 +1373,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                     playsInline 
                                     ref={el => { 
                                         if(el) {
-                                            const screenTrack = fullSessionStreamRef.current.getVideoTracks().find(t => (t.label || '').toLowerCase().includes('screen') || (t.label || '').toLowerCase().includes('monitor'));
+                                            const screenTrack = fullSessionStreamRef.current?.getVideoTracks().find(isDisplayTrack) || sharedScreenStream?.getVideoTracks().find(isDisplayTrack);
                                             if (screenTrack) el.srcObject = new MediaStream([screenTrack]);
                                         }
                                     }}
@@ -863,8 +1394,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                         fullSessionStreamRef.current = new MediaStream();
                                     }
                                     screenStream.getTracks().forEach(t => fullSessionStreamRef.current.addTrack(t));
-                                    // Update React state so SecureExamWrapper receives the real stream
-                                    setCameraStreamState(fullSessionStreamRef.current);
+                                    setSharedScreenStream?.(screenStream);
                                     setStep('lobby-refresh'); setTimeout(() => setStep('lobby'), 10);
                                 } catch (e) { setError("Screen share denied."); }
                             }}
@@ -911,19 +1441,48 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
     if (step === 'interview') {
         return (
             <SecureExamWrapper
-                examId={`interview:${job._id}:${recordingSessionId || sessionId || 'pending'}`}
-                userId={user.uid}
+                examId={`interview:${job?._id || job?.id || 'job'}:${recordingSessionId || sessionId || 'pending'}`}
+                userId={user?.uid || user?._id || user?.id || ''}
                 isActive={!interviewTerminated && !securityResetting}
                 requireScreenShare={false}
                 requireCamera={true}
                 cameraStream={cameraStreamState}
+                onCameraReady={(stream) => {
+                    setCameraStreamState(stream);
+                    setSharedStream?.(stream);
+                }}
                 showWebcamPreview={false}
                 isAnswering={coreState === 'listening'}
+                questionIndex={currentQNum - 1}
+                questionId={currentQuestion ? String(currentQuestion).slice(0, 50) : `q_${currentQNum}`}
                 warningLimit={3}
                 resetLimit={4}
                 onSecurityReset={handleInterviewSecurityReset}
             >
-                <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
+                {isTechnicalActive ? (
+                    <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
+                        <LiveTechnicalWorkspace
+                            sessionId={sessionId}
+                            initialProblem={technicalProblemData}
+                            cameraStream={cameraStreamState}
+                            fetchAndPlayAudio={fetchAndPlayAudio}
+                            isAiSpeaking={coreState === 'speaking'}
+                            speechTranscript={transcript}
+                            isRecording={recording}
+                            onToggleRecording={toggleRecording}
+                            onResumeInterview={({ evaluation, resumeSpeech }) => {
+                                setIsTechnicalActive(false);
+                                if (evaluation) {
+                                    setTechnicalEvaluation(evaluation);
+                                }
+                                if (resumeSpeech) {
+                                    typeText(resumeSpeech);
+                                }
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-700 bg-white rounded-[2.5rem] border border-gray-200 shadow-sm px-6 md:px-10 pt-10">
                     {/* Minimal Header */}
                     <div className="flex justify-between items-center mb-12 border-b border-gray-200 pb-6">
                         <div className="flex items-center gap-6">
@@ -942,14 +1501,21 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                         muted 
                                         playsInline 
                                         ref={el => { 
-                                            if(el && fullSessionStreamRef.current) {
-                                                const camTrack = fullSessionStreamRef.current.getVideoTracks().find(t => !(t.label || '').toLowerCase().includes('screen') && !(t.label || '').toLowerCase().includes('monitor'));
-                                                if (camTrack) el.srcObject = new MediaStream([camTrack]);
+                                            miniCamVideoRef.current = el;
+                                            if (el) {
+                                                const camTrack = getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current);
+                                                if (camTrack && camTrack.readyState === 'live') {
+                                                    if (!el.srcObject || el.srcObject.getVideoTracks?.()[0]?.id !== camTrack.id) {
+                                                        el.srcObject = new MediaStream([camTrack]);
+                                                    }
+                                                    el.play().catch(() => {});
+                                                }
                                             }
                                         }}
-                                        className="w-full h-full object-cover mirrored"
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: "scaleX(-1)" }}
                                     />
-                                    {!fullSessionStreamRef.current && (
+                                    {!(getCameraTrack(cameraStreamState) || getCameraTrack(sharedStream) || getCameraTrack(fullSessionStreamRef.current)) && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
                                             <Loader size={18} className="text-indigo-400 animate-spin" />
                                         </div>
@@ -973,7 +1539,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                     {/* Question number badge */}
                                     <div className="flex justify-center mb-3">
                                         <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">
-                                            Question {currentQNum}
+                                            Question {currentQNum} of {totalQuestions || 5}
                                         </span>
                                     </div>
                                     <p className="text-lg md:text-xl text-gray-900 leading-relaxed font-light tracking-tight text-center whitespace-pre-wrap break-words">
@@ -1008,30 +1574,84 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
 
                     {/* Interaction Section */}
                     <div className="flex flex-col items-center gap-6">
-                        <div className="flex items-center gap-8">
+                        <div className="flex flex-wrap items-center justify-center gap-6 p-4 rounded-3xl bg-white border border-gray-100 shadow-sm">
+                            {/* Mic Button */}
                             <motion.button
-                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                whileHover={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 1.05 }}
+                                whileTap={{ scale: (answerSubmitted || processing || !displayText || coreState === 'speaking') ? 1 : 0.95 }}
                                 onClick={toggleRecording}
-                                disabled={processing || !displayText || coreState === 'speaking'}
-                                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${recording
-                                    ? 'bg-red-500 text-white shadow-red-500/30'
-                                    : (!displayText || coreState === 'speaking') ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-white text-indigo-600 border border-gray-200 hover:bg-indigo-50'
+                                disabled={processing || !displayText || coreState === 'speaking' || answerSubmitted}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 flex-shrink-0 ${
+                                    answerSubmitted
+                                        ? 'bg-emerald-500 text-white shadow-emerald-500/30 ring-4 ring-emerald-100'
+                                        : recording
+                                        ? 'bg-red-600 text-white shadow-red-600/40 ring-4 ring-red-200'
+                                        : (!displayText || coreState === 'speaking')
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none border border-gray-200'
+                                        : 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-red-100/50'
                                     }`}
                             >
-                                {recording ? <StopCircle size={32} /> : <Mic size={32} />}
+                                {answerSubmitted ? (
+                                    <Check size={32} className="text-white stroke-[2.5]" />
+                                ) : recording ? (
+                                    <StopCircle size={32} className="text-white animate-pulse" />
+                                ) : (
+                                    <Mic size={32} className={(!displayText || coreState === 'speaking') ? 'text-gray-400' : 'text-red-600'} />
+                                )}
                             </motion.button>
 
-                            <div className="flex flex-col">
+                            {/* Voice Wave (BESIDE the button: zero at initial state, up-and-down when speaking) */}
+                            <div className="flex flex-col justify-center px-4 py-2 border-l border-r border-gray-100 min-w-[200px]">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 flex items-center gap-1.5">
+                                    {recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            <span className="text-red-600">Voice Wave • Active</span>
+                                        </>
+                                    ) : answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            <span className="text-emerald-600">Voice Wave • Captured</span>
+                                        </>
+                                    ) : (
+                                        <span>Voice Wave • Idle</span>
+                                    )}
+                                </span>
+                                <VoiceVisualizer isRecording={recording} />
+                            </div>
+
+                            {/* Current State */}
+                            <div className="flex flex-col pr-2 min-w-[170px]">
                                 <span className="text-[10px] font-medium text-gray-500 uppercase tracking-widest mb-1">Current State</span>
-                                <span className={`text-sm font-medium ${recording ? 'text-red-500' : 'text-gray-900'}`}>
-                                    {recording ? 'Transcribing your answer' : processing ? 'Analyzing response' : 'Touch mic to speak'}
+                                <span className={`text-sm font-medium flex items-center gap-2 ${
+                                    answerSubmitted
+                                        ? 'text-emerald-600'
+                                        : recording
+                                        ? 'text-red-600'
+                                        : 'text-gray-900'
+                                }`}>
+                                    {answerSubmitted ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            Answer Submitted • Analyzing Response
+                                        </>
+                                    ) : recording ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            Recording Answer • Touch to Finish
+                                        </>
+                                    ) : processing ? (
+                                        'Analyzing response...'
+                                    ) : (
+                                        'Touch mic to speak'
+                                    )}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Transcript Preview — always visible during recording, scrollable for long answers */}
+                        {/* Transcript Preview — always visible during recording and after analysis */}
                         <AnimatePresence>
-                            {(recording || transcript) && (
+                            {(recording || transcript || answerSubmitted || processing) && (
                                 <motion.div
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1041,9 +1661,11 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                                 >
                                     {/* Transcript header */}
                                     <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 flex items-center gap-2">
-                                        {recording && (
+                                        {recording ? (
                                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                                        )}
+                                        ) : answerSubmitted ? (
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        ) : null}
                                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
                                             {recording ? 'Live Transcription' : 'Your Answer'}
                                         </span>
@@ -1071,6 +1693,7 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                         </div>
                     )}
                 </div>
+                )}
             </SecureExamWrapper>
         );
     }
@@ -1081,18 +1704,24 @@ const AIInterviewFast = ({ job, user, onComplete, onSecurityReset }) => {
                 score={finalScore}
                 ownershipScore={ownershipScore}
                 feedback={feedback}
-                totalQuestions={5}
+                totalQuestions={totalQuestions}
                 attemptedQuestions={currentQNum}
-                userId={user.uid}
-                jobId={job._id}
+                userId={user?.uid || user?._id || user?.id || ''}
+                jobId={job?._id || job?.id || ''}
                 interviewId={sessionId}
                 recordingNotice={recordingNotice}
+                technicalEvaluation={technicalEvaluation}
                 onDone={() => onComplete({ interviewScore: finalScore })}
             />
         );
     }
 
-    return null;
+    return (
+        <div className="py-24 text-center">
+            <Loader className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 font-light tracking-wide italic">Preparing your interview session...</p>
+        </div>
+    );
 };
 
 export default AIInterviewFast;

@@ -14,6 +14,8 @@ const recruiterSchema = new mongoose.Schema({
     },
     designation: String,
     isPro: Boolean,
+    accountType: { type: String, enum: ['normal', 'pilot'], default: 'normal' },
+    pilotExpiresAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 

@@ -8,8 +8,10 @@ const {
     terminateSession
 } = require("../controllers/agentController");
 
-// temporarily remove protect middleware to test
-router.get("/roles", getAvailableRoles);
+const { cacheMiddleware } = require("../middleware/cacheMiddleware");
+
+// Caches roles in memory and sets browser cache headers
+router.get("/roles", cacheMiddleware(86400, { httpMaxAge: 3600, staleWhileRevalidate: 86400 }), getAvailableRoles);
 router.post("/start", startSession);
 router.post("/respond", respondToAgent);
 router.post("/evaluate", getEvaluation);

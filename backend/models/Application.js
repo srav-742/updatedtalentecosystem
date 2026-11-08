@@ -9,6 +9,7 @@ const applicationSchema = new mongoose.Schema({
     resumeMatchPercent: Number,
     assessmentScore: Number,
     assessmentSubmissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssessmentSubmission' },
+    codingScore: Number,
     interviewScore: Number,
     recordingSessionId: { type: String, index: true },
     recordingPublicId: String,
@@ -24,11 +25,34 @@ const applicationSchema = new mongoose.Schema({
         enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
         default: 'pending'
     },
+    assessmentRecordingSessionId: { type: String, index: true },
+    assessmentRecordingPublicId: String,
+    assessmentRecordingAssetId: String,
+    assessmentRecordingUrl: String,
+    assessmentRecordingPlaybackUrl: String,
+    assessmentRecordingFormat: String,
+    assessmentRecordingDuration: Number,
+    assessmentRecordingBytes: Number,
+    assessmentRecordingUploadedAt: Date,
+    assessmentRecordingStatus: {
+        type: String,
+        enum: ['pending', 'recording', 'uploaded', 'upload_failed'],
+        default: 'pending'
+    },
     proctoringResetCount: { type: Number, default: 0 },
     lastProctoringResetAt: Date,
     lastProctoringResetReason: String,
     lastProctoringResetStage: String,
     lastProctoringViolation: mongoose.Schema.Types.Mixed,
+    retestAccess: {
+        assessment: { granted: { type: Boolean, default: false } },
+        coding: { granted: { type: Boolean, default: false } },
+        interview: { granted: { type: Boolean, default: false } }
+    },
+    integrityPenalty: { type: Number, default: 0 },
+    proctoringScore: { type: Number, default: 100 },
+    integrityScore: { type: Number, default: 100 },
+    riskLevel: { type: String, enum: ['LOW_RISK', 'REVIEW_REQUIRED', 'HIGH_RISK', 'LOW RISK', 'REVIEW REQUIRED', 'HIGH RISK'], default: 'LOW_RISK' },
     finalScore: Number,
     metrics: {
         tradeOffs: { type: Number, default: 0 },
@@ -37,13 +61,20 @@ const applicationSchema = new mongoose.Schema({
         communicationDelta: { type: Number, default: 0 },
         ownershipMindset: { type: Number, default: 0 }
     },
+    interviewQuestionSource: {
+        type: String,
+        enum: ['AI_GENERATED', 'RECRUITER_PROVIDED'],
+        default: 'AI_GENERATED'
+    },
     interviewAnswers: [
         {
+            questionId: String,
             question: String,
             answer: String,
             score: Number,
             marks: Number,
-            feedback: String
+            feedback: String,
+            source: { type: String, default: 'AI' }
         }
     ],
     videoIntroUrl: String,
@@ -62,11 +93,73 @@ const applicationSchema = new mongoose.Schema({
             questionType: String,
             skill: String,
             userAnswer: mongoose.Schema.Types.Mixed,
+            selectedOption: String,
+            explanation: String,
+            aiFeedback: String,
             correctAnswer: mongoose.Schema.Types.Mixed,
             isCorrect: Boolean,
             score: Number
         }
     ],
+    codingAnswers: [
+        {
+            questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodingQuestion' },
+            questionTitle: String,
+            difficulty: String,
+            difficultyWeight: Number,
+            maximumMarks: Number,
+            obtainedMarks: Number,
+            testCasesPassed: Number,
+            totalTestCases: Number,
+            code: String,
+            language: String,
+            score: Number,
+            feedback: String,
+            suggestedCode: String,
+            aiEvaluationStatus: { type: String, enum: ['success', 'failed', 'pending'], default: 'pending' },
+            correctnessVerdict: { type: String, enum: ['Correct', 'Partially Correct', 'Incorrect', 'Not Evaluated'], default: 'Not Evaluated' },
+            evaluation: { type: mongoose.Schema.Types.Mixed, default: null },
+            execution: { type: mongoose.Schema.Types.Mixed, default: null },
+            baseline: {
+                passed: { type: Boolean, default: false },
+                score: { type: Number, default: 0 },
+                execution: { type: mongoose.Schema.Types.Mixed, default: null }
+            },
+            mutation: {
+                triggered: { type: Boolean, default: false },
+                mutationId: { type: String, default: null },
+                status: { type: String, default: 'PENDING' },
+                mutationTestsPassed: { type: Number, default: 0 },
+                mutationTestsTotal: { type: Number, default: 0 },
+                adaptationDurationSec: { type: Number, default: 0 },
+                headline: { type: String, default: null },
+                description: { type: String, default: null },
+                results: { type: mongoose.Schema.Types.Mixed, default: [] }
+            },
+            forensics: {
+                astVolatility: { type: Number, default: null },
+                spatialLocality: { type: Number, default: null },
+                keystrokeMonotonicity: { type: Number, default: null },
+                diagnosticInteractivity: { type: Number, default: null },
+                casScore: { type: Number, default: null },
+                reviewIndicators: [{ type: String }]
+            },
+            snapshots: {
+                baselineCode: { type: String, default: '' },
+                preMutationCode: { type: String, default: '' },
+                postMutationCode: { type: String, default: '' },
+                finalSubmittedCode: { type: String, default: '' }
+            },
+            sandboxSessionId: { type: String, default: null }
+        }
+    ],
+    codingDetails: {
+        totalQuestions: { type: Number, default: 0 },
+        totalMaximumMarks: { type: Number, default: 100 },
+        totalObtainedMarks: { type: Number, default: 0 },
+        finalPercentage: { type: Number, default: 0 },
+        dmceSummary: { type: mongoose.Schema.Types.Mixed, default: null }
+    },
     recommendationSummary: {
         keyStrengths: [String],
         weaknesses: [String],
@@ -74,7 +167,8 @@ const applicationSchema = new mongoose.Schema({
         communication: String,
         overallSummary: String,
         calculatedAt: Date
-    }
+    },
+    technicalEvaluation: { type: mongoose.Schema.Types.Mixed, default: null }
 });
 
 // Compound index for optimized querying & sorting of recruiter applicants

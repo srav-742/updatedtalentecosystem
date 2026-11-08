@@ -71,7 +71,7 @@ class BlogRepository {
     /**
      * Search and filter published posts with pagination
      */
-    async findPublishedPosts({ categorySlug, searchQuery, page = 1, limit = 9 }) {
+    async findPublishedPosts({ categorySlug, searchQuery, page = 1, limit = 1000 }) {
         const query = { status: 'published', publishedAt: { $lte: new Date() } };
 
         // 1. Category filter
@@ -118,7 +118,7 @@ class BlogRepository {
     /**
      * Admin: Find all posts (no date/status restrictions, full details)
      */
-    async findAdminPosts({ status, searchQuery, page = 1, limit = 20 }) {
+    async findAdminPosts({ status, searchQuery, page = 1, limit = 1000 }) {
         const query = {};
 
         if (status) {

@@ -4,6 +4,36 @@ const Recruiter = require('../models/Recruiter');
 const Candidate = require('../models/Candidate');
 const mongoose = require('mongoose');
 
+const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
+const PROFILE_FIELDS = [
+    'name', 'profilePic', 'designation', 'phone', 'location', 'company', 'skills',
+    'education', 'experience', 'languages', 'projects', 'professionalProfiles',
+    'bio', 'resumeUrl', 'githubUrl', 'linkedinUrl'
+];
+
+const isAdminUser = (user) => user?.role === 'admin'
+    || (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim()));
+
+const canAccessProfile = (user, userId) => {
+    if (!user) return false;
+    if (isAdminUser(user)) return true;
+
+    const target = String(userId).toLowerCase();
+    return [user.uid, user._id, user.email]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === target);
+};
+
+const toPublicUser = (user) => {
+    const userObject = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+    for (const field of [
+        'password', 'resetPasswordToken', 'resetPasswordExpires',
+        'emailVerificationToken', 'emailVerificationExpires', '__v'
+    ]) {
+        delete userObject[field];
+    }
+    return userObject;
+};
 
 const getAllUsers = async (req, res) => {
     try {
@@ -17,40 +47,32 @@ const getAllUsers = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
     try {
-        const { userId } = req.params;
+        const { userId: requestedUserId } = req.params;
+        if (!canAccessProfile(req.user, requestedUserId)) {
+            return res.status(403).json({ message: 'Forbidden: You cannot access this profile.' });
+        }
+        const userId = isAdminUser(req.user) ? requestedUserId : String(req.user._id);
         
-        // Find user by UID, _id, or Email
-        const user = await User.findOne({
-            $or: [
-                { uid: userId },
-                { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null },
-                { email: userId }
-            ]
-        });
+        let user;
+        
+        // 1. Prioritize precise Object ID match
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+            user = await User.findById(userId);
+        }
+        
+        // 2. Prioritize Email match if the param is an email
+        if (!user && userId.includes('@')) {
+            user = await User.findOne({ email: userId.toLowerCase().trim() });
+        }
+        
+        // 3. Fallback to Firebase UID
+        if (!user) {
+            user = await User.findOne({ uid: userId });
+        }
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-
-        // ─── SELF-HEALING UID SYNC ───
-        // If the lookup parameter was a Firebase UID but it doesn't match what's in our DB,
-        // it means the user has re-signed up or changed Firebase projects.
-        if (userId && !mongoose.Types.ObjectId.isValid(userId) && !userId.includes('@') && user.uid !== userId) {
-            const oldUid = user.uid;
-            console.log(`[PROFILE-SYNC] Auto-migrating UID for ${user.email}: ${oldUid} -> ${userId}`);
-            
-            user.uid = userId;
-            await user.save();
-
-            const Job = require('../models/Job');
-            const Application = require('../models/Application');
-            const ResumeProfile = require('../models/ResumeProfile');
-
-            await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: userId } });
-            await Application.updateMany({ userId: oldUid }, { $set: { userId: userId } });
-            await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: userId } });
-        }
-        // ──────────────────────────────
 
         // ─── DYNAMIC SELF-HEALING RECRUITER STATUS ───
         if (user.role === 'recruiter') {
@@ -98,7 +120,18 @@ const getUserProfile = async (req, res) => {
                 : (resumeProfile.professionalProfiles || []);
         }
 
-        res.json(mergedUser);
+        if (mergedUser.accountType === 'pilot') {
+            const now = new Date();
+            const expiresAt = mergedUser.pilotExpiresAt ? new Date(mergedUser.pilotExpiresAt) : null;
+            mergedUser.isPilotExpired = expiresAt ? now > expiresAt : false;
+            if (expiresAt) {
+                const msRemaining = Math.max(0, expiresAt.getTime() - now.getTime());
+                mergedUser.daysRemaining = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
+                mergedUser.hoursRemaining = Math.floor((msRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            }
+        }
+
+        res.json(toPublicUser(mergedUser));
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -107,48 +140,76 @@ const getUserProfile = async (req, res) => {
 
 const updateUserProfile = async (req, res) => {
     try {
-        const { userId } = req.params;
-        const updateData = req.body;
-        delete updateData._id;
-        delete updateData.isPro;
-        delete updateData.hiringPattern;
+        const { userId: requestedUserId } = req.params;
+        if (!canAccessProfile(req.user, requestedUserId)) {
+            return res.status(403).json({ message: 'Forbidden: You cannot update this profile.' });
+        }
+        const userId = isAdminUser(req.user) ? requestedUserId : String(req.user._id);
+
+        const updateData = {};
+        for (const field of PROFILE_FIELDS) {
+            if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) {
+                updateData[field] = req.body[field];
+            }
+        }
+
         let query = {};
         if (mongoose.Types.ObjectId.isValid(userId)) {
             query = { _id: userId };
         } else {
-            if (updateData.email) {
-                const existingUser = await User.findOne({ email: updateData.email });
-                if (existingUser) {
-                    if (existingUser.uid !== userId) {
-                        existingUser.uid = userId;
-                        await existingUser.save();
-                    }
-                    query = { _id: existingUser._id };
-                } else {
-                    query = { uid: userId };
-                }
-            } else {
-                query = { uid: userId };
-            }
+            query = req.user.email?.toLowerCase() === String(userId).toLowerCase()
+                ? { email: req.user.email.toLowerCase() }
+                : { uid: userId };
         }
-        const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
-        let clientCredentials = null;
+        const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: false });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
         if (user) {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            // [DISABLED] Client credentials generation is now handled manually by the admin in MySQL.
-            // Client IDs/Secrets are no longer created automatically upon signup/profile sync.
+            // Generate unique API Client Credentials for Recruiter if they don't exist yet
+            if (user.role === 'recruiter') {
+                const Client = require('../models/Client');
+                const PlaintextClientCredential = require('../models/PlaintextClientCredential');
+                const bcrypt = require('bcryptjs');
+                
+                const expectedClientId = `client_${user.uid || user._id}`;
+                const existingClient = await Client.findOne({ clientId: expectedClientId });
+                
+                if (!existingClient) {
+                    const clientSecretRaw = `h1p_sec_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+                    const hashedSecret = await bcrypt.hash(clientSecretRaw, 10);
+
+                    const newClient = new Client({
+                        clientId: expectedClientId,
+                        clientSecret: hashedSecret,
+                        name: `Client for Recruiter ${user.name || user.email}`,
+                        description: `API Client for recruiter: ${user.email}`,
+                        status: 'active'
+                    });
+                    await newClient.save();
+
+                    const newPlaintext = new PlaintextClientCredential({
+                        clientId: expectedClientId,
+                        clientSecretRaw: clientSecretRaw,
+                        name: `Client for Recruiter ${user.name || user.email}`,
+                        description: `API Client for recruiter: ${user.email}`,
+                        status: 'active'
+                    });
+                    await newPlaintext.save();
+                    
+                    console.log(`[CLIENT-GENERATION] Generated API Client Credentials for Recruiter: ${user.email}`);
+                }
+            }
         }
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
         
-        const userObj = user.toObject();
-        if (clientCredentials) {
-            userObj.client = clientCredentials;
-        }
-        res.json(userObj);
+        res.json(toPublicUser(user));
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -159,10 +220,10 @@ const updateUserProfile = async (req, res) => {
 
 const getAnalyticsData = async (req, res) => {
     try {
-        const users = await User.find({}, 'name email role company designation skills phone isPro createdAt uid');
+        const users = await User.find({}, 'name email role company designation skills phone isPro accountType pilotExpiresAt createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
-        const seekers = users.filter(u => u.role === 'seeker');
+        const seekers = users.filter(u => u.role === 'candidate');
         
         // Fetch ResumeProfiles in one batch for seekers to enrich their location and skills
         const seekerUids = seekers.map(u => u.uid).filter(Boolean);
@@ -207,7 +268,7 @@ const getAnalyticsData = async (req, res) => {
             ...recruiters.map(r => 
                 Recruiter.findOneAndUpdate(
                     { userId: r._id },
-                    { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, createdAt: r.createdAt },
+                    { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, accountType: r.accountType || 'normal', pilotExpiresAt: r.pilotExpiresAt || null, createdAt: r.createdAt },
                     { upsert: true }
                 )
             ),
@@ -255,11 +316,17 @@ const addUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete users." });
+        }
+
         const { userId } = req.params;
         const user = await User.findById(userId);
         if (user) {
             if (user.role === 'recruiter') await Recruiter.deleteOne({ userId: user._id });
-            if (user.role === 'seeker') await Candidate.deleteOne({ userId: user._id });
+            if (user.role === 'candidate') await Candidate.deleteOne({ userId: user._id });
             await User.findByIdAndDelete(userId);
         }
         res.json({ message: "User deleted successfully" });
@@ -271,8 +338,11 @@ const deleteUser = async (req, res) => {
 
 const getSampleSeekers = async (req, res) => {
     try {
-        const seekers = await User.find({ role: 'seeker' }, '-password');
-        res.json(seekers);
+        const seekers = await User.find(
+            { role: 'candidate' },
+            'name email uid role profilePic designation phone location company skills education experience languages projects professionalProfiles bio resumeUrl githubUrl linkedinUrl'
+        );
+        res.json(seekers.map(toPublicUser));
     } catch (error) {
         console.error("[GET-SAMPLE-SEEKERS] Error:", error);
         res.status(500).json({ message: error.message });

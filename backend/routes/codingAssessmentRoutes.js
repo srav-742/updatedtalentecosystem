@@ -1,0 +1,60 @@
+const express = require('express');
+const router = express.Router();
+const codingAssessmentController = require('../controllers/codingAssessmentController');
+const { authMiddleware, roleCheck } = require('../middleware/authMiddleware');
+
+// ─── Optional Auth Helper for Candidate Flow ─────────────────
+const optionalAuth = (req, res, next) => {
+    if (!req.headers.authorization && !req.headers['x-user-id']) {
+        return next();
+    }
+    try {
+        const dummyRes = {
+            status: () => dummyRes,
+            json: () => next()
+        };
+        authMiddleware(req, dummyRes, next).catch?.(() => next());
+    } catch (e) {
+        next();
+    }
+};
+
+// ─── Coding Round ────────────────────────────────────────
+router.post('/round', authMiddleware, roleCheck('recruiter'), codingAssessmentController.createOrUpdateCodingRound);
+router.post('/sync-job-assessment', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.syncJobCodingAssessment);
+router.get('/round/:jobId', optionalAuth, codingAssessmentController.getCodingRoundByJobId);
+router.delete('/round/:jobId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.deleteCodingRound);
+
+// ─── Coding Questions ────────────────────────────────────
+router.post('/questions', authMiddleware, roleCheck('recruiter'), codingAssessmentController.addCodingQuestion);
+router.put('/questions/:questionId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.updateCodingQuestion);
+router.delete('/questions/:questionId', authMiddleware, roleCheck('recruiter'), codingAssessmentController.deleteCodingQuestion);
+
+// ─── Submissions & Details ───────────────────────────────
+router.post('/submit', authMiddleware, codingAssessmentController.submitCodingAssessment);
+router.get('/details/:applicationId', authMiddleware, codingAssessmentController.getCodingAssessmentDetails);
+
+// ─── Code Execution & Test Cases ──────────────────────────
+router.post('/run', optionalAuth, codingAssessmentController.runCandidateCode);
+router.post('/generate-test-cases', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.generateQuestionTestCases);
+router.post('/backfill-test-cases', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.backfillCodingQuestions);
+
+// ─── DMCE Dedicated Sandbox & Dynamic Mutation ───────────
+router.post('/session/start', optionalAuth, codingAssessmentController.startDMCESession);
+router.post('/session/heartbeat', optionalAuth, codingAssessmentController.heartbeatDMCESession);
+router.post('/session/run-baseline', optionalAuth, codingAssessmentController.runDMCEBaseline);
+router.post('/session/activate-mutation', optionalAuth, codingAssessmentController.activateDMCEMutation);
+router.post('/session/generate-hint', optionalAuth, codingAssessmentController.generateDMCETargetedHint);
+router.post('/session/run-mutation', optionalAuth, codingAssessmentController.runDMCEMutation);
+router.post('/session/telemetry', optionalAuth, codingAssessmentController.ingestDMCETelemetry);
+router.get('/session/status/:sessionId', optionalAuth, codingAssessmentController.getDMCESessionStatus);
+
+// ─── Revision Tracking & AI Integrity Analysis ───────────
+router.get('/revisions/:assessmentId/:questionId', optionalAuth, codingAssessmentController.getQuestionRevisionHistory);
+router.get('/integrity-analysis/:assessmentId/:questionId', optionalAuth, codingAssessmentController.getIntegrityAnalysis);
+router.post('/revisions/checkpoint', optionalAuth, codingAssessmentController.recordRevisionCheckpoint);
+
+// ─── AI Re-evaluation ────────────────────────────────────
+router.post('/re-evaluate/:applicationId/:questionIndex', authMiddleware, roleCheck(['recruiter', 'admin']), codingAssessmentController.reEvaluateCodingAnswer);
+
+module.exports = router;

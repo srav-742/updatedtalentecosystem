@@ -17,7 +17,7 @@ const {
 
 // In-memory session store
 const interviewSessions = new Map();
-const MAX_INTERVIEW_QUESTIONS = 5;
+const MAX_INTERVIEW_QUESTIONS = 10;
 
 // Mapping of candidate job categories to premium curated voice personas
 const CATEGORY_VOICE_MAP = {
@@ -37,6 +37,11 @@ const CATEGORY_VOICE_MAP = {
 async function saveInterviewSession(sessionId, session) {
     interviewSessions.set(sessionId, session);
 
+    const isRecruiterMode = session.questionSource === 'RECRUITER_PROVIDED';
+    const totalQuestions = isRecruiterMode
+        ? (session.totalQuestions || session.selectedQuestions?.length || 5)
+        : Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS);
+
     await InterviewSession.findOneAndUpdate(
         { sessionId },
         {
@@ -54,7 +59,10 @@ async function saveInterviewSession(sessionId, session) {
                 experienceLevel: session.experienceLevel,
                 systemPrompt: session.systemPrompt,
                 interviewerVoice: session.interviewerVoice,
-                totalQuestions: Math.min(session.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+                questionSource: session.questionSource || 'AI_GENERATED',
+                selectedQuestions: session.selectedQuestions || [],
+                currentQuestionIndex: session.currentQuestionIndex || 0,
+                totalQuestions,
                 history: session.history || [],
                 answerEvaluations: session.answerEvaluations || []
             }
@@ -75,6 +83,11 @@ async function loadInterviewSession(sessionId) {
         return null;
     }
 
+    const isRecruiterMode = storedSession.questionSource === 'RECRUITER_PROVIDED';
+    const totalQuestions = isRecruiterMode
+        ? (storedSession.totalQuestions || storedSession.selectedQuestions?.length || 5)
+        : Math.min(storedSession.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS);
+
     const restoredSession = {
         userId: storedSession.userId,
         jobId: storedSession.jobId,
@@ -88,7 +101,10 @@ async function loadInterviewSession(sessionId) {
         experienceLevel: storedSession.experienceLevel || '',
         systemPrompt: storedSession.systemPrompt,
         interviewerVoice: storedSession.interviewerVoice,
-        totalQuestions: Math.min(storedSession.totalQuestions || MAX_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS),
+        questionSource: storedSession.questionSource || 'AI_GENERATED',
+        selectedQuestions: storedSession.selectedQuestions || [],
+        currentQuestionIndex: storedSession.currentQuestionIndex || 0,
+        totalQuestions,
         history: storedSession.history || [],
         answerEvaluations: storedSession.answerEvaluations || []
     };
@@ -99,7 +115,8 @@ async function loadInterviewSession(sessionId) {
 
 async function deleteInterviewSession(sessionId) {
     interviewSessions.delete(sessionId);
-    await InterviewSession.deleteOne({ sessionId }).catch(() => null);
+    // Preserving data: do not delete the session from MongoDB
+    // await InterviewSession.deleteOne({ sessionId }).catch(() => null);
 }
 
 function sanitizeRecordingSegment(value) {
@@ -188,9 +205,14 @@ OUTPUT RULE:
 - MANDATORY: Your response MUST be exactly one single, complete question. It MUST end with a question mark (?). Do NOT include any text, explanations, or notes after the question mark. Do NOT cut off mid-sentence.
 `;
 
-// ─── CHANGE 1: Hardcoded question count to 10 ─────────────────────────────
-function getRandomQuestionCount() {
-    return MAX_INTERVIEW_QUESTIONS;
+function getRandomQuestionCount(job) {
+    if (job && job.title) {
+        const titleLower = job.title.toLowerCase();
+        if (titleLower.includes('business development executive')) {
+            return 10;
+        }
+    }
+    return 5;
 }
 
 /**
@@ -914,20 +936,89 @@ router.post('/start', async (req, res) => {
         // Build role-specific system prompt
         const systemPrompt = buildSystemPrompt(roleInfo, job);
 
-        // Build first question prompt (JD-focused)
-        const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
+        // Determine Question Source and First Question
+        let firstQuestion;
+        let selectedQuestions = [];
+        const isRecruiterMode = (
+            job?.mockInterview?.questionSource === 'RECRUITER_PROVIDED' ||
+            job?.questionSource === 'RECRUITER_PROVIDED'
+        );
+        let totalQuestions;
 
-        let firstQuestion = await callInterviewAI(firstQPrompt, 1000, false, systemPrompt);
+        if (isRecruiterMode) {
+            console.log(`[INTERVIEW-START] Using RECRUITER_PROVIDED question mode for job: ${job._id}`);
+            const rawBank = (
+                (Array.isArray(job?.mockInterview?.recruiterQuestions) && job.mockInterview.recruiterQuestions.length > 0)
+                    ? job.mockInterview.recruiterQuestions
+                    : (Array.isArray(job?.recruiterQuestions) ? job.recruiterQuestions : [])
+            ).filter(q => q && (q.question || q.text) && String(q.question || q.text).trim().length > 0);
 
-        if (!firstQuestion) {
-            // Fallback: role-appropriate generic question
-            if (roleInfo.roleCategory === 'ai_engineer') {
-                firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
-            } else if (roleInfo.isTech) {
-                firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+            // FIX: Prefer root-level questionCount (recruiter's explicit setting, e.g. 2) over mockInterview default
+            const countRequested = Math.max(1, Math.min(
+                Number(job?.questionCount || job?.mockInterview?.questionCount) || rawBank.length || 5,
+                rawBank.length
+            ));
+            const selectionMode = job?.selectionMode || job?.mockInterview?.selectionMode || 'ORDERED';
+
+            let pool = [...rawBank];
+            if (selectionMode === 'RANDOM') {
+                for (let i = pool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
+                }
+                selectedQuestions = pool.slice(0, countRequested);
             } else {
-                firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+                pool.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+                selectedQuestions = pool.slice(0, countRequested);
             }
+
+            selectedQuestions = selectedQuestions.map((q, idx) => {
+                const qText = String(q.question || q.text || '').trim();
+                return {
+                    questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                    question: qText,
+                    text: qText,
+                    order: idx + 1,
+                    category: q.category || 'General',
+                    difficulty: q.difficulty || 'Medium',
+                    questionType: q.questionType || 'Conceptual',
+                    source: 'RECRUITER'
+                };
+            });
+
+            if (selectedQuestions.length === 0) {
+                selectedQuestions.push({
+                    questionId: `q_fallback_1`,
+                    question: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    text: `For this ${job?.title || 'role'}, please describe your core experience and qualifications based on the job requirements.`,
+                    order: 1,
+                    category: 'General',
+                    difficulty: 'Medium',
+                    questionType: 'Conceptual',
+                    source: 'RECRUITER'
+                });
+            }
+
+            totalQuestions = selectedQuestions.length;
+            firstQuestion = selectedQuestions[0].text;
+            console.log(`[INTERVIEW-START] Frozen ${totalQuestions} recruiter questions. Q1: "${firstQuestion.slice(0, 60)}..."`);
+        } else {
+            // Build first question prompt (JD-focused)
+            const firstQPrompt = buildFirstQuestionPrompt(job, structured, roleInfo, specialInstructions);
+
+            firstQuestion = await callInterviewAI(firstQPrompt, 1000, false, systemPrompt);
+
+            if (!firstQuestion) {
+                // Fallback: role-appropriate generic question
+                if (roleInfo.roleCategory === 'ai_engineer') {
+                    firstQuestion = "Based on the job description, could you walk me through how you would architect an end-to-end RAG pipeline for this role — covering document ingestion, chunking strategy, embedding model selection, vector store choice, retrieval mechanism, and response generation?";
+                } else if (roleInfo.isTech) {
+                    firstQuestion = "Looking at the job description, could you walk me through your experience with the core technologies we require and how you've applied them in production environments?";
+                } else {
+                    firstQuestion = `For this ${job?.title || 'role'}, could you describe how you would approach the primary responsibilities outlined in the job description based on your professional experience?`;
+                }
+            }
+            totalQuestions = getRandomQuestionCount(job);
         }
 
         // Voice generation (TTS) — select voice based on role category for best human quality
@@ -949,7 +1040,6 @@ router.post('/start', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         const recordingSessionId = buildRecordingSessionId(userId, jobId);
 
-        const totalQuestions = getRandomQuestionCount();
         console.log(`[INTERVIEW-START] Total questions for this session: ${totalQuestions}`);
 
         await Application.findOneAndUpdate(
@@ -957,7 +1047,8 @@ router.post('/start', async (req, res) => {
             {
                 $set: {
                     recordingSessionId,
-                    recordingStatus: 'recording'
+                    recordingStatus: 'recording',
+                    interviewQuestionSource: isRecruiterMode ? 'RECRUITER_PROVIDED' : 'AI_GENERATED'
                 }
             },
             { upsert: true }
@@ -974,6 +1065,9 @@ router.post('/start', async (req, res) => {
             jobSkills: job?.skills || [],
             experienceLevel: job?.experienceLevel || '',
             systemPrompt,
+            questionSource: isRecruiterMode ? 'RECRUITER_PROVIDED' : 'AI_GENERATED',
+            selectedQuestions,
+            currentQuestionIndex: 0,
             totalQuestions, // ─── stored here
             ttsEngine: ttsEngine || null, // ─── lock TTS engine for session consistency
             history: [{ role: 'interviewer', content: firstQuestion }],
@@ -1016,8 +1110,13 @@ router.post('/next', async (req, res) => {
             currentQuestionNumber
         );
 
+        const currentQ = (session.selectedQuestions && session.selectedQuestions[currentQuestionNumber - 1]) || null;
+        const answerSource = session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI';
+
         session.answerEvaluations.push({
             questionNumber: currentQuestionNumber,
+            questionId: currentQ?.questionId || null,
+            source: answerSource,
             question: currentQuestion,
             answer: normalizedAnswer,
             score: answerEvaluation.score,
@@ -1038,6 +1137,8 @@ router.post('/next', async (req, res) => {
                 {
                     $push: {
                         interviewAnswers: {
+                            questionId: currentQ?.questionId || null,
+                            source: answerSource,
                             question: currentQuestion,
                             answer: normalizedAnswer,
                             score: answerEvaluation.score,
@@ -1053,9 +1154,13 @@ router.post('/next', async (req, res) => {
         }
         // ───────────────────────────────────────────
 
-        // End after exactly 15 questions
-        if (interviewers.length >= MAX_INTERVIEW_QUESTIONS) {
-            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${MAX_INTERVIEW_QUESTIONS} questions`);
+        // End after correct number of questions
+        const targetMax = session.questionSource === 'RECRUITER_PROVIDED'
+            ? (session.selectedQuestions?.length || session.totalQuestions || 5)
+            : (session.totalQuestions || MAX_INTERVIEW_QUESTIONS);
+
+        if (interviewers.length >= targetMax) {
+            console.log(`[INTERVIEW-END] Finalizing session for user: ${session.userId} after ${targetMax} questions`);
             const calculatedOverallScore = session.answerEvaluations.length > 0
                 ? averageInterviewScore(session.answerEvaluations)
                 : 0;
@@ -1096,6 +1201,7 @@ router.post('/next', async (req, res) => {
                 { userId: session.userId, jobId: session.jobId },
                 {
                     interviewScore: computedInterviewScore,
+                    interviewQuestionSource: session.questionSource || 'AI_GENERATED',
                     status: 'APPLIED',
                     resultsVisibleAt: new Date(),
                     // ─── OWNERSHIP VETTING SCORE LOGIC: Persistence ──────────────────
@@ -1103,7 +1209,9 @@ router.post('/next', async (req, res) => {
                         ownershipMindset: ownershipScore
                     },
                     // ─────────────────────────────────────────────────────────────────
-                    interviewAnswers: session.answerEvaluations.slice(0, MAX_INTERVIEW_QUESTIONS).map((entry) => ({
+                    interviewAnswers: session.answerEvaluations.slice(0, targetMax).map((entry) => ({
+                        questionId: entry.questionId || null,
+                        source: entry.source || (session.questionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI'),
                         question: entry.question,
                         answer: entry.answer,
                         score: entry.score,
@@ -1119,14 +1227,31 @@ router.post('/next', async (req, res) => {
             if (app) {
                 const r = Number(app.resumeMatchPercent || 0);
                 const a = Number(app.assessmentScore || 0);
+                const c = Number(app.codingScore || 0);
                 const i = Number(app.interviewScore || computedInterviewScore || 0);
+                const job = app.jobId;
 
                 app.interviewScore = i;
+                // Final Score strictly from present rounds (Resume + MCQ + Interview = 100 max)
                 app.finalScore = r + a + i;
 
-                if (app.finalScore >= 55) app.status = 'SHORTLISTED';
+                const codingEnabled = job?.codingAssessment?.enabled === true;
+                const isCodingDone = !codingEnabled || (app.codingScore !== null && app.codingScore !== undefined);
+                const isCodingPassed = !codingEnabled || (app.codingScore >= (job?.codingAssessment?.passingScore || 70));
 
-                await app.save();
+                if (app.finalScore >= 55 && isCodingDone && isCodingPassed) {
+                    app.status = 'SHORTLISTED';
+                } else {
+                    app.status = 'APPLIED';
+                }
+
+                await Application.findByIdAndUpdate(app._id, {
+                    $set: {
+                        interviewScore: app.interviewScore,
+                        finalScore: app.finalScore,
+                        status: app.status
+                    }
+                });
                 console.log(`[INTERVIEW-EVAL] Application Updated. Final Score: ${app.finalScore}`);
             }
 
@@ -1142,19 +1267,25 @@ router.post('/next', async (req, res) => {
 
         // Determine next question number
         const nextQuestionNumber = interviewers.length + 1;
+        let nextQuestion;
 
-        // Build role-aware follow-up prompt
-        const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
+        if (session.questionSource === 'RECRUITER_PROVIDED' && session.selectedQuestions?.length > interviewers.length) {
+            nextQuestion = session.selectedQuestions[interviewers.length].text || session.selectedQuestions[interviewers.length].question;
+            console.log(`[INTERVIEW-NEXT] Serving canonical recruiter question ${nextQuestionNumber}: "${nextQuestion.slice(0, 60)}..."`);
+        } else {
+            // Build role-aware follow-up prompt
+            const nextPrompt = buildNextQuestionPrompt(session, nextQuestionNumber);
 
-        let nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
+            nextQuestion = await callInterviewAI(nextPrompt, 1000, false, session.systemPrompt);
 
-        if (!nextQuestion) {
-            if (session.roleInfo.roleCategory === 'ai_engineer') {
-                nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
-            } else if (session.roleInfo.isTech) {
-                nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
-            } else {
-                nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+            if (!nextQuestion) {
+                if (session.roleInfo.roleCategory === 'ai_engineer') {
+                    nextQuestion = "Can you elaborate on the specific technical trade-offs you considered and how you would evaluate the performance of that approach in a production AI system?";
+                } else if (session.roleInfo.isTech) {
+                    nextQuestion = "Can you elaborate on the technical implementation details of that approach?";
+                } else {
+                    nextQuestion = "Could you walk me through how you would specifically handle that situation in this role?";
+                }
             }
         }
 

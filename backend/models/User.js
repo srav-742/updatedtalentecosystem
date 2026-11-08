@@ -2,10 +2,12 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
     name: String,
-    email: { type: String, unique: true, index: true },
+    email: { type: String, unique: true, index: true, lowercase: true, trim: true },
     password: { type: String },
-    uid: { type: String, unique: true, index: true },
-    role: { type: String, enum: ['seeker', 'recruiter', 'admin'], default: 'seeker', index: true },
+    uid: { type: String, unique: true, index: true, sparse: true },
+    role: { type: String, enum: ['candidate', 'seeker', 'recruiter', 'admin'], default: 'candidate', index: true },
+    accountType: { type: String, enum: ['normal', 'pilot'], default: 'normal', index: true },
+    pilotExpiresAt: { type: Date, default: null },
     profilePic: String,
     designation: String,
     phone: String,
@@ -49,6 +51,9 @@ const userSchema = new mongoose.Schema({
     walletBalance: { type: Number, default: 0 },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

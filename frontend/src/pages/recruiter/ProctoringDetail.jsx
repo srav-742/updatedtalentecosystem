@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
     X,
@@ -8,70 +9,163 @@ import {
     Clock,
     User,
     Mail,
-    Briefcase
+    Briefcase,
+    Activity,
+    Image
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../../firebase';
 
-const ProctoringDetail = ({ applicationId, onClose }) => {
+/**
+ * ProctoringDetail Component
+ * ──────────────────────────────────────────────────────────────────────────────
+ * Interactive recruiter report panel. Displays an audit timeline of confirmed
+ * violations, merged events, duration tracking, confidence metrics, and captured
+ * screenshot frames to assist manual reviews before final verdicts.
+ * ──────────────────────────────────────────────────────────────────────────────
+ */
+
+const ProctoringDetail = ({ applicationId, onClose, onUpdate }) => {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewReasonInput, setReviewReasonInput] = useState('');
+    const [reviewSuccessMessage, setReviewSuccessMessage] = useState(null);
+
+    const fetchProctoringDetails = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/proctoring-details/${applicationId}`, { headers });
+            setData(res.data);
+        } catch (err) {
+            console.error("Failed to fetch proctoring details:", err);
+            setError(err.response?.data?.message || 'Failed to load proctoring details');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchProctoringDetails = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const headers = await getAuthHeaders();
-                const res = await axios.get(`${API_URL}/proctoring-details/${applicationId}`, { headers });
-                setData(res.data);
-            } catch (err) {
-                console.error("Failed to fetch proctoring details:", err);
-                setError(err.response?.data?.message || 'Failed to load proctoring details');
-            } finally {
-                setLoading(false);
-            }
-        };
-
         if (applicationId) {
             fetchProctoringDetails();
         }
     }, [applicationId]);
 
+    const handleHumanReview = async (reviewStatus) => {
+        const examId = data?.interview?.proctoringReport?.examId || data?.application?.recordingSessionId;
+        if (!examId) {
+            alert('Cannot submit review: Exam ID not available.');
+            return;
+        }
+        setReviewSubmitting(true);
+        try {
+            const headers = await getAuthHeaders();
+            const payload = {
+                reviewStatus,
+                reviewReason: reviewReasonInput.trim() || `Recruiter marked as ${reviewStatus}`
+            };
+
+            try {
+                await axios.post(`${API_URL}/proctoring-enhanced/review/${encodeURIComponent(examId)}`, payload, { headers });
+            } catch (postErr) {
+                // Fallback to pipeline review endpoint
+                await axios.post(`${API_URL}/proctoring-pipeline/review/${encodeURIComponent(examId)}`, payload, { headers });
+            }
+            
+            const newScore = reviewStatus === 'DISMISSED' ? 100 : (data?.interview?.proctoringReport?.integrityScore ?? 100);
+            const newRisk = reviewStatus === 'DISMISSED' ? 'LOW RISK' : (reviewStatus === 'CONFIRMED_CONCERN' ? 'HIGH RISK' : (data?.interview?.proctoringReport?.riskLevel || 'LOW RISK'));
+
+            // Optimistic update
+            setData(prev => ({
+                ...prev,
+                application: {
+                    ...prev.application,
+                    proctoringScore: newScore,
+                    integrityScore: newScore,
+                    riskLevel: newRisk
+                },
+                interview: {
+                    ...prev.interview,
+                    proctoringReport: {
+                        ...prev.interview?.proctoringReport,
+                        integrityScore: newScore,
+                        proctoringScore: newScore,
+                        riskLevel: newRisk,
+                        reviewStatus,
+                        reviewReason: reviewReasonInput.trim() || `Recruiter marked as ${reviewStatus}`,
+                        reviewedAt: new Date().toISOString()
+                    },
+                    proctoringSummary: {
+                        ...prev.interview?.proctoringSummary,
+                        integrityScore: newScore,
+                        riskLevel: newRisk,
+                        reviewStatus
+                    }
+                }
+            }));
+            setReviewReasonInput('');
+            setReviewSuccessMessage(`Report audit status updated to ${reviewStatus}`);
+            if (typeof onUpdate === 'function') {
+                onUpdate();
+            }
+            setTimeout(() => setReviewSuccessMessage(null), 4000);
+        } catch (err) {
+            console.error('Human review submission error:', err);
+            alert(err.response?.data?.message || 'Failed to submit human review');
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+
     if (loading) {
-        return (
+        const loadingContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-12 text-center max-w-md w-full">
+                <div className="bg-white rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto mb-6"></div>
                     <h3 className="text-xl font-bold text-gray-800">Loading Proctoring Details</h3>
-                    <p className="text-gray-500 mt-2">Fetching proctoring logs...</p>
+                    <p className="text-gray-500 mt-2">Fetching proctoring logs and evidence...</p>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(loadingContent, document.body) : loadingContent;
     }
 
     if (error || !data) {
-        return (
+        const errorContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1a1d24', color: '#ffffff' }}>
                     <X className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Error Loading Report</h3>
-                    <p className="text-gray-400 mb-6">{error || 'Proctoring data not found'}</p>
+                    <h3 className="text-xl font-bold mb-2" style={{ color: '#ffffff' }}>Error Loading Report</h3>
+                    <p className="text-gray-400 mb-6" style={{ color: '#94a3b8' }}>{error || 'Proctoring data not found'}</p>
                     <button
                         onClick={onClose}
-                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl border border-white/10 transition-colors"
+                        className="w-full text-gray-300 font-bold px-6 py-3 rounded-xl transition-colors cursor-pointer"
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)' }}
                     >
                         Close
                     </button>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(errorContent, document.body) : errorContent;
     }
 
     const { application, job, interview } = data;
+    const report = interview?.proctoringReport || {};
+    const summaryData = interview?.proctoringSummary || {};
 
-    return (
+    const integrityScore = report.integrityScore ?? summaryData.integrityScore ?? application.integrityScore ?? (report.totalPenaltyRating > 0 ? Math.max(0, 100 - Math.round(report.totalPenaltyRating * 2.5)) : 100);
+    const riskLevel = report.riskLevel ?? summaryData.riskLevel ?? application.riskLevel ?? (integrityScore < 60 ? 'HIGH RISK' : (integrityScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK'));
+    const criticalCount = report.criticalIncidents ?? summaryData.criticalIncidents ?? (interview?.proctoringViolations || []).filter(v => v.severity === 'critical').length;
+    const standardCount = report.standardIncidents ?? summaryData.standardIncidents ?? (interview?.proctoringViolations || []).filter(v => v.severity !== 'critical').length;
+    const scoreFactors = report.scoreFactors || summaryData.scoreFactors || [];
+    const reviewStatus = report.reviewStatus || 'UNREVIEWED';
+
+    const modalContent = (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -80,127 +174,193 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-red-600 to-orange-600 text-white p-8 rounded-t-3xl z-10 shadow-md">
+                <div className="sticky top-0 p-8 rounded-t-3xl z-10 shadow-lg" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-4">
-                                <ShieldAlert className="w-8 h-8" />
-                                <h2 className="text-3xl font-black">Proctoring Integrity Report</h2>
+                                <ShieldAlert className="w-8 h-8 text-red-500 shrink-0" />
+                                <div>
+                                    <h2 className="text-2xl font-black" style={{ color: '#ffffff' }}>Proctoring Integrity Report</h2>
+                                    <p className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>Authoritative Engine {report.scoreVersion || 'v2'} • Exam ID: {report.examId || application.recordingSessionId || 'N/A'}</p>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-3xl font-black text-white">
-                                        {interview?.proctoringReport?.verdict || 'Flagged'}
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black" style={{ color: '#ffffff' }}>
+                                        {integrityScore} <span className="text-xs font-normal" style={{ color: '#94a3b8' }}>/ 100</span>
                                     </div>
-                                    <div className="text-xs text-red-100 font-bold uppercase tracking-widest mt-1">Status Verdict</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Integrity Score</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-3xl font-black text-white">
-                                        {interview?.proctoringReport?.totalPenaltyRating ?? application.integrityPenalty ?? 0}
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-sm font-black px-2.5 py-1 rounded-lg inline-block" style={{
+                                        backgroundColor: riskLevel === 'HIGH RISK' ? 'rgba(239, 68, 68, 0.25)' : riskLevel === 'REVIEW REQUIRED' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)',
+                                        color: riskLevel === 'HIGH RISK' ? '#fca5a5' : riskLevel === 'REVIEW REQUIRED' ? '#fde68a' : '#6ee7b7',
+                                        border: `1px solid ${riskLevel === 'HIGH RISK' ? 'rgba(239, 68, 68, 0.4)' : riskLevel === 'REVIEW REQUIRED' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`
+                                    }}>
+                                        {riskLevel}
                                     </div>
-                                    <div className="text-xs text-red-100 font-bold uppercase tracking-widest mt-1">Penalty Rating</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Risk Classification</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-3xl font-black text-white">
-                                        {interview?.proctoringViolations?.length || application.proctoringFlags?.length || 0}
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-2xl font-black">
+                                        <span style={{ color: criticalCount > 0 ? '#f87171' : '#ffffff' }}>{criticalCount}</span>
+                                        <span className="text-xs font-normal" style={{ color: '#94a3b8' }}> / {standardCount} std</span>
                                     </div>
-                                    <div className="text-xs text-red-100 font-bold uppercase tracking-widest mt-1">Alerts Logged</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Incidents (Crit / Std)</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/10">
-                                    <div className="text-sm font-black text-white">
-                                        {interview?.completedAt ? new Date(interview.completedAt).toLocaleDateString() : new Date().toLocaleDateString()}
+                                <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-sm font-black capitalize" style={{ color: '#ffffff' }}>
+                                        {reviewStatus.replace(/_/g, ' ')}
                                     </div>
-                                    <div className="text-xs text-red-100 font-bold uppercase tracking-widest mt-1">Session Date</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Audit Status</div>
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="bg-white/15 hover:bg-white/25 rounded-full p-3 transition-colors shrink-0"
+                            className="rounded-full p-3 transition-colors shrink-0 ml-4 cursor-pointer flex items-center justify-center hover:opacity-80"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', color: '#ffffff' }}
+                            title="Close Report"
                         >
-                            <X className="w-6 h-6 animate-pulse" />
+                            <X className="w-6 h-6" style={{ color: '#ffffff' }} />
                         </button>
                     </div>
                 </div>
 
                 {/* Candidate Info */}
                 <div className="p-8 bg-gray-50 border-b border-gray-200">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <User className="w-5 h-5 text-red-600" />
+                    <h3 className="text-sm font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-500" />
                         Candidate Information
                     </h3>
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="bg-red-50 p-3 rounded-xl border border-red-100">
-                                <User className="w-5 h-5 text-red-600" />
+                            <div className="bg-white p-3 rounded-xl border border-gray-200">
+                                <User className="w-5 h-5 text-gray-700" />
                             </div>
                             <div>
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">Name</div>
-                                <div className="font-bold text-gray-800">{application.applicantName}</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Name</div>
+                                <div className="font-bold text-gray-900">{application.applicantName}</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
-                                <Mail className="w-5 h-5 text-orange-600" />
+                            <div className="bg-white p-3 rounded-xl border border-gray-200">
+                                <Mail className="w-5 h-5 text-gray-700" />
                             </div>
                             <div>
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">Email</div>
-                                <div className="font-bold text-gray-800">{application.applicantEmail}</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Email</div>
+                                <div className="font-bold text-gray-900">{application.applicantEmail}</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="bg-gray-100 p-3 rounded-xl border border-gray-200/60">
-                                <Briefcase className="w-5 h-5 text-gray-600" />
+                            <div className="bg-white p-3 rounded-xl border border-gray-200">
+                                <Briefcase className="w-5 h-5 text-gray-700" />
                             </div>
                             <div>
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">Applied Job</div>
-                                <div className="font-bold text-gray-800">{job.title}</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Applied Job</div>
+                                <div className="font-bold text-gray-900">{job.title}</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Integrity & Proctoring details */}
-                <div className="p-8">
-                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                        <ShieldAlert className="w-5 h-5 text-red-600" />
-                        Integrity Violation Log Details
-                    </h3>
-
-                    {/* Verdict Card */}
-                    {interview?.proctoringReport && (
-                        <div className="mb-6 rounded-3xl border border-red-100 bg-red-50/20 p-6 shadow-sm">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="flex items-start gap-4">
-                                    <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
-                                        interview.proctoringReport.status === 'clean' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                        interview.proctoringReport.status === 'low_risk' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                                        interview.proctoringReport.status === 'suspicious' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                        'bg-red-50 text-red-600 border border-red-100'
+                <div className="p-8 space-y-6">
+                    {/* Verdict & Score Factors Card */}
+                    <div className={`rounded-3xl border p-6 shadow-sm ${
+                        riskLevel === 'HIGH RISK' ? 'border-red-200 bg-red-50/30' :
+                        riskLevel === 'REVIEW REQUIRED' ? 'border-amber-200 bg-amber-50/30' :
+                        'border-emerald-200 bg-emerald-50/30'
+                    }`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="flex items-start gap-4">
+                                <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                                    riskLevel === 'HIGH RISK' ? 'bg-red-50 text-red-600 border border-red-200' :
+                                    riskLevel === 'REVIEW REQUIRED' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                                    'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                }`}>
+                                    {riskLevel === 'HIGH RISK' && <ShieldAlert size={32} />}
+                                    {riskLevel === 'REVIEW REQUIRED' && <AlertTriangle size={32} />}
+                                    {riskLevel === 'LOW RISK' && <ShieldCheck size={32} />}
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Authoritative Risk Assessment</p>
+                                    <h4 className={`text-xl font-black mt-1 ${
+                                        riskLevel === 'HIGH RISK' ? 'text-red-600' :
+                                        riskLevel === 'REVIEW REQUIRED' ? 'text-amber-600' :
+                                        'text-emerald-600'
                                     }`}>
-                                        {interview.proctoringReport.status === 'clean' && <ShieldCheck size={28} />}
-                                        {interview.proctoringReport.status === 'low_risk' && <ShieldCheck size={28} />}
-                                        {interview.proctoringReport.status === 'suspicious' && <AlertTriangle size={28} />}
-                                        {interview.proctoringReport.status === 'critical' && <ShieldAlert size={28} />}
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Proctoring integrity summary verdict</p>
-                                        <h4 className={`text-xl font-black mt-1 ${
-                                            interview.proctoringReport.status === 'clean' ? 'text-emerald-600' :
-                                            interview.proctoringReport.status === 'low_risk' ? 'text-blue-600' :
-                                            interview.proctoringReport.status === 'suspicious' ? 'text-amber-600' :
-                                            'text-red-600'
-                                        }`}>
-                                            {interview.proctoringReport.verdict}
-                                        </h4>
-                                        <p className="text-xs text-gray-600 font-semibold leading-relaxed mt-2 max-w-2xl">
-                                            {interview.proctoringReport.summary}
-                                        </p>
-                                    </div>
+                                        {report.verdict || (riskLevel === 'LOW RISK' ? 'Seriousness Verified' : 'Integrity Review Recommended')}
+                                    </h4>
+                                    <p className="text-xs text-gray-600 font-medium leading-relaxed mt-2 max-w-2xl">
+                                        {report.summary || 'Proctoring analysis completed using canonical taxonomy and weighted evaluation.'}
+                                    </p>
+                                    
+                                    {scoreFactors.length > 0 && (
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            {scoreFactors.map((factor, fIdx) => (
+                                                <span key={fIdx} className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-white border border-black/10 text-gray-700 shadow-2xs">
+                                                    • {factor}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Recruiter Human Review Action Box */}
+                    <div className="rounded-3xl border border-black/10 bg-gray-50 p-6 shadow-sm">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-black/5">
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-wider text-gray-900">Recruiter Audit & Action</h4>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    Record your human review determination. All decisions are logged with timestamp and author for auditing.
+                                </p>
+                            </div>
+                            {report.reviewedAt && (
+                                <div className="text-[11px] text-gray-500 font-mono">
+                                    Last reviewed: {new Date(report.reviewedAt).toLocaleString()}
+                                    {report.reviewReason && <div className="text-gray-700 font-semibold">Note: {report.reviewReason}</div>}
+                                </div>
+                            )}
+                        </div>
+
+                        {reviewSuccessMessage && (
+                            <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                                ✓ {reviewSuccessMessage}
+                            </div>
+                        )}
+
+                        <div className="mt-4 flex flex-col md:flex-row items-center gap-3">
+                            <input
+                                type="text"
+                                placeholder="Review notes or justification (optional)..."
+                                value={reviewReasonInput}
+                                onChange={(e) => setReviewReasonInput(e.target.value)}
+                                className="flex-1 w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium outline-none focus:border-black/30"
+                            />
+                            <div className="flex items-center gap-2 w-full md:w-auto">
+                                <button
+                                    id="btn-confirm-concern"
+                                    onClick={() => handleHumanReview('CONFIRMED_CONCERN')}
+                                    disabled={reviewSubmitting}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                                >
+                                    Confirm Concern
+                                </button>
+                                <button
+                                    id="btn-dismiss-alert"
+                                    onClick={() => handleHumanReview('DISMISSED')}
+                                    disabled={reviewSubmitting}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                                >
+                                    Dismiss Alert
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
                     {(!interview?.proctoringViolations || interview.proctoringViolations.length === 0) ? (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-center gap-3 text-emerald-800">
@@ -217,7 +377,7 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                                     <thead>
                                         <tr className="bg-gray-50 border-b border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
                                             <th className="py-3 px-4">Event Violation Type</th>
-                                            <th className="py-3 px-4">Details</th>
+                                            <th className="py-3 px-4">Details & Intelligent Evidence</th>
                                             <th className="py-3 px-4 text-center">Score Penalty</th>
                                             <th className="py-3 px-4 text-center">Severity</th>
                                             <th className="py-3 px-4 text-right">Time Detected</th>
@@ -229,17 +389,60 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                                             if (v.severity === 'low') severityClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
                                             else if (v.severity === 'medium') severityClass = "bg-amber-50 text-amber-700 border border-amber-100";
                                             else if (v.severity === 'high') severityClass = "bg-red-50 text-red-700 border border-red-100";
-                                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold";
+                                            else if (v.severity === 'critical') severityClass = "bg-red-600 text-white font-bold animate-pulse";
 
-                                            const typeLabel = String(v.type).replace(/_/g, ' ');
+                                            const typeLabel = String(v.canonicalEventType || v.type).replace(/_/g, ' ');
+                                            const category = v.category || 'ENVIRONMENT';
 
                                             return (
                                                 <tr key={i} className="hover:bg-gray-50/50">
                                                     <td className="py-3 px-4 font-bold text-gray-800 uppercase tracking-tight">
-                                                        {typeLabel}
+                                                        <div>{typeLabel}</div>
+                                                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200">
+                                                            {category}
+                                                        </span>
                                                     </td>
                                                     <td className="py-3 px-4 text-gray-600 leading-normal">
-                                                        {v.detail}
+                                                        <div className="font-semibold text-gray-800 flex items-center gap-2">
+                                                            <span>{v.detail}</span>
+                                                            {v.isAnswering && (
+                                                                <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-extrabold uppercase">
+                                                                    While Answering
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {/* Metadata and duration specs */}
+                                                        <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-gray-500 font-bold">
+                                                            {v.model && <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Detector: {v.model}</span>}
+                                                            {v.duration > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">Duration: {v.duration}s</span>}
+                                                            {(v.confidence > 0 || v.maxConfidence > 0) && (
+                                                                <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                                                    Confidence: {Math.round(((v.confidence || v.maxConfidence) > 1 ? (v.confidence || v.maxConfidence) : (v.confidence || v.maxConfidence) * 100))}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Expanded Evidence Screenshots Row */}
+                                                        {v.evidenceFrames && v.evidenceFrames.length > 0 && (
+                                                            <div className="mt-3">
+                                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                                    <Image size={10} />
+                                                                    Visual Evidence ({v.evidenceFrames.length})
+                                                                </div>
+                                                                <div className="flex gap-2.5 overflow-x-auto pb-1.5 pt-0.5">
+                                                                    {v.evidenceFrames.map((img, idx) => (
+                                                                        <img
+                                                                            key={idx}
+                                                                            src={img}
+                                                                            alt={`Evidence frame ${idx + 1}`}
+                                                                            className="h-12 w-16 rounded-lg object-cover cursor-zoom-in border border-gray-200 hover:border-red-500 hover:scale-105 transition-all shadow-sm"
+                                                                            onClick={() => setSelectedImage(img)}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="py-3 px-4 text-center font-bold text-red-600 bg-red-50/10">
                                                         +{v.rating || 0}
@@ -265,8 +468,31 @@ const ProctoringDetail = ({ applicationId, onClose }) => {
                     )}
                 </div>
             </motion.div>
+
+            {/* Premium Full Evidence Frame Viewer Overlay */}
+            {selectedImage && (
+                <div
+                    className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 cursor-zoom-out"
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div className="max-w-4xl max-h-[85vh] relative bg-white/5 p-2 rounded-3xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+                        <img src={selectedImage} alt="Full Evidence" className="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl" />
+                        <button
+                            className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-2.5 hover:bg-black/80 transition-colors shadow-lg border border-white/10"
+                            onClick={() => setSelectedImage(null)}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 };
 
 export default ProctoringDetail;

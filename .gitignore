@@ -1,12 +1,63 @@
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Production build
 dist/
 build/
+
+# Environment variables
 .env
-.DS_Store
-coverage/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & OS files
 .vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Project specific
 backend/vosk-model-small-en-us-0.15/
 backend/uploads/
 *.zip
 backend/config/serviceAccountKey.json
 backend/scratch/
+scratch/
+backend/scratch*.js
+backend/scratch*.json
+backend/*_text.txt
+backend/cleaned_text.txt
+backend/check_*.js
+backend/investigate*.js
+backend/restore_*.js
+backend/recover_*.js
+backend/sync_transcript_scores.js
+backend/dry_run_*.js
+backend/dump_data.js
+backend/fix_applications.js
+backend/list_dbs.js
+backend/reconstruct_plan.js
+backend/drop_ttl_index.js
+backend/analyze_golang.js
+backend/golang_db_apps.json
+backend/extracted_user_request.json
+backend/recovery_report.json
+backend/update_db_transcripts.js
+backend/verify_*.js
+backend/run_db_sync_final.js

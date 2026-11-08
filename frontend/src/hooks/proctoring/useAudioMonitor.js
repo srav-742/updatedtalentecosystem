@@ -42,6 +42,8 @@ export function useAudioMonitor({ isActive = false, mediaStream = null }) {
             const dataArray = new Uint8Array(bufferLength);
 
             let highVolumeFrameCount = 0;
+            let lastUpdateTime = 0;
+            const UPDATE_INTERVAL_MS = 200; // Throttle setState to ~5Hz (matches proctoring sample rate)
 
             const analyze = () => {
                 if (!analyserRef.current) return;
@@ -70,11 +72,16 @@ export function useAudioMonitor({ isActive = false, mediaStream = null }) {
                     highVolumeFrameCount = Math.max(0, highVolumeFrameCount - 1);
                 }
 
-                setAudioSignals({
-                    level: Math.round(avgLevel),
-                    multipleVoices,
-                    backgroundNoise,
-                });
+                // Throttle React state updates to ~5Hz instead of ~60Hz
+                const now = performance.now();
+                if (now - lastUpdateTime >= UPDATE_INTERVAL_MS) {
+                    lastUpdateTime = now;
+                    setAudioSignals({
+                        level: Math.round(avgLevel),
+                        multipleVoices,
+                        backgroundNoise,
+                    });
+                }
 
                 rafIdRef.current = requestAnimationFrame(analyze);
             };

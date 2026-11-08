@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Award, MessageSquare, BarChart3, ChevronRight, Zap, X } from 'lucide-react';
+import { CheckCircle2, Award, MessageSquare, BarChart3, ChevronRight, Zap, X, Code2 } from 'lucide-react';
 import InterviewFeedbackForm from './InterviewFeedbackForm';
 
 const CircularProgress = ({ value, max = 100, label, color, delay }) => {
@@ -52,7 +52,7 @@ const CircularProgress = ({ value, max = 100, label, color, delay }) => {
     );
 };
 
-const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, attemptedQuestions, userId, jobId, interviewId, recordingNotice, onDone }) => {
+const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, attemptedQuestions, userId, jobId, interviewId, recordingNotice, technicalEvaluation, onDone }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
 
@@ -177,6 +177,62 @@ const AIInterviewReport = ({ score, ownershipScore, feedback, totalQuestions, at
                             </ul>
                         </div>
                     </div>
+
+                    {/* Live Technical Challenge Scorecard (if evaluated) */}
+                    {technicalEvaluation && (
+                        <div className="bg-gradient-to-br from-teal-50 via-emerald-50/40 to-indigo-50 border border-teal-200 rounded-[2.5rem] p-8 mb-12 shadow-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md">
+                                        <Code2 size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-700 block">
+                                            Live Technical Challenge Evaluated
+                                        </span>
+                                        <h4 className="text-xl font-black text-gray-900">
+                                            {technicalEvaluation.problemTitle || 'Live Technical Round'}
+                                        </h4>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="bg-white px-4 py-2 rounded-2xl border border-teal-200 text-center shadow-2xs">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Round Score</span>
+                                        <span className="text-xl font-black text-teal-700">
+                                            {technicalEvaluation.totalScore != null ? `${technicalEvaluation.totalScore}/100` : `${technicalEvaluation.finalScore || 0}/100`}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Subscores */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                                <div className="bg-white/80 p-3 rounded-2xl border border-teal-100 text-center">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Approach</span>
+                                    <span className="text-base font-black text-teal-800">{technicalEvaluation.approachScore ?? '-'}%</span>
+                                </div>
+                                <div className="bg-white/80 p-3 rounded-2xl border border-teal-100 text-center">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Correctness</span>
+                                    <span className="text-base font-black text-emerald-800">{technicalEvaluation.correctnessScore ?? '-'}%</span>
+                                </div>
+                                <div className="bg-white/80 p-3 rounded-2xl border border-teal-100 text-center">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Complexity</span>
+                                    <span className="text-base font-black text-indigo-800">{technicalEvaluation.complexityScore ?? '-'}%</span>
+                                </div>
+                                <div className="bg-white/80 p-3 rounded-2xl border border-teal-100 text-center">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Communication</span>
+                                    <span className="text-base font-black text-purple-800">{technicalEvaluation.communicationScore ?? '-'}%</span>
+                                </div>
+                            </div>
+
+                            {(technicalEvaluation.summary || technicalEvaluation.summaryFeedback) && (
+                                <div className="bg-white/90 p-4 rounded-2xl border border-teal-200/60 text-xs text-gray-700 leading-relaxed font-sans">
+                                    <span className="font-bold text-teal-900 block mb-1">Evaluator Feedback:</span>
+                                    {technicalEvaluation.summary || technicalEvaluation.summaryFeedback}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Automated Assessment */}
                     <div className="bg-gray-50 border border-gray-200 rounded-[2.5rem] p-8 mb-12">

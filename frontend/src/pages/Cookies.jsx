@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Cookie, Info, Settings, ShieldCheck, PieChart, Activity } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const Cookies = () => {
   const cookieTypes = [
@@ -28,6 +29,11 @@ const Cookies = () => {
 
   return (
     <div className="min-h-screen bg-[#0c0f16] text-white">
+      <SEO 
+        title="Cookie Policy | Hire1Percent" 
+        description="Learn about how Hire1Percent uses cookies." 
+        canonicalUrl="/cookies" 
+      />
       <Navbar />
       
       <main className="pt-32 pb-20 px-6">

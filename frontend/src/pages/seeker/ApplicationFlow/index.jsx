@@ -1,28 +1,122 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, CheckCircle, Video, ChevronRight, Brain } from 'lucide-react';
+import { FileText, CheckCircle, Video, ChevronRight, Brain, Code2, AlertCircle, Lock } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../../firebase';
+import { useQueryClient } from '@tanstack/react-query';
+import { API_URL, getAuthHeaders } from '../../../firebase';
+import { trackEvent } from '../../../utils/analytics';
+
+// ─── Direct Component Imports ────────────────────────────────────────────────
+// Statically imported so transitions between steps are instantaneous and never
+// suffer from React Suspense chunk delays or blank-screen deadlocks.
 import ResumeAnalyzer from './ResumeAnalyzer';
 import SkillAssessment from './SkillAssessment';
-import AIInterview from './AIInterviewFast';
+import CodingAssessment from './CodingAssessment';
+import AIInterview from './InterviewWrapper';
 import CandidateDeck from './CandidateDeck';
 
+// ─── Step-Level Error Boundary ───────────────────────────────────────────────
+// Catches any rendering or runtime errors within individual steps, displaying
+// a friendly recovery card rather than crashing into a blank white screen.
+class StepErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('[StepErrorBoundary] Uncaught step error:', this.props.stepId, error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="mx-auto max-w-xl p-8 rounded-[2.5rem] border border-black/10 bg-white shadow-2xl text-center my-12">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Step Loading Notice</h3>
+                    <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+                        An error occurred while loading this stage ({this.props.stepId || 'assessment'}).
+                    </p>
+                    <div className="flex items-center justify-center flex-wrap gap-3">
+                        <button
+                            onClick={() => this.setState({ hasError: false, error: null })}
+                            className="px-6 py-3 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition font-bold text-sm"
+                        >
+                            Retry Step
+                        </button>
+                        {this.props.onSkip && (
+                            <button
+                                onClick={this.props.onSkip}
+                                className="px-6 py-3 rounded-2xl bg-black text-white hover:bg-gray-800 transition font-bold text-sm"
+                            >
+                                Continue Next
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 const ApplicationFlow = () => {
     const { jobId } = useParams();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const [searchParams] = useSearchParams();
+    const requestedStep = searchParams.get('step') || searchParams.get('retest');
     const [stepIndex, setStepIndex] = useState(0);
     const [loading, setLoading] = useState(true);
     const [job, setJob] = useState(null);
     const [user, setUser] = useState(null);
+    const [accessBlocked, setAccessBlocked] = useState(null);
+    const hasTrackedApplyStartRef = useRef(false);
 
     // Shared State
     const [resumeData, setResumeData] = useState(null);
     const [assessmentScore, setAssessmentScore] = useState(null);
+    const [codingScore, setCodingScore] = useState(null);
     const [interviewResult, setInterviewResult] = useState(null);
     const [securityNotice, setSecurityNotice] = useState(null);
+
+    // Shared continuous recording state (between Skill Assessment and AI Interview)
+    const [sharedStream, setSharedStream] = useState(null);
+    const [sharedScreenStream, setSharedScreenStream] = useState(null);
+    const [sharedRecorder, setSharedRecorder] = useState(null);
+    const [sharedSessionId, setSharedSessionId] = useState(null);
+    const [sharedRecordingSessionId, setSharedRecordingSessionId] = useState(null);
+    const [firstQuestionData, setFirstQuestionData] = useState(null);
+    const sharedChunkIndexRef = useRef(0);
+    const sharedChunkUploadsRef = useRef([]);
+
+    // Stop streams on unmount
+    const sharedStreamRef = useRef(sharedStream);
+    sharedStreamRef.current = sharedStream;
+    const sharedScreenStreamRef = useRef(sharedScreenStream);
+    sharedScreenStreamRef.current = sharedScreenStream;
+
+    useEffect(() => {
+        return () => {
+            if (sharedStreamRef.current) {
+                try {
+                    sharedStreamRef.current.getTracks().forEach((t) => t.stop());
+                } catch (e) {}
+            }
+            if (sharedScreenStreamRef.current) {
+                try {
+                    sharedScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+                } catch (e) {}
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -34,99 +128,200 @@ const ApplicationFlow = () => {
                 }
                 setUser(storedUser);
 
-                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}`);
+                const jobRes = await axios.get(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`);
                 const jobData = jobRes.data;
                 setJob(jobData);
 
-                // Define enabled steps
-                const enabledSteps = [
-                    { id: 'resume', enabled: jobData.resumeAnalysis?.enabled !== false },
-                    { id: 'assessment', enabled: jobData.assessment?.enabled },
-                    { id: 'candidate-deck', enabled: jobData.mockInterview?.enabled }, // Required if interview is enabled
-                    { id: 'interview', enabled: jobData.mockInterview?.enabled },
+                // Track GA4 job_apply_start (guarded to once per workflow entry)
+                if (!hasTrackedApplyStartRef.current) {
+                    hasTrackedApplyStartRef.current = true;
+                    trackEvent('job_apply_start', { job_id: jobId, job_title: jobData?.title });
+                }
+
+                // Define enabled steps sequence: Resume -> Candidate Video Deck -> Skill Assessment -> Coding Assessment -> AI Interview
+                const currentEnabledSteps = [
+                    { id: 'resume', enabled: jobData?.resumeAnalysis?.enabled !== false },
+                    { id: 'candidate-deck', enabled: !!jobData?.mockInterview?.enabled },
+                    { id: 'assessment', enabled: !!jobData?.assessment?.enabled },
+                    { id: 'coding', enabled: !!jobData?.codingAssessment?.enabled },
+                    { id: 'interview', enabled: !!jobData?.mockInterview?.enabled },
                 ].filter(s => s.enabled);
 
+                const enabledIds = currentEnabledSteps.map(s => s.id);
 
-                // Check for existing application to resume state
+                // Check for existing application to resume candidate state
+                let existingApp = null;
+                const candidateEmail = (storedUser.email || storedUser.emailId || '').trim().toLowerCase();
                 try {
-                    const appsRes = await axios.get(`${API_URL}/applications/seeker/${storedUser.uid || storedUser._id || storedUser.id}`);
-                    const existingApp = appsRes.data.find(app => (app.jobId._id || app.jobId) === jobId);
+                    const candidateUserId = storedUser.uid || storedUser._id || storedUser.id;
+                    const appsRes = await axios.get(`${API_URL}/applications/candidate/${candidateUserId}`).catch((error) => {
+                        if (error.response?.status !== 404) throw error;
+                        return axios.get(`${API_URL}/applications/seeker/${candidateUserId}`);
+                    });
+                    const candidateApps = Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || [];
+                    existingApp = candidateApps.find(app => {
+                        const appJobId = app?.jobId?._id || app?.jobId;
+                        const isJobMatch = appJobId && String(appJobId) === String(jobId);
+                        const isEmailMatch = candidateEmail && app?.applicantEmail && app.applicantEmail.toLowerCase() === candidateEmail;
+                        return isJobMatch && (app.userId === candidateUserId || isEmailMatch);
+                    });
+                } catch (e) {
+                    // Application fetch non-critical fallback
+                }
 
-                    if (existingApp) {
-                        const enabledIds = enabledSteps.map(s => s.id);
+                // Check Candidate Access & Quota Permissions
+                const isRestricted = !!jobData?.isRestrictedToWhitelist;
+                const allowedList = Array.isArray(jobData?.allowedCandidates)
+                    ? jobData.allowedCandidates.map(e => String(e).trim().toLowerCase())
+                    : [];
+                const isWhitelisted = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+                const isEmailAllowed = !isRestricted || isWhitelisted;
+
+                if (!isEmailAllowed) {
+                    setAccessBlocked({
+                        type: 'WHITELIST',
+                        title: 'Invite-Only Opening',
+                        message: `This assessment and interview process is strictly reserved for pre-selected candidates. Your email (${storedUser.email || 'unregistered'}) is not on the invited list.`
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                const limit = jobData?.candidateLimit;
+                const currentCount = jobData?.applicantCount ?? 0;
+                // Whitelisted candidates, invite-only jobs, and candidates with existing applications are NEVER blocked by candidate capacity limit
+                const isLimitReached = !isWhitelisted && !isRestricted && !existingApp && typeof limit === 'number' && limit > 0 && currentCount >= limit;
+
+                if (isLimitReached) {
+                    setAccessBlocked({
+                        type: 'LIMIT_REACHED',
+                        title: 'Applications Closed',
+                        message: 'This position is currently not accepting new candidates or assessment attempts.'
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    if (requestedStep && enabledIds.includes(requestedStep)) {
+                        setStepIndex(enabledIds.indexOf(requestedStep));
+                        if (existingApp) {
+                            if (existingApp.resumeMatchPercent) setResumeData({ matchPercentage: existingApp.resumeMatchPercent });
+                            if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
+                            if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
+                        }
+                    } else if (existingApp) {
                         if (existingApp.resumeMatchPercent) setResumeData({ matchPercentage: existingApp.resumeMatchPercent });
                         if (existingApp.assessmentScore) setAssessmentScore(existingApp.assessmentScore);
+                        if (existingApp.codingScore) setCodingScore(existingApp.codingScore);
 
-                        // Determine the next pending step
-                        const resumeDone = !enabledIds.includes('resume') || !!existingApp.resumeMatchPercent;
-                        const assessmentDone = !enabledIds.includes('assessment') || !!existingApp.assessmentScore;
-                        const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl;
-                        const interviewDone = !enabledIds.includes('interview') || !!existingApp.interviewScore;
+                        // Determine the next pending step based on the sequence
+                        const hasValidInterview = (app) => {
+                            if (!app || app.interviewScore === null || app.interviewScore === undefined) return false;
+                            if (app.interviewScore > 0) return true;
+                            return Array.isArray(app.interviewAnswers) && app.interviewAnswers.length > 0;
+                        };
+
+                        const resumeDone = !enabledIds.includes('resume') || (existingApp.resumeMatchPercent !== null && existingApp.resumeMatchPercent !== undefined);
+                        const interviewDone = !enabledIds.includes('interview') || hasValidInterview(existingApp);
+                        const videoDone = !enabledIds.includes('candidate-deck') || !!existingApp.videoIntroUrl || interviewDone;
+                        const assessmentDone = !enabledIds.includes('assessment') || (existingApp.assessmentScore !== null && existingApp.assessmentScore !== undefined);
+                        const codingDone = !enabledIds.includes('coding') || (existingApp.codingScore !== null && existingApp.codingScore !== undefined);
 
                         let targetIndex = 0;
-                        if (resumeDone && !assessmentDone && enabledIds.includes('assessment')) {
-                            targetIndex = enabledIds.indexOf('assessment');
-                        } else if (resumeDone && assessmentDone && !videoDone && enabledIds.includes('candidate-deck')) {
+                        if (resumeDone && !videoDone && enabledIds.includes('candidate-deck')) {
                             targetIndex = enabledIds.indexOf('candidate-deck');
-                        } else if (resumeDone && assessmentDone && videoDone && !interviewDone && enabledIds.includes('interview')) {
+                        } else if (resumeDone && videoDone && !assessmentDone && enabledIds.includes('assessment')) {
+                            targetIndex = enabledIds.indexOf('assessment');
+                        } else if (resumeDone && videoDone && assessmentDone && !codingDone && enabledIds.includes('coding')) {
+                            targetIndex = enabledIds.indexOf('coding');
+                        } else if (resumeDone && videoDone && assessmentDone && codingDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
-                        } else if (resumeDone && assessmentDone && videoDone && interviewDone) {
-                            navigate('/seeker/applications');
+                        } else if ((resumeDone && videoDone && assessmentDone && codingDone && interviewDone) || (interviewDone && resumeDone)) {
+                            queryClient.invalidateQueries({ queryKey: ['applications'] });
+                            navigate('/candidate/applications');
+                            return;
                         }
 
-                        setStepIndex(targetIndex);
+                        if (targetIndex >= 0 && targetIndex < currentEnabledSteps.length) {
+                            setStepIndex(targetIndex);
+                        } else {
+                            setStepIndex(0);
+                        }
                     }
                 } catch (e) {
-                    // No existing application found or minor error - continue normally
+                    // No existing application found or minor network notice - continue normally
+                    if (requestedStep && enabledIds.includes(requestedStep)) {
+                        setStepIndex(enabledIds.indexOf(requestedStep));
+                    }
                 }
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error fetching application workflow data:", error);
             } finally {
                 setLoading(false);
             }
         };
+
         fetchData();
-    }, [jobId, navigate]);
+    }, [jobId, navigate, requestedStep, queryClient]);
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-        );
-    }
+    // Computed enabled steps with memoization
+    const enabledSteps = useMemo(() => {
+        if (!job) return [];
+        return [
+            { id: 'resume', label: 'Resume Analysis', icon: <FileText className="w-4 h-4" />, enabled: job?.resumeAnalysis?.enabled !== false },
+            { id: 'candidate-deck', label: 'Candidate Deck', icon: <Video className="w-4 h-4" />, enabled: !!job?.mockInterview?.enabled },
+            { id: 'assessment', label: 'Skill Assessment', icon: <Brain className="w-4 h-4" />, enabled: !!job?.assessment?.enabled },
+            { id: 'coding', label: 'Coding Assessment', icon: <Code2 className="w-4 h-4" />, enabled: !!job?.codingAssessment?.enabled },
+            { id: 'interview', label: 'AI Interview', icon: <CheckCircle className="w-4 h-4" />, enabled: !!job?.mockInterview?.enabled },
+        ].filter(s => s.enabled);
+    }, [job]);
 
-    if (!job) return <div>Job not found</div>;
-
-    const enabledSteps = [
-        { id: 'resume', label: 'Resume Analysis', icon: <FileText className="w-4 h-4" />, enabled: job.resumeAnalysis?.enabled !== false },
-        { id: 'assessment', label: 'Skill Assessment', icon: <Brain className="w-4 h-4" />, enabled: job.assessment?.enabled },
-        { id: 'candidate-deck', label: 'Candidate Deck', icon: <Video className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
-        { id: 'interview', label: 'AI Interview', icon: <CheckCircle className="w-4 h-4" />, enabled: job.mockInterview?.enabled },
-    ].filter(s => s.enabled);
-
-
-    const currentStep = enabledSteps[stepIndex];
+    // Safe clamped index guaranteeing currentStep is never undefined when steps exist
+    const safeStepIndex = Math.max(0, Math.min(stepIndex, Math.max(0, enabledSteps.length - 1)));
+    const currentStep = enabledSteps[safeStepIndex];
 
     const handleNext = () => {
         setSecurityNotice(null);
-        if (stepIndex < enabledSteps.length - 1) {
-            setStepIndex(stepIndex + 1);
-        } else {
-            navigate('/seeker/applications');
-        }
+        setStepIndex(prev => {
+            if (prev < enabledSteps.length - 1) {
+                return prev + 1;
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['applications'] });
+                navigate('/candidate/applications');
+                return prev;
+            }
+        });
     };
 
     const handleBack = () => {
-        if (stepIndex > 0) {
-            setStepIndex(stepIndex - 1);
-        }
+        setStepIndex(prev => Math.max(prev - 1, 0));
     };
 
     const handleSecurityResetToResume = async ({ stage, reason, violation }) => {
+        // Clean up continuous recording if active
+        if (sharedStream) {
+            try {
+                sharedStream.getTracks().forEach((t) => t.stop());
+            } catch (e) {}
+            setSharedStream(null);
+        }
+        if (sharedScreenStream) {
+            try {
+                sharedScreenStream.getTracks().forEach((t) => t.stop());
+            } catch (e) {}
+            setSharedScreenStream(null);
+        }
+        setSharedRecorder(null);
+        setSharedSessionId(null);
+        setSharedRecordingSessionId(null);
+        setFirstQuestionData(null);
+        sharedChunkIndexRef.current = 0;
+        sharedChunkUploadsRef.current = [];
+
         try {
             await axios.post(`${API_URL}/applications/proctoring-reset`, {
-                jobId: job._id,
+                jobId: job?._id || job?.id,
                 userId: user?.uid || user?._id || user?.id,
                 stage,
                 reason,
@@ -138,6 +333,7 @@ const ApplicationFlow = () => {
 
         setResumeData(null);
         setAssessmentScore(null);
+        setCodingScore(null);
         setInterviewResult(null);
         setSecurityNotice(
             'Security policy triggered. Restart from Resume Analysis to continue this application.'
@@ -147,13 +343,228 @@ const ApplicationFlow = () => {
         setStepIndex(resumeStepIndex >= 0 ? resumeStepIndex : 0);
     };
 
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#fbf8f3]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Loading application workflow...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (accessBlocked) {
+        return (
+            <div className="application-flow-root min-h-screen bg-[#fbf8f3] flex flex-col items-center justify-center p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-black/10 shadow-xl text-center">
+                    <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-5 bg-amber-100 text-amber-700">
+                        <Lock className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">{accessBlocked.title}</h2>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-6">{accessBlocked.message}</p>
+                    <div className="flex flex-col gap-2.5">
+                        <button
+                            onClick={() => navigate(`/candidate/job/${jobId}`)}
+                            className="w-full py-3 px-4 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 transition shadow-sm"
+                        >
+                            View Job Details
+                        </button>
+                        <button
+                            onClick={() => navigate('/candidate/jobs')}
+                            className="w-full py-3 px-4 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                        >
+                            Browse Other Openings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!job) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#fbf8f3]">
+                <div className="text-center p-8 bg-white rounded-3xl border border-black/10 shadow-lg max-w-md">
+                    <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">Job Not Found</h2>
+                    <p className="text-sm text-gray-500 mb-6">The requested position could not be loaded or is no longer active.</p>
+                    <button onClick={() => navigate('/candidate/jobs')} className="px-6 py-2.5 bg-black text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition">
+                        Browse Other Jobs
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const renderCurrentStep = () => {
+        if (!currentStep) {
+            return (
+                <div className="text-center py-20 bg-white rounded-[2.5rem] border border-black/10 p-8 shadow-sm">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">No Steps Configured</h2>
+                    <p className="text-sm text-gray-500 mb-6">There are no evaluation stages enabled for this job position.</p>
+                    <button onClick={() => navigate('/candidate/jobs')} className="px-6 py-2.5 bg-black text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition">
+                        Back to Jobs
+                    </button>
+                </div>
+            );
+        }
+
+        switch (currentStep.id) {
+            case 'resume':
+                return (
+                    <ResumeAnalyzer
+                        key="resume"
+                        job={job}
+                        user={user}
+                        onComplete={(data) => {
+                            trackEvent('resume_analyzed', { job_id: job?._id || jobId, fit_score: data?.fitScore ?? data?.matchScore });
+                            setResumeData(data);
+                            handleNext();
+                        }}
+                    />
+                );
+
+            case 'candidate-deck':
+                return (
+                    <CandidateDeck
+                        key="candidate-deck"
+                        job={job}
+                        user={user}
+                        onComplete={() => {
+                            handleNext();
+                        }}
+                    />
+                );
+
+            case 'assessment':
+                return (
+                    <SkillAssessment
+                        key="assessment"
+                        job={job}
+                        user={user}
+                        resumeData={resumeData}
+                        onBack={handleBack}
+                        onSecurityReset={handleSecurityResetToResume}
+                        onComplete={(score) => {
+                            trackEvent('assessment_complete', { job_id: job?._id || jobId, assessment_type: 'skill', score: typeof score === 'number' ? score : undefined });
+                            setAssessmentScore(score);
+                            handleNext();
+                        }}
+                        sharedStream={sharedStream}
+                        setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
+                        sharedRecorder={sharedRecorder}
+                        setSharedRecorder={setSharedRecorder}
+                        sharedSessionId={sharedSessionId}
+                        setSharedSessionId={setSharedSessionId}
+                        sharedRecordingSessionId={sharedRecordingSessionId}
+                        setSharedRecordingSessionId={setSharedRecordingSessionId}
+                        firstQuestionData={firstQuestionData}
+                        setFirstQuestionData={setFirstQuestionData}
+                        sharedChunkIndexRef={sharedChunkIndexRef}
+                        sharedChunkUploadsRef={sharedChunkUploadsRef}
+                    />
+                );
+
+            case 'coding':
+                return (
+                    <CodingAssessment
+                        key="coding"
+                        job={job}
+                        user={user}
+                        onBack={handleBack}
+                        onSecurityReset={handleSecurityResetToResume}
+                        onComplete={(score) => {
+                            trackEvent('assessment_complete', { job_id: job?._id || jobId, assessment_type: 'coding', score: typeof score === 'number' ? score : undefined });
+                            setCodingScore(score);
+                            handleNext();
+                        }}
+                        sharedStream={sharedStream}
+                        setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
+                        sharedRecorder={sharedRecorder}
+                        setSharedRecorder={setSharedRecorder}
+                        sharedSessionId={sharedSessionId}
+                        setSharedSessionId={setSharedSessionId}
+                        sharedRecordingSessionId={sharedRecordingSessionId}
+                        setSharedRecordingSessionId={setSharedRecordingSessionId}
+                        firstQuestionData={firstQuestionData}
+                        setFirstQuestionData={setFirstQuestionData}
+                        sharedChunkIndexRef={sharedChunkIndexRef}
+                        sharedChunkUploadsRef={sharedChunkUploadsRef}
+                    />
+                );
+
+            case 'interview':
+                return (
+                    <AIInterview
+                        key="interview"
+                        job={job}
+                        user={user}
+                        resumeData={resumeData}
+                        assessmentScore={assessmentScore}
+                        onSecurityReset={handleSecurityResetToResume}
+                        onComplete={async (result) => {
+                            setInterviewResult(result);
+                            try {
+                                const headers = await getAuthHeaders();
+                                const score = typeof result?.interviewScore === 'number' ? result.interviewScore : null;
+                                await axios.post(
+                                    `${API_URL}/applications`,
+                                    {
+                                        jobId: job._id,
+                                        userId: user.uid || user._id || user.id,
+                                        ...(score !== null ? { interviewScore: score } : {}),
+                                        status: 'APPLIED'
+                                    },
+                                    { headers }
+                                );
+                                trackEvent('application_submitted', { job_id: job?._id || jobId, status: 'APPLIED' });
+                            } catch (e) {
+                                console.error("Could not sync final application status:", e);
+                            }
+                            queryClient.invalidateQueries({ queryKey: ['applications'] });
+                            navigate('/candidate/applications');
+                        }}
+                        sharedStream={sharedStream}
+                        setSharedStream={setSharedStream}
+                        sharedScreenStream={sharedScreenStream}
+                        setSharedScreenStream={setSharedScreenStream}
+                        sharedRecorder={sharedRecorder}
+                        setSharedRecorder={setSharedRecorder}
+                        sharedSessionId={sharedSessionId}
+                        setSharedSessionId={setSharedSessionId}
+                        sharedRecordingSessionId={sharedRecordingSessionId}
+                        setSharedRecordingSessionId={setSharedRecordingSessionId}
+                        firstQuestionData={firstQuestionData}
+                        setFirstQuestionData={setFirstQuestionData}
+                        sharedChunkIndexRef={sharedChunkIndexRef}
+                        sharedChunkUploadsRef={sharedChunkUploadsRef}
+                    />
+                );
+
+            default:
+                return (
+                    <div className="text-center py-20 bg-white rounded-[2.5rem] border border-black/10 p-8">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Stage Not Recognized</h2>
+                        <button onClick={handleNext} className="px-6 py-2.5 bg-black text-white text-sm font-bold rounded-xl">
+                            Continue to Next Stage
+                        </button>
+                    </div>
+                );
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-[#fbf8f3] flex flex-col">
+        <div className="application-flow-root min-h-screen bg-[#fbf8f3] flex flex-col">
             <div className="sticky top-0 z-40 border-b border-black/10 bg-[#fcfbf8]/95 backdrop-blur-md">
                 <div className="mx-auto max-w-[1320px] px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Candidate workflow</p>
-                        <h1 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">Application for {job.title}</h1>
+                        <h1 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">Application for {job?.title || 'Job Opening'}</h1>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -162,16 +573,16 @@ const ApplicationFlow = () => {
                                 {index > 0 && <ChevronRight size={14} className="text-gray-300 hidden sm:inline" />}
                                 <div className="flex items-center gap-2">
                                     <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all ${
-                                        stepIndex === index
+                                        safeStepIndex === index
                                             ? 'bg-black text-white shadow-md'
-                                            : stepIndex > index
+                                            : safeStepIndex > index
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : 'bg-gray-100 text-gray-400'
                                     }`}>
-                                        {stepIndex > index ? <CheckCircle className="w-3 h-3 text-emerald-700" /> : index + 1}
+                                        {safeStepIndex > index ? <CheckCircle className="w-3 h-3 text-emerald-700" /> : index + 1}
                                     </div>
                                     <span className={`text-xs font-semibold transition-all ${
-                                        stepIndex === index
+                                        safeStepIndex === index
                                             ? 'text-gray-900'
                                             : 'text-gray-400'
                                     }`}>
@@ -192,66 +603,18 @@ const ApplicationFlow = () => {
                 )}
 
                 <AnimatePresence mode="wait">
-                    {currentStep?.id === 'resume' && (
-                        <ResumeAnalyzer
-                            key="resume"
-                            job={job}
-                            user={user}
-                            onComplete={(data) => {
-                                setResumeData(data);
-                                handleNext();
-                            }}
-                        />
-                    )}
-
-                    {currentStep?.id === 'assessment' && (
-                        <SkillAssessment
-                            key="assessment"
-                            job={job}
-                            user={user}
-                            resumeData={resumeData}
-                            onBack={handleBack}
-                            onSecurityReset={handleSecurityResetToResume}
-                            onComplete={(score) => {
-                                setAssessmentScore(score);
-                                handleNext();
-                            }}
-                        />
-                    )}
-
-                    {currentStep?.id === 'candidate-deck' && (
-                        <CandidateDeck
-                            key="candidate-deck"
-                            job={job}
-                            user={user}
-                            onComplete={(url) => {
-                                handleNext();
-                            }}
-                        />
-                    )}
-
-                    {currentStep?.id === 'interview' && (
-
-                        <AIInterview
-                            key="interview"
-                            job={job}
-                            user={user}
-                            resumeData={resumeData}
-                            assessmentScore={assessmentScore}
-                            onSecurityReset={handleSecurityResetToResume}
-                            onComplete={(result) => {
-                                setInterviewResult(result);
-                                navigate('/seeker/applications');
-                            }}
-                        />
-                    )}
-
-                    {!currentStep && (
-                        <div className="text-center py-20">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-4">No steps enabled for this job</h2>
-                            <button onClick={() => navigate('/seeker/jobs')} className="px-6 py-2 bg-blue-600 text-white rounded-xl">Back to Jobs</button>
-                        </div>
-                    )}
+                    <motion.div
+                        key={currentStep?.id || 'empty-stage'}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full"
+                    >
+                        <StepErrorBoundary stepId={currentStep?.id} onSkip={handleNext}>
+                            {renderCurrentStep()}
+                        </StepErrorBoundary>
+                    </motion.div>
                 </AnimatePresence>
             </div>
         </div>

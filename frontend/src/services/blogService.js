@@ -18,7 +18,7 @@ export const getAllBlogPostsAdmin = async (params = {}) => {
     headers["Content-Type"] = "application/json";
     const queryParams = new URLSearchParams();
     if (params.page) queryParams.append("page", params.page);
-    if (params.limit) queryParams.append("limit", params.limit);
+    queryParams.append("limit", params.limit || 1000);
     if (params.status) queryParams.append("status", params.status);
 
     const response = await fetch(`${API_URL}/v1/admin/blogs?${queryParams.toString()}`, { headers });
@@ -117,7 +117,7 @@ export const uploadBlogImage = async (file) => {
 export const getBlogPosts = async (params = {}) => {
     const queryParams = new URLSearchParams();
     if (params.page) queryParams.append("page", params.page);
-    if (params.limit) queryParams.append("limit", params.limit);
+    queryParams.append("limit", params.limit || 1000);
     if (params.category) queryParams.append("category", params.category);
     if (params.search) queryParams.append("search", params.search);
 

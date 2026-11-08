@@ -6,7 +6,12 @@ const {
     roundToTenth,
     scoreInterviewAnswer
 } = require('../utils/interviewScoring');
-const { getViolationRating } = require('../utils/proctoringScoring');
+const { 
+    getViolationRating, 
+    CANONICAL_EVENT_MAP, 
+    CANONICAL_CATEGORY_MAP, 
+    REDMARK_VIOLATIONS 
+} = require('../utils/proctoringScoring');
 const ProctoringReport = require('../models/ProctoringReport');
 const { updateProctoringReport } = require('./proctoringControllerEnhanced');
 
@@ -26,7 +31,114 @@ const sanitizeViolationDetail = (type, detail, rating) => {
     return cleanDetail;
 };
 
-const MAX_INTERVIEW_QUESTIONS = 5;
+const mapViolationsList = (baseViolations = [], enhancedViolations = []) => {
+    const mapped = [
+        ...baseViolations.map(v => {
+            const rating = v.rating || getViolationRating(v.type, v.metadata);
+            const canonicalEventType = CANONICAL_EVENT_MAP[v.type] || v.type;
+            const category = CANONICAL_CATEGORY_MAP[canonicalEventType] || 'ENVIRONMENT';
+            return {
+                id: v._id,
+                type: v.type,
+                canonicalEventType,
+                category,
+                detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                count: v.count,
+                severity: 'medium',
+                rating,
+                confidence: null,
+                maxConfidence: null,
+                duration: 0,
+                evidenceFrames: [],
+                evidenceAvailable: false,
+                isAnswering: false,
+                timestamp: v.timestamp || v.createdAt
+            };
+        }),
+        ...enhancedViolations.map(v => {
+            const rating = v.rating || getViolationRating(v.type, v.metadata);
+            const canonicalEventType = v.canonicalEventType || CANONICAL_EVENT_MAP[v.type] || v.type;
+            const category = v.category || CANONICAL_CATEGORY_MAP[canonicalEventType] || 'ENVIRONMENT';
+            const confidence = typeof v.confidence === 'number' ? v.confidence : (typeof v.maxConfidence === 'number' ? v.maxConfidence : null);
+            const evidenceFrames = Array.isArray(v.evidenceFrames) ? v.evidenceFrames : [];
+            return {
+                id: v._id,
+                type: v.type,
+                canonicalEventType,
+                category,
+                detail: sanitizeViolationDetail(v.type, v.detail, rating),
+                count: v.count,
+                severity: v.severity || (REDMARK_VIOLATIONS.has(v.type) ? 'critical' : 'medium'),
+                rating,
+                confidence,
+                maxConfidence: v.maxConfidence || confidence,
+                duration: v.duration || 0,
+                evidenceFrames,
+                evidenceAvailable: evidenceFrames.length > 0,
+                model: v.model || 'Detector',
+                isAnswering: v.isAnswering || false,
+                questionId: v.questionId || null,
+                answerId: v.answerId || null,
+                reviewStatus: v.reviewStatus || 'UNREVIEWED',
+                reviewReason: v.reviewReason || null,
+                timestamp: v.timestamp || v.createdAt
+            };
+        })
+    ];
+    mapped.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    return mapped;
+};
+
+const fetchProctoringReportForInterview = async (jobIdStr, sessionIdStr, userId, baseViolations = [], enhancedViolations = [], applicationId = null) => {
+    // 1. If applicationId is provided, prioritize direct application matching
+    if (applicationId) {
+        const reportByApp = await ProctoringReport.findOne({ applicationId }).sort({ updatedAt: -1 }).lean();
+        if (reportByApp) return reportByApp;
+    }
+
+    const queryExamIds = [];
+    if (jobIdStr && sessionIdStr) queryExamIds.push(`interview:${jobIdStr}:${sessionIdStr}`);
+    if (sessionIdStr) {
+        queryExamIds.push(sessionIdStr);
+        queryExamIds.push(`interview:${sessionIdStr}`);
+    }
+    if (jobIdStr) {
+        queryExamIds.push(`interview:${jobIdStr}`);
+    }
+    if (enhancedViolations[0]?.examId && !queryExamIds.includes(enhancedViolations[0].examId)) {
+        queryExamIds.unshift(enhancedViolations[0].examId);
+    }
+    if (baseViolations[0]?.examId && !queryExamIds.includes(baseViolations[0].examId)) {
+        queryExamIds.unshift(baseViolations[0].examId);
+    }
+
+    const reportOr = [];
+    if (queryExamIds.length > 0) {
+        reportOr.push(userId ? { userId, examId: { $in: queryExamIds } } : { examId: { $in: queryExamIds } });
+    }
+    if (sessionIdStr) {
+        reportOr.push(userId ? { userId, examId: new RegExp(sessionIdStr, 'i') } : { examId: new RegExp(sessionIdStr, 'i') });
+    }
+    if (jobIdStr && userId) {
+        reportOr.push({ userId, examId: new RegExp(jobIdStr, 'i') });
+    }
+
+    let proctoringReport = null;
+    if (reportOr.length > 0) {
+        proctoringReport = await ProctoringReport.findOne({ $or: reportOr }).sort({ updatedAt: -1 }).lean();
+        if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
+            try {
+                const primaryExamId = queryExamIds[0] || `interview:${jobIdStr || ''}:${sessionIdStr || ''}`;
+                proctoringReport = await updateProctoringReport(primaryExamId, userId);
+            } catch (reportErr) {
+                console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
+            }
+        }
+    }
+    return proctoringReport;
+};
+
+const MAX_INTERVIEW_QUESTIONS = 50;
 
 const buildRecruiterInterviewPayload = (application, socialUser, questions, overallInterviewScore, overallInterviewMarks, proctoringViolations, proctoringReport) => ({
     application: {
@@ -41,31 +153,65 @@ const buildRecruiterInterviewPayload = (application, socialUser, questions, over
         recordingStatus: application.recordingStatus,
         recordingPublicId: application.recordingPublicId,
         recordingUrl: application.recordingUrl,
-        recordingPlaybackUrl: application.recordingPlaybackUrl
+        recordingPlaybackUrl: application.recordingPlaybackUrl,
+        videoIntroUrl: application.videoIntroUrl,
+        assessmentRecordingUrl: application.assessmentRecordingUrl,
+        assessmentRecordingPlaybackUrl: application.assessmentRecordingPlaybackUrl
     },
     job: {
         title: application.jobId?.title,
         description: application.jobId?.description,
-        skills: application.jobId?.skills
+        skills: application.jobId?.skills,
+        questionSource: application.jobId?.questionSource || 'AI_GENERATED'
     },
     interview: {
         status: questions.length > 0 ? 'completed' : (application.recordingStatus === 'recording' ? 'in_progress' : 'not_completed'),
+        questionSource: application.interviewQuestionSource || application.jobId?.questionSource || 'AI_GENERATED',
         score: questions.length > 0 ? overallInterviewScore : null,
         marks: questions.length > 0 ? overallInterviewMarks : null,
         totalQuestions: questions.length,
         completedAt: application.resultsVisibleAt || application.appliedAt,
-        questions: questions.map((answer, idx) => ({
-            questionNumber: idx + 1,
-            question: answer.question,
-            answer: answer.answer,
-            score: Number(answer.score || 0),
-            marks: typeof answer.marks === 'number'
-                ? roundToTenth(answer.marks)
-                : roundToTenth(Number(answer.score || 0) / 10),
-            feedback: answer.feedback
-        })),
+        questions: questions.map((answer, idx) => {
+            const qIdStr = answer.questionId ? answer.questionId.toString() : null;
+            const qNumber = idx + 1;
+            const qViolations = (proctoringViolations || []).filter(v => {
+                if (v.questionId && (v.questionId.toString() === qIdStr || v.questionId === qNumber || v.questionId.toString() === String(qNumber))) return true;
+                if (v.answerId && answer._id && v.answerId.toString() === answer._id.toString()) return true;
+                return false;
+            });
+            return {
+                questionNumber: qNumber,
+                questionId: answer.questionId || null,
+                source: answer.source || (application.interviewQuestionSource === 'RECRUITER_PROVIDED' ? 'RECRUITER' : 'AI'),
+                question: answer.question,
+                answer: answer.answer,
+                score: Number(answer.score || 0),
+                marks: typeof answer.marks === 'number'
+                    ? roundToTenth(answer.marks)
+                    : roundToTenth(Number(answer.score || 0) / 10),
+                feedback: answer.feedback,
+                proctoringEvents: qViolations,
+                hasProctoringFlag: qViolations.length > 0,
+                answeringProctoringEventsCount: qViolations.length
+            };
+        }),
         proctoringViolations: proctoringViolations || [],
-        proctoringReport: proctoringReport || null
+        proctoringReport: proctoringReport || null,
+        proctoringSummary: {
+            integrityScore: proctoringReport?.integrityScore ?? (application.integrityScore ?? Math.max(0, 100 - Math.round((application.integrityPenalty || 0) * 2.5))),
+            riskLevel: proctoringReport?.riskLevel ?? (application.riskLevel || 'LOW RISK'),
+            scoreVersion: proctoringReport?.scoreVersion || 'v2',
+            totalIncidents: proctoringReport?.totalIncidents ?? (proctoringViolations || []).length,
+            standardIncidents: proctoringReport?.standardIncidents ?? (proctoringViolations || []).filter(v => v.severity !== 'critical').length,
+            criticalIncidents: proctoringReport?.criticalIncidents ?? (proctoringViolations || []).filter(v => v.severity === 'critical').length,
+            eventSummary: proctoringReport?.eventSummary || {},
+            scoreFactors: proctoringReport?.scoreFactors || [],
+            reviewStatus: proctoringReport?.reviewStatus || 'UNREVIEWED',
+            reviewedBy: proctoringReport?.reviewedBy || null,
+            reviewedAt: proctoringReport?.reviewedAt || null,
+            reviewReason: proctoringReport?.reviewReason || null
+        },
+        technicalRound: application.technicalEvaluation || null
     }
 });
 
@@ -75,46 +221,36 @@ const getInterviewDetails = async (req, res) => {
     try {
         const { applicationId } = req.params;
 
-        // 🔒 Pro recruiter validation check
-        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
-        if (!recruiterId) {
-            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
-        }
-        const recruiter = await findRecruiterUser(recruiterId);
-        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
-            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
-        }
-
-        if (recruiter.role === 'recruiter') {
-            const Transaction = require('../models/Transaction');
-            const paidTransactions = await Transaction.countDocuments({
-                userId: recruiter._id,
-                status: 'paid',
-                type: 'premium_upgrade'
-            });
-
-            const shouldBePro = paidTransactions > 0 || recruiter.isPro === true;
-            if (recruiter.isPro !== shouldBePro || (shouldBePro && recruiter.hiringPattern !== "Premium Recruiter") || (!shouldBePro && recruiter.hiringPattern === "Premium Recruiter")) {
-                recruiter.isPro = shouldBePro;
-                recruiter.hiringPattern = shouldBePro ? "Premium Recruiter" : "";
-                await recruiter.save();
-            }
-
-            const UnlockedApplicant = require('../models/UnlockedApplicant');
-            const isUnlocked = await UnlockedApplicant.findOne({ recruiterId: recruiter._id, applicationId });
-            const isUnlockedInterview = isUnlocked && Array.isArray(isUnlocked.unlockedItems) && isUnlocked.unlockedItems.includes('interview');
-
-            const isAdmin = recruiter.role === 'admin';
-            if (!isAdmin && !isUnlockedInterview) {
-                return res.status(403).json({ message: "Forbidden: Interview unlock required." });
-            }
-        }
-
         if (!applicationId || !mongoose.Types.ObjectId.isValid(applicationId)) {
             return res.status(400).json({ message: 'Invalid application ID' });
         }
 
-        const application = await Application.findById(applicationId).populate('jobId').populate('user');
+        // 🔒 Pro recruiter validation check
+        const recruiterId = (req.headers && (req.headers['x-user-id'] || req.headers['x-h1p-user-id'])) || (req.user && (req.user.uid || req.user._id));
+        if (!recruiterId) {
+            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+        }
+        const recruiterDoc = await findRecruiterUser(recruiterId);
+        if (!recruiterDoc || (recruiterDoc.role !== 'recruiter' && recruiterDoc.role !== 'admin')) {
+            return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
+        }
+
+        const isAdmin = recruiterDoc.role === 'admin';
+
+        const [isUnlocked, application] = await Promise.all([
+            !isAdmin
+                ? require('../models/UnlockedApplicant').findOne({ recruiterId: recruiterDoc._id, applicationId }).lean()
+                : Promise.resolve(null),
+            Application.findById(applicationId).populate('jobId').populate('user').lean()
+        ]);
+
+        if (!isAdmin) {
+            const isUnlockedInterview = isUnlocked && Array.isArray(isUnlocked.unlockedItems) && isUnlocked.unlockedItems.includes('interview');
+            if (!isUnlockedInterview) {
+                return res.status(403).json({ message: "Forbidden: Interview unlock required." });
+            }
+        }
+
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
@@ -150,7 +286,10 @@ const getInterviewDetails = async (req, res) => {
             });
 
             application.interviewScore = Math.round(averageInterviewScore(application.interviewAnswers) * 0.70);
-            await application.save();
+            await Application.findByIdAndUpdate(applicationId, {
+                interviewAnswers: application.interviewAnswers,
+                interviewScore: application.interviewScore
+            });
         }
 
         const questions = Array.isArray(application.interviewAnswers)
@@ -197,51 +336,17 @@ const getInterviewDetails = async (req, res) => {
             });
         }
 
-        const mappedViolations = [
-            ...baseViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: 'medium',
-                    rating,
-                    isAnswering: false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            }),
-            ...enhancedViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: v.severity || 'medium',
-                    rating,
-                    isAnswering: v.isAnswering || false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            })
-        ];
-
-        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const mappedViolations = mapViolationsList(baseViolations, enhancedViolations);
 
         // ── Query Proctoring Report ──
-        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
-        let proctoringReport = null;
-        if (examIdStr) {
-            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
-            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
-                // Compile on-the-fly if violations exist but report doesn't
-                try {
-                    proctoringReport = await updateProctoringReport(examIdStr, application.userId);
-                } catch (reportErr) {
-                    console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
-                }
-            }
-        }
+        const proctoringReport = await fetchProctoringReportForInterview(
+            jobIdStr,
+            sessionIdStr,
+            application.userId,
+            baseViolations,
+            enhancedViolations,
+            application._id
+        );
 
         res.json(
             buildRecruiterInterviewPayload(
@@ -351,50 +456,17 @@ const getPublicInterviewDetails = async (req, res) => {
             });
         }
 
-        const mappedViolations = [
-            ...baseViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: 'medium',
-                    rating,
-                    isAnswering: false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            }),
-            ...enhancedViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: v.severity || 'medium',
-                    rating,
-                    isAnswering: v.isAnswering || false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            })
-        ];
-
-        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const mappedViolations = mapViolationsList(baseViolations, enhancedViolations);
 
         // ── Query Proctoring Report ──
-        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
-        let proctoringReport = null;
-        if (examIdStr) {
-            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
-            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
-                try {
-                    proctoringReport = await updateProctoringReport(examIdStr, application.userId);
-                } catch (reportErr) {
-                    console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
-                }
-            }
-        }
+        const proctoringReport = await fetchProctoringReportForInterview(
+            jobIdStr,
+            sessionIdStr,
+            application.userId,
+            baseViolations,
+            enhancedViolations,
+            application._id
+        );
 
         res.json(
             buildRecruiterInterviewPayload(
@@ -444,11 +516,17 @@ const getProctoringDetails = async (req, res) => {
         const sessionIdStr = application.recordingSessionId;
 
         const queryConditions = [];
-        if (jobIdStr && sessionIdStr) {
-            queryConditions.push({ examId: `interview:${jobIdStr}:${sessionIdStr}` });
+        if (application.userId && jobIdStr) {
+            queryConditions.push({ 
+                userId: application.userId, 
+                examId: { $regex: new RegExp(jobIdStr) } 
+            });
         }
-        if (application.userId) {
-            queryConditions.push({ userId: application.userId });
+        if (application.userId && sessionIdStr) {
+            queryConditions.push({ 
+                userId: application.userId, 
+                examId: { $regex: new RegExp(sessionIdStr) } 
+            });
         }
 
         let baseViolations = [];
@@ -473,57 +551,45 @@ const getProctoringDetails = async (req, res) => {
             });
         }
 
-        const mappedViolations = [
-            ...baseViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: 'medium',
-                    rating,
-                    isAnswering: false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            }),
-            ...enhancedViolations.map(v => {
-                const rating = v.rating || getViolationRating(v.type, v.metadata);
-                return {
-                    id: v._id,
-                    type: v.type,
-                    detail: sanitizeViolationDetail(v.type, v.detail, rating),
-                    count: v.count,
-                    severity: v.severity || 'medium',
-                    rating,
-                    isAnswering: v.isAnswering || false,
-                    timestamp: v.timestamp || v.createdAt
-                };
-            })
-        ];
-
-        mappedViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const mappedViolations = mapViolationsList(baseViolations, enhancedViolations);
 
         // ── Query Proctoring Report ──
-        const examIdStr = sessionIdStr && jobIdStr ? `interview:${jobIdStr}:${sessionIdStr}` : '';
-        let proctoringReport = null;
-        if (examIdStr) {
-            proctoringReport = await ProctoringReport.findOne({ examId: examIdStr }).lean();
-            if (!proctoringReport && (baseViolations.length > 0 || enhancedViolations.length > 0)) {
-                try {
-                    proctoringReport = await updateProctoringReport(examIdStr, application.userId);
-                } catch (reportErr) {
-                    console.warn('[INTERVIEW-REPORT-ON-THE-FLY] Generation failed:', reportErr);
-                }
-            }
+        let proctoringReport = await fetchProctoringReportForInterview(
+            jobIdStr,
+            sessionIdStr,
+            application.userId,
+            baseViolations,
+            enhancedViolations,
+            application._id
+        );
+
+        if (!proctoringReport) {
+            proctoringReport = {
+                status: 'clean',
+                verdict: 'No significant issues detected.',
+                summary: 'The candidate maintained a clean testing environment.',
+                totalPenaltyRating: 0,
+                proctoringScore: 100,
+                totalViolations: 0,
+                timeline: []
+            };
         }
+
+        const effectiveIntegrityScore = proctoringReport?.reviewStatus === 'DISMISSED'
+            ? 100
+            : (proctoringReport?.integrityScore ?? proctoringReport?.proctoringScore ?? application.integrityScore ?? application.proctoringScore ?? 100);
+        const effectiveRiskLevel = proctoringReport?.reviewStatus === 'DISMISSED'
+            ? 'LOW RISK'
+            : (proctoringReport?.riskLevel || application.riskLevel || (effectiveIntegrityScore < 60 ? 'HIGH RISK' : (effectiveIntegrityScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK')));
 
         res.json({
             application: {
                 id: application._id,
                 applicantName: application.applicantName,
                 applicantEmail: application.applicantEmail,
-                proctoringScore: application.proctoringScore
+                proctoringScore: effectiveIntegrityScore,
+                integrityScore: effectiveIntegrityScore,
+                riskLevel: effectiveRiskLevel
             },
             job: {
                 title: application.jobId?.title
@@ -532,7 +598,21 @@ const getProctoringDetails = async (req, res) => {
                 status: application.recordingStatus === 'uploaded' ? 'completed' : 'not_completed',
                 completedAt: application.resultsVisibleAt || application.appliedAt,
                 proctoringViolations: mappedViolations,
-                proctoringReport: proctoringReport
+                proctoringReport: proctoringReport,
+                proctoringSummary: {
+                    integrityScore: effectiveIntegrityScore,
+                    riskLevel: effectiveRiskLevel,
+                    scoreVersion: proctoringReport?.scoreVersion || 'v2',
+                    totalIncidents: proctoringReport?.totalIncidents ?? mappedViolations.length,
+                    standardIncidents: proctoringReport?.standardIncidents ?? mappedViolations.filter(v => v.severity !== 'critical').length,
+                    criticalIncidents: proctoringReport?.criticalIncidents ?? mappedViolations.filter(v => v.severity === 'critical').length,
+                    eventSummary: proctoringReport?.eventSummary || {},
+                    scoreFactors: proctoringReport?.scoreFactors || [],
+                    reviewStatus: proctoringReport?.reviewStatus || 'UNREVIEWED',
+                    reviewedBy: proctoringReport?.reviewedBy || null,
+                    reviewedAt: proctoringReport?.reviewedAt || null,
+                    reviewReason: proctoringReport?.reviewReason || null
+                }
             }
         });
     } catch (error) {

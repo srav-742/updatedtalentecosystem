@@ -7,6 +7,7 @@ const ResumeAnalysis = require('../models/ResumeAnalysis');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const { callSkillAI } = require('../utils/aiClients');
+const { extractCandidateText } = require('../utils/candidateFileParser');
 
 // Utility to safely sanitize and parse JSON returned by LLM
 const parseAiJson = (raw, fallback) => {
@@ -34,7 +35,7 @@ const getFallbackName = (text = '') => {
 
 const bulkUploadCandidate = async (req, res) => {
     try {
-        const { jobId, recruiterId } = req.body;
+        const { jobId, recruiterId, targetRound } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ message: "No file uploaded" });
@@ -50,24 +51,24 @@ const bulkUploadCandidate = async (req, res) => {
 
         console.log(`[BULK-UPLOAD] Processing file: ${req.file.originalname} for Job: ${job.title}`);
 
-        // Step 1: PDF Extraction
+        // Step 1: Universal Candidate File Extraction (.pdf, .docx, .doc, .xlsx, .xls, .csv, .txt)
         let resumeText = '';
+        let fileMetadata = {};
         try {
-            const data = await pdf(req.file.buffer);
-            resumeText = (data?.text || "").trim();
-        } catch (pdfErr) {
-            console.warn("[BULK-UPLOAD] PDF Extraction Failed, trying fallback UTF-8 conversion:", pdfErr.message);
-            const rawString = req.file.buffer.toString('utf8');
-            if (rawString && rawString.trim().length > 10) {
-                resumeText = rawString;
-            } else {
-                console.error("[BULK-UPLOAD] PDF Extraction Failed completely:", pdfErr);
-                return res.status(400).json({ message: "Failed to extract text from PDF resume." });
-            }
+            const extractResult = await extractCandidateText(
+                req.file.buffer,
+                req.file.originalname,
+                req.file.mimetype
+            );
+            resumeText = extractResult.text;
+            fileMetadata = extractResult.metadata || {};
+        } catch (extractErr) {
+            console.error(`[BULK-UPLOAD] Extraction failed for ${req.file.originalname}:`, extractErr.message);
+            return res.status(400).json({ message: extractErr.message || "Failed to extract text from candidate file." });
         }
 
         if (!resumeText) {
-            return res.status(400).json({ message: "Uploaded resume has no extractable text." });
+            return res.status(400).json({ message: "Uploaded file has no extractable text or data." });
         }
 
         // Step 2: AI Parse Structured Details
@@ -142,14 +143,16 @@ ${resumeText.substring(0, 7000)}
         }
 
         // Ensure email exists, otherwise generate a dummy email
-        let email = parsedData.basics?.email || getFallbackEmail(resumeText);
+        let isDummyEmail = false;
+        let email = parsedData.basics?.email || fileMetadata.detectedEmail || getFallbackEmail(resumeText);
         if (!email) {
+            isDummyEmail = true;
             const randomStr = crypto.randomBytes(6).toString('hex');
             email = `candidate_${randomStr}@imported.hire1percent.com`;
         }
 
-        const name = parsedData.basics?.name || getFallbackName(resumeText);
-        const phone = parsedData.basics?.phone || getFallbackPhone(resumeText);
+        const name = parsedData.basics?.name || fileMetadata.detectedName || getFallbackName(resumeText);
+        const phone = parsedData.basics?.phone || fileMetadata.detectedPhone || getFallbackPhone(resumeText);
         const location = parsedData.basics?.location || '';
 
         // Step 3: Resolve user in database or create shadow seeker
@@ -180,7 +183,7 @@ ${resumeText.substring(0, 7000)}
                 phone,
                 location,
                 uid: userId,
-                role: 'seeker',
+                role: 'candidate',
                 skills: flatSkills,
                 education: (parsedData.education || []).map(edu => ({
                     institution: edu.institution || '',
@@ -305,11 +308,47 @@ Return ONLY a JSON response in this format:
             applicantEmail: email,
             resumeMatchPercent: score,
             finalScore: score, // matches the resume score since assessment is not started
-            status: score >= 5.5 ? 'SHORTLISTED' : 'APPLIED'
+            status: 'APPLIED'
         };
 
         if (application) {
             console.log(`[BULK-UPLOAD] Updating existing application for user ${name}`);
+            
+            // Preserve existing assessment/coding/interview answers and scores
+            const resumeScore = score;
+            const assessmentScore = application.assessmentScore || 0;
+            const codingScore = application.codingScore || 0;
+            const interviewScore = application.interviewScore || 0;
+            
+            applicationData.assessmentScore = application.assessmentScore;
+            applicationData.assessmentSubmissionId = application.assessmentSubmissionId;
+            applicationData.codingScore = application.codingScore;
+            applicationData.interviewScore = application.interviewScore;
+            applicationData.interviewAnswers = application.interviewAnswers || [];
+            applicationData.assessmentAnswers = application.assessmentAnswers || [];
+            applicationData.codingAnswers = application.codingAnswers || [];
+            applicationData.recordingSessionId = application.recordingSessionId;
+            applicationData.recordingUrl = application.recordingUrl;
+            applicationData.recordingPlaybackUrl = application.recordingPlaybackUrl;
+            applicationData.recordingPublicId = application.recordingPublicId;
+            applicationData.recordingStatus = application.recordingStatus || 'pending';
+            
+            // Recalculate final score strictly with present rounds (Resume + MCQ + Interview = 100 max)
+            applicationData.finalScore = resumeScore + assessmentScore + interviewScore;
+            
+            // Re-evaluate shortlist status
+            const isResumeDone = true;
+            const isAssessmentDone = !job || !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+            const isCodingDone = !job || !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
+            const isInterviewDone = !job || !job.mockInterview?.enabled || (application.interviewScore !== null && application.interviewScore !== undefined);
+            const isCodingPassed = !job || !job.codingAssessment?.enabled || (application.codingScore >= (job.codingAssessment.passingScore || 70));
+
+            if (isResumeDone && isAssessmentDone && isCodingDone && isInterviewDone && isCodingPassed && applicationData.finalScore >= 55) {
+                applicationData.status = 'SHORTLISTED';
+            } else {
+                applicationData.status = 'APPLIED';
+            }
+
             application = await Application.findOneAndUpdate(
                 { jobId: job._id, userId },
                 { $set: applicationData },
@@ -321,20 +360,63 @@ Return ONLY a JSON response in this format:
             await application.save();
         }
 
+        // 🔒 Candidate Email Verification & Round Access Granting
+        // Add candidate to job whitelist so ONLY uploaded candidates have access to the test/interview
+        let accessGranted = false;
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        if (!isDummyEmail && normalizedEmail && !normalizedEmail.includes('@imported.hire1percent.com')) {
+            await Job.findByIdAndUpdate(
+                job._id,
+                {
+                    $set: { isRestrictedToWhitelist: true },
+                    $addToSet: { allowedCandidates: normalizedEmail }
+                },
+                { new: true }
+            );
+            accessGranted = true;
+            console.log(`[BULK-UPLOAD] Granted exclusive access for ${normalizedEmail} to Job: ${job.title}`);
+        }
+
+        // Configure round-specific access if requested
+        const cleanTargetRound = String(targetRound || 'ALL').toUpperCase();
+        if (cleanTargetRound === 'ASSESSMENT') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.assessment = { granted: true };
+            await application.save();
+        } else if (cleanTargetRound === 'CODING') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.coding = { granted: true };
+            await application.save();
+        } else if (cleanTargetRound === 'INTERVIEW') {
+            application.retestAccess = application.retestAccess || {};
+            application.retestAccess.interview = { granted: true };
+            await application.save();
+        }
+
         // Increment applicant count on Job model
         const appCount = await Application.countDocuments({ jobId: job._id });
         job.applicantCount = appCount;
         await job.save();
+
+        let stepQuery = '';
+        if (cleanTargetRound === 'ASSESSMENT') stepQuery = '?step=assessment';
+        else if (cleanTargetRound === 'CODING') stepQuery = '?step=coding';
+        else if (cleanTargetRound === 'INTERVIEW') stepQuery = '?step=interview';
 
         res.status(200).json({
             success: true,
             message: `Successfully processed ${name}`,
             candidate: {
                 name,
-                email,
+                email: isDummyEmail ? '' : email,
+                rawEmail: email,
+                isDummyEmail,
                 score,
                 status: application.status,
-                isNewUser
+                isNewUser,
+                accessGranted,
+                targetRound: cleanTargetRound,
+                accessLink: `/candidate/apply/${job._id}${stepQuery}`
             }
         });
 
@@ -344,4 +426,64 @@ Return ONLY a JSON response in this format:
     }
 };
 
-module.exports = { bulkUploadCandidate };
+const grantCandidateAccess = async (req, res) => {
+    try {
+        const { jobId, candidateEmail, candidateName, targetRound } = req.body;
+        if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ message: "Invalid or missing Job ID" });
+        }
+        if (!candidateEmail || !candidateEmail.includes('@')) {
+            return res.status(400).json({ message: "Valid candidate email is required" });
+        }
+
+        const normalizedEmail = candidateEmail.trim().toLowerCase();
+        const job = await Job.findByIdAndUpdate(
+            jobId,
+            {
+                $set: { isRestrictedToWhitelist: true },
+                $addToSet: { allowedCandidates: normalizedEmail }
+            },
+            { new: true }
+        );
+        if (!job) return res.status(404).json({ message: "Job not found" });
+
+        // Update application if present
+        const cleanTargetRound = String(targetRound || 'ALL').toUpperCase();
+        let app = await Application.findOne({ jobId, applicantEmail: normalizedEmail });
+        if (app) {
+            if (cleanTargetRound === 'ASSESSMENT') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.assessment = { granted: true };
+                await app.save();
+            } else if (cleanTargetRound === 'CODING') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.coding = { granted: true };
+                await app.save();
+            } else if (cleanTargetRound === 'INTERVIEW') {
+                app.retestAccess = app.retestAccess || {};
+                app.retestAccess.interview = { granted: true };
+                await app.save();
+            }
+        }
+
+        let stepQuery = '';
+        if (cleanTargetRound === 'ASSESSMENT') stepQuery = '?step=assessment';
+        else if (cleanTargetRound === 'CODING') stepQuery = '?step=coding';
+        else if (cleanTargetRound === 'INTERVIEW') stepQuery = '?step=interview';
+
+        res.status(200).json({
+            success: true,
+            message: `Granted exclusive access to ${normalizedEmail}`,
+            candidateEmail: normalizedEmail,
+            candidateName: candidateName || app?.applicantName || 'Candidate',
+            targetRound: cleanTargetRound,
+            accessLink: `/candidate/apply/${jobId}${stepQuery}`,
+            allowedCandidates: job.allowedCandidates
+        });
+    } catch (error) {
+        console.error("[GRANT-ACCESS-CONTROLLER] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { bulkUploadCandidate, grantCandidateAccess };

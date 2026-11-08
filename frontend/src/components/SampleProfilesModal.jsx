@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { X, User, Code2, Briefcase, GraduationCap, Loader2, Search, Mail, Phone, MapPin, ExternalLink, Calendar, FileText, Globe, Download, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { API_URL, getAuthHeaders } from '../firebase';
-import { useNavigate } from 'react-router-dom';
 import GeneratedResumeModal from '../pages/recruiter/GeneratedResumeModal';
 
 const mockProfiles = [
@@ -49,14 +48,13 @@ const SampleProfilesModal = ({ isOpen, onClose }) => {
     const [selectedProfile, setSelectedProfile] = useState(null);
     const [resumeData, setResumeData] = useState(null);
     const [fetchingResume, setFetchingResume] = useState(false);
-    const navigate = useNavigate();
-
     useEffect(() => {
         if (isOpen) {
             const fetchSampleSeekers = async () => {
                 setLoading(true);
                 try {
-                    const res = await axios.get(`${API_URL}/sample-seekers`);
+                    const headers = await getAuthHeaders();
+                    const res = await axios.get(`${API_URL}/sample-seekers`, { headers });
                     // Filter out seekers with no data or private names if necessary
                     const validSeekers = res.data.filter(s => s.name && s.skills?.length > 0);
                     setRealSeekers(validSeekers);

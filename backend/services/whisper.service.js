@@ -1,6 +1,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
+const { sanitizeTranscript } = require('../utils/transcriptSanitizer');
 
 /**
  * Service for Speech-to-Text using Groq Whisper Large v3 (primary)
@@ -17,7 +18,8 @@ const transcribeAudio = async (filePath) => {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(filePath));
             formData.append('model', 'whisper-large-v3');
-            // Whisper auto-detects language natively
+            formData.append('language', 'en');
+            formData.append('prompt', 'This is a professional candidate technical job interview response in clear English. Do not include filler words like uh, um, yeah, okay.');
 
             const response = await axios.post(
                 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -31,12 +33,13 @@ const transcribeAudio = async (filePath) => {
                 }
             );
 
-            const transcript = response.data.text?.trim() || "";
+            const rawTranscript = response.data.text?.trim() || "";
+            const transcript = sanitizeTranscript(rawTranscript);
             if (transcript && transcript.length > 1) {
                 console.log(`[WHISPER-SERVICE] ✓ Groq Whisper success | Length: ${transcript.length}`);
                 return transcript;
             }
-            console.warn("[WHISPER-SERVICE] Groq Whisper returned empty transcript, trying fallback...");
+            console.warn("[WHISPER-SERVICE] Groq Whisper returned empty/sanitized transcript, trying fallback...");
         }
     } catch (error) {
         console.error("[WHISPER-SERVICE-GROQ ERROR]:", error.response?.data || error.message);
@@ -50,7 +53,7 @@ const transcribeAudio = async (filePath) => {
             const formData = new FormData();
             formData.append('file', fs.createReadStream(filePath));
             formData.append('model_id', 'scribe_v2');
-            formData.append('language_code', 'auto');
+            formData.append('language_code', 'en');
 
             const response = await axios.post(
                 'https://api.elevenlabs.io/v1/speech-to-text',
@@ -64,7 +67,8 @@ const transcribeAudio = async (filePath) => {
                 }
             );
 
-            const transcript = response.data.text?.trim() || "";
+            const rawTranscript = response.data.text?.trim() || "";
+            const transcript = sanitizeTranscript(rawTranscript);
             if (transcript && transcript.length > 1) {
                 console.log(`[WHISPER-SERVICE] ✓ ElevenLabs Scribe fallback success | Length: ${transcript.length}`);
                 return transcript;
@@ -80,3 +84,4 @@ const transcribeAudio = async (filePath) => {
 };
 
 module.exports = { transcribeAudio };
+

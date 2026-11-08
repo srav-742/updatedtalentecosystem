@@ -1,6 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential, sendEmailVerification, reload, applyActionCode, checkActionCode } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
+import { API_URL, getGatewayHeaders } from './config';
+
+export { API_URL, CLIENT_ID, CLIENT_SECRET } from './config';
 
 const firebaseConfig = {
     apiKey: "AIzaSyDd3YaduiL4mjuv6kNErlqkILfiAGuUh4o",
@@ -10,7 +13,7 @@ const firebaseConfig = {
     storageBucket: "practiceproject-f0b0e.firebasestorage.app",
     messagingSenderId: "409300066922",
     appId: "1:409300066922:web:0acd4a72784a1d91ede013",
-    measurementId: "G-P72KSFQ9XX"
+    measurementId: import.meta.env.VITE_GA_MEASUREMENT_ID || "G-GHYJZVBMB4"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -27,19 +30,91 @@ const withTimeout = (promise, ms = 30000) => {
     ]);
 };
 
+// Retry helper specifically for transient network failures (e.g. brief Wi-Fi or DNS drop)
+const withAuthRetry = async (fn, maxRetries = 2, delayMs = 1200) => {
+    let lastError;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await withTimeout(fn());
+        } catch (error) {
+            lastError = error;
+            if (error?.code === 'auth/network-request-failed' && i < maxRetries - 1) {
+                console.warn(`[FIREBASE-AUTH] Network request failed (attempt ${i + 1}/${maxRetries}). Retrying in ${delayMs}ms...`);
+                await new Promise(res => setTimeout(res, delayMs));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw lastError;
+};
+
 // Auth Helpers
 export const signupWithEmail = async (email, password) => {
-    const res = await withTimeout(createUserWithEmailAndPassword(auth, email, password));
+    const res = await withAuthRetry(() => createUserWithEmailAndPassword(auth, email, password));
     return res;
 };
 
+export const sendVerificationEmail = async (user = auth.currentUser) => {
+    if (!user) throw new Error("No authenticated user found to send verification email.");
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.hire1percent.com';
+    const emailParam = user?.email ? `&email=${encodeURIComponent(user.email)}` : '';
+    const actionCodeSettings = {
+        url: `${origin}/verify-email?verified=true${emailParam}`,
+        handleCodeInApp: false,
+    };
+    try {
+        const res = await withAuthRetry(() => sendEmailVerification(user, actionCodeSettings));
+        return res;
+    } catch (err) {
+        // Fallback without actionCodeSettings if custom domain is not yet whitelisted in Firebase Console
+        console.warn("[FIREBASE-AUTH] sendEmailVerification with actionCodeSettings fallback:", err.message);
+        const fallbackRes = await withAuthRetry(() => sendEmailVerification(user));
+        return fallbackRes;
+    }
+};
+
+export const verifyEmailWithActionCode = async (oobCode) => {
+    if (!oobCode) throw new Error("No verification code provided.");
+    
+    let verifiedEmail = null;
+    try {
+        const info = await checkActionCode(auth, oobCode);
+        verifiedEmail = info?.data?.email || null;
+    } catch (infoErr) {
+        // Non-fatal check error; applyActionCode will perform the authoritative verification
+    }
+
+    await withAuthRetry(() => applyActionCode(auth, oobCode));
+
+    if (auth.currentUser) {
+        try {
+            await reload(auth.currentUser);
+            verifiedEmail = verifiedEmail || auth.currentUser.email || null;
+        } catch (rErr) {
+            // Non-fatal reload warning
+        }
+    }
+
+    return {
+        success: true,
+        email: verifiedEmail || auth.currentUser?.email || null
+    };
+};
+
+export const reloadFirebaseUser = async (user = auth.currentUser) => {
+    if (!user) return null;
+    await withAuthRetry(() => reload(user));
+    return auth.currentUser;
+};
+
 export const loginWithEmail = async (email, password) => {
-    const res = await withTimeout(signInWithEmailAndPassword(auth, email, password));
+    const res = await withAuthRetry(() => signInWithEmailAndPassword(auth, email, password));
     return res;
 };
 
 export const resetPasswordWithFirebase = async (email) => {
-    const res = await withTimeout(sendPasswordResetEmail(auth, email));
+    const res = await withAuthRetry(() => sendPasswordResetEmail(auth, email));
     return res;
 };
 
@@ -77,20 +152,23 @@ export const linkFirebasePassword = async (email, password) => {
 };
 
 // Database Helpers - Redirected to MongoDB Backend
-export const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-    ? 'http://localhost:5000/api'
-    : (import.meta.env.VITE_API_URL || 'https://api.hire1percent.com/api');
-export const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
-export const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';
+const fetchWithTimeout = async (url, options, timeoutMs = 35000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
 
 export const saveUserProfile = async (userId, data) => {
     try {
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
             headers: { 
                 'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                ...await getAuthHeaders()
             },
             body: JSON.stringify({ ...data, uid: userId })
         });
@@ -105,11 +183,8 @@ export const saveUserProfile = async (userId, data) => {
 
 export const getUserProfile = async (userId) => {
     try {
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
-            headers: {
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
-            }
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
+            headers: await getAuthHeaders()
         });
         if (!response.ok) {
             // If 404, return null so logic can handle 'not found'
@@ -127,12 +202,11 @@ export const getUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, data) => {
     try {
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
             method: 'PUT',
             headers: { 
                 'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                ...await getAuthHeaders()
             },
             body: JSON.stringify(data)
         });
@@ -145,10 +219,7 @@ export const updateUserProfile = async (userId, data) => {
 };
 
 export const getAuthHeaders = async () => {
-    const headers = {
-        'X-Client-ID': CLIENT_ID,
-        'X-Client-Secret': CLIENT_SECRET
-    };
+    const headers = getGatewayHeaders();
 
     // 1. Try Firebase Auth (Priority)
     const user = auth.currentUser;
@@ -201,4 +272,3 @@ export const getAuthHeaders = async () => {
 
     return headers;
 };
-

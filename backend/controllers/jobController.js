@@ -1,6 +1,9 @@
 const Job = require('../models/Job');
+const Application = require('../models/Application');
 const mongoose = require('mongoose');
 const { invalidateCache } = require('../middleware/cacheMiddleware');
+const { callSkillAI } = require('../utils/aiClients');
+const { parseRawQuestionText, parseFileToText, validateQuestionBank } = require('../services/questionParserService');
 
 // In-memory L1 cache (per process) — ultra-fast for repeat hits within same instance
 // node-cache middleware (in app.js) acts as L2 cache across requests
@@ -15,9 +18,12 @@ const clearJobsCache = () => {
     invalidateCache('/api/jobs');
 };
 
-// GET ALL JOBS — candidates only see approved jobs
+// GET ALL JOBS — candidates see approved jobs (plus pending_approval on localhost for testing)
 const getAllJobs = async (req, res) => {
     try {
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        const queryFilter = isLocalhost ? { status: { $in: ['approved', 'pending_approval'] } } : { status: 'approved' };
+
         // L1 cache: serve from memory if fresh (sub-millisecond)
         if (jobsCache && Date.now() - jobsCacheTime < CACHE_DURATION) {
             // Set browser-side cache header: browsers can cache for 60s,
@@ -26,17 +32,34 @@ const getAllJobs = async (req, res) => {
             return res.json(jobsCache);
         }
 
-        const jobs = await Job.find({ status: 'approved' })
-            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education')
+        const jobs = await Job.find(queryFilter)
+            .select('title company location type salary skills experienceLevel minPercentage createdAt recruiterId status description education candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates')
             .populate('recruiter', 'name company')
             .sort({ createdAt: -1 })
             .lean();
 
-        jobsCache = jobs;
+        // Calculate applicant counts for active jobs
+        const jobIds = jobs.map(j => j._id);
+        const counts = await Application.aggregate([
+            { $match: { jobId: { $in: jobIds }, status: { $ne: 'SAVED' } } },
+            { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
+        ]);
+        const countMap = new Map(counts.map(item => [String(item._id), item.applicantCount]));
+
+        const jobsWithCounts = jobs.map(job => ({
+            ...job,
+            applicantCount: countMap.get(String(job._id)) || 0
+        }));
+
+        jobsCache = jobsWithCounts;
         jobsCacheTime = Date.now();
 
-        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
-        res.json(jobs);
+        if (isLocalhost) {
+            res.set('Cache-Control', 'private, no-cache, no-transform');
+        } else {
+            res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+        }
+        res.json(jobsWithCounts);
     } catch (error) {
         console.error("[GET-JOBS] Failure:", error);
         res.status(500).json({ message: error.message });
@@ -64,12 +87,117 @@ const getJobById = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) return res.status(400).json({ message: "Invalid Job ID" });
         const job = await Job.findById(req.params.jobId).lean();
         if (!job) return res.status(404).json({ message: "Job not found" });
-        // Individual job: cache for 2 minutes
-        res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
-        res.json(job);
+
+        // Calculate active applicant count
+        const applicantCount = await Application.countDocuments({ jobId: job._id, status: { $ne: 'SAVED' } });
+
+        // Individual job: fresh cache control so permissions/whitelist updates reflect immediately
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        if (isLocalhost) {
+            res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        } else {
+            res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=30');
+        }
+        res.json({
+            ...job,
+            applicantCount
+        });
     } catch (error) {
         console.error("[GET-JOBS] Error:", error);
         res.status(500).json({ message: error.message });
+    }
+};
+
+const normalizeJobRecruiterQuestions = (jobData) => {
+    // FIX: Check if EITHER field says RECRUITER_PROVIDED (the || fallback to 'AI_GENERATED' was
+    // swallowing the root-level value because 'AI_GENERATED' is truthy in JavaScript)
+    const isRecruiterProvided = (
+        jobData.questionSource === 'RECRUITER_PROVIDED' ||
+        jobData.mockInterview?.questionSource === 'RECRUITER_PROVIDED'
+    );
+    const qSource = isRecruiterProvided ? 'RECRUITER_PROVIDED' : 'AI_GENERATED';
+    const rawQuestions = jobData.mockInterview?.recruiterQuestions || jobData.recruiterQuestions || [];
+    // FIX: Prefer root-level questionCount (set by the recruiter UI) over mockInterview default
+    const qCount = Number(jobData.questionCount || jobData.mockInterview?.questionCount) || rawQuestions.length || 5;
+    const sMode = jobData.selectionMode || jobData.mockInterview?.selectionMode || 'ORDERED';
+
+    const normalizedQuestions = (rawQuestions || []).map((q, idx) => {
+        const txt = String(q.text || q.question || '').trim();
+        return {
+            questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+            text: txt,
+            question: txt,
+            order: Number(q.order) || (idx + 1),
+            category: q.category || 'General',
+            difficulty: q.difficulty || 'Medium',
+            questionType: q.questionType || 'Conceptual',
+            timeLimit: Number(q.timeLimit) || 120,
+            source: 'RECRUITER'
+        };
+    }).filter(q => q.text.length > 0);
+
+    if (qSource === 'RECRUITER_PROVIDED') {
+        const validation = validateQuestionBank(normalizedQuestions, qCount);
+        if (!validation.isValid) {
+            return { isValid: false, error: validation.error };
+        }
+        const validQuestions = validation.validQuestions.map((q, idx) => {
+            const txt = String(q.text || q.question || '').trim();
+            return {
+                questionId: q.questionId || `q_${Date.now()}_${idx + 1}`,
+                text: txt,
+                question: txt,
+                order: Number(q.order) || (idx + 1),
+                category: q.category || 'General',
+                difficulty: q.difficulty || 'Medium',
+                questionType: q.questionType || 'Conceptual',
+                timeLimit: Number(q.timeLimit) || 120,
+                source: 'RECRUITER'
+            };
+        });
+
+        if (jobData.mockInterview) {
+            jobData.mockInterview.questionSource = 'RECRUITER_PROVIDED';
+            jobData.mockInterview.questionCount = validation.normalizedCount;
+            jobData.mockInterview.selectionMode = sMode;
+            jobData.mockInterview.recruiterQuestions = validQuestions;
+        }
+        jobData.questionSource = 'RECRUITER_PROVIDED';
+        jobData.questionCount = validation.normalizedCount;
+        jobData.selectionMode = sMode;
+        jobData.recruiterQuestions = validQuestions;
+    } else {
+        if (jobData.mockInterview) {
+            jobData.mockInterview.questionSource = 'AI_GENERATED';
+            jobData.mockInterview.questionCount = qCount;
+            jobData.mockInterview.selectionMode = sMode;
+            jobData.mockInterview.recruiterQuestions = normalizedQuestions;
+        }
+        jobData.questionSource = 'AI_GENERATED';
+        jobData.questionCount = qCount;
+        jobData.selectionMode = sMode;
+        jobData.recruiterQuestions = normalizedQuestions;
+    }
+
+    return { isValid: true };
+};
+
+const normalizeCandidateQuotaAndAccess = (jobData) => {
+    if (jobData.candidateLimit !== undefined) {
+        const parsedLimit = Number(jobData.candidateLimit);
+        jobData.candidateLimit = (!isNaN(parsedLimit) && parsedLimit > 0) ? parsedLimit : null;
+    }
+    if (jobData.candidateLimitTarget !== undefined) {
+        const validTargets = ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'];
+        jobData.candidateLimitTarget = validTargets.includes(jobData.candidateLimitTarget) ? jobData.candidateLimitTarget : 'ALL';
+    }
+    if (jobData.isRestrictedToWhitelist !== undefined) {
+        jobData.isRestrictedToWhitelist = Boolean(jobData.isRestrictedToWhitelist);
+    }
+    if (Array.isArray(jobData.allowedCandidates)) {
+        jobData.allowedCandidates = jobData.allowedCandidates
+            .map(e => String(e).trim().toLowerCase())
+            .filter(e => e.length > 0 && e.includes('@'));
     }
 };
 
@@ -79,10 +207,26 @@ const updateJob = async (req, res) => {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
         
-        // Force the status to 'pending_approval' when updating a job
-        const jobData = { ...req.body };
-        jobData.status = 'pending_approval';
+        const existingJob = await Job.findById(req.params.jobId);
+        if (!existingJob) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        const jobData = { ...existingJob.toObject(), ...req.body };
+        if (isLocalhost) {
+            jobData.status = 'approved';
+        } else {
+            jobData.status = req.body.status || existingJob.status || 'pending_approval';
+        }
         jobData.adminFeedback = { reason: '', reviewedAt: null };
+
+        normalizeCandidateQuotaAndAccess(jobData);
+
+        const norm = normalizeJobRecruiterQuestions(jobData);
+        if (!norm.isValid) {
+            return res.status(400).json({ success: false, message: norm.error });
+        }
 
         const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true });
         clearJobsCache(); // Clear all job caches
@@ -95,47 +239,64 @@ const updateJob = async (req, res) => {
 
 const deleteJob = async (req, res) => {
     try {
+        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
+        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
+        if (!isPrimaryAdmin) {
+            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete jobs." });
+        }
+
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
-
-        const job = await Job.findById(req.params.jobId);
-        if (!job) {
-            return res.status(404).json({ message: "Job not found" });
-        }
-
-        // Ownership check: recruiters can only delete their own jobs (any status)
-        // Admins can delete any job
-        const reqUser = req.user;
-        if (reqUser && reqUser.role !== 'admin') {
-            const recruiterId = job.recruiterId;
-            const userId = reqUser._id ? reqUser._id.toString() : null;
-            const userUid = reqUser.uid || null;
-
-            const isOwner = (
-                (userId && recruiterId === userId) ||
-                (userUid && recruiterId === userUid)
-            );
-
-            if (!isOwner) {
-                return res.status(403).json({
-                    message: "Access denied. You can only delete your own job postings."
-                });
-            }
-        }
-
-        await job.deleteOne();
+        await Job.findByIdAndDelete(req.params.jobId);
         clearJobsCache(); // Clear all job caches
         res.json({ message: "Job deleted successfully" });
     } catch (error) {
-        console.error("[DELETE-JOB] Error:", error);
+        console.error("[GET-JOBS] Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
 const createJob = async (req, res) => {
     try {
-        const jobData = { ...req.body, status: 'pending_approval' };
+        // Enforce server-side expiration check for pilot recruiters
+        if (req.user && req.user.role === 'recruiter' && req.user.accountType === 'pilot') {
+            if (req.user.pilotExpiresAt && new Date() > new Date(req.user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true
+                });
+            }
+        }
+
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
+        const jobData = { ...req.body, status: initialStatus };
+
+        if (jobData.recruiterId) {
+            const { findRecruiterUser } = require('../utils/userResolver');
+            const recruiterUser = await findRecruiterUser(jobData.recruiterId);
+            if (recruiterUser && recruiterUser.role === 'recruiter' && recruiterUser.accountType === 'pilot') {
+                if (recruiterUser.pilotExpiresAt && new Date() > new Date(recruiterUser.pilotExpiresAt)) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                        code: 'PILOT_EXPIRED',
+                        pilotExpired: true
+                    });
+                }
+            }
+        }
+
+        normalizeCandidateQuotaAndAccess(jobData);
+
+        const norm = normalizeJobRecruiterQuestions(jobData);
+        if (!norm.isValid) {
+            return res.status(400).json({ success: false, message: norm.error });
+        }
+
         const job = new Job(jobData);
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches
@@ -143,6 +304,33 @@ const createJob = async (req, res) => {
     } catch (error) {
         console.error("[CREATE-JOB] Failure:", error);
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const parseQuestions = async (req, res) => {
+    try {
+        let rawText = req.body?.rawText || '';
+
+        if (req.file) {
+            rawText = await parseFileToText(req.file.buffer, req.file.originalname, req.file.mimetype);
+        }
+
+        if (!rawText || !rawText.trim()) {
+            return res.status(400).json({ success: false, message: "No text or file content found to parse questions from." });
+        }
+
+        const result = parseRawQuestionText(rawText);
+        if (!result.questions || result.questions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No questions could be extracted. Please ensure questions are clearly separated by new lines or numbers (e.g. 1., 2.)."
+            });
+        }
+
+        res.json({ success: true, count: result.questions.length, ...result });
+    } catch (error) {
+        console.error("[PARSE-QUESTIONS] Error:", error);
+        res.status(500).json({ success: false, message: error.message || "Failed to process questions." });
     }
 };
 
@@ -197,4 +385,41 @@ const rejectJob = async (req, res) => {
     }
 };
 
-module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache };
+// AI Generate Job Description
+const generateJobDescription = async (req, res) => {
+    try {
+        const { title, skills = [], experienceLevel, type, location, specialInstructions } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ message: "Job title is required to generate a description." });
+        }
+
+        const prompt = `
+You are an expert technical recruiter and HR professional. Please write a professional, engaging, and detailed job description for a job posting.
+
+Details provided:
+- Job Title: ${title}
+- Job Type: ${type || 'Not specified'}
+- Experience Level: ${experienceLevel || 'Not specified'}
+- Location: ${location || 'Not specified'}
+- Key Skills: ${skills.length > 0 ? skills.join(', ') : 'Not specified'}
+- Special Instructions/Focus: ${specialInstructions || 'None'}
+
+Please format it clearly using markdown (e.g., ## About the Role, ## Responsibilities, ## Requirements). 
+Do NOT include any conversational filler (like "Here is the job description"). Output ONLY the job description text.
+        `.trim();
+
+        const generatedText = await callSkillAI(prompt, 1000, 0.7);
+
+        if (!generatedText) {
+            return res.status(500).json({ message: "Failed to generate job description. Please try again." });
+        }
+
+        res.json({ description: generatedText });
+    } catch (error) {
+        console.error("[GENERATE-JOB-DESC] Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache, generateJobDescription, parseQuestions };

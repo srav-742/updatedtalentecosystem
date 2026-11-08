@@ -2,7 +2,16 @@ const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanc
 const ProctoringViolation = require('../models/ProctoringViolation');
 const ProctoringReport = require('../models/ProctoringReport');
 const Application = require('../models/Application');
-const { getViolationRating } = require('../utils/proctoringScoring');
+const {
+    getViolationRating,
+    sanitizeViolationDetail,
+    getStatusAndVerdict,
+    calculateProctoringScore,
+    evaluateIntegrity,
+    normalizeIncident,
+    CANONICAL_EVENT_MAP,
+    CANONICAL_CATEGORY_MAP,
+} = require('../utils/proctoringScoring');
 const mongoose = require('mongoose');
 
 
@@ -15,25 +24,56 @@ const mongoose = require('mongoose');
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-// Severity mapping for AI violation types
+// Severity mapping for proctoring violation types (Red Mark for Phone, Multiple Faces, and Objects)
 const SEVERITY_MAP = {
+    // Phone Detections (Red Mark)
+    PHONE_DETECTED: 'critical',
+    mobile_phone_detected: 'critical',
+    phone_near_face: 'critical',
+    phone_near_ear: 'critical',
+
+    // Multiple Faces Detections (Red Mark)
+    MULTIPLE_PEOPLE: 'critical',
+    multiple_faces_detected: 'critical',
+    person_count_violation: 'critical',
+
+    // Object Detections (Red Mark)
+    OBJECT_DETECTED: 'critical',
+    HEADPHONES_DETECTED: 'critical',
+    earphone_detected: 'critical',
+    book_detected: 'critical',
+    bottle_detected: 'critical',
+    pen_detected: 'critical',
+    pencil_detected: 'critical',
+    tablet_detected: 'critical',
+    secondary_laptop_detected: 'critical',
+    suspicious_object_detected: 'critical',
+    new_object_appeared: 'critical',
+
+    // Other Telemetry & AI Flags
     TAB_SWITCH: 'medium',
     WINDOW_BLUR: 'medium',
-    KEYBOARD_SHORTCUT: 'medium',
+    KEYBOARD_SHORTCUT: 'low',
     RIGHT_CLICK: 'low',
-    SCREEN_SHARE_STOPPED: 'high',
+    SCREEN_SHARE_STOPPED: 'medium',
     FULLSCREEN_EXIT: 'medium',
-    MULTIPLE_DEVICES: 'high',
+    MULTIPLE_DEVICES: 'medium',
     EYE_LOOKING_AWAY: 'medium',
-    EYE_LOOKING_AWAY_WHILE_ANSWERING: 'high',
+    EYE_LOOKING_AWAY_WHILE_ANSWERING: 'medium',
     HEAD_TURNED: 'medium',
-    HEAD_TURNED_WHILE_ANSWERING: 'high',
-    NO_PEOPLE: 'high',
-    MULTIPLE_PEOPLE: 'critical',
-    PHONE_DETECTED: 'critical',
-    HEADPHONES_DETECTED: 'high',
-    OBJECT_DETECTED: 'high',
+    HEAD_TURNED_WHILE_ANSWERING: 'medium',
+    NO_PEOPLE: 'medium',
+    looking_away: 'medium',
+    head_turned: 'medium',
+    eyes_closed: 'medium',
+    continuous_talking: 'medium',
+    multiple_voices: 'medium',
+    hand_near_lap: 'low',
+    hand_leaving_frame: 'low',
+    background_noise: 'low',
+    environment_change: 'medium',
 };
+
 
 const updateProctoringReport = async (examId, userId) => {
     try {
@@ -41,54 +81,71 @@ const updateProctoringReport = async (examId, userId) => {
         const baseViolations = await ProctoringViolation.find(baseQuery).lean();
         const enhancedViolations = await ProctoringViolationEnhanced.find(baseQuery).lean();
         
-        const allViolations = [
+        const rawViolations = [
             ...baseViolations.map(v => ({
+                _id: v._id,
                 type: v.type,
-                detail: v.detail,
-                timestamp: v.timestamp || v.createdAt || new Date(),
-                rating: v.rating || getViolationRating(v.type, v.metadata),
+                detail: sanitizeViolationDetail(v.type, v.detail, v.rating || 1),
+                timestamp: v.timestamp,
+                rating: v.rating || 1,
+                metadata: v.metadata,
+                startTime: v.timestamp,
+                endTime: v.timestamp,
+                duration: 0,
+                confidence: null,
+                maxConfidence: null,
+                evidenceFrames: [],
+                model: 'RuleEngine',
+                isAnswering: false,
+                reviewStatus: 'UNREVIEWED',
             })),
             ...enhancedViolations.map(v => ({
+                _id: v._id,
                 type: v.type,
-                detail: v.detail,
-                timestamp: v.timestamp || v.createdAt || new Date(),
-                rating: v.rating || getViolationRating(v.type, v.metadata),
+                detail: sanitizeViolationDetail(v.type, v.detail, v.rating || 1),
+                timestamp: v.timestamp,
+                rating: v.rating || 1,
+                metadata: v.metadata,
+                startTime: v.startTime || v.timestamp,
+                endTime: v.endTime || v.timestamp,
+                duration: v.duration || 0,
+                confidence: v.confidence !== undefined ? v.confidence : null,
+                maxConfidence: v.maxConfidence || v.confidence || null,
+                evidenceFrames: v.evidenceFrames || [],
+                model: v.model || 'Unknown',
+                isAnswering: v.isAnswering || false,
+                questionId: v.questionId || null,
+                answerId: v.answerId || null,
+                reviewStatus: v.reviewStatus || 'UNREVIEWED',
+                reviewReason: v.reviewReason || null,
             }))
         ];
-        
-        allViolations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        const totalViolations = allViolations.length;
-        const totalPenaltyRating = allViolations.reduce((sum, v) => sum + (v.rating || 0), 0);
-        
-        let status = 'clean';
-        let verdict = 'Seriousness Verified';
-        let summary = 'No anomalies detected. Candidate followed rules during the assessment.';
-        
-        if (totalPenaltyRating > 0 && totalPenaltyRating <= 5) {
-            status = 'low_risk';
-            verdict = 'Pass with Minor Alerts';
-            summary = 'A few minor alerts recorded. Candidate is likely serious.';
-        } else if (totalPenaltyRating > 5 && totalPenaltyRating <= 12) {
-            status = 'suspicious';
-            verdict = 'Review Recommended';
-            summary = 'Multiple alerts recorded (e.g., eye movement or head turns). Review of proctoring evidence recommended.';
-        } else if (totalPenaltyRating > 12) {
-            status = 'critical';
-            verdict = 'Critical Cheating Alert';
-            summary = 'Critical violations detected (e.g., cell phone detected, screen share stop). Strong evidence of candidate cheating.';
-        }
-        
-        const countsMap = {};
-        allViolations.forEach(v => {
-            if (!countsMap[v.type]) {
-                countsMap[v.type] = { type: v.type, count: 0, rating: 0 };
-            }
-            countsMap[v.type].count += 1;
-            countsMap[v.type].rating += v.rating || 0;
-        });
-        const violationSummaryList = Object.values(countsMap);
-        
+
+        // Evaluate integrity using authoritative scoring engine v2
+        const integrityEvaluation = evaluateIntegrity(rawViolations);
+        const {
+            integrityScore,
+            totalPenaltyRating,
+            riskLevel,
+            scoreVersion,
+            totalIncidents,
+            standardIncidents,
+            criticalIncidents,
+            eventSummary,
+            scoreFactors,
+            status,
+            verdict,
+            summary,
+            incidents,
+        } = integrityEvaluation;
+
+        // Build violationSummaryList for backward compatibility
+        const violationSummaryList = Object.entries(eventSummary).map(([type, count]) => ({
+            type,
+            count,
+            rating: count * getViolationRating(type),
+        }));
+
         let applicationId = null;
         const parts = examId.split(':');
         const jobId = parts.length >= 2 ? parts[1] : null;
@@ -96,53 +153,86 @@ const updateProctoringReport = async (examId, userId) => {
         if (parts.length >= 3) {
             const sessionId = parts[2];
             let app = null;
-            
-            // 1. Try to find by recordingSessionId first
             if (sessionId && sessionId !== 'pending') {
                 app = await Application.findOne({ recordingSessionId: sessionId }).select('_id').lean();
             }
-            // 2. Fallback to userId + jobId (which is highly precise since application is unique per user + job)
             if (!app && jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
-            // 3. Fallback to just userId
-            if (!app) {
-                app = await Application.findOne({ userId }).select('_id').lean();
-            }
-            if (app) {
-                applicationId = app._id;
-            }
+            if (app) applicationId = app._id;
         } else {
             let app = null;
             if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
                 app = await Application.findOne({ userId, jobId: new mongoose.Types.ObjectId(jobId) }).select('_id').lean();
             }
-            if (!app) {
-                app = await Application.findOne({ userId }).select('_id').lean();
-            }
-            if (app) {
-                applicationId = app._id;
-            }
+            if (app) applicationId = app._id;
         }
-        
+
         const report = await ProctoringReport.findOneAndUpdate(
             { examId },
             {
                 examId,
                 userId,
                 applicationId,
-                totalViolations,
+                totalViolations: totalIncidents,
                 totalPenaltyRating,
+                proctoringScore: integrityScore,
+                integrityScore,
+                riskLevel,
+                scoreVersion,
+                totalIncidents,
+                standardIncidents,
+                criticalIncidents,
+                eventSummary,
+                scoreFactors,
                 status,
                 verdict,
                 summary,
                 violationSummaryList,
-                timeline: allViolations
+                timeline: incidents.map(inc => ({
+                    _id: inc.incidentId,
+                    type: inc.eventType,
+                    canonicalEventType: inc.canonicalEventType,
+                    category: inc.category,
+                    detail: inc.detail,
+                    timestamp: inc.timestamp,
+                    rating: inc.basePenalty,
+                    severity: inc.severity,
+                    confidence: inc.confidence,
+                    maxConfidence: inc.maxConfidence,
+                    startTime: inc.startTime,
+                    endTime: inc.endTime,
+                    duration: inc.duration,
+                    evidenceFrames: inc.evidenceFrames,
+                    model: inc.source,
+                    isAnswering: inc.isAnswering,
+                    questionId: inc.questionId,
+                    answerId: inc.answerId,
+                    reviewStatus: inc.status,
+                })),
             },
             { upsert: true, new: true }
         );
-        
-        console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, status: ${status}, rating: ${totalPenaltyRating}`);
+
+        if (applicationId) {
+            await Application.findByIdAndUpdate(applicationId, {
+                integrityPenalty: totalPenaltyRating,
+                proctoringScore: integrityScore,
+                integrityScore,
+                riskLevel,
+            });
+        }
+
+        // Cache the compiled report in Redis
+        try {
+            const redisService = require('../services/redisService');
+            const cacheKey = `proctoring:report:${examId}`;
+            await redisService.set(cacheKey, report, 600);
+        } catch (cacheErr) {
+            console.warn('[PROCTORING REPORT CACHE ERROR]', cacheErr.message);
+        }
+
+        console.log(`[PROCTORING REPORT UPDATED] examId: ${examId}, risk: ${riskLevel}, score: ${integrityScore}, rating: ${totalPenaltyRating}`);
         return report;
     } catch (err) {
         console.error('[PROCTORING REPORT UPDATE ERROR]', err);
@@ -171,18 +261,33 @@ const logViolation = async (req, res) => {
             return res.status(400).json({ message: 'Missing required fields: examId, userId, type, detail' });
         }
 
+        // Standard multi-camera hardware inputs (e.g. laptop webcam + IR/virtual camera) are not a violation
+        if (type === 'MULTIPLE_DEVICES' && (/camera/i.test(detail) || metadata?.cameraCount)) {
+            return res.status(200).json({ message: 'Ignored multi-camera hardware as non-violation', recorded: false });
+        }
+
         const rating = getViolationRating(type, metadata);
+        const canonicalEventType = CANONICAL_EVENT_MAP[type] || type;
+        const category = CANONICAL_CATEGORY_MAP[canonicalEventType] || 'UNKNOWN';
 
         const violation = await ProctoringViolationEnhanced.create({
             examId,
             userId,
             type,
+            canonicalEventType,
+            category,
             detail,
             count: count || 1,
             severity: SEVERITY_MAP[type] || 'medium',
             rating,
             isAnswering: isAnswering || false,
             confidence: confidence || null,
+            maxConfidence: confidence || null,
+            duration: req.body.duration || 0,
+            evidenceFrames: Array.isArray(req.body.evidenceFrames) ? req.body.evidenceFrames : [],
+            model: req.body.model || 'Unknown',
+            questionId: req.body.questionId || null,
+            answerId: req.body.answerId || null,
             metadata: metadata || null,
             timestamp: timestamp ? new Date(timestamp) : new Date(),
         });
@@ -199,8 +304,12 @@ const logViolation = async (req, res) => {
             isAnswering: violation.isAnswering,
         });
 
-        // Trigger report update asynchronously
-        updateProctoringReport(examId, userId).catch(() => {});
+        // Trigger report update synchronously to guarantee saving in proctoringreports collection
+        try {
+            await updateProctoringReport(examId, userId);
+        } catch (reportErr) {
+            console.error('[PROCTORING REPORT UPDATE FAIL]', reportErr);
+        }
 
         return res.status(200).json({
             recorded: true,
@@ -340,12 +449,97 @@ const getReportByExam = async (req, res) => {
         const { examId } = req.params;
         const report = await ProctoringReport.findOne({ examId }).lean();
         if (!report) {
-            return res.status(404).json({ message: 'Proctoring report not found for this session.' });
+            // No report exists — this means no proctoring events were ever recorded.
+            // Return null score so dashboards can distinguish "never analyzed" from "clean".
+            return res.status(200).json({
+                status: 'clean',
+                verdict: 'No proctoring data recorded for this session.',
+                summary: 'No proctoring events were captured during this assessment.',
+                totalPenaltyRating: 0,
+                proctoringScore: null,
+                integrityScore: null,
+                riskLevel: 'LOW_RISK',
+                scoreVersion: 'v2',
+                totalViolations: 0,
+                totalIncidents: 0,
+                standardIncidents: 0,
+                criticalIncidents: 0,
+                scoreFactors: ['No proctoring events were captured during this assessment.'],
+                timeline: [],
+                analysisStatus: 'PENDING',
+            });
         }
         return res.status(200).json(report);
     } catch (error) {
         console.error('[GET PROCTORING REPORT ERROR]', error);
         return res.status(500).json({ message: 'Failed to fetch proctoring report', error: error.message });
+    }
+};
+
+const getAllReports = async (req, res) => {
+    try {
+        // 🔒 Verify recruiter/admin session
+        const recruiterId = req.headers ? req.headers['x-user-id'] : null;
+        if (!recruiterId) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+        const { findRecruiterUser } = require('../utils/userResolver');
+        const recruiter = await findRecruiterUser(recruiterId);
+        if (!recruiter || (recruiter.role !== 'recruiter' && recruiter.role !== 'admin')) {
+            return res.status(403).json({ message: "Forbidden: Recruiter status required." });
+        }
+
+        const reports = await ProctoringReport.find()
+            .populate({
+                path: 'applicationId',
+                populate: {
+                    path: 'jobId',
+                    select: 'title'
+                }
+            })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        // Fallback for any reports that don't have applicationId or missing candidate names
+        for (let i = 0; i < reports.length; i++) {
+            const report = reports[i];
+            if (!report.applicationId) {
+                let app = null;
+                let jobId = null;
+                if (report.examId && typeof report.examId === 'string') {
+                    const parts = report.examId.split(':');
+                    if (parts.length >= 2) {
+                        jobId = parts[1];
+                    }
+                }
+
+                if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+                    app = await Application.findOne({ userId: report.userId, jobId: new mongoose.Types.ObjectId(jobId) })
+                        .populate('jobId', 'title')
+                        .lean();
+                }
+
+                if (!app) {
+                    app = await Application.findOne({ userId: report.userId })
+                        .populate('jobId', 'title')
+                        .lean();
+                }
+
+                if (app) {
+                    report.resolvedApplication = {
+                        _id: app._id,
+                        applicantName: app.applicantName,
+                        applicantEmail: app.applicantEmail,
+                        jobId: app.jobId
+                    };
+                }
+            }
+        }
+
+        return res.status(200).json(reports);
+    } catch (error) {
+        console.error('[GET ALL REPORTS ERROR]', error);
+        return res.status(500).json({ message: 'Failed to fetch proctoring reports', error: error.message });
     }
 };
 
@@ -356,4 +550,5 @@ module.exports = {
     getViolationsSummary,
     getReportByExam,
     updateProctoringReport,
+    getAllReports,
 };

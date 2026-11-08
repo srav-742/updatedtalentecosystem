@@ -1,70 +1,125 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const firebaseAdmin = require('../config/firebase');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
-const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'hemangi@web3today.io'];
+const { withRetry } = require('../utils/retry');
+const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'hemangi@web3today.io', 'admin@hire1percent.com'];
 
+const toPublicUser = (user) => {
+    const userObject = user.toObject();
+    for (const field of [
+        'password', 'resetPasswordToken', 'resetPasswordExpires',
+        'emailVerificationToken', 'emailVerificationExpires', '__v'
+    ]) {
+        delete userObject[field];
+    }
+    return userObject;
+};
 
 const syncUser = async (req, res) => {
     try {
         const { uid, email, name, profilePic, role } = req.body;
+        const normalizedEmail = email ? email.toLowerCase().trim() : '';
+
+        if (!normalizedEmail || !uid) {
+            return res.status(400).json({ message: 'Email and UID are required for sync.' });
+        }
+
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ') || firebaseAdmin.apps.length === 0) {
+            return res.status(401).json({ message: 'A valid Firebase ID token is required for sync.' });
+        }
+
+        let verifiedIdentity;
+        try {
+            verifiedIdentity = await firebaseAdmin.auth().verifyIdToken(authHeader.slice('Bearer '.length));
+        } catch {
+            return res.status(401).json({ message: 'Invalid Firebase ID token.' });
+        }
+
+        if (verifiedIdentity.uid !== uid
+            || normalizedEmail !== (verifiedIdentity.email || '').toLowerCase().trim()) {
+            return res.status(403).json({ message: 'The requested account does not match the authenticated user.' });
+        }
         
-        // Find user by email first (primary anchor)
-        let user = await User.findOne({ email });
+        // Find user by email first (primary anchor) — with retry
+        let user = await withRetry(
+            () => User.findOne({ email: normalizedEmail }),
+            { label: `syncUser:findOne(${normalizedEmail})` }
+        );
 
         if (!user) {
             // New user - create them
-            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
-            user = new User({ uid, email, name, profilePic, role: role || 'seeker' });
-            await user.save();
+            user = new User({ uid, email: normalizedEmail, name, profilePic, role: role || 'candidate' });
+            await withRetry(
+                () => user.save(),
+                { label: `syncUser:save(${normalizedEmail})` }
+            );
+            console.log(`[AUTH-SYNC] Created new user for ${normalizedEmail} with UID ${uid}`);
         } else {
             // Check if someone is trying to sync to admin who shouldn't
-            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
-            // Check for role mismatch
-            if (role && user.role !== role) {
+            // Protect admin role from being downgraded during sync
+            if (user.role === 'admin' && role && role !== 'admin') {
+                console.log(`[AUTH-SYNC] Preserving admin role for ${normalizedEmail} (incoming role: ${role})`);
+                // Continue sync but don't change role
+            } else if (role && user.role !== role) {
                 return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
             }
             if (user.uid !== uid) {
                 const oldUid = user.uid;
-                console.log(`[AUTH-SYNC] Migrating UID for ${email}: ${oldUid} -> ${uid}`);
+                console.log(`[AUTH-SYNC] Migrating UID for ${normalizedEmail}: ${oldUid} -> ${uid}`);
                 
                 user.uid = uid;
+                if (name && !user.name) user.name = name;
                 if (profilePic && !user.profilePic) user.profilePic = profilePic;
-                await user.save();
+                await withRetry(
+                    () => user.save(),
+                    { label: `syncUser:uidMigration(${normalizedEmail})` }
+                );
 
                 // ─── CASCADE UID UPDATES (Data Rescue) ───
                 const Job = require('../models/Job');
                 const Application = require('../models/Application');
                 const ResumeProfile = require('../models/ResumeProfile');
 
-                // 1. Update jobs where this user is the recruiter
-                const jobUpdate = await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
-                console.log(`[AUTH-SYNC] Rescued ${jobUpdate.modifiedCount} jobs from old UID`);
+                if (oldUid) {
+                    // 1. Update jobs where this user is the recruiter
+                    const jobUpdate = await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
+                    console.log(`[AUTH-SYNC] Rescued ${jobUpdate.modifiedCount} jobs from old UID`);
 
-                // 2. Update applications where this user was the recruiter
-                const appRecUpdate = await Application.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
-                console.log(`[AUTH-SYNC] Rescued ${appRecUpdate.modifiedCount} recruiter-side applications`);
+                    // 2. Update applications where this user was the recruiter
+                    const appRecUpdate = await Application.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: uid } });
+                    console.log(`[AUTH-SYNC] Rescued ${appRecUpdate.modifiedCount} recruiter-side applications`);
 
-                // 3. Update applications submitted by this user as candidate
-                const appSeekerUpdate = await Application.updateMany({ userId: oldUid }, { $set: { userId: uid } });
-                console.log(`[AUTH-SYNC] Rescued ${appSeekerUpdate.modifiedCount} seeker-side applications`);
+                    // 3. Update applications submitted by this user as candidate
+                    const appSeekerUpdate = await Application.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+                    console.log(`[AUTH-SYNC] Rescued ${appSeekerUpdate.modifiedCount} seeker-side applications`);
 
-                // 4. Update resume profile
-                await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+                    // 4. Update resume profile
+                    await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: uid } });
+                }
             } else {
                 // UID is same, just update metadata if needed
-                if (profilePic && !user.profilePic) {
-                    user.profilePic = profilePic;
-                    await user.save();
+                let needsSave = false;
+                if (profilePic && !user.profilePic) { user.profilePic = profilePic; needsSave = true; }
+                if (name && !user.name) { user.name = name; needsSave = true; }
+                if (needsSave) {
+                    await withRetry(
+                        () => user.save(),
+                        { label: `syncUser:metadataUpdate(${normalizedEmail})` }
+                    );
                 }
             }
         }
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(user);
-        res.json(user);
+        res.json(toPublicUser(user));
     } catch (error) {
         console.error("[AUTH-SYNC] Critical Failure:", error);
         res.status(500).json({ message: error.message });
@@ -74,29 +129,103 @@ const syncUser = async (req, res) => {
 const signup = async (req, res) => {
     const start = Date.now();
     try {
-        const { name, email, password, role } = req.body;
-        console.log(`[AUTH-SIGNUP] Start for ${email}`);
+        const { name, email, password, role, uid } = req.body;
+        const normalizedEmail = email ? email.toLowerCase().trim() : '';
+        console.log(`[AUTH-SIGNUP] Start for ${normalizedEmail}`);
 
-        if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+        if (!normalizedEmail || !name) {
+            return res.status(400).json({ message: "Name and email are required." });
+        }
+
+        if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
             return res.status(403).json({ message: "Unauthorized. Admin signup is restricted." });
         }
 
-        const existingUser = await User.findOne({ email });
+        // Check for existing user — with retry for transient DB failures
+        const existingUser = await withRetry(
+            () => User.findOne({ email: normalizedEmail }),
+            { label: `signup:findExisting(${normalizedEmail})` }
+        );
+
         if (existingUser) {
-            console.log(`[AUTH-SIGNUP] User already exists: ${email}`);
+            // If user exists but has no password and a uid+password was provided, 
+            // backfill the password (self-healing for Bug #2)
+            if (!existingUser.password && password) {
+                const hashedPassword = await bcrypt.hash(password, 10);
+                existingUser.password = hashedPassword;
+                if (uid && existingUser.uid !== uid) {
+                    existingUser.uid = uid;
+                }
+                await withRetry(
+                    () => existingUser.save(),
+                    { label: `signup:backfillPassword(${normalizedEmail})` }
+                );
+                console.log(`[AUTH-SIGNUP] Backfilled password for existing user: ${normalizedEmail}`);
+                
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(existingUser);
+                
+                return res.status(200).json({ 
+                    message: "Account updated successfully", 
+                    userId: existingUser._id,
+                    uid: existingUser.uid
+                });
+            }
+
+            // If user exists AND has the same UID, just return success (idempotent)
+            if (uid && existingUser.uid === uid) {
+                console.log(`[AUTH-SIGNUP] Idempotent signup for ${normalizedEmail} (same UID)`);
+                return res.status(200).json({ 
+                    message: "Account already exists",
+                    userId: existingUser._id,
+                    uid: existingUser.uid
+                });
+            }
+
+            console.log(`[AUTH-SIGNUP] User already exists: ${normalizedEmail}`);
             return res.status(400).json({ message: `This email is already registered as a ${existingUser.role}. Please log in with that role.` });
         }
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = new User({ name, email, password: hashedPassword, role });
-        await user.save();
+
+        // Build new user data
+        const userData = { 
+            name, 
+            email: normalizedEmail, 
+            role: role || 'candidate'
+        };
+        
+        // Hash and save password if provided
+        if (password) {
+            userData.password = await bcrypt.hash(password, 10);
+        }
+        
+        // Save Firebase UID if provided
+        if (uid) {
+            userData.uid = uid;
+        }
+
+        const user = new User(userData);
+        await withRetry(
+            () => user.save(),
+            { label: `signup:save(${normalizedEmail})` }
+        );
 
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(user);
 
-        console.log(`[AUTH-SIGNUP] Success for ${email} in ${Date.now() - start}ms`);
-        res.status(201).json({ message: "User created successfully", userId: user._id });
+        console.log(`[AUTH-SIGNUP] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
+        res.status(201).json({ 
+            message: "User created successfully", 
+            userId: user._id,
+            uid: user.uid 
+        });
     } catch (error) {
         console.error(`[AUTH-SIGNUP] Error in ${Date.now() - start}ms:`, error.message);
+
+        // Duplicate key error — user was created between our check and save (race condition)
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "This email is already registered. Please log in." });
+        }
+
         res.status(500).json({ message: error.message });
     }
 };
@@ -107,23 +236,79 @@ const login = async (req, res) => {
         const { email, password, role } = req.body;
         const normalizedEmail = email ? email.toLowerCase().trim() : '';
         console.log(`[AUTH-LOGIN] Start for ${normalizedEmail}`);
-        const user = await User.findOne({ email: normalizedEmail, role });
-        if (!user) {
-            const existingUserAnyRole = await User.findOne({ email: normalizedEmail });
-            if (existingUserAnyRole) {
-                console.log(`[AUTH-LOGIN] Role mismatch: ${normalizedEmail} tried ${role} but is ${existingUserAnyRole.role}`);
-                return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in with that role.` });
-            }
-            console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
-            return res.status(401).json({ message: "Invalid credentials" });
+
+        if (!normalizedEmail || !password) {
+            return res.status(400).json({ message: "Email and password are required." });
         }
-        const isMatch = await bcrypt.compare(password, user.password);
+
+        // Build query — if role is provided, query by email and role; otherwise by email
+        const query = { email: normalizedEmail };
+        if (role) {
+            query.role = role;
+        }
+
+        // Find user with retry
+        let user = await withRetry(
+            () => User.findOne(query),
+            { label: `login:findUser(${normalizedEmail})` }
+        );
+
+        if (!user) {
+            const existingUserAnyRole = await withRetry(
+                () => User.findOne({ email: normalizedEmail }),
+                { label: `login:findAnyRole(${normalizedEmail})` }
+            );
+            if (existingUserAnyRole) {
+                // Allow recruiter and admin to cross-login smoothly
+                const isExistingStaff = existingUserAnyRole.role === 'recruiter' || existingUserAnyRole.role === 'admin';
+                const isRequestedStaff = role === 'recruiter' || role === 'admin';
+                if (isExistingStaff && isRequestedStaff) {
+                    user = existingUserAnyRole;
+                } else {
+                    console.log(`[AUTH-LOGIN] Role mismatch: ${normalizedEmail} tried ${role} but is ${existingUserAnyRole.role}`);
+                    return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in as a ${existingUserAnyRole.role}.` });
+                }
+            } else {
+                console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
+                return res.status(401).json({ message: "Invalid credentials" });
+            }
+        }
+
+        // If user has no password in MongoDB (signup bug), hash and save it now (self-healing)
+        if (!user.password) {
+            console.log(`[AUTH-LOGIN] User ${normalizedEmail} has no password in MongoDB — cannot verify via backend.`);
+            return res.status(401).json({ message: "Invalid credentials. Please use your original sign-in method." });
+        }
+
+        let isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch && password && password.length > 0) {
+            // First-character case toggle (handles common mobile/keyboard auto-capitalization e.g. Kirti@123 vs kirti@123)
+            const toggledFirstChar = password[0] === password[0].toUpperCase()
+                ? password[0].toLowerCase() + password.slice(1)
+                : password[0].toUpperCase() + password.slice(1);
+            if (await bcrypt.compare(toggledFirstChar, user.password)) {
+                isMatch = true;
+            }
+        }
+
         if (!isMatch) {
             console.log(`[AUTH-LOGIN] Password mismatch: ${normalizedEmail} in ${Date.now() - start}ms`);
             return res.status(401).json({ message: "Invalid credentials" });
         }
+
+        // Enforce server-side expiration check for pilot recruiters
+        if (user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return res.status(403).json({
+                    message: "Your Hire1Percent pilot access has expired. Please contact the Hire1Percent team if you need continued access.",
+                    code: 'PILOT_EXPIRED',
+                    pilotExpired: true
+                });
+            }
+        }
+
         console.log(`[AUTH-LOGIN] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
-        res.json({ message: "Login successful", user });
+        res.json({ message: "Login successful", user: toPublicUser(user) });
     } catch (error) {
         console.error(`[AUTH-LOGIN] Error in ${Date.now() - start}ms:`, error.message);
         res.status(500).json({ message: error.message });
@@ -133,9 +318,35 @@ const login = async (req, res) => {
 const googleAuth = async (req, res) => {
     try {
         const { email, name, profilePic, role } = req.body;
-        let user = await User.findOne({ email });
+        const normalizedEmail = email ? email.toLowerCase().trim() : '';
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: 'A Firebase ID token is required.' });
+        }
+        if (firebaseAdmin.apps.length === 0) {
+            return res.status(503).json({ message: 'Firebase authentication is unavailable.' });
+        }
+
+        let verifiedIdentity;
+        try {
+            verifiedIdentity = await firebaseAdmin.auth().verifyIdToken(authHeader.slice('Bearer '.length));
+        } catch {
+            return res.status(401).json({ message: 'Invalid Firebase ID token.' });
+        }
+
+        if (!normalizedEmail
+            || normalizedEmail !== (verifiedIdentity.email || '').toLowerCase().trim()
+            || verifiedIdentity.email_verified !== true) {
+            return res.status(403).json({ message: 'The requested account does not match a verified Firebase identity.' });
+        }
+
+        let user = await withRetry(
+            () => User.findOne({ email: normalizedEmail }),
+            { label: `googleAuth:findOne(${normalizedEmail})` }
+        );
+
         if (user) {
-            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
                 return res.status(403).json({ message: "Unauthorized. Admin access is restricted." });
             }
             if (role && user.role !== role) {
@@ -143,27 +354,47 @@ const googleAuth = async (req, res) => {
             }
             if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {
                 user.profilePic = profilePic;
-                await user.save();
+                await withRetry(
+                    () => user.save(),
+                    { label: `googleAuth:updatePic(${normalizedEmail})` }
+                );
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(user);
             }
-            return res.json({ message: "Login successful", user });
+            return res.json({ message: "Login successful", user: toPublicUser(user) });
         } else {
             if (!role) return res.status(400).json({ message: "Role is required for first-time signup" });
             
-            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+            if (role === 'admin' && !ALLOWED_ADMIN_EMAILS.includes(normalizedEmail)) {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
 
-            user = new User({ name, email, profilePic, role });
-            await user.save();
+            user = new User({ uid: verifiedIdentity.uid, name, email: normalizedEmail, profilePic, role });
+            await withRetry(
+                () => user.save(),
+                { label: `googleAuth:save(${normalizedEmail})` }
+            );
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            return res.json({ message: "Signup successful", user });
+            return res.json({ message: "Signup successful", user: toPublicUser(user) });
         }
     } catch (error) {
         console.error("[GOOGLE-AUTH] Error:", error.message);
+
+        // Duplicate key error — race condition
+        if (error.code === 11000) {
+            try {
+                const normalizedEmail = (req.body.email || '').toLowerCase().trim();
+                const user = await User.findOne({ email: normalizedEmail });
+                if (user) {
+                    return res.json({ message: "Login successful", user: toPublicUser(user) });
+                }
+            } catch (retryErr) {
+                // Fall through to generic error
+            }
+        }
+
         res.status(500).json({ message: error.message });
     }
 };
@@ -435,4 +666,3 @@ const linkPassword = async (req, res) => {
 };
 
 module.exports = { syncUser, signup, login, googleAuth, forgotPassword, verifyOtp, resetPassword, linkPassword };
-

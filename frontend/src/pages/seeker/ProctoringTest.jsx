@@ -46,6 +46,7 @@ export default function ProctoringTest() {
     // ── Test controls ───────────────────────────────────────────────────────
     const [isAnswering, setIsAnswering] = useState(false);
     const [proctorActive, setProctorActive] = useState(true);
+    const [showDebugOverlay, setShowDebugOverlay] = useState(false);
 
     // ── Event log ───────────────────────────────────────────────────────────
     const [events, setEvents] = useState([]);
@@ -115,7 +116,7 @@ export default function ProctoringTest() {
             const severity =
                 type.includes("WHILE_ANSWERING") || type === "PHONE_DETECTED" || type === "MULTIPLE_PEOPLE"
                     ? "critical"
-                    : type === "NO_PEOPLE" || type === "HEAD_TURNED"
+                    : type === "NO_PEOPLE" || type === "HEAD_TURNED" || type === "EYE_LOOKING_AWAY" || type === "OBJECT_DETECTED"
                     ? "warning"
                     : "info";
             logEvent(type, detail, severity);
@@ -128,6 +129,8 @@ export default function ProctoringTest() {
         faceMeshReady,
         objectModelReady,
         objectModelType,
+        yoloReady,
+        cocoReady,
         faceCount,
         headTurnRatio,
         gazeRatio,
@@ -140,84 +143,146 @@ export default function ProctoringTest() {
         onViolation: handleViolation,
     });
 
-    // ── Draw landmarks on canvas ────────────────────────────────────────────
+    // ── Draw landmarks & object detection boxes on canvas ─────────────────────
     useEffect(() => {
-        if (!landmarks || !canvasRef.current || !videoEl) return;
-
+        if (!canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
-        const video = videoEl;
+        if (!ctx) return;
 
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
+        if (!showDebugOverlay || !videoEl) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+
+        const video = videoEl;
+        const w = video.videoWidth || 640;
+        const h = video.videoHeight || 480;
+
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+        }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw landmark dots
-        ctx.fillStyle = "rgba(0, 255, 128, 0.6)";
-        for (const point of landmarks) {
-            ctx.beginPath();
-            ctx.arc(point.x * canvas.width, point.y * canvas.height, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Highlight key landmarks
-        const keyPoints = [
-            { idx: 1, color: "#ff4444", label: "Nose" },      // Nose tip
-            { idx: 234, color: "#4488ff", label: "L Cheek" },  // Left cheek
-            { idx: 454, color: "#4488ff", label: "R Cheek" },  // Right cheek
-        ];
-
-        for (const kp of keyPoints) {
-            const pt = landmarks[kp.idx];
-            if (!pt) continue;
-            ctx.fillStyle = kp.color;
-            ctx.beginPath();
-            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 10px Inter, system-ui, sans-serif";
-            ctx.fillText(kp.label, pt.x * canvas.width + 6, pt.y * canvas.height - 4);
-        }
-
-        // Draw iris landmarks if available (468, 473)
-        if (landmarks.length > 473) {
-            const irisPoints = [468, 473];
-            ctx.fillStyle = "#ff00ff";
-            for (const idx of irisPoints) {
-                const pt = landmarks[idx];
-                if (!pt) continue;
+        // 1. Draw FaceMesh landmarks
+        if (landmarks && Array.isArray(landmarks)) {
+            // Landmark dots
+            ctx.fillStyle = "rgba(0, 255, 128, 0.6)";
+            for (let i = 0; i < landmarks.length; i++) {
+                const point = landmarks[i];
+                if (!point) continue;
                 ctx.beginPath();
-                ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 3, 0, Math.PI * 2);
+                ctx.arc(point.x * canvas.width, point.y * canvas.height, 1.5, 0, Math.PI * 2);
                 ctx.fill();
             }
+
+            // Key landmarks
+            const keyPoints = [
+                { idx: 1, color: "#ff4444", label: "Nose" },
+                { idx: 234, color: "#4488ff", label: "L Cheek" },
+                { idx: 454, color: "#4488ff", label: "R Cheek" },
+            ];
+
+            for (const kp of keyPoints) {
+                const pt = landmarks[kp.idx];
+                if (!pt) continue;
+                ctx.fillStyle = kp.color;
+                ctx.beginPath();
+                ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 10px Inter, system-ui, sans-serif";
+                ctx.fillText(kp.label, pt.x * canvas.width + 6, pt.y * canvas.height - 4);
+            }
+
+            // Iris landmarks (468, 473)
+            if (landmarks.length > 473) {
+                const irisPoints = [468, 473];
+                ctx.fillStyle = "#ff00ff";
+                for (const idx of irisPoints) {
+                    const pt = landmarks[idx];
+                    if (!pt) continue;
+                    ctx.beginPath();
+                    ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
         }
-    }, [landmarks, videoEl]);
 
-    // ── Draw object detection boxes ─────────────────────────────────────────
-    useEffect(() => {
-        if (!detections.length || !canvasRef.current) return;
+        // 2. Draw Object detection bounding boxes
+        if (detections && Array.isArray(detections)) {
+            for (const det of detections) {
+                if (!det || !det.bbox) continue;
+                let bx = 0, by = 0, bw = 0, bh = 0;
+                if (Array.isArray(det.bbox)) {
+                    [bx, by, bw, bh] = det.bbox;
+                } else if (typeof det.bbox === 'object') {
+                    bx = det.bbox.x || 0;
+                    by = det.bbox.y || 0;
+                    bw = det.bbox.width || det.bbox.w || 0;
+                    bh = det.bbox.height || det.bbox.h || 0;
+                }
+                if (bw <= 0 || bh <= 0) continue;
 
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
+                // Clamp to canvas boundaries
+                bx = Math.max(0, Math.min(bx, canvas.width - 2));
+                by = Math.max(0, Math.min(by, canvas.height - 2));
+                bw = Math.min(bw, canvas.width - bx);
+                bh = Math.min(bh, canvas.height - by);
 
-        for (const det of detections) {
-            const [x, y, w, h] = det.bbox;
-            const isPhone = det.class === "cell phone";
+                const lower = (det.class || '').toLowerCase().trim();
 
-            ctx.strokeStyle = isPhone ? "#ff0000" : "#00ff88";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, w, h);
+                // Only render person, cell phone, or object used by candidate
+                const isPhone = lower.includes("phone") || lower === "telephone" || lower === "ipod";
+                const isObjectUsed = lower.includes("object used") || lower.includes("book") || lower.includes("tablet");
+                const isPerson = lower === "person" || lower === "man" || lower === "woman";
 
-            ctx.fillStyle = isPhone ? "rgba(255,0,0,0.8)" : "rgba(0,255,136,0.8)";
-            ctx.font = "bold 11px Inter, system-ui, sans-serif";
-            ctx.fillText(
-                `${det.class} ${(det.score * 100).toFixed(0)}%`,
-                x + 4,
-                y > 16 ? y - 4 : y + h + 14
-            );
+                // Strictly skip all background objects (furniture, screens, bottles, cups, bags, mice, keyboards)
+                if (!isPhone && !isObjectUsed && !isPerson) {
+                    continue;
+                }
+
+                // Distinct colors:
+                // Red for Cell Phone
+                // Amber for Object Used
+                // Emerald for Person
+                let strokeColor = "#10b981"; // emerald for person
+                let badgeBg = "rgba(16, 185, 129, 0.9)";
+
+                if (isPhone) {
+                    strokeColor = "#ef4444"; // red
+                    badgeBg = "rgba(239, 68, 68, 0.95)";
+                } else if (isObjectUsed) {
+                    strokeColor = "#f59e0b"; // amber
+                    badgeBg = "rgba(245, 158, 11, 0.95)";
+                }
+
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = isPhone || isObjectUsed ? 3 : 2;
+                ctx.strokeRect(bx, by, bw, bh);
+
+                // Label tag with solid background for perfect readability
+                const displayLabel = isObjectUsed ? "Object used" : (isPhone ? "cell phone" : det.class);
+                const labelText = `${displayLabel} ${((det.score || 0) * 100).toFixed(0)}%`;
+                ctx.font = "bold 11px Inter, system-ui, sans-serif";
+                const textWidth = ctx.measureText(labelText).width;
+                const tagY = by > 22 ? by - 19 : by;
+
+                ctx.fillStyle = badgeBg;
+                ctx.fillRect(bx, tagY, textWidth + 10, 19);
+
+                ctx.fillStyle = "#ffffff";
+                // Un-mirror text so it reads left-to-right on the mirrored webcam feed
+                ctx.save();
+                ctx.translate(bx + textWidth + 5, tagY + 14);
+                ctx.scale(-1, 1);
+                ctx.fillText(labelText, 0, 0);
+                ctx.restore();
+            }
         }
-    }, [detections]);
+    }, [landmarks, detections, videoEl, showDebugOverlay]);
 
     // ── Device enumeration ──────────────────────────────────────────────────
     useEffect(() => {
@@ -312,6 +377,18 @@ export default function ProctoringTest() {
                                     Live Camera Feed
                                 </h2>
                                 <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setShowDebugOverlay(prev => !prev)}
+                                        className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                                            showDebugOverlay
+                                                ? 'bg-purple-100 text-purple-700 border-purple-300'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                        }`}
+                                        title="Toggle FaceMesh & Object Bounding Box overlays (Default: Clean natural candidate view)"
+                                    >
+                                        <Eye size={13} />
+                                        {showDebugOverlay ? 'Overlays: Debug On' : 'Candidate View: Clean'}
+                                    </button>
                                     {cameraActive ? (
                                         <button
                                             onClick={stopCamera}
@@ -330,7 +407,10 @@ export default function ProctoringTest() {
                                 </div>
                             </div>
 
-                            <div className="relative aspect-video overflow-hidden rounded-2xl bg-gray-900">
+                            <div
+                                className="relative overflow-hidden rounded-2xl bg-gray-900"
+                                style={{ aspectRatio: videoEl?.videoWidth && videoEl?.videoHeight ? `${videoEl.videoWidth} / ${videoEl.videoHeight}` : "16/9" }}
+                            >
                                 {cameraActive ? (
                                     <>
                                         <video
@@ -341,11 +421,14 @@ export default function ProctoringTest() {
                                             className="h-full w-full object-cover"
                                             style={{ transform: "scaleX(-1)" }}
                                         />
-                                        <canvas
-                                            ref={canvasRef}
-                                            className="absolute inset-0 h-full w-full"
-                                            style={{ transform: "scaleX(-1)" }}
-                                        />
+                                        {/* Candidate video is always clean. Overlay only mounts if explicitly toggled for debug */}
+                                        {showDebugOverlay && (
+                                            <canvas
+                                                ref={canvasRef}
+                                                className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+                                                style={{ transform: "scaleX(-1)" }}
+                                            />
+                                        )}
                                     </>
                                 ) : (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-gray-500">
@@ -359,15 +442,21 @@ export default function ProctoringTest() {
                                     </div>
                                 )}
 
-                                {/* Model status badges */}
-                                <div className="absolute left-3 top-3 flex flex-col gap-2">
-                                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold ${faceMeshReady ? "bg-emerald-500/90 text-white" : "bg-gray-700/80 text-gray-300"}`}>
+                                {/* Model status badges (FaceMesh + COCO-SSD) */}
+                                <div className="absolute left-3 top-3 flex flex-col gap-1.5 z-10">
+                                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${faceMeshReady ? "bg-emerald-500/90 text-white" : "bg-gray-800/80 text-gray-300"}`}>
                                         {faceMeshReady ? <CheckCircle2 size={10} /> : <Loader2 size={10} className="animate-spin" />}
                                         FaceMesh
                                     </span>
-                                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold ${objectModelReady ? "bg-emerald-500/90 text-white" : "bg-gray-700/80 text-gray-300"}`}>
-                                        {objectModelReady ? <CheckCircle2 size={10} /> : <Loader2 size={10} className="animate-spin" />}
-                                        {objectModelType ? objectModelType.toUpperCase() : "Object Det."}
+                                    {/* YOLO ONNX badge (Commented out while YOLO is disabled)
+                                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${yoloReady ? "bg-emerald-500/90 text-white" : "bg-gray-800/80 text-gray-300"}`}>
+                                        {yoloReady ? <CheckCircle2 size={10} /> : <Loader2 size={10} className="animate-spin" />}
+                                        YOLO ONNX
+                                    </span>
+                                    */}
+                                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${cocoReady ? "bg-emerald-500/90 text-white" : "bg-gray-800/80 text-gray-300"}`}>
+                                        {cocoReady ? <CheckCircle2 size={10} /> : <Loader2 size={10} className="animate-spin" />}
+                                        COCO-SSD
                                     </span>
                                 </div>
                             </div>

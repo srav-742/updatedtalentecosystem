@@ -64,35 +64,42 @@ export function useStrictProctoringEnhanced({
     );
 
     // ── Initial device enumeration ──────────────────────────────────────────
+    // ── Initial device enumeration ──────────────────────────────────────────
     useEffect(() => {
         if (!isActive || deviceCheckDoneRef.current) {
             return;
         }
 
-        deviceCheckDoneRef.current = true;
+        let retryTimeout = null;
 
         const checkDevices = async () => {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const cameras = devices.filter((d) => d.kind === "videoinput");
+                
+                // If permission is not granted, labels will be empty. We should wait and retry once permission is granted.
+                const hasLabels = cameras.some(c => c.label);
 
-                if (cameras.length > 1) {
-                    const detail = `Multiple cameras detected at startup: ${cameras.length} video inputs found.`;
-                    triggerViolation("MULTIPLE_DEVICES", detail);
-                    logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                        metadata: {
-                            cameraCount: cameras.length,
-                            labels: cameras.map((c) => c.label || "unknown"),
-                        },
-                    });
+                if (hasLabels) {
+                    // Camera permission confirmed. Multiple camera devices (e.g. laptop webcam + IR camera/virtual camera)
+                    // are standard hardware inputs and must not be flagged as a violation.
+                    deviceCheckDoneRef.current = true;
+                } else {
+                    // Retry checking in 2 seconds (waiting for permission)
+                    retryTimeout = setTimeout(checkDevices, 2000);
                 }
             } catch (_) {
-                // enumerateDevices may not be available
+                // enumerateDevices may not be available or fails
+                deviceCheckDoneRef.current = true;
             }
         };
 
         checkDevices();
-    }, [isActive, triggerViolation, logEnhancedViolation]);
+
+        return () => {
+            if (retryTimeout) clearTimeout(retryTimeout);
+        };
+    }, [isActive]);
 
     // ── Live devicechange listener ──────────────────────────────────────────
     useEffect(() => {
@@ -101,30 +108,15 @@ export function useStrictProctoringEnhanced({
         }
 
         const handleDeviceChange = async () => {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const cameras = devices.filter((d) => d.kind === "videoinput");
-
-                if (cameras.length > 1) {
-                    const detail = `New device connected mid-session: ${cameras.length} video inputs now active.`;
-                    triggerViolation("MULTIPLE_DEVICES", detail);
-                    logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                        metadata: {
-                            cameraCount: cameras.length,
-                            labels: cameras.map((c) => c.label || "unknown"),
-                        },
-                    });
-                }
-            } catch (_) {
-                // silent
-            }
+            // Live device changes: do not flag violations for camera reconnects or multiple camera inputs.
+            // Secondary monitor changes are handled by Window Management API below.
         };
 
         navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
         return () => {
             navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
         };
-    }, [isActive, triggerViolation, logEnhancedViolation]);
+    }, [isActive]);
 
     // ── Secondary monitor detection (Window Management API) ─────────────────
     useEffect(() => {
@@ -132,23 +124,46 @@ export function useStrictProctoringEnhanced({
             return;
         }
 
-        // screen.isExtended is a boolean that's true when there are multiple screens
-        if (typeof window.screen?.isExtended !== "undefined" && window.screen.isExtended) {
-            const detail = "Secondary monitor detected via Window Management API.";
-            triggerViolation("MULTIPLE_DEVICES", detail);
-            logEnhancedViolation("MULTIPLE_DEVICES", detail, {
-                metadata: { screensExtended: true },
-            });
-        }
+        let debounceTimer = null;
+        let extendedReported = false;
+
+        const checkScreenExtended = () => {
+            if (typeof window.screen?.isExtended !== "undefined" && window.screen.isExtended) {
+                // Only report once per session to avoid flooding with duplicate violations
+                if (extendedReported) return;
+                extendedReported = true;
+                const detail = "Secondary monitor detected via Window Management API.";
+                triggerViolation("MULTIPLE_DEVICES", detail);
+                logEnhancedViolation("MULTIPLE_DEVICES", detail, {
+                    metadata: { screensExtended: true },
+                });
+            } else {
+                // Screen is no longer extended — allow re-reporting if it happens again
+                extendedReported = false;
+            }
+        };
+
+        // Debounced version for focus/resize to avoid rapid-fire calls during macOS Space transitions
+        const debouncedCheckScreenExtended = () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(checkScreenExtended, 2000);
+        };
+
+        // Run initial check
+        checkScreenExtended();
 
         // Also listen for changes (some browsers fire 'change' on screen)
         const handleScreenChange = () => {
             if (window.screen?.isExtended) {
+                if (extendedReported) return;
+                extendedReported = true;
                 const detail = "Secondary monitor connected during session.";
                 triggerViolation("MULTIPLE_DEVICES", detail);
                 logEnhancedViolation("MULTIPLE_DEVICES", detail, {
                     metadata: { screensExtended: true },
                 });
+            } else {
+                extendedReported = false;
             }
         };
 
@@ -158,12 +173,19 @@ export function useStrictProctoringEnhanced({
             // Not all browsers support this
         }
 
+        // Listen for focus & resize with debounce to avoid rapid-fire on macOS fullscreen transitions
+        window.addEventListener("focus", debouncedCheckScreenExtended);
+        window.addEventListener("resize", debouncedCheckScreenExtended);
+
         return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
             try {
                 window.screen?.removeEventListener?.("change", handleScreenChange);
             } catch (_) {
                 // silent
             }
+            window.removeEventListener("focus", debouncedCheckScreenExtended);
+            window.removeEventListener("resize", debouncedCheckScreenExtended);
         };
     }, [isActive, triggerViolation, logEnhancedViolation]);
 

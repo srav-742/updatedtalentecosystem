@@ -13,11 +13,15 @@ import {
     Mail,
     Linkedin,
     Twitter,
-    Copy
+    Copy,
+    ShieldCheck,
+    Users,
+    Lock
 } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import Navbar from '../../components/Navbar';
+import SEO from '../../components/SEO';
 
 const PublicJobDetails = () => {
     const { id } = useParams();
@@ -28,18 +32,22 @@ const PublicJobDetails = () => {
     const [copiedLink, setCopiedLink] = useState(false);
 
     useEffect(() => {
-        const fetchJob = async () => {
+        const fetchJob = async (isBackground = false) => {
+            if (!isBackground) setLoading(true);
             try {
-                const res = await axios.get(`${API_URL}/jobs/${id}`);
+                const res = await axios.get(`${API_URL}/jobs/${id}?_t=${Date.now()}`);
                 setJob(res.data);
             } catch (error) {
                 console.error('Failed to fetch job details:', error);
             } finally {
-                setLoading(false);
+                if (!isBackground) setLoading(false);
             }
         };
 
         fetchJob();
+        const onFocus = () => fetchJob(true);
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, [id]);
 
     useEffect(() => {
@@ -52,7 +60,7 @@ const PublicJobDetails = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showShareMenu]);
 
-    const getShareUrl = () => `${window.location.origin}/seeker/job/${job._id}`;
+    const getShareUrl = () => `${window.location.origin}/candidate/job/${job._id}`;
 
     const handleCopyLink = async () => {
         try {
@@ -90,9 +98,9 @@ const PublicJobDetails = () => {
         if (storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
-                if (parsedUser && parsedUser.uid && parsedUser.role === 'seeker') {
+                if (parsedUser && parsedUser.uid && (parsedUser.role === 'seeker' || parsedUser.role === 'candidate')) {
                     // Navigate directly to the application flow without prompt
-                    navigate(`/seeker/apply/${job._id}`);
+                    navigate(`/candidate/apply/${job._id}`);
                     return;
                 }
             } catch (e) {
@@ -100,9 +108,9 @@ const PublicJobDetails = () => {
             }
         }
 
-        // Navigate to login page with seeker role pre-selected and return URL to the application flow
-        navigate('/login?role=seeker', {
-            state: { from: { pathname: `/seeker/apply/${job._id}` } }
+        // Navigate to login page with candidate role pre-selected and return URL to the application flow
+        navigate('/login?role=candidate', {
+            state: { from: { pathname: `/candidate/apply/${job._id}` } }
         });
     };
 
@@ -123,6 +131,11 @@ const PublicJobDetails = () => {
     if (!job) {
         return (
             <div className="min-h-screen bg-[#f7f4ee]">
+                <SEO 
+                    title="Job Not Found | Hire1Percent" 
+                    description="This job posting could not be found or is no longer active." 
+                    robots="noindex, nofollow" 
+                />
                 <Navbar theme="light" />
                 <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
                     <div className="rounded-[2.5rem] border border-red-200 bg-white px-8 py-20 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
@@ -133,8 +146,32 @@ const PublicJobDetails = () => {
         );
     }
 
+    // Check candidate access & capacity
+    const candidateEmail = (() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return (u?.email || u?.emailId || u?.user?.email || '').trim().toLowerCase();
+        } catch (e) {
+            return '';
+        }
+    })();
+    const isRestricted = !!job.isRestrictedToWhitelist;
+    const allowedList = Array.isArray(job.allowedCandidates)
+        ? job.allowedCandidates.map(e => String(e).trim().toLowerCase())
+        : [];
+    const isWhitelistedCandidate = Boolean(candidateEmail && allowedList.includes(candidateEmail));
+    const isExplicitlyDenied = isRestricted && candidateEmail && !allowedList.includes(candidateEmail);
+    // Whitelisted candidates and invite-only roles are never blocked by public applicant count quota
+    const isLimitReached = !isWhitelistedCandidate && !isRestricted && typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit;
+
     return (
         <div className="min-h-screen bg-[#f7f4ee]">
+            <SEO 
+                title={`${job.title} | Hire1Percent`}
+                description={job.description ? job.description.substring(0, 160).replace(/[#*`_]/g, '') : `Apply for ${job.title} on Hire1Percent.`}
+                canonicalUrl={`/candidate/job/${id}`}
+                robots="index, follow"
+            />
             <Navbar theme="light" />
             <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
                 <div className="space-y-8">
@@ -220,56 +257,88 @@ const PublicJobDetails = () => {
                         </div>
                     </div>
 
-                    <header className="rounded-[2.5rem] border border-black/10 bg-white px-8 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                        <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
-                            <div className="flex items-start gap-5">
-                                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#f4efe6] text-gray-700">
-                                    <Building2 size={36} />
+                    <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-5 px-6 md:py-6 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.05)]">
+                        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="flex items-start gap-4">
+                                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
+                                    <Building2 size={26} />
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Job overview</p>
-                                    <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900">{job.title}</h1>
-                                    <p className="mt-2 text-base text-gray-500">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">Job overview</p>
+                                    <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900">{job.title}</h1>
+                                    <p className="mt-1 text-sm text-gray-500">
                                         {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
                                     </p>
-                                    <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-500">
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                            <MapPin size={14} />
+                                    <div className="mt-3.5 flex flex-wrap gap-2 text-xs text-gray-500">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                            <MapPin size={12} />
                                             {job.location || 'Remote'}
                                         </span>
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                            <Clock3 size={14} />
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                            <Clock3 size={12} />
                                             {job.experienceLevel || `${job.minExperience || 0}+ years`}
                                         </span>
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-4 py-2">
-                                            <GraduationCap size={14} />
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf8f3] px-3 py-1">
+                                            <GraduationCap size={12} />
                                             {job.qualification || 'Any qualification'}
                                         </span>
+                                        {job.isRestrictedToWhitelist && (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 font-medium">
+                                                <ShieldCheck size={12} className="text-amber-600" />
+                                                Listed Candidates Only
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="w-full xl:max-w-md rounded-[2rem] border border-black/10 bg-[#fbf8f3] p-6">
-                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Start application</p>
-                                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">Ready to apply?</h2>
-                                <p className="mt-3 text-sm leading-7 text-gray-600">
-                                    Upload your resume to begin the AI-led application process and unlock the assessment and interview stages.
+                            <div className="w-full xl:max-w-sm rounded-xl md:rounded-2xl border border-black/10 bg-[#fbf8f3] p-4.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Start application</p>
+                                <h2 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Ready to apply?</h2>
+                                <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                    Upload your resume to begin the AI-led application process and unlock assessment stages.
                                 </p>
 
-                                <div className="mt-6 space-y-3">
-                                    <button
-                                        onClick={handleResumeAnalysis}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                                    >
-                                        <Sparkles size={18} />
-                                        Apply
-                                    </button>
-                                    {!localStorage.getItem('user') && (
-                                        <p className="text-xs text-center text-gray-400">
-                                            You'll be asked to sign in before proceeding
+                                {isExplicitlyDenied ? (
+                                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+                                        <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                                        <div>
+                                            <p className="font-semibold">Listed Candidates Only</p>
+                                            <p className="mt-0.5 text-gray-600">This role is only open to pre-selected candidates. Your email ({candidateEmail}) is not on the list.</p>
+                                        </div>
+                                    </div>
+                                ) : isLimitReached ? (
+                                    <div className="mt-4 space-y-2">
+                                        <button
+                                            disabled
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-200 text-gray-500 px-4 py-2.5 text-xs font-semibold cursor-not-allowed"
+                                        >
+                                            Applications Closed
+                                        </button>
+                                        <p className="text-[11px] text-center text-gray-500">
+                                            This position is currently not accepting new applicants.
                                         </p>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : (
+                                    <div className="mt-4 space-y-2">
+                                        <button
+                                            onClick={handleResumeAnalysis}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-xs"
+                                        >
+                                            <Sparkles size={14} />
+                                            {isWhitelistedCandidate ? 'Start Assessment & Interview' : 'Apply'}
+                                        </button>
+                                        {!candidateEmail && isRestricted ? (
+                                            <p className="text-[11px] text-center text-amber-700 font-medium">
+                                                Invited role: Sign in with your invited email to start assessment & interview
+                                            </p>
+                                        ) : !localStorage.getItem('user') ? (
+                                            <p className="text-[11px] text-center text-gray-400">
+                                                You'll be asked to sign in before proceeding
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </header>

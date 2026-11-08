@@ -1,222 +1,232 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Archive,
+    Briefcase,
     BriefcaseBusiness,
     CheckCircle2,
-    ChevronDown,
-    ChevronUp,
+    ChevronRight,
     Circle,
     CircleDot,
     Clock3,
     FileText,
-    Loader2
+    MapPin,
+    Search,
+    Sparkles,
+    Trash2,
+    Zap,
+    Bookmark,
+    Layers,
+    ArrowRight,
+    RotateCcw,
+    Code2,
+    Brain,
+    Video,
+    AlertCircle,
+    X,
+    Check
 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { ApplicationTrackerSkeleton } from '../../components/Skeleton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const getStatusTone = (status) => {
+// Color palettes for company avatars
+const AVATAR_GRADIENTS = [
+    'from-blue-600 to-indigo-700 text-white',
+    'from-violet-600 to-purple-700 text-white',
+    'from-emerald-600 to-teal-800 text-white',
+    'from-amber-500 to-orange-600 text-white',
+    'from-rose-500 to-pink-600 text-white',
+    'from-cyan-600 to-blue-700 text-white',
+    'from-fuchsia-600 to-indigo-700 text-white',
+    'from-teal-600 to-emerald-700 text-white'
+];
+
+const getCompanyMeta = (job, index = 0) => {
+    const companyName = job?.company || job?.recruiterId?.company?.name || job?.recruiter?.company?.name || 'hire1percent Partner';
+    const logoUrl = job?.companyLogo || job?.recruiter?.profilePic || job?.recruiterId?.profilePic;
+    const hash = companyName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const gradient = AVATAR_GRADIENTS[(hash + index) % AVATAR_GRADIENTS.length];
+    
+    let initials = 'HP';
+    const cleanName = companyName.trim();
+    const lowerName = cleanName.toLowerCase();
+
+    if (lowerName.includes('hire1percent') || lowerName.includes('hire 1 percent') || lowerName.startsWith('hire1') || lowerName.startsWith('hire')) {
+        initials = 'HP';
+    } else {
+        const words = cleanName.split(/\s+/);
+        if (words.length > 1) {
+            initials = `${words[0][0]}${words[1][0]}`.toUpperCase();
+        } else {
+            const capitals = cleanName.match(/[A-Z]/g);
+            if (capitals && capitals.length >= 2) {
+                initials = `${capitals[0]}${capitals[1]}`.toUpperCase();
+            } else {
+                initials = (cleanName.slice(0, 2) || 'CO').toUpperCase();
+            }
+        }
+    }
+
+    return { companyName, logoUrl, gradient, initials };
+};
+
+const getStatusBadge = (status) => {
     switch (status) {
         case 'SHORTLISTED':
-            return 'bg-[#eef8f1] text-emerald-700 border-emerald-200';
+            return {
+                label: 'Shortlisted',
+                className: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+                dot: 'bg-emerald-500'
+            };
         case 'HIRED':
         case 'ELIGIBLE':
-            return 'bg-[#eef4ff] text-blue-700 border-blue-200';
+            return {
+                label: status === 'HIRED' ? 'Hired' : 'Eligible',
+                className: 'bg-blue-50 text-blue-700 border-blue-200/80',
+                dot: 'bg-blue-500'
+            };
         case 'REJECTED':
-            return 'bg-[#fff1f1] text-red-700 border-red-200';
+            return {
+                label: 'Closed / Not Selected',
+                className: 'bg-red-50 text-red-700 border-red-200/80',
+                dot: 'bg-red-500'
+            };
         case 'SAVED':
-            return 'bg-[#fef9c3] text-amber-700 border-amber-200';
+            return {
+                label: 'Saved Role',
+                className: 'bg-amber-50 text-amber-700 border-amber-200/80',
+                dot: 'bg-amber-500'
+            };
+        case 'APPLIED':
         default:
-            return 'bg-[#f8f4ed] text-gray-700 border-black/10';
+            return {
+                label: 'Pending Review',
+                className: 'bg-gray-100 text-gray-700 border-black/10',
+                dot: 'bg-gray-400'
+            };
     }
 };
 
-const getTimeline = (status) => {
+const hasValidInterview = (app) => {
+    if (!app || app.interviewScore === null || app.interviewScore === undefined) return false;
+    if (app.interviewScore > 0) return true;
+    return Array.isArray(app.interviewAnswers) && app.interviewAnswers.length > 0;
+};
+
+const getTimelineSteps = (application, job) => {
+    const status = application?.status || 'APPLIED';
     const isShortlisted = ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(status);
     const isSelected = ['ELIGIBLE', 'HIRED'].includes(status);
     const isHired = status === 'HIRED';
     const isRejected = status === 'REJECTED';
+    const isSaved = status === 'SAVED';
+
+    const isResumeDone = job?.resumeAnalysis?.enabled === false || (application?.resumeMatchPercent !== null && application?.resumeMatchPercent !== undefined);
+    const isInterviewDone = !job?.mockInterview?.enabled || hasValidInterview(application);
+    const isVideoDone = !job?.mockInterview?.enabled || !!application?.videoIntroUrl || isInterviewDone;
+    const isAssessmentDone = !job?.assessment?.enabled || (application?.assessmentScore !== null && application?.assessmentScore !== undefined);
+    const isCodingDone = !job?.codingAssessment?.enabled || (application?.codingScore !== null && application?.codingScore !== undefined);
+
+    // Concluded pipeline: all modules done, or candidate concluded the final interview round, or terminal status
+    const hasConcludedInterview = job?.mockInterview?.enabled && hasValidInterview(application);
+    const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
+                         (hasConcludedInterview && isResumeDone) ||
+                         isShortlisted || isSelected || isHired;
+
+    // Review & Match stage: completed once resume is parsed, or if candidate reached shortlisted/selected/hired
+    const reviewCompleted = isResumeDone || isShortlisted || isSelected || isHired || (isRejected && allTestsDone);
+    const reviewActive = !reviewCompleted && !isSaved;
+
+    // Assessment stage: completed once all required tests/rounds are done, or if candidate reached shortlisted/selected/hired
+    const assessmentCompleted = allTestsDone || isShortlisted || isSelected || isHired;
+    const assessmentActive = !assessmentCompleted && isResumeDone && !isSaved && !isRejected;
+
+    // Selection stage: completed once final decision is rendered (selected/hired/closed)
+    const selectionCompleted = isSelected || isHired || isRejected;
+    const selectionActive = isSelected || isHired || isShortlisted || (allTestsDone && !isRejected);
+
+    let assessmentLabel = 'Assessment';
+    let assessmentDesc = 'Interview round';
+    if (isRejected) {
+        assessmentLabel = 'Not Shortlisted';
+        assessmentDesc = 'Process concluded';
+    } else if (assessmentCompleted) {
+        assessmentDesc = 'All rounds completed';
+    } else if (assessmentActive) {
+        assessmentDesc = 'Rounds in progress';
+    }
+
+    let selectionLabel = 'Selection';
+    let selectionDesc = 'Final offer stage';
+    if (isRejected) {
+        selectionLabel = 'Closed';
+        selectionDesc = 'Role closed';
+    } else if (isHired) {
+        selectionLabel = 'Hired';
+        selectionDesc = 'Offer accepted';
+    } else if (status === 'ELIGIBLE') {
+        selectionLabel = 'Eligible';
+        selectionDesc = 'Offer stage';
+    } else if (status === 'SHORTLISTED') {
+        selectionLabel = 'Shortlisted';
+        selectionDesc = 'Selected for offer';
+    } else if (allTestsDone) {
+        selectionDesc = 'Pending recruiter review';
+    }
+
+    let reviewDesc = 'AI resume parsing';
+    if (isRejected) {
+        reviewDesc = 'Resume reviewed';
+    } else if (application?.resumeMatchPercent !== null && application?.resumeMatchPercent !== undefined) {
+        reviewDesc = `${application.resumeMatchPercent}% resume match`;
+    } else if (reviewCompleted) {
+        reviewDesc = 'Resume matched';
+    }
 
     return [
         {
-            label: 'Application submitted',
-            active: false,
-            completed: true
+            label: 'Submitted',
+            description: 'Application received',
+            completed: !isSaved,
+            active: false
         },
         {
-            label: isRejected ? 'Application reviewed' : 'Pending review',
-            active: status === 'APPLIED',
-            completed: isShortlisted || isSelected || isRejected || isHired
+            label: isRejected ? 'Reviewed' : 'Review & Match',
+            description: reviewDesc,
+            completed: reviewCompleted,
+            active: reviewActive
         },
         {
-            label: isRejected ? 'Not shortlisted' : 'Shortlisted',
-            active: status === 'SHORTLISTED',
-            completed: isShortlisted || isSelected || isRejected || isHired
+            label: assessmentLabel,
+            description: assessmentDesc,
+            completed: assessmentCompleted,
+            active: assessmentActive
         },
         {
-            label: isRejected ? 'Closed' : 'Selected for job',
-            active: isSelected || isRejected || isHired,
-            completed: isSelected || isRejected || isHired
+            label: selectionLabel,
+            description: selectionDesc,
+            completed: selectionCompleted,
+            active: selectionActive
         }
     ];
 };
 
-const Metric = ({ label, value }) => (
-    <div className="rounded-[1.5rem] border border-black/10 bg-[#fbf8f3] p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">{label}</p>
-        <p className="mt-3 text-2xl font-semibold tracking-tight text-gray-900">{value}</p>
-    </div>
-);
-
-const TimelineRow = ({ step, isCurrent }) => (
-    <div className="flex items-start gap-4">
-        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white">
-            {step.completed ? (
-                <CheckCircle2 size={16} className="text-black" />
-            ) : step.active ? (
-                <CircleDot size={16} className="text-black" />
-            ) : (
-                <Circle size={16} className="text-gray-300" />
-            )}
-        </div>
-        <div>
-            <p className={`text-sm font-medium ${step.completed || step.active ? 'text-gray-900' : 'text-gray-400'}`}>
-                {step.label}
-            </p>
-            {isCurrent ? (
-                <p className="mt-1 text-xs font-medium text-gray-500">Current stage</p>
-            ) : null}
-        </div>
-    </div>
-);
-
-const ApplicationsSection = ({ title, subtitle, icon: Icon, applications, open, onToggle, emptyMessage, onUnsave }) => (
-    <section className="rounded-[2.25rem] border border-black/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-        <button
-            onClick={onToggle}
-            className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left md:px-8"
-        >
-            <div className="flex items-start gap-3">
-                <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-700">
-                    <Icon size={18} />
-                </div>
-                <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-900">{title} ({applications.length})</h2>
-                    <p className="mt-1 text-sm leading-6 text-gray-500">{subtitle}</p>
-                </div>
-            </div>
-            {open ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
-        </button>
-
-        {open ? (
-            <div className="space-y-4 border-t border-black/10 px-4 py-4 md:px-6 md:py-6">
-                {applications.length > 0 ? (
-                    applications.map((application) => {
-                        const timeline = getTimeline(application.status);
-                        const currentIndex = timeline.findIndex((step) => step.active);
-
-                        return (
-                            <article
-                                key={application._id}
-                                className="rounded-[2rem] border border-black/10 bg-[#fcfaf6] p-5 md:p-6"
-                            >
-                                <div className="flex flex-col gap-5 border-b border-black/10 pb-5 md:flex-row md:items-start md:justify-between">
-                                    <div className="flex items-start gap-4">
-                                        <div className="flex h-14 w-14 items-center justify-center rounded-[1.5rem] bg-white text-gray-700 shadow-sm">
-                                            <BriefcaseBusiness size={24} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                                                {application.jobId?.title || 'Untitled role'}
-                                            </h3>
-                                            <p className="mt-1 text-sm text-gray-500">
-                                                {application.jobId?.recruiterId?.company?.name || application.jobId?.company || 'Hiring team'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <span className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] ${getStatusTone(application.status)}`}>
-                                            {application.status === 'APPLIED' ? 'Pending Review' : application.status}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {application.status === 'SAVED' ? (
-                                    <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-[1.75rem] border border-black/10 bg-white p-5">
-                                        <p className="text-sm text-gray-600">
-                                            You saved this job. You can start your AI application whenever you have time.
-                                        </p>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <button
-                                                onClick={() => onUnsave(application._id)}
-                                                className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold text-gray-500 transition hover:bg-[#faf7f1]"
-                                            >
-                                                Remove
-                                            </button>
-                                            <Link
-                                                to={`/seeker/job/${application.jobId?._id}`}
-                                                className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800"
-                                            >
-                                                Apply Now
-                                            </Link>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="mt-5 space-y-4">
-                                        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-                                            <div className="space-y-3 rounded-[1.75rem] border border-black/10 bg-white p-5">
-                                                {timeline.map((step, index) => (
-                                                    <TimelineRow
-                                                        key={`${application._id}-${step.label}`}
-                                                        step={step}
-                                                        isCurrent={index === currentIndex}
-                                                    />
-                                                ))}
-                                            </div>
-
-                                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                                <Metric label="Resume Match" value={application.resumeMatchPercent ? `${application.resumeMatchPercent}/10` : '--'} />
-                                                <Metric label="Assessment" value={application.assessmentScore ? `${application.assessmentScore}/20` : '--'} />
-                                                <Metric label="Interview" value={application.interviewScore ? `${application.interviewScore}/70` : '--'} />
-                                                <Metric label="Final Score" value={application.finalScore ? `${application.finalScore}/100` : '--'} />
-                                            </div>
-                                        </div>
-
-                                        {!application.interviewScore && application.jobId?.mockInterview?.enabled && (
-                                            <div className="flex justify-end pt-2">
-                                                <Link
-                                                    to={`/seeker/apply/${application.jobId?._id || application.jobId}`}
-                                                    className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white transition hover:bg-gray-800 shadow-sm"
-                                                >
-                                                    <BriefcaseBusiness size={14} />
-                                                    Resume Application Flow
-                                                </Link>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </article>
-                        );
-                    })
-                ) : (
-                    <div className="rounded-[1.75rem] border border-dashed border-black/10 bg-[#fbf8f3] px-6 py-14 text-center">
-                        <p className="text-sm font-medium text-gray-500">{emptyMessage}</p>
-                    </div>
-                )}
-            </div>
-        ) : null}
-    </section>
-);
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
 const MyApplications = () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [submittedOpen, setSubmittedOpen] = useState(true);
-    const [archivedOpen, setArchivedOpen] = useState(false);
+    const [selectedTab, setSelectedTab] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Retest state
+    const [retestModalOpen, setRetestModalOpen] = useState(false);
+    const [selectedRetestApp, setSelectedRetestApp] = useState(null);
+    const [selectedRound, setSelectedRound] = useState('coding');
+    const [retesting, setRetesting] = useState(false);
+    const [retestError, setRetestError] = useState(null);
+    const [retestSuccess, setRetestSuccess] = useState(null);
 
     const userId = user.uid || user._id || user.id;
 
@@ -225,80 +235,752 @@ const MyApplications = () => {
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                if (error.response?.status !== 404) throw error;
+                return axios.get(`${API_URL}/applications/seeker/${userId}`);
+            });
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId,
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 
-    const submittedApplications = useMemo(
-        () => applications.filter((application) => application.status !== 'REJECTED' && application.status !== 'SAVED'),
+    const activeApplications = useMemo(
+        () => applications.filter((app) => app.status !== 'REJECTED' && app.status !== 'SAVED'),
+        [applications]
+    );
+
+    const savedApplications = useMemo(
+        () => applications.filter((app) => app.status === 'SAVED'),
         [applications]
     );
 
     const archivedApplications = useMemo(
-        () => applications.filter((application) => application.status === 'REJECTED' || application.status === 'SAVED'),
+        () => applications.filter((app) => app.status === 'REJECTED'),
         [applications]
     );
+
+    // Filtered by active tab and search term
+    const displayedApplications = useMemo(() => {
+        let baseList = applications;
+        if (selectedTab === 'active') baseList = activeApplications;
+        else if (selectedTab === 'saved') baseList = savedApplications;
+        else if (selectedTab === 'archived') baseList = archivedApplications;
+
+        if (!searchTerm.trim()) return baseList;
+
+        const term = searchTerm.toLowerCase();
+        return baseList.filter((app) => {
+            const title = app.jobId?.title || '';
+            const company = app.jobId?.company || app.jobId?.recruiterId?.company?.name || '';
+            return title.toLowerCase().includes(term) || company.toLowerCase().includes(term);
+        });
+    }, [applications, activeApplications, savedApplications, archivedApplications, selectedTab, searchTerm]);
 
     // Mutation for unsaving jobs
     const unsaveMutation = useMutation({
         mutationFn: async (appId) => {
-            await axios.delete(`${API_URL}/applications/${appId}`);
+            const headers = await getAuthHeaders().catch(() => ({}));
+            await axios.delete(`${API_URL}/applications/${appId}`, { headers });
         },
-        onSuccess: () => {
+        onSuccess: (_, appId) => {
+            queryClient.setQueryData(['applications', userId], (oldApps) => {
+                if (!oldApps) return [];
+                return oldApps.filter((app) => app._id !== appId && app.id !== appId);
+            });
             queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
     });
 
-    const handleUnsave = async (appId) => {
+    const handleUnsave = (appId) => {
         unsaveMutation.mutate(appId);
     };
 
+    const handleOpenRetestModal = (app) => {
+        setSelectedRetestApp(app);
+        const job = app.jobId || {};
+        if (job.codingAssessment?.enabled) {
+            setSelectedRound('coding');
+        } else if (job.assessment?.enabled) {
+            setSelectedRound('assessment');
+        } else if (job.mockInterview?.enabled) {
+            setSelectedRound('interview');
+        } else {
+            setSelectedRound('coding');
+        }
+        setRetestError(null);
+        setRetestSuccess(null);
+        setRetestModalOpen(true);
+    };
+
+    const handleConfirmRetest = async () => {
+        if (!selectedRetestApp) return;
+        setRetesting(true);
+        setRetestError(null);
+        try {
+            const headers = await getAuthHeaders().catch(() => ({}));
+            const res = await axios.post(
+                `${API_URL}/applications/${selectedRetestApp._id}/retest`,
+                {
+                    round: selectedRound,
+                    reason: 'Candidate requested retest from dashboard'
+                },
+                { headers }
+            );
+
+            if (res.data?.success) {
+                const roundName = selectedRound === 'coding' ? 'Coding Assessment' : selectedRound === 'assessment' ? 'Skill Assessment' : 'AI Interview';
+                setRetestSuccess(`${roundName} reset successfully! Redirecting to test...`);
+                queryClient.invalidateQueries({ queryKey: ['applications', userId] });
+
+                setTimeout(() => {
+                    setRetestModalOpen(false);
+                    const targetJobId = selectedRetestApp.jobId?._id || selectedRetestApp.jobId;
+                    navigate(`/candidate/apply/${targetJobId}?step=${selectedRound}&retest=true`);
+                }, 900);
+            } else {
+                setRetestError(res.data?.message || 'Failed to initiate retest.');
+            }
+        } catch (err) {
+            console.error('Retest error:', err);
+            setRetestError(err.response?.data?.message || 'Failed to initiate retest. Please try again.');
+        } finally {
+            setRetesting(false);
+        }
+    };
+
     return (
-        <div className="space-y-8">
-            <header className="rounded-[2.25rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-7 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Application tracking</p>
-                <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-6">
+            {/* Header Banner */}
+            <header className="overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] py-4.5 px-6 md:py-5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Track your applications</h1>
-                        <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
-                            Follow each submitted application from review to shortlist and selection, all in one clean timeline.
+                        <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#f4efe6] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Application Tracker
+                        </div>
+                        <h1 className="mt-1.5 text-xl md:text-2xl font-bold tracking-tight text-gray-900">
+                            Track your applications & pipeline
+                        </h1>
+                        <p className="mt-1 max-w-2xl text-xs md:text-[13px] text-gray-500">
+                            Follow each submitted application through resume screening, skill assessments, and recruiter decisions in real time.
                         </p>
                     </div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f4ed] px-4 py-2 text-sm font-medium text-gray-700">
-                        <Clock3 size={16} />
-                        Updated in real time
+
+                    <div className="relative min-w-full lg:min-w-[300px]">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+                        <input
+                            type="text"
+                            placeholder="Filter by role or company..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full rounded-xl border border-black/10 bg-[#faf7f1] py-2.5 pl-10 pr-4 text-xs text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
+                        />
                     </div>
                 </div>
             </header>
 
+            {/* Quick Stat Summary Pills */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4 shadow-xs">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
+                        <Layers size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Roles</p>
+                        <p className="text-xl font-bold text-gray-900">{applications.length}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4 shadow-xs">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        <Briefcase size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active In Review</p>
+                        <p className="text-xl font-bold text-gray-900">{activeApplications.length}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4 shadow-xs">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700 border border-amber-100">
+                        <Bookmark size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Saved Roles</p>
+                        <p className="text-xl font-bold text-gray-900">{savedApplications.length}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4 shadow-xs">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-600 border border-black/5">
+                        <Clock3 size={18} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Archived</p>
+                        <p className="text-xl font-bold text-gray-900">{archivedApplications.length}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Segmented Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-black/10 bg-white p-2 shadow-xs">
+                {[
+                    { id: 'all', label: 'All Applications', count: applications.length },
+                    { id: 'active', label: 'Active Pipeline', count: activeApplications.length },
+                    { id: 'saved', label: 'Saved Roles', count: savedApplications.length },
+                    { id: 'archived', label: 'Archived', count: archivedApplications.length }
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setSelectedTab(tab.id)}
+                        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
+                            selectedTab === tab.id
+                                ? 'bg-black text-white shadow-xs'
+                                : 'text-gray-600 hover:bg-[#faf7f1] hover:text-gray-900'
+                        }`}
+                    >
+                        <span>{tab.label}</span>
+                        <span
+                            className={`rounded-full px-2 py-0.2 text-[10px] font-bold ${
+                                selectedTab === tab.id
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-black/5 text-gray-500'
+                            }`}
+                        >
+                            {tab.count}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Main Content Area */}
             {loading ? (
                 <ApplicationTrackerSkeleton />
-            ) : (
-                <>
-                    <ApplicationsSection
-                        title="Submitted"
-                        subtitle="Track the progress of your active applications and see each stage as it moves forward."
-                        icon={FileText}
-                        applications={submittedApplications}
-                        open={submittedOpen}
-                        onToggle={() => setSubmittedOpen((value) => !value)}
-                        emptyMessage="No active applications yet. Once you apply, they will appear here."
-                    />
+            ) : displayedApplications.length > 0 ? (
+                <div className="space-y-4">
+                    {displayedApplications.map((application, index) => {
+                        const job = application.jobId || {};
+                        const { companyName, logoUrl, gradient, initials } = getCompanyMeta(job, index);
+                        const statusInfo = getStatusBadge(application.status);
+                        const timeline = getTimelineSteps(application, job);
+                        const isSaved = application.status === 'SAVED';
 
-                    <ApplicationsSection
-                        title="Archived"
-                        subtitle="Closed or unsuccessful applications stay here for reference."
-                        icon={Archive}
-                        applications={archivedApplications}
-                        open={archivedOpen}
-                        onToggle={() => setArchivedOpen((value) => !value)}
-                        emptyMessage="No archived applications right now."
-                        onUnsave={handleUnsave}
-                    />
-                </>
+                        const isResumeDone = job.resumeAnalysis?.enabled === false || (application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined);
+                        const isInterviewDone = !job.mockInterview?.enabled || hasValidInterview(application);
+                        const isVideoDone = !job.mockInterview?.enabled || !!application.videoIntroUrl || isInterviewDone;
+                        const isAssessmentDone = !job.assessment?.enabled || (application.assessmentScore !== null && application.assessmentScore !== undefined);
+                        const isCodingDone = !job.codingAssessment?.enabled || (application.codingScore !== null && application.codingScore !== undefined);
+
+                        const hasConcludedInterview = job.mockInterview?.enabled && hasValidInterview(application);
+                        const allTestsDone = (isResumeDone && isVideoDone && isAssessmentDone && isCodingDone && isInterviewDone) ||
+                                             (hasConcludedInterview && isResumeDone) ||
+                                             ['SHORTLISTED', 'ELIGIBLE', 'HIRED'].includes(application.status);
+                        const isComplete = allTestsDone || ['SHORTLISTED', 'ELIGIBLE', 'HIRED', 'REJECTED'].includes(application.status) || hasConcludedInterview;
+
+                        return (
+                            <motion.article
+                                key={application._id}
+                                initial={{ opacity: 0, y: 12 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.03 }}
+                                className="rounded-3xl border border-black/10 bg-white p-5 md:p-6 shadow-[0_12px_35px_rgba(15,23,42,0.03)] transition-all hover:border-black/20 hover:shadow-[0_16px_45px_rgba(15,23,42,0.06)]"
+                            >
+                                {/* Top Row: Company Avatar + Role info + Status badge */}
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="flex items-start gap-3.5 min-w-0">
+                                        {/* Company Avatar */}
+                                        <div className="relative shrink-0">
+                                            {logoUrl ? (
+                                                <div className="h-12 w-12 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xs">
+                                                    <img src={logoUrl} alt={companyName} className="h-full w-full object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} shadow-xs font-bold text-sm tracking-wider`}>
+                                                    {initials}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <h2 className="text-base md:text-lg font-bold tracking-tight text-gray-900 leading-snug">
+                                                {job.title || 'Untitled Role'}
+                                            </h2>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                                <span className="font-medium text-gray-700">{companyName}</span>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="inline-flex items-center gap-1">
+                                                    <MapPin size={12} className="text-gray-400" />
+                                                    {job.location || 'Remote'}
+                                                </span>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="rounded-md bg-[#faf7f1] px-2 py-0.5 border border-black/[0.04] text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                                                    {job.type || 'Full-time'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusInfo.className}`}>
+                                            <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+                                            {statusInfo.label}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Content Section: Saved role action OR Stage Timeline Stepper */}
+                                <div className="mt-5 space-y-4">
+                                    {/* Horizontal Stepper Progress Pipeline */}
+                                    <div className="rounded-2xl border border-black/[0.06] bg-[#faf7f1] p-4 md:p-5">
+                                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                            {timeline.map((step, idx) => (
+                                                <div key={step.label} className="flex flex-col justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                                                            step.completed
+                                                                ? 'bg-black text-white shadow-xs'
+                                                                : step.active
+                                                                ? 'bg-amber-500 text-white ring-4 ring-amber-100 shadow-xs'
+                                                                : 'border border-gray-300 bg-white text-gray-400'
+                                                        }`}>
+                                                            {step.completed ? (
+                                                                <CheckCircle2 size={13} />
+                                                            ) : step.active ? (
+                                                                <CircleDot size={13} />
+                                                            ) : (
+                                                                <Circle size={13} />
+                                                            )}
+                                                        </div>
+                                                        <span className={`text-xs font-bold leading-tight shrink-0 ${
+                                                            step.completed || step.active ? 'text-gray-900' : 'text-gray-400'
+                                                        }`}>
+                                                            {step.label}
+                                                        </span>
+                                                        {/* Connector line to next step - visible across devices and viewports */}
+                                                        {idx < timeline.length - 1 && (
+                                                            <div className="flex-1 min-w-[14px] ml-2 self-center">
+                                                                <div className={`h-[2px] w-full rounded-full transition-all duration-300 ${
+                                                                    step.completed && timeline[idx + 1].completed
+                                                                        ? 'bg-black'
+                                                                        : (step.completed && timeline[idx + 1].active) || (step.active && timeline[idx + 1].active)
+                                                                        ? 'bg-amber-400'
+                                                                        : 'bg-black/15'
+                                                                }`} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-1 text-[11px] text-gray-500 pl-8 leading-tight">
+                                                        {step.description}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {isSaved ? (
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-black/[0.06] bg-[#fbf8f3] p-4">
+                                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                                                <Bookmark size={15} className="text-amber-500 shrink-0" />
+                                                <span>This job is saved in your bookmark list. Ready to proceed with your application?</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <button
+                                                    onClick={() => handleUnsave(application._id)}
+                                                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                                                >
+                                                    <Trash2 size={13} />
+                                                    <span>Remove</span>
+                                                </button>
+                                                <Link
+                                                    to={`/candidate/job/${job._id || application.jobId}`}
+                                                    className="inline-flex items-center gap-1.5 rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+                                                >
+                                                    <span>Apply Now</span>
+                                                    <ArrowRight size={13} />
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Assessment Rounds Breakdown & Retest Actions */}
+                                        <div className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-xs">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-gray-100">
+                                                <div className="flex items-center gap-2">
+                                                    <Layers size={14} className="text-gray-500" />
+                                                    <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">Evaluation Rounds & Performance</span>
+                                                </div>
+                                                
+                                                {/* Retest Action Button */}
+                                                {(() => {
+                                                    const app = application;
+                                                    const hasAssessmentRetest = app.jobId?.assessment?.enabled && app.retestAccess?.assessment?.granted;
+                                                    const hasCodingRetest = app.jobId?.codingAssessment?.enabled && app.retestAccess?.coding?.granted;
+                                                    const hasInterviewRetest = app.jobId?.mockInterview?.enabled && app.retestAccess?.interview?.granted;
+                                                    
+                                                    if (hasAssessmentRetest || hasCodingRetest || hasInterviewRetest) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenRetestModal(application)}
+                                                                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 hover:border-amber-400 cursor-pointer self-start sm:self-auto"
+                                                                title="Faced technical issues or want to improve your score? Retake assessment"
+                                                            >
+                                                                <RotateCcw size={12} className="text-amber-700" />
+                                                                <span>Retest Assessment</span>
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+
+                                            {/* Badges Grid for All Configured Modules */}
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                                                {/* Resume Analysis */}
+                                                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <FileText size={14} className="text-gray-600 shrink-0" />
+                                                        <span className="text-xs font-semibold text-gray-700 truncate">Resume Match</span>
+                                                    </div>
+                                                    <span className={`text-xs font-bold shrink-0 ${
+                                                        application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined
+                                                            ? 'text-emerald-700'
+                                                            : 'text-gray-900'
+                                                    }`}>
+                                                        {application.resumeMatchPercent !== null && application.resumeMatchPercent !== undefined
+                                                            ? 'Completed'
+                                                            : 'Pending'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Candidate Intro (Video Deck) */}
+                                                {(job.mockInterview?.enabled || application.videoIntroUrl) && (
+                                                    <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                                                        application.videoIntroUrl
+                                                            ? 'bg-purple-50/70 border-purple-200/80 text-purple-900'
+                                                            : 'bg-[#faf7f1] border-black/[0.04] text-gray-700'
+                                                    }`}>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Video size={14} className={application.videoIntroUrl ? 'text-purple-600 shrink-0' : 'text-gray-400 shrink-0'} />
+                                                            <span className="text-xs font-semibold truncate">Candidate Intro</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            application.videoIntroUrl
+                                                                ? 'text-purple-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {application.videoIntroUrl ? 'Completed' : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Skill Assessment (MCQ) */}
+                                                {job.assessment?.enabled && (
+                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Brain size={14} className="text-blue-600 shrink-0" />
+                                                            <span className="text-xs font-semibold text-gray-700 truncate">Skill MCQ</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            application.assessmentScore !== null && application.assessmentScore !== undefined
+                                                                ? 'text-blue-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {application.assessmentScore !== null && application.assessmentScore !== undefined
+                                                                ? 'Completed'
+                                                                : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Coding Assessment */}
+                                                {job.codingAssessment?.enabled && (
+                                                    <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                                                        application.codingScore !== null && application.codingScore !== undefined
+                                                            ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'
+                                                            : 'bg-[#faf7f1] border-black/[0.04] text-gray-700'
+                                                    }`}>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Code2 size={14} className={
+                                                                application.codingScore !== null && application.codingScore !== undefined
+                                                                    ? 'text-emerald-600 shrink-0'
+                                                                    : 'text-teal-600 shrink-0'
+                                                            } />
+                                                            <span className="text-xs font-semibold truncate">Coding Challenge</span>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <span className="text-xs font-bold">
+                                                                {application.codingScore !== null && application.codingScore !== undefined
+                                                                    ? 'Completed'
+                                                                    : 'Pending'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Mock Interview / Candidate Deck */}
+                                                {job.mockInterview?.enabled && (
+                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#faf7f1] border border-black/[0.04]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <Video size={14} className="text-purple-600 shrink-0" />
+                                                            <span className="text-xs font-semibold text-gray-700 truncate">AI Interview</span>
+                                                        </div>
+                                                        <span className={`text-xs font-bold shrink-0 ${
+                                                            hasValidInterview(application)
+                                                                ? 'text-purple-900 font-black'
+                                                                : 'text-gray-400 font-medium'
+                                                        }`}>
+                                                            {hasValidInterview(application)
+                                                                ? 'Completed'
+                                                                : 'Pending'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Action / Resume Pipeline bar if incomplete */}
+                                        {!isComplete && (
+                                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-purple-200/70 bg-purple-50/50 p-4">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-white shadow-xs">
+                                                        <Zap size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-purple-900">Application in Progress</p>
+                                                        <p className="text-[11px] text-purple-700">Complete your remaining rounds to finalize your candidate profile for the recruiter.</p>
+                                                    </div>
+                                                </div>
+                                                <Link
+                                                    to={`/candidate/apply/${job._id || application.jobId}`}
+                                                    className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-purple-800 shrink-0"
+                                                >
+                                                    <BriefcaseBusiness size={13} />
+                                                    <span>Resume Application Flow</span>
+                                                    <ChevronRight size={14} />
+                                                </Link>
+                                            </div>
+                                        )}
+                                        </>
+                                    )}
+                                </div>
+                            </motion.article>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* Cohesive Modern Empty State */
+                <div className="rounded-3xl border border-dashed border-black/10 bg-white px-8 py-16 text-center shadow-[0_16px_50px_rgba(15,23,42,0.03)]">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f4efe6] text-gray-500">
+                        <FileText size={26} />
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-gray-900">No applications found</h3>
+                    <p className="mx-auto mt-1.5 max-w-md text-xs md:text-sm text-gray-500">
+                        {searchTerm
+                            ? `No results match "${searchTerm}". Try a different keyword.`
+                            : selectedTab === 'saved'
+                            ? 'You have not saved any jobs yet. Bookmark roles while browsing to track them here.'
+                            : selectedTab === 'archived'
+                            ? 'No archived or closed applications.'
+                            : 'Explore our open opportunities and submit your first AI-evaluated application.'}
+                    </p>
+                    <Link
+                        to="/candidate/jobs"
+                        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-gray-800"
+                    >
+                        <span>Browse Open Roles</span>
+                        <ArrowRight size={14} />
+                    </Link>
+                </div>
             )}
+
+            {/* Retest Assessment Modal */}
+            <AnimatePresence>
+                {retestModalOpen && selectedRetestApp && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white p-6 md:p-8 shadow-2xl border border-black/10"
+                        >
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+                                        <RotateCcw size={22} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Retake Assessment</h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {selectedRetestApp.jobId?.title || 'Application'} • {selectedRetestApp.jobId?.company || 'hire1percent Partner'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => !retesting && setRetestModalOpen(false)}
+                                    className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="mt-5 rounded-2xl bg-amber-50/80 border border-amber-200/80 p-4 text-xs text-amber-900 leading-relaxed">
+                                <p className="font-semibold">Faced technical glitches, proctoring issues, or want to improve your score?</p>
+                                <p className="mt-1 text-amber-800">Select the round below to retake. Your previous submission for that round will be reset so you can begin a fresh evaluation.</p>
+                            </div>
+
+                            {/* Round Selector Options */}
+                            <div className="mt-5 space-y-2.5">
+                                <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Select Round to Retake:</p>
+                                
+                                {/* Coding Round Option */}
+                                {selectedRetestApp.jobId?.codingAssessment?.enabled && selectedRetestApp.retestAccess?.coding?.granted && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'coding'
+                                            ? 'border-teal-600 bg-teal-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="coding"
+                                                checked={selectedRound === 'coding'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-teal-600 focus:ring-teal-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Code2 size={16} className="text-teal-600" />
+                                                    Coding Assessment
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Passing requirement: {selectedRetestApp.jobId?.codingAssessment?.passingScore || 60}%
+                                                    {selectedRetestApp.codingScore !== null && selectedRetestApp.codingScore !== undefined && (
+                                                        <span className="ml-1 text-amber-700 font-semibold">• Current Score: {selectedRetestApp.codingScore}/100</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* Skill MCQ Option */}
+                                {selectedRetestApp.jobId?.assessment?.enabled && selectedRetestApp.retestAccess?.assessment?.granted && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'assessment'
+                                            ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="assessment"
+                                                checked={selectedRound === 'assessment'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Brain size={16} className="text-blue-600" />
+                                                    Skill Assessment (MCQ)
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Total Questions: {selectedRetestApp.jobId?.assessment?.totalQuestions || 20}
+                                                    {selectedRetestApp.assessmentScore !== null && selectedRetestApp.assessmentScore !== undefined && (
+                                                        <span className="ml-1 text-blue-700 font-semibold">• Current Score: {selectedRetestApp.assessmentScore}</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* AI Interview Option */}
+                                {selectedRetestApp.jobId?.mockInterview?.enabled && selectedRetestApp.retestAccess?.interview?.granted && (
+                                    <label className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition ${
+                                        selectedRound === 'interview'
+                                            ? 'border-purple-600 bg-purple-50/50 shadow-xs'
+                                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="retestRound"
+                                                value="interview"
+                                                checked={selectedRound === 'interview'}
+                                                onChange={(e) => setSelectedRound(e.target.value)}
+                                                className="h-4 w-4 text-purple-600 focus:ring-purple-500"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                                                    <Video size={16} className="text-purple-600" />
+                                                    AI Video Interview
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    Proctored video dialogue & behavioral assessment
+                                                    {selectedRetestApp.interviewScore !== null && selectedRetestApp.interviewScore !== undefined && (
+                                                        <span className="ml-1 text-purple-700 font-semibold">• Current Score: {selectedRetestApp.interviewScore}/100</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+                            </div>
+
+                            {/* Error / Success Feedback */}
+                            {retestError && (
+                                <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-medium">
+                                    <AlertCircle size={14} className="shrink-0 text-red-600" />
+                                    <span>{retestError}</span>
+                                </div>
+                            )}
+                            {retestSuccess && (
+                                <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 font-medium">
+                                    <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                                    <span>{retestSuccess}</span>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="mt-6 flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setRetestModalOpen(false)}
+                                    disabled={retesting}
+                                    className="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmRetest}
+                                    disabled={retesting}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-black hover:bg-gray-800 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition disabled:opacity-50 cursor-pointer"
+                                >
+                                    {retesting ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                                            <span>Resetting round...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RotateCcw size={14} />
+                                            <span>Start Retest Now</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

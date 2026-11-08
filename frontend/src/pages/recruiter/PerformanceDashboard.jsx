@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     TrendingUp, 
@@ -13,29 +13,25 @@ import {
     BarChart3
 } from 'lucide-react';
 import axios from 'axios';
+import { useQuery } from '@tanstack/react-query';
 import { API_URL } from '../../firebase';
 
 const PerformanceDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-    const [insights, setInsights] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [selectedHire, setSelectedHire] = useState(null);
+    const userId = user.uid || user._id || user.id;
 
-    useEffect(() => {
-        const fetchInsights = async () => {
-            try {
-                const userId = user.uid || user._id || user.id;
-                const res = await axios.get(`${API_URL}/insights/recruiter/${userId}`);
-                setInsights(res.data);
-            } catch (err) {
-                console.error("Failed to fetch performance insights:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (user.uid || user._id || user.id) fetchInsights();
-    }, [user.uid, user._id, user.id]);
+    const { data: insights = [], isLoading: loading } = useQuery({
+        queryKey: ['insights', 'recruiter', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/insights/recruiter/${userId}`);
+            return Array.isArray(res.data) ? res.data : [];
+        },
+        enabled: !!userId,
+        staleTime: 5 * 60 * 1000,
+        placeholderData: (previousData) => previousData
+    });
 
     const getRiskStyles = (risk) => {
         switch (risk) {

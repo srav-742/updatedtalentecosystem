@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const recruiterController = require('../controllers/recruiterController');
-const { authMiddleware, roleCheck } = require('../middleware/authMiddleware');
+const { cacheMiddleware } = require('../middleware/cacheMiddleware');
 
-router.post('/jobs', authMiddleware, roleCheck(['recruiter', 'admin']), recruiterController.createJob);
-router.get('/dashboard/:recruiterId', authMiddleware, roleCheck(['recruiter', 'admin']), recruiterController.getRecruiterDashboard);
-router.get('/applications', authMiddleware, roleCheck(['recruiter', 'admin']), recruiterController.getRecruiterApplications);
+router.post('/jobs', recruiterController.createJob);
+router.get('/dashboard/:recruiterId', cacheMiddleware(30, { httpMaxAge: 0, staleWhileRevalidate: 0, varyByUser: true }), recruiterController.getRecruiterDashboard);
+router.get('/applications', recruiterController.getRecruiterApplications);
+router.get('/applications/recruiter/:recruiterId', recruiterController.getRecruiterApplications);
 
 module.exports = router;

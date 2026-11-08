@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Scale, CheckCircle, AlertTriangle, XCircle, Zap, ShieldCheck } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 
 const Terms = () => {
   const sections = [
@@ -40,6 +41,11 @@ const Terms = () => {
 
   return (
     <div className="min-h-screen bg-[#0c0f16] text-white">
+      <SEO 
+        title="Terms & Conditions | Hire1Percent" 
+        description="Read the terms and conditions for using Hire1Percent." 
+        canonicalUrl="/terms" 
+      />
       <Navbar />
       
       <main className="pt-32 pb-20 px-6">

@@ -31,12 +31,14 @@ const syncUserToProfile = async (userOrId) => {
                     company: user.company,
                     designation: user.designation,
                     isPro: user.isPro,
+                    accountType: user.accountType || 'normal',
+                    pilotExpiresAt: user.pilotExpiresAt || null,
                     createdAt: user.createdAt || new Date()
                 },
                 { upsert: true, new: true }
             );
             console.log(`[dbSync] Successfully synced Recruiter profile for User ${user.email}`);
-        } else if (user.role === 'seeker') {
+        } else if ((user.role === 'candidate' || user.role === 'seeker')) {
             // Seeker - Candidate Profile
             // Attempt to enrich with location from ResumeProfile
             const resumeProfile = await ResumeProfile.findOne({

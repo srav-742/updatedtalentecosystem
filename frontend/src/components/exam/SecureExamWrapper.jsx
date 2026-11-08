@@ -29,10 +29,14 @@ export default function SecureExamWrapper({
   children,
   isActive = true,
   requireScreenShare = true,
+  screenStream = null,
+  onScreenShareStart = null,
+  preserveScreenOnUnmount = false,
   warningLimit = 3,
   resetLimit = 4,
   onSecurityReset,
 }) {
+  const showDebugPanel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get("debug") === "true";
   const [screenShareInterrupted, setScreenShareInterrupted] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -47,7 +51,12 @@ export default function SecureExamWrapper({
     error: screenShareError,
     startScreenShare,
     clearError,
-  } = useScreenShare({ onStopped: handleScreenShareStopped });
+  } = useScreenShare({
+    onStopped: handleScreenShareStopped,
+    externalStream: screenStream,
+    preserveOnUnmount: preserveScreenOnUnmount,
+    onStarted: onScreenShareStart,
+  });
 
   const handleSecurityReset = useCallback(async (violation) => {
     if (resetInFlightRef.current) {
@@ -112,16 +121,17 @@ export default function SecureExamWrapper({
 
   const handleShare = useCallback(async () => {
     clearError();
-
+    requestFullscreen(); // Trigger immediately inside user interaction gesture
     const started = await startScreenShare();
     if (!started) {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (_) {}
       return;
     }
-
     setScreenShareInterrupted(false);
-    setTimeout(() => {
-      requestFullscreen();
-    }, 200);
   }, [clearError, startScreenShare]);
 
   const needsScreenShare = requireScreenShare && isActive && !isSharing;
@@ -192,14 +202,7 @@ export default function SecureExamWrapper({
         </div>
       )*/}
 
-      {isActive && (
-        <div className="fixed right-4 top-4 z-[9000] flex items-center gap-3 rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-medium text-gray-700 shadow-lg backdrop-blur">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <ShieldCheck size={14} />
-          </span>
-          <span>Protected session</span>
-        </div>
-      )}
+
 
       <div
         style={{

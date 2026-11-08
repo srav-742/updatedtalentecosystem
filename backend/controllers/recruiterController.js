@@ -1,10 +1,27 @@
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const User = require('../models/User');
-const { buildRecruiterJobQuery, resolveRecruiterIdentifiers } = require('../utils/userResolver');
+const { buildRecruiterJobQuery, resolveRecruiterIdentifiers, findRecruiterUser } = require('../utils/userResolver');
 
 const resolveRecruiterJobQuery = async (recruiterId) => {
     return await buildRecruiterJobQuery(recruiterId);
+};
+
+const isPilotExpired = async (recruiterId, reqUser) => {
+    if (reqUser && reqUser.role === 'recruiter' && reqUser.accountType === 'pilot') {
+        if (reqUser.pilotExpiresAt && new Date() > new Date(reqUser.pilotExpiresAt)) {
+            return true;
+        }
+    }
+    if (recruiterId) {
+        const user = await findRecruiterUser(recruiterId);
+        if (user && user.role === 'recruiter' && user.accountType === 'pilot') {
+            if (user.pilotExpiresAt && new Date() > new Date(user.pilotExpiresAt)) {
+                return true;
+            }
+        }
+    }
+    return false;
 };
 
 const getRecruiterDashboard = async (req, res) => {
@@ -12,9 +29,38 @@ const getRecruiterDashboard = async (req, res) => {
         const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
 
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
+        // Resolve identifiers once
+        const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
+
+        let isAdmin = reqUser && reqUser.role === 'admin';
+        if (!isAdmin) {
+            const adminEmails = ['sravyaadmin@gmail.com', 'hemangi@web3today.io', 'admin@hire1percent.com'];
+            const orQueries = [];
+            allIds.forEach(id => {
+                orQueries.push({ uid: id });
+                if (/^[0-9a-fA-F]{24}$/.test(id)) orQueries.push({ _id: id });
+                if (id.includes('@')) orQueries.push({ email: id.toLowerCase().trim() });
+            });
+            if (orQueries.length > 0) {
+                const userDoc = await User.findOne({ $or: orQueries }).select('role email').lean();
+                if (userDoc && (userDoc.role === 'admin' || adminEmails.includes(userDoc.email && userDoc.email.toLowerCase().trim()))) {
+                    isAdmin = true;
+                }
+            }
+        }
+
         // Enforce recruiter dashboard ownership check (admins bypass)
-        if (reqUser && reqUser.role !== 'admin') {
-            const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
+        if (reqUser && !isAdmin) {
             const reqUserIds = [reqUser._id?.toString(), reqUser.uid, reqUser.email?.toLowerCase().trim()].filter(Boolean);
             const isSelf = reqUserIds.some(id => allIds.includes(id));
             if (!isSelf) {
@@ -22,16 +68,80 @@ const getRecruiterDashboard = async (req, res) => {
             }
         }
 
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
-        const jobs = await Job.find(jobQuery).select('_id').lean();
-        const jobIds = jobs.map((job) => job._id);
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = allIds.length > 1
+                ? { recruiterId: { $in: allIds } }
+                : { recruiterId: allIds[0] || recruiterId };
+        }
 
-        const [applicationCount, shortlistedCount] = await Promise.all([
+        // Fetch lean summary of all jobs sorted by creation date
+        const allJobs = await Job.find(jobQuery)
+            .select('_id title location type minPercentage createdAt status')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const jobIds = allJobs.map((job) => job._id);
+
+        // Fetch blog data for admin dashboard
+        let blogCount = 0;
+        let recentBlogs = [];
+        if (isAdmin) {
+            try {
+                require('../blog/models/BlogCategory');
+                const BlogPost = require('../blog/models/BlogPost');
+                const [bCount, bPosts] = await Promise.all([
+                    BlogPost.countDocuments({}),
+                    BlogPost.find({})
+                        .sort({ createdAt: -1 })
+                        .limit(10)
+                        .populate('category', 'name slug')
+                        .select('title slug subtitle status category coverImage views publishedAt createdAt')
+                        .lean()
+                ]);
+                blogCount = bCount;
+                recentBlogs = bPosts;
+            } catch (bErr) {
+                console.warn('[Dashboard] Failed to fetch blog data:', bErr.message);
+            }
+        }
+
+        if (jobIds.length === 0) {
+            return res.json({
+                jobCount: 0,
+                applicationCount: 0,
+                shortlistedCount: 0,
+                recentJobs: [],
+                ...(isAdmin && { blogCount, recentBlogs })
+            });
+        }
+
+        // Top 5 recent jobs for instant dashboard table render
+        const top5Jobs = allJobs.slice(0, 5);
+        const top5JobIds = top5Jobs.map(j => j._id);
+
+        const [applicationCount, shortlistedCount, top5Counts] = await Promise.all([
             Application.countDocuments({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } }),
-            Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' })
+            Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' }),
+            Application.aggregate([
+                { $match: { jobId: { $in: top5JobIds }, status: { $ne: 'SAVED' } } },
+                { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
+            ])
         ]);
 
-        res.json({ jobCount: jobs.length, applicationCount, shortlistedCount });
+        const top5CountMap = new Map(top5Counts.map(item => [String(item._id), item.applicantCount]));
+        const recentJobs = top5Jobs.map(job => ({
+            ...job,
+            applicantCount: top5CountMap.get(String(job._id)) || 0
+        }));
+
+        res.json({
+            jobCount: allJobs.length,
+            applicationCount,
+            shortlistedCount,
+            recentJobs,
+            ...(isAdmin && { blogCount, recentBlogs })
+        });
     } catch (error) {
         console.error('[Dashboard] Error:', error);
         res.status(500).json({ message: error.message });
@@ -41,10 +151,23 @@ const getRecruiterDashboard = async (req, res) => {
 const getRecruiterApplications = async (req, res) => {
     try {
         const reqUser = req.user;
-        const recruiterId = req.query.recruiterId || req.params.recruiterId;
+        const recruiterId = req.params.recruiterId;
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
+        const recruiterDoc = reqUser || await findRecruiterUser(recruiterId);
+        const isAdmin = (reqUser && reqUser.role === 'admin') || (recruiterDoc && recruiterDoc.role === 'admin');
 
         // Enforce recruiter applications ownership check (admins bypass)
-        if (reqUser && reqUser.role !== 'admin') {
+        if (reqUser && !isAdmin) {
             const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
             const reqUserIds = [reqUser._id?.toString(), reqUser.uid, reqUser.email?.toLowerCase().trim()].filter(Boolean);
             const isSelf = reqUserIds.some(id => allIds.includes(id));
@@ -53,13 +176,17 @@ const getRecruiterApplications = async (req, res) => {
             }
         }
 
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        }
+        
         const jobs = await Job.find(jobQuery).select('_id').lean();
         const jobIds = jobs.map((job) => job._id);
 
         const apps = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
             .select('-interviewAnswers -assessmentAnswers -recommendationSummary')
-            .populate('jobId')
+            .populate('jobId', 'title assessment codingAssessment mockInterview')
             .populate('user', 'name email profilePic githubUrl linkedinUrl resumeUrl')
             .sort({ appliedAt: -1 })
             .lean();
@@ -104,57 +231,97 @@ const getRecruiterApplications = async (req, res) => {
         const userIdList = apps.map(app => app.userId).filter(Boolean);
         const ProctoringViolation = require('../models/ProctoringViolation');
         const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+        const ProctoringReport = require('../models/ProctoringReport');
         const { getViolationRating } = require('../utils/proctoringScoring');
-
-        const violationQuery = {
-            userId: { $in: userIdList }
-        };
-
-        const [baseViolations, enhancedViolations] = await Promise.all([
-            ProctoringViolation.find(violationQuery).lean(),
-            ProctoringViolationEnhanced.find(violationQuery).lean()
-        ]);
 
         const applicationPenaltyMap = {};
         const applicationFlagsMap = {};
-        const addRating = (userId, examId, type, metadata) => {
-            if (!userId) return;
-            const rating = getViolationRating(type, metadata);
-            
-            // Extract jobId from examId (format: type:jobId:sessionId)
-            let jobId = null;
-            if (examId && typeof examId === 'string') {
-                const parts = examId.split(':');
-                if (parts.length >= 2) {
-                    jobId = parts[1];
+        const reportMap = new Map();
+
+        if (userIdList.length > 0) {
+            const violationQuery = {
+                userId: { $in: userIdList }
+            };
+
+            const appIdList = apps.map(a => a._id).filter(Boolean);
+            const [baseViolations, enhancedViolations, proctoringReports] = await Promise.all([
+                ProctoringViolation.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
+                ProctoringViolationEnhanced.find(violationQuery).select('userId examId type metadata rating penalty').lean(),
+                ProctoringReport.find({
+                    $or: [
+                        { applicationId: { $in: appIdList } },
+                        { userId: { $in: userIdList } }
+                    ]
+                }).sort({ updatedAt: -1 }).lean()
+            ]);
+
+            proctoringReports.forEach(r => {
+                if (r.applicationId) {
+                    const appIdStr = r.applicationId.toString();
+                    if (!reportMap.has(appIdStr)) {
+                        reportMap.set(appIdStr, r);
+                    }
                 }
-            }
+                if (r.userId && r.examId) {
+                    const parts = r.examId.split(':');
+                    const jobId = parts.length >= 2 ? parts[1] : null;
+                    if (jobId) {
+                        const userJobKey = `${r.userId}_${jobId}`;
+                        if (!reportMap.has(userJobKey)) {
+                            reportMap.set(userJobKey, r);
+                        }
+                    }
+                }
+            });
 
-            // Key on userId_jobId if jobId is valid, otherwise fallback to userId only
-            const key = jobId ? `${userId}_${jobId}` : userId;
-            
-            applicationPenaltyMap[key] = (applicationPenaltyMap[key] || 0) + rating;
-            
-            if (!applicationFlagsMap[key]) {
-                applicationFlagsMap[key] = new Set();
-            }
-            applicationFlagsMap[key].add(type);
-        };
+            const addRating = (userId, examId, type, metadata, ratingFromDb) => {
+                if (!userId) return;
+                const rating = ratingFromDb !== undefined ? ratingFromDb : getViolationRating(type, metadata);
+                
+                // Extract jobId from examId (format: type:jobId:sessionId)
+                let jobId = null;
+                if (examId && typeof examId === 'string') {
+                    const parts = examId.split(':');
+                    if (parts.length >= 2) {
+                        jobId = parts[1];
+                    }
+                }
 
-        baseViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
-        });
+                // Key on userId_jobId if jobId is valid, otherwise fallback to userId only
+                const key = jobId ? `${userId}_${jobId}` : userId;
+                
+                applicationPenaltyMap[key] = (applicationPenaltyMap[key] || 0) + rating;
+                
+                if (!applicationFlagsMap[key]) {
+                    applicationFlagsMap[key] = new Set();
+                }
+                applicationFlagsMap[key].add(type);
+            };
 
-        enhancedViolations.forEach(v => {
-            addRating(v.userId, v.examId, v.type, v.metadata);
-        });
+            baseViolations.forEach(v => {
+                if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                    return;
+                }
+                addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+            });
 
-        const isAdmin = reqUser && reqUser.role === 'admin';
-        
+            enhancedViolations.forEach(v => {
+                if (v.type === 'MULTIPLE_DEVICES' && (/camera/i.test(v.detail) || v.metadata?.cameraCount)) {
+                    return;
+                }
+                addRating(v.userId, v.examId, v.type, v.metadata, v.rating);
+            });
+        }
+
         let unlockedAppMap = new Map();
-        if (reqUser && !isAdmin) {
+        if (recruiterDoc && !isAdmin) {
             const UnlockedApplicant = require('../models/UnlockedApplicant');
-            const unlockedRecords = await UnlockedApplicant.find({ recruiterId: reqUser._id }).lean();
+            const targetRecruiterId = recruiterDoc._id;
+            const recruiterIds = [targetRecruiterId];
+            if (recruiterDoc.uid && /^[0-9a-fA-F]{24}$/.test(recruiterDoc.uid)) {
+                recruiterIds.push(recruiterDoc.uid);
+            }
+            const unlockedRecords = await UnlockedApplicant.find({ recruiterId: { $in: recruiterIds } }).lean();
             unlockedRecords.forEach(r => {
                 if (r && r.applicationId) {
                     unlockedAppMap.set(r.applicationId.toString(), r.unlockedItems || []);
@@ -165,13 +332,41 @@ const getRecruiterApplications = async (req, res) => {
         const appsWithScore = apps.map((app, index) => {
             const jobIdStr = app.jobId?._id?.toString() || app.jobId?.toString();
             const appKey = jobIdStr ? `${app.userId}_${jobIdStr}` : app.userId;
-            const rawPenalty = applicationPenaltyMap[appKey] !== undefined 
-                ? applicationPenaltyMap[appKey] 
-                : (applicationPenaltyMap[app.userId] || 0);
-            app.integrityPenalty = rawPenalty;
-            app.proctoringScore = rawPenalty;
+            const existingReport = (app._id && reportMap.get(app._id.toString())) || (jobIdStr && reportMap.get(`${app.userId}_${jobIdStr}`));
             
-            const flags = applicationFlagsMap[appKey] || applicationFlagsMap[app.userId];
+            if (existingReport && (existingReport.integrityScore !== undefined || existingReport.proctoringScore !== undefined)) {
+                if (existingReport.reviewStatus === 'DISMISSED') {
+                    app.proctoringScore = 100;
+                    app.integrityScore = 100;
+                    app.riskLevel = 'LOW RISK';
+                } else {
+                    app.proctoringScore = existingReport.integrityScore ?? existingReport.proctoringScore;
+                    app.integrityScore = app.proctoringScore;
+                    app.riskLevel = existingReport.riskLevel || (app.proctoringScore < 60 ? 'HIGH RISK' : (app.proctoringScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK'));
+                }
+            } else if (app.integrityScore !== undefined && app.integrityScore !== null && app.integrityScore > 0) {
+                app.proctoringScore = app.integrityScore;
+            } else if (app.proctoringScore !== undefined && app.proctoringScore !== null && app.proctoringScore > 0) {
+                // Keep positive pre-saved score
+            } else {
+                const appViolationsPenalty = applicationPenaltyMap[appKey] || 0;
+                const hasTakenAnyTest = app.assessmentScore != null || app.codingScore != null || (app.interviewScore != null && app.interviewScore > 0) || app.recordingStatus === 'uploaded';
+                
+                if (appViolationsPenalty > 0) {
+                    app.proctoringScore = Math.max(0, 100 - Math.round(appViolationsPenalty * 2.5));
+                    app.integrityScore = app.proctoringScore;
+                    app.riskLevel = app.proctoringScore < 60 ? 'HIGH RISK' : (app.proctoringScore < 80 ? 'REVIEW REQUIRED' : 'LOW RISK');
+                } else if (hasTakenAnyTest) {
+                    app.proctoringScore = 100;
+                    app.integrityScore = 100;
+                    app.riskLevel = 'LOW RISK';
+                } else {
+                    app.proctoringScore = null;
+                    app.integrityScore = null;
+                }
+            }
+            
+            const flags = applicationFlagsMap[appKey];
             app.proctoringFlags = flags ? Array.from(flags) : [];
             
             let isResumeLocked = true;
@@ -196,23 +391,11 @@ const getRecruiterApplications = async (req, res) => {
 
             // Conditionally mask Resume & Profile data
             if (isResumeLocked) {
-                app.applicantName = `Candidate ${index + 1}`;
-                if (app.applicantEmail) {
-                    const parts = app.applicantEmail.split('@');
-                    if (parts.length === 2) {
-                        const local = parts[0];
-                        app.applicantEmail = `${local.charAt(0)}***@${parts[1]}`;
-                    } else {
-                        app.applicantEmail = 'Locked';
-                    }
-                } else {
-                    app.applicantEmail = 'Locked';
-                }
-                
+                // Candidate name and email are kept unmasked per recruiter request
                 if (app.user) {
                     app.user = {
-                        name: `Candidate ${index + 1}`,
-                        email: app.applicantEmail,
+                        name: app.applicantName || app.user.name || `Candidate ${index + 1}`,
+                        email: app.applicantEmail || app.user.email || 'Locked',
                         profilePic: null,
                         githubUrl: null,
                         linkedinUrl: null,
@@ -230,11 +413,14 @@ const getRecruiterApplications = async (req, res) => {
                 app.videoIntroUrl = null;
                 app.recordingPlaybackUrl = null;
                 app.recordingUrl = null;
+                app.assessmentRecordingPlaybackUrl = null;
+                app.assessmentRecordingUrl = null;
             }
 
             return app;
         });
 
+        res.setHeader('Cache-Control', 'private, no-cache, no-transform');
         res.json(appsWithScore);
     } catch (error) {
         console.error('[GET-APPS-REC] Failure:', error);
@@ -244,9 +430,30 @@ const getRecruiterApplications = async (req, res) => {
 
 const getRecruiterJobs = async (req, res) => {
     try {
+        const reqUser = req.user;
         const recruiterId = req.params.recruiterId;
-        const jobQuery = await resolveRecruiterJobQuery(recruiterId);
-        const jobs = await Job.find(jobQuery).sort({ createdAt: -1 }).lean();
+
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, reqUser)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
+        const isAdmin = reqUser && reqUser.role === 'admin';
+        
+        let jobQuery = {};
+        if (!isAdmin) {
+            jobQuery = await resolveRecruiterJobQuery(recruiterId);
+        }
+        
+        const jobs = await Job.find(jobQuery)
+            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates')
+            .sort({ createdAt: -1 })
+            .lean();
         const jobIds = jobs.map((job) => job._id);
 
         const counts = await Application.aggregate([
@@ -274,6 +481,16 @@ const createJob = async (req, res) => {
     try {
         const { recruiterId, title } = req.body;
 
+        // Check if pilot recruiter access has expired
+        if (await isPilotExpired(recruiterId, req.user)) {
+            return res.status(403).json({
+                message: "Your session has expired.",
+                code: 'PILOT_EXPIRED',
+                pilotExpired: true,
+                sessionExpired: true
+            });
+        }
+
         console.log(`[JOBS] CREATE Attempt - Recruiter: ${recruiterId}, Title: "${title}"`);
 
         if (!recruiterId) {
@@ -290,10 +507,26 @@ const createJob = async (req, res) => {
 
         if (jobData.minPercentage) jobData.minPercentage = Number(jobData.minPercentage);
         if (jobData.assessment?.totalQuestions) jobData.assessment.totalQuestions = Number(jobData.assessment.totalQuestions);
-        if (jobData.mockInterview?.passingScore) jobData.mockInterview.passingScore = Number(jobData.mockInterview.passingScore);
+        if (jobData.candidateLimit !== undefined) {
+            const parsedLimit = Number(jobData.candidateLimit);
+            jobData.candidateLimit = (!isNaN(parsedLimit) && parsedLimit > 0) ? parsedLimit : null;
+        }
+        if (jobData.candidateLimitTarget !== undefined) {
+            const validTargets = ['ALL', 'APPLICANTS', 'ASSESSMENT', 'CODING', 'INTERVIEW'];
+            jobData.candidateLimitTarget = validTargets.includes(jobData.candidateLimitTarget) ? jobData.candidateLimitTarget : 'ALL';
+        }
+        if (jobData.isRestrictedToWhitelist !== undefined) {
+            jobData.isRestrictedToWhitelist = Boolean(jobData.isRestrictedToWhitelist);
+        }
+        if (Array.isArray(jobData.allowedCandidates)) {
+            jobData.allowedCandidates = jobData.allowedCandidates
+                .map(e => String(e).trim().toLowerCase())
+                .filter(e => e.length > 0 && e.includes('@'));
+        }
 
         delete jobData._id;
-        jobData.status = 'pending_approval';
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+        jobData.status = isLocalhost ? 'approved' : 'pending_approval';
 
         const job = new Job(jobData);
         const savedJob = await job.save();

@@ -1,11 +1,56 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, BriefcaseBusiness, ChevronRight, Building2, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Clock3, Share2, Mail, Linkedin, Twitter, Copy, Bookmark, Sparkles, Building2, ShieldCheck, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { JobCardSkeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SEO from '../../components/SEO';
+
+// Color palettes for company avatars
+const AVATAR_GRADIENTS = [
+    'from-blue-600 to-indigo-700 text-white',
+    'from-violet-600 to-purple-700 text-white',
+    'from-emerald-600 to-teal-800 text-white',
+    'from-amber-500 to-orange-600 text-white',
+    'from-rose-500 to-pink-600 text-white',
+    'from-cyan-600 to-blue-700 text-white',
+    'from-fuchsia-600 to-indigo-700 text-white',
+    'from-teal-600 to-emerald-700 text-white'
+];
+
+const getCompanyMeta = (job, index) => {
+    const companyName = job.company || job.recruiterId?.company?.name || job.recruiter?.company?.name || 'hire1percent Partner';
+    const logoUrl = job.companyLogo || job.recruiter?.profilePic || job.recruiterId?.profilePic;
+    
+    // Deterministic gradient selection
+    const hash = companyName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const gradient = AVATAR_GRADIENTS[(hash + index) % AVATAR_GRADIENTS.length];
+    
+    // Extract initials (smart detection for hire1percent, multi-word, and camelCase)
+    let initials = 'HP';
+    const cleanName = companyName.trim();
+    const lowerName = cleanName.toLowerCase();
+
+    if (lowerName.includes('hire1percent') || lowerName.includes('hire 1 percent') || lowerName.startsWith('hire1') || lowerName.startsWith('hire')) {
+        initials = 'HP';
+    } else {
+        const words = cleanName.split(/\s+/);
+        if (words.length > 1) {
+            initials = `${words[0][0]}${words[1][0]}`.toUpperCase();
+        } else {
+            const capitals = cleanName.match(/[A-Z]/g);
+            if (capitals && capitals.length >= 2) {
+                initials = `${capitals[0]}${capitals[1]}`.toUpperCase();
+            } else {
+                initials = (cleanName.slice(0, 2) || 'CO').toUpperCase();
+            }
+        }
+    }
+
+    return { companyName, logoUrl, gradient, initials };
+};
 
 const BrowseJobs = () => {
     const queryClient = useQueryClient();
@@ -13,7 +58,7 @@ const BrowseJobs = () => {
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
-
+    const userEmail = (user?.email || user?.emailId || '').trim().toLowerCase();
     const userId = user.uid || user._id || user.id;
 
     useEffect(() => {
@@ -40,7 +85,10 @@ const BrowseJobs = () => {
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                if (error.response?.status !== 404) throw error;
+                return axios.get(`${API_URL}/applications/seeker/${userId}`);
+            });
             return res.data;
         },
         enabled: !!userId
@@ -63,7 +111,16 @@ const BrowseJobs = () => {
                 });
             }
         },
-        onSuccess: () => {
+        onSuccess: (_, variables) => {
+            queryClient.setQueryData(['applications', userId], (oldApps) => {
+                if (!oldApps) return [];
+                if (variables.existingApp && variables.existingApp.status === 'SAVED') {
+                    return oldApps.filter(app => app._id !== variables.existingApp._id && app.id !== variables.existingApp.id);
+                } else if (!variables.existingApp) {
+                    return [...oldApps, { _id: Date.now().toString(), jobId: variables.jobId, userId, status: 'SAVED' }];
+                }
+                return oldApps;
+            });
             queryClient.invalidateQueries({ queryKey: ['applications', userId] });
         }
     });
@@ -77,8 +134,8 @@ const BrowseJobs = () => {
             return;
         }
 
-        const existingApp = userApplications.find(app => (app.jobId?._id || app.jobId) === jobId);
-        toggleSaveMutation.mutate({ jobId, existingApp });
+        const savedApp = userApplications.find(app => (app.jobId?._id || app.jobId) === jobId && app.status === 'SAVED');
+        toggleSaveMutation.mutate({ jobId, existingApp: savedApp });
     };
 
     const filteredJobs = useMemo(() => {
@@ -91,7 +148,7 @@ const BrowseJobs = () => {
         });
     }, [jobs, searchTerm]);
 
-    const getShareUrl = (jobId) => `${window.location.origin}/seeker/job/${jobId}`;
+    const getShareUrl = (jobId) => `${window.location.origin}/candidate/job/${jobId}`;
 
     const handleCopyLink = async (e, jobId) => {
         e.preventDefault();
@@ -134,211 +191,285 @@ const BrowseJobs = () => {
     };
 
     return (
-        <div className="space-y-8">
-            <header className="rounded-[2.25rem] border border-black/10 bg-white px-8 py-7 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-6">
+            <SEO 
+                title="Browse Jobs & Technical Opportunities | Hire1Percent"
+                description="Explore verified engineering and technical roles. Compare minimum match scores, apply with AI resume intelligence, and unlock coding assessments."
+                canonicalUrl="/candidate/jobs"
+                robots="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+            />
+            <header className="rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-white py-4 px-6 md:py-4.5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Browse jobs</p>
-                        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">Discover roles built for your next move</h1>
-                        <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
-                            Explore active roles, compare hiring requirements, and move directly into the resume analysis workflow.
+                        <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-400">Browse jobs</p>
+                        </div>
+                        <h1 className="mt-1 text-xl md:text-2xl font-bold tracking-tight text-gray-900">Discover roles built for your next move</h1>
+                        <p className="mt-0.5 text-xs md:text-sm text-gray-500 font-normal">
+                            Explore active opportunities, compare minimum match requirements, and fast-track your applications.
                         </p>
                     </div>
 
-                    <div className="relative min-w-full lg:min-w-[360px]">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <div className="relative min-w-full lg:min-w-[320px]">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
                         <input
                             type="text"
-                            placeholder="Search by role or company"
+                            placeholder="Search by role or company..."
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
-                            className="w-full rounded-2xl border border-black/10 bg-[#faf7f1] py-4 pl-12 pr-4 text-sm text-gray-700 outline-none transition focus:border-black/20"
+                            className="w-full rounded-xl border border-black/10 bg-[#faf7f1] py-2.5 pl-10 pr-4 text-xs text-gray-700 outline-none transition focus:border-black/30 focus:bg-white"
                         />
                     </div>
                 </div>
             </header>
 
             {loading ? (
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                         <JobCardSkeleton key={i} />
                     ))}
                 </div>
             ) : (
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredJobs.length > 0 ? filteredJobs.map((job, index) => (
-                        <motion.article
-                            key={job._id}
-                            initial={{ opacity: 0, y: 18 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.04 }}
-                            className="rounded-[2rem] border border-black/10 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.06)]"
-                        >
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex h-14 w-14 items-center justify-center rounded-[1.5rem] bg-[#f4efe6] text-gray-700">
-                                    <Building2 size={24} />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="rounded-full border border-black/10 bg-[#f8f4ed] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
-                                        {job.type}
-                                    </span>
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {filteredJobs.length > 0 ? filteredJobs.map((job, index) => {
+                        const { companyName, logoUrl, gradient, initials } = getCompanyMeta(job, index);
+                        const savedApp = userApplications.find(a => (a.jobId?._id || a.jobId) === job._id && a.status === 'SAVED');
+                        const isSaved = !!savedApp;
 
-                                    {(() => {
-                                        const app = userApplications.find(a => (a.jobId?._id || a.jobId) === job._id);
-                                        const isSaved = app?.status === 'SAVED';
-                                        const isApplied = app && app.status !== 'SAVED';
+                        return (
+                            <motion.article
+                                key={job._id}
+                                initial={{ opacity: 0, y: 14 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.03 }}
+                                className="group relative flex flex-col justify-between rounded-2xl border border-black/10 bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-1 hover:border-black/20 hover:shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
+                            >
+                                <div>
+                                    {/* Card Header: Avatar, Company/Type & Action buttons */}
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {/* Company Avatar / Logo */}
+                                            <div className="relative shrink-0">
+                                                {logoUrl ? (
+                                                    <div className="h-11 w-11 overflow-hidden rounded-xl border border-black/10 bg-white shadow-xs">
+                                                        <img src={logoUrl} alt={companyName} className="h-full w-full object-cover" />
+                                                    </div>
+                                                ) : (
+                                                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-xs font-bold text-sm tracking-wider`}>
+                                                        {initials}
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                        if (isApplied) return null;
+                                            <div className="min-w-0">
+                                                <p className="truncate text-xs font-medium text-gray-500" title={companyName}>
+                                                    {companyName}
+                                                </p>
+                                                <span className="mt-0.5 inline-block rounded-md border border-black/5 bg-[#f8f4ed] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                                                    {job.type || 'Full-time'}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                        return (
+                                        {/* Action buttons (Bookmark & Share) */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
                                             <button
                                                 onClick={(e) => handleToggleSaveJob(e, job._id)}
-                                                className={`rounded-full border p-1.5 transition-colors ${
+                                                className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors ${
                                                     isSaved 
                                                         ? 'bg-amber-500 border-amber-500 text-white' 
                                                         : 'border-black/10 bg-[#f8f4ed] text-gray-500 hover:bg-black hover:text-white'
                                                 }`}
                                                 title={isSaved ? "Unsave Job" : "Save Job"}
                                             >
-                                                <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} />
+                                                <Bookmark size={13} fill={isSaved ? "currentColor" : "none"} />
                                             </button>
-                                        );
+
+                                            <div className="share-container relative">
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setActiveShareJobId(activeShareJobId === job._id ? null : job._id);
+                                                    }}
+                                                    className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors ${
+                                                        activeShareJobId === job._id 
+                                                            ? 'bg-black text-white border-black' 
+                                                            : 'border-black/10 bg-[#f8f4ed] text-gray-500 hover:bg-black hover:text-white'
+                                                    }`}
+                                                    title="Share Job"
+                                                >
+                                                    <Share2 size={13} />
+                                                </button>
+
+                                                <AnimatePresence>
+                                                    {activeShareJobId === job._id && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                                                            transition={{ duration: 0.15 }}
+                                                            className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white border border-black/10 p-2 shadow-[0_20px_50px_rgba(15,23,42,0.14)] z-50 flex flex-col gap-1"
+                                                        >
+                                                            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 border-b border-black/5 mb-1 text-left">
+                                                                Share this job
+                                                            </div>
+
+                                                            <button
+                                                                onClick={(e) => handleCopyLink(e, job._id)}
+                                                                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-[#fbf8f3] transition-all text-left relative"
+                                                            >
+                                                                <Copy size={14} className="text-gray-400" />
+                                                                <span>Copy Link</span>
+                                                                {copiedJobId === job._id && (
+                                                                    <span className="absolute right-2 px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-semibold">
+                                                                        Copied!
+                                                                    </span>
+                                                                )}
+                                                            </button>
+
+                                                            <button
+                                                                onClick={(e) => handleShareWhatsApp(e, job)}
+                                                                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-emerald-50 transition-all text-left"
+                                                            >
+                                                                <svg className="w-3.5 h-3.5 text-emerald-500 fill-current" viewBox="0 0 24 24">
+                                                                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.114-2.905-6.99C16.558 1.874 14.088.843 11.45.843 6.012.843 1.587 5.263 1.584 10.707c-.001 1.677.447 3.312 1.3 4.747l-.996 3.636 3.727-.977z" />
+                                                                </svg>
+                                                                <span>WhatsApp</span>
+                                                            </button>
+
+                                                            <button
+                                                                onClick={(e) => handleShareEmail(e, job)}
+                                                                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-purple-50 transition-all text-left"
+                                                            >
+                                                                <Mail size={14} className="text-purple-500" />
+                                                                <span>Email</span>
+                                                            </button>
+
+                                                            <button
+                                                                onClick={(e) => handleShareLinkedIn(e, job)}
+                                                                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50 transition-all text-left"
+                                                            >
+                                                                <Linkedin size={14} className="text-blue-600" />
+                                                                <span>LinkedIn</span>
+                                                            </button>
+
+                                                            <button
+                                                                onClick={(e) => handleShareTwitter(e, job)}
+                                                                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-sky-50 transition-all text-left"
+                                                            >
+                                                                <Twitter size={14} className="text-sky-500" />
+                                                                <span>Twitter / X</span>
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Job Title */}
+                                    <div className="mt-3.5">
+                                        <h2 className="text-base font-semibold tracking-tight text-gray-900 line-clamp-1 group-hover:text-black" title={job.title}>
+                                            {job.title}
+                                        </h2>
+                                    </div>
+
+                                    {/* Meta pills: Location & Experience */}
+                                    <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-gray-600">
+                                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#faf7f1] px-2.5 py-1 border border-black/[0.04]">
+                                            <MapPin size={12} className="text-gray-400" />
+                                            {job.location || 'Remote'}
+                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#faf7f1] px-2.5 py-1 border border-black/[0.04]">
+                                            <Clock3 size={12} className="text-gray-400" />
+                                            {job.experienceLevel || `${job.minExperience || 0}+ yrs`}
+                                        </span>
+                                    </div>
+
+                                    {/* Candidate Access Badge */}
+                                    {(() => {
+                                        const isWhitelisted = Boolean(userEmail && Array.isArray(job.allowedCandidates) && job.allowedCandidates.some(e => String(e).trim().toLowerCase() === userEmail));
+                                        if (isWhitelisted) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                                        <ShieldCheck size={11} className="text-emerald-600" />
+                                                        Access Granted
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        if (job.isRestrictedToWhitelist) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                                        <ShieldCheck size={11} className="text-amber-600" />
+                                                        Invite Only
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        if (typeof job.candidateLimit === 'number' && job.candidateLimit > 0 && (job.applicantCount ?? 0) >= job.candidateLimit) {
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                                                        Applications Closed
+                                                    </span>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
                                     })()}
 
-                                    <div className="share-container relative">
-                                        <button 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setActiveShareJobId(activeShareJobId === job._id ? null : job._id);
-                                            }}
-                                            className={`rounded-full border p-1.5 text-gray-500 transition-colors ${
-                                                activeShareJobId === job._id 
-                                                    ? 'bg-black text-white border-black' 
-                                                    : 'border-black/10 bg-[#f8f4ed] hover:bg-black hover:text-white'
-                                            }`}
-                                            title="Share Job"
-                                        >
-                                            <Share2 size={14} />
-                                        </button>
-
-                                        <AnimatePresence>
-                                            {activeShareJobId === job._id && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                                                    transition={{ duration: 0.15 }}
-                                                    className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white border border-black/10 p-2 shadow-[0_20px_60px_rgba(15,23,42,0.12)] z-50 flex flex-col gap-1"
+                                    {/* Skills (compact badges) */}
+                                    {job.skills && job.skills.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                                            {job.skills.slice(0, 3).map((skill) => (
+                                                <span
+                                                    key={skill}
+                                                    className="rounded-md border border-black/10 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600"
                                                 >
-                                                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 border-b border-black/5 mb-1 text-left">
-                                                        Share this job
-                                                    </div>
-
-                                                    <button
-                                                        onClick={(e) => handleCopyLink(e, job._id)}
-                                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-[#fbf8f3] transition-all text-left relative"
-                                                    >
-                                                        <Copy size={16} className="text-gray-400" />
-                                                        <span>Copy Link</span>
-                                                        {copiedJobId === job._id && (
-                                                            <span className="absolute right-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
-                                                                Copied!
-                                                            </span>
-                                                        )}
-                                                    </button>
-
-                                                    <button
-                                                        onClick={(e) => handleShareWhatsApp(e, job)}
-                                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-emerald-50 transition-all text-left"
-                                                    >
-                                                        <svg className="w-4 h-4 text-emerald-500 fill-current" viewBox="0 0 24 24">
-                                                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.114-2.905-6.99C16.558 1.874 14.088.843 11.45.843 6.012.843 1.587 5.263 1.584 10.707c-.001 1.677.447 3.312 1.3 4.747l-.996 3.636 3.727-.977z" />
-                                                        </svg>
-                                                        <span>WhatsApp</span>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={(e) => handleShareEmail(e, job)}
-                                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-purple-50 transition-all text-left"
-                                                    >
-                                                        <Mail size={16} className="text-purple-500" />
-                                                        <span>Email</span>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={(e) => handleShareLinkedIn(e, job)}
-                                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-blue-50 transition-all text-left"
-                                                    >
-                                                        <Linkedin size={16} className="text-blue-600" />
-                                                        <span>LinkedIn</span>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={(e) => handleShareTwitter(e, job)}
-                                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-sky-50 transition-all text-left"
-                                                    >
-                                                        <Twitter size={16} className="text-sky-500" />
-                                                        <span>Twitter / X</span>
-                                                    </button>
-                                                </motion.div>
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                            {job.skills.length > 3 && (
+                                                <span className="text-[10px] font-medium text-gray-400">
+                                                    +{job.skills.length - 3}
+                                                </span>
                                             )}
-                                        </AnimatePresence>
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
 
-                            <div className="mt-6">
-                                <h2 className="text-2xl font-semibold tracking-tight text-gray-900">{job.title}</h2>
-                                <p className="mt-2 text-sm text-gray-500">
-                                    {job.company || job.recruiterId?.company?.name || 'hire1percent Partner'}
-                                </p>
-                            </div>
+                                {/* Bottom section: Requirement bar & View role button */}
+                                <div className="mt-4 pt-3 border-t border-black/5 space-y-3">
+                                    <div className="flex items-center justify-between rounded-xl bg-[#faf7f1] px-3 py-1.5 border border-black/[0.04] text-xs">
+                                        <span className="flex items-center gap-1.5 font-medium text-gray-500 text-[11px]">
+                                            <Sparkles size={13} className="text-amber-500" />
+                                            Min. Resume Match
+                                        </span>
+                                        <span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded-md border border-black/5 shadow-xs text-[11px]">
+                                            {job.minPercentage || 60}%
+                                        </span>
+                                    </div>
 
-                            <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-500">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-3 py-2">
-                                    <MapPin size={14} />
-                                    {job.location || 'Remote'}
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-3 py-2">
-                                    <Clock3 size={14} />
-                                    {job.experienceLevel || `${job.minExperience || 0}+ years`}
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full bg-[#fbf8f3] px-3 py-2">
-                                    <BriefcaseBusiness size={14} />
-                                    {job.type}
-                                </span>
-                            </div>
-
-                            <div className="mt-6 flex flex-wrap gap-2">
-                                {job.skills?.slice(0, 4).map((skill) => (
-                                    <span
-                                        key={skill}
-                                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-gray-600"
+                                    <Link
+                                        to={`/candidate/job/${job._id}`}
+                                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 active:scale-[0.99]"
                                     >
-                                        {skill}
-                                    </span>
-                                ))}
-                            </div>
-
-                            <div className="mt-6 rounded-[1.5rem] border border-black/10 bg-[#fbf8f3] p-4">
-                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Application requirement</p>
-                                <p className="mt-2 text-sm leading-6 text-gray-600">
-                                    A minimum resume match of <span className="font-semibold text-gray-900">{job.minPercentage || 60}%</span> is needed to move to the next stage.
-                                </p>
-                            </div>
-
-                            <Link
-                                to={`/seeker/job/${job._id}`}
-                                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
-                            >
-                                View role
-                                <ChevronRight size={16} />
-                            </Link>
-                        </motion.article>
-                    )) : (
-                        <div className="col-span-full rounded-[2rem] border border-dashed border-black/10 bg-white px-8 py-20 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                            <p className="text-lg font-medium text-gray-600">No jobs found for your current search.</p>
+                                        <span>View Role</span>
+                                        <ChevronRight size={14} />
+                                    </Link>
+                                </div>
+                            </motion.article>
+                        );
+                    }) : (
+                        <div className="col-span-full rounded-3xl border border-dashed border-black/10 bg-white px-8 py-16 text-center shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
+                            <Building2 className="mx-auto text-gray-300 mb-3" size={36} />
+                            <p className="text-base font-semibold text-gray-900">No jobs found</p>
+                            <p className="text-xs text-gray-500 mt-1">Try adjusting your search keywords</p>
                         </div>
                     )}
                 </div>

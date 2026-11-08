@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
     AlertCircle,
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../../../firebase';
+import { API_URL, getAuthHeaders } from '../../../firebase';
 import { ResumeAnalysisSkeleton } from '../../../components/Skeleton';
 
 const createEmptyStructuredProfile = () => ({
@@ -225,6 +225,7 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
     const userId = user.uid || user._id || user.id;
     const jobId = job?._id || job?.id;
 
+    const fileInputRef = useRef(null);
     const [file, setFile] = useState(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [error, setError] = useState(null);
@@ -239,6 +240,21 @@ const ResumeAnalyzer = ({ job, user, onComplete }) => {
         if (!file) return null;
         return URL.createObjectURL(file);
     }, [file]);
+
+    const getNextStepLabel = () => {
+        if (job?.mockInterview?.enabled) {
+            return 'Candidate Deck';
+        }
+        if (job?.assessment?.enabled) {
+            return 'Skill Assessment';
+        }
+        if (job?.codingAssessment?.enabled) {
+            return 'Coding Assessment';
+        }
+        return 'Applications';
+    };
+
+    const nextStepLabel = getNextStepLabel();
 
     useEffect(() => () => {
         if (previewUrl) {
@@ -344,6 +360,34 @@ ${projectsFlat}
             });
 
             setActiveSection('basic');
+
+            // --- AUTOMATIC NAVIGATION LOGIC FOR SYNCED RESUME ---
+            const minThreshold = (job.minPercentage || 60) * 0.10;
+            if (normalizedData.matchPercentage >= minThreshold) {
+                setIsRedirecting(true);
+                setTimeout(async () => {
+                    try {
+                        const headers = await getAuthHeaders().catch(() => ({}));
+                        await axios.post(`${API_URL}/applications`, {
+                            jobId: job._id,
+                            userId,
+                            status: 'APPLIED',
+                            resumeMatchPercent: normalizedData.matchPercentage,
+                            applicantName: user?.name || profileData.basics?.name || '',
+                            applicantEmail: user?.email || profileData.basics?.email || '',
+                            applicantPic: user?.profilePic || ''
+                        }, { headers });
+
+                        onComplete({
+                            ...normalizedData,
+                            structuredProfile: profileData
+                        });
+                    } catch (navError) {
+                        console.error('Auto-navigation failed:', navError);
+                        setIsRedirecting(false);
+                    }
+                }, 600);
+            }
         } catch (err) {
             console.error("Failed to analyze synced resume:", err);
             setError(err.response?.data?.message || 'Failed to process synced resume. Please try direct upload.');
@@ -583,16 +627,17 @@ ${projectsFlat}
                 // Show success for 2.5 seconds then auto-navigate
                 setTimeout(async () => {
                     try {
+                        const headers = await getAuthHeaders().catch(() => ({}));
                         // 1. Save Application
                         await axios.post(`${API_URL}/applications`, {
                             jobId: job._id,
                             userId,
                             status: 'APPLIED',
                             resumeMatchPercent: normalizedData.matchPercentage,
-                            applicantName: user.name,
-                            applicantEmail: user.email,
-                            applicantPic: user.profilePic || ''
-                        });
+                            applicantName: user?.name || '',
+                            applicantEmail: user?.email || '',
+                            applicantPic: user?.profilePic || ''
+                        }, { headers });
 
                         // 2. Auto-complete step
                         onComplete({
@@ -601,6 +646,7 @@ ${projectsFlat}
                         });
                     } catch (navError) {
                         console.error('Auto-navigation failed:', navError);
+                        setIsRedirecting(false);
                     }
                 }, 500); // 500ms delay to feel near-instant while still briefly showing success state
             }
@@ -620,20 +666,28 @@ ${projectsFlat}
         }
 
         try {
+            const headers = await getAuthHeaders().catch(() => ({}));
             await axios.post(`${API_URL}/applications`, {
                 jobId: job._id,
                 userId,
                 status: 'APPLIED',
                 resumeMatchPercent: analysisResult.data.matchPercentage,
-                applicantName: user.name,
-                applicantEmail: user.email,
-                applicantPic: user.profilePic || ''
-            });
+                applicantName: user?.name || '',
+                applicantEmail: user?.email || '',
+                applicantPic: user?.profilePic || ''
+            }, { headers });
 
             setApplicationSaved(true);
             setError(null);
         } catch (err) {
-            setError('Network error. Could not save application.');
+            console.warn('Application save error or already exists:', err);
+        } finally {
+            if (onComplete) {
+                onComplete({
+                    ...analysisResult.data,
+                    structuredProfile
+                });
+            }
         }
     };
 
@@ -690,10 +744,11 @@ ${projectsFlat}
                             }`}
                         >
                             <input
+                                ref={fileInputRef}
                                 type="file"
                                 accept=".pdf"
                                 onChange={handleFileChange}
-                                className="hidden"
+                                className="block mb-4"
                             />
                             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[1rem] bg-white text-gray-600 shadow-sm">
                                 <Upload size={22} />
@@ -1348,13 +1403,13 @@ ${projectsFlat}
                                 </div>
                                 <div className="rounded-[1.75rem] border border-black/10 bg-[#fbf8f3] p-5 text-left">
                                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Next</p>
-                                    <p className="mt-3 text-lg font-semibold text-gray-900">Skill assessment</p>
+                                    <p className="mt-3 text-lg font-semibold text-gray-900">{nextStepLabel}</p>
                                 </div>
                             </div>
 
                             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
                                 <button
-                                    onClick={() => navigate('/seeker/jobs')}
+                                    onClick={() => navigate('/candidate/jobs')}
                                     className="rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                                 >
                                     Back to jobs
@@ -1370,10 +1425,10 @@ ${projectsFlat}
                                     {isRedirecting ? (
                                         <>
                                             <Loader2 className="animate-spin" size={18} />
-                                            Redirecting to Assessment...
+                                            Redirecting to {nextStepLabel}...
                                         </>
                                     ) : (
-                                        'Continue to Skill Assessment'
+                                        `Continue to ${nextStepLabel}`
                                     )}
                                 </button>
                             </div>
@@ -1472,7 +1527,7 @@ ${projectsFlat}
 
                         <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                             <button
-                                onClick={() => navigate('/seeker/jobs')}
+                                onClick={() => navigate('/candidate/jobs')}
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                             >
                                 <ArrowLeft size={18} />
@@ -1511,7 +1566,7 @@ ${projectsFlat}
                     ) : null}
                     <div className="mt-8 flex flex-col justify-between gap-4 border-t border-black/10 pt-6 md:flex-row md:items-center">
                         <button
-                            onClick={() => navigate('/seeker/jobs')}
+                            onClick={() => navigate('/candidate/jobs')}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
                         >
                             <ArrowLeft size={18} />

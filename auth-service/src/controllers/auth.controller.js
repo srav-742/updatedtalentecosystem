@@ -391,7 +391,7 @@ export const signupCandidate = async (req, res, next) => {
       throw ApiError.badRequest('This email is already registered.', ERROR_CODES.AUTH_006);
     }
 
-    const candidateRole = await getOrCreateRoleAndPermissions('seeker', []);
+const candidateRole = await getOrCreateRoleAndPermissions('candidate', []);
 
     const hashedPassword = await passwordService.hashPassword(password);
 
@@ -399,7 +399,7 @@ export const signupCandidate = async (req, res, next) => {
       email,
       password: hashedPassword,
       name,
-      role: 'seeker',
+      role: 'candidate',
       roleRef: candidateRole._id,
       isActive: true,
       profilePic: profilePic || '',
@@ -441,10 +441,10 @@ export const forgotPassword = async (req, res, next) => {
   try {
     const { email, role } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
-    const dbRole = role === 'candidate' ? 'seeker' : role;
-
+    const isCandidateRole = (r) => r === 'candidate' || r === 'seeker';
     const user = await UserRepository.findByEmail(normalizedEmail);
-    if (!user || user.role !== dbRole) {
+    const roleMatches = user && (user.role === role || (isCandidateRole(user.role) && isCandidateRole(role)));
+    if (!user || !roleMatches) {
       throw ApiError.notFound('No account found with this email and role.', ERROR_CODES.AUTH_004);
     }
 
@@ -577,8 +577,7 @@ export const resetPassword = async (req, res, next) => {
   try {
     const { email, role, otp, newPassword } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
-    const dbRole = role === 'candidate' ? 'seeker' : role;
-
+    const isCandidateRole = (r) => r === 'candidate' || r === 'seeker';
     let verifiedOtp = null;
     if (otp) {
       const otpRecords = await PasswordResetOtpRepository.findActiveUnverified(normalizedEmail);
@@ -606,7 +605,8 @@ export const resetPassword = async (req, res, next) => {
     }
 
     const user = await UserRepository.findByEmail(normalizedEmail);
-    if (!user || user.role !== dbRole) {
+    const roleMatches = user && (user.role === role || (isCandidateRole(user.role) && isCandidateRole(role)));
+    if (!user || !roleMatches) {
       throw ApiError.notFound('No account found with this email and role.', ERROR_CODES.AUTH_004);
     }
 
@@ -797,7 +797,7 @@ export const googleLogin = async (req, res, next) => {
         throw ApiError.badRequest('Role is required for first-time Google signup.', ERROR_CODES.VALIDATION_001);
       }
 
-      const dbRoleName = role === 'candidate' ? 'seeker' : role;
+const dbRoleName = role === 'seeker' ? 'candidate' : role;
       const defaultPerms = dbRoleName === 'recruiter' ? ['POST_JOB'] : [];
       const userRoleRef = await getOrCreateRoleAndPermissions(dbRoleName, defaultPerms);
 
@@ -813,9 +813,10 @@ export const googleLogin = async (req, res, next) => {
 
       isNewUser = true;
     } else {
-      const requestedRole = role === 'candidate' ? 'seeker' : role;
-      if (requestedRole && user.role !== requestedRole) {
-        throw ApiError.badRequest(`This email is already registered as a ${user.role === 'seeker' ? 'candidate' : user.role}. Please log in with that role.`, ERROR_CODES.AUTH_002);
+const isCandidateRole = (r) => r === 'candidate' || r === 'seeker';
+      const requestedRole = role;
+      if (requestedRole && user.role !== requestedRole && !(isCandidateRole(user.role) && isCandidateRole(requestedRole))) {
+        throw ApiError.badRequest(`This email is already registered as a ${user.role}. Please log in with that role.`, ERROR_CODES.AUTH_002);
       }
 
       if (profilePic && (!user.profilePic || user.profilePic.startsWith('http'))) {

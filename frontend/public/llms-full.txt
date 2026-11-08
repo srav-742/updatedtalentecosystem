@@ -1,0 +1,36 @@
+# Hire1Percent - Full LLM & AI Context Specification
+
+> Hire1Percent is an enterprise AI recruitment and technical assessment platform. It unifies proctored coding assessments, asynchronous AI video interviews, and semantic resume intelligence into a single automated pipeline.
+
+## Platform Summary
+- **Website**: https://www.hire1percent.com/
+- **Domain**: AI Technical Recruitment & Engineering Candidate Assessment
+- **Primary Users**: Engineering Leaders, Technical Recruiters, and Software Candidates
+- **Core Technology**: Real-time browser proctoring, cloud code sandbox compiler (20+ languages), AI video interview analysis, semantic ATS resume scoring.
+
+## Public Indexable Solutions
+1. **AI Interview Platform** (https://www.hire1percent.com/ai-interview-platform)
+   - Asynchronous technical video interviews with AI question dispatch.
+   - Real-time speech-to-text transcription and structured answer scoring.
+2. **AI Recruitment Software** (https://www.hire1percent.com/ai-recruitment-software)
+   - End-to-end recruitment management from sourcing to final hiring decision.
+   - Unified candidate ranking and benchmark comparison against global engineering talent.
+3. **Automated Hiring & Screening** (https://www.hire1percent.com/automated-hiring)
+   - Eliminates manual interview churn by 70%.
+   - Instant automated candidate qualification rubrics.
+4. **Candidate Screening & Proctoring** (https://www.hire1percent.com/candidate-screening)
+   - Multi-modal proctoring engine: fullscreen lockdown, tab-switch tracking, clipboard copy prevention, and biometric presence verification.
+5. **Resume Intelligence** (https://www.hire1percent.com/resume-analysis)
+   - Semantic parsing of engineering resumes, tech stacks, experience levels, and practical project architecture.
+6. **Transparent Pricing** (https://www.hire1percent.com/pricing)
+   - Managed Hiring (12% of salary) and Direct Hire (18% of salary) options with zero setup fees and a 90-day guarantee.
+7. **Candidate Career Hub** (https://www.hire1percent.com/career-hub)
+   - Candidate resource center with career guidelines, interview preparation, and technical benchmarking questions.
+
+## Ethical AI & Human-in-the-Loop Policy
+Hire1Percent provides AI decision-support signals. The platform does not make autonomous employment or rejection decisions; hiring managers and recruiters retain final authority.
+
+## Technical Contact
+- Email: contact@hire1percent.com
+- Support: support@hire1percent.com
+- Security: legal@hire1percent.com

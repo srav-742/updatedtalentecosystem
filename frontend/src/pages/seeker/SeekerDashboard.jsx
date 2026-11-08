@@ -1,142 +1,292 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap } from 'lucide-react';
+import { ArrowRight, Briefcase, CheckCircle2, Clock3, FileText, Star, UserCircle, Zap, Sparkles, ChevronRight, Building2, MapPin, Target, TrendingUp, Award, Code2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../../firebase';
 import { useQuery } from '@tanstack/react-query';
 import { SeekerDashboardSkeleton } from '../../components/Skeleton';
+import JobReadinessModal from '../../components/candidate/JobReadinessModal';
 
-const StatCard = ({ label, value, icon: Icon, tone }) => (
-    <div className="rounded-[1.9rem] border border-black/10 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
-            <Icon size={22} />
+// Avatar gradient palettes for company badges
+const AVATAR_GRADIENTS = [
+    'from-blue-600 to-indigo-700 text-white',
+    'from-violet-600 to-purple-700 text-white',
+    'from-emerald-600 to-teal-800 text-white',
+    'from-amber-500 to-orange-600 text-white',
+    'from-rose-500 to-pink-600 text-white',
+    'from-cyan-600 to-blue-700 text-white',
+    'from-fuchsia-600 to-indigo-700 text-white',
+    'from-teal-600 to-emerald-700 text-white'
+];
+
+const getCompanyMeta = (job, index) => {
+    const companyName = job.company || job.recruiterId?.company?.name || job.recruiter?.company?.name || 'hire1percent Partner';
+    const logoUrl = job.companyLogo || job.recruiter?.profilePic || job.recruiterId?.profilePic;
+    const hash = companyName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const gradient = AVATAR_GRADIENTS[(hash + index) % AVATAR_GRADIENTS.length];
+    
+    let initials = 'HP';
+    const cleanName = companyName.trim();
+    const lowerName = cleanName.toLowerCase();
+
+    if (lowerName.includes('hire1percent') || lowerName.includes('hire 1 percent') || lowerName.startsWith('hire1') || lowerName.startsWith('hire')) {
+        initials = 'HP';
+    } else {
+        const words = cleanName.split(/\s+/);
+        if (words.length > 1) {
+            initials = `${words[0][0]}${words[1][0]}`.toUpperCase();
+        } else {
+            const capitals = cleanName.match(/[A-Z]/g);
+            if (capitals && capitals.length >= 2) {
+                initials = `${capitals[0]}${capitals[1]}`.toUpperCase();
+            } else {
+                initials = (cleanName.slice(0, 2) || 'CO').toUpperCase();
+            }
+        }
+    }
+
+    return { companyName, logoUrl, gradient, initials };
+};
+
+const StatCard = ({ label, value, icon: Icon, tone, sublabel, index = 0 }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        className="group relative flex flex-col justify-between rounded-2xl border border-black/10 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all duration-200 hover:-translate-y-1 hover:border-black/20 hover:shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+    >
+        <div className="flex items-center justify-between">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone} shadow-xs`}>
+                <Icon size={20} />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400">
+                <TrendingUp size={12} className="text-emerald-500" />
+                Live
+            </span>
         </div>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">{label}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">{value}</p>
-    </div>
+        <div className="mt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">{label}</p>
+            <p className="mt-1 text-3xl font-bold tracking-tight text-gray-900">{value}</p>
+            <p className="mt-1 text-xs text-gray-500">{sublabel}</p>
+        </div>
+    </motion.div>
 );
 
 const quickActions = [
     {
         title: 'Browse Jobs',
-        description: 'Explore current roles and move directly into the candidate workflow.',
-        path: '/seeker/jobs',
-        icon: Briefcase
+        description: 'Explore active roles with instant resume matching.',
+        path: '/candidate/jobs',
+        icon: Briefcase,
+        badge: 'Recommended',
+        tone: 'bg-blue-50 text-blue-700 border-blue-100'
     },
     {
         title: 'My Applications',
-        description: 'Track every submitted role from review to final decision.',
-        path: '/seeker/applications',
-        icon: FileText
+        description: 'Track application stages and assessment feedback.',
+        path: '/candidate/applications',
+        icon: FileText,
+        badge: 'Pipeline',
+        tone: 'bg-emerald-50 text-emerald-700 border-emerald-100'
     },
     {
-        title: 'Profile Settings',
-        description: 'Keep your public candidate profile and links ready for recruiters.',
-        path: '/seeker/profile',
-        icon: UserCircle
+        title: 'AI Mock Interview',
+        description: 'Practice real-time technical & behavioural interviews.',
+        path: '/candidate/mock-interview',
+        icon: Zap,
+        badge: 'AI Powered',
+        tone: 'bg-purple-50 text-purple-700 border-purple-100'
+    },
+    {
+        title: 'Profile & Resume',
+        description: 'Keep your ATS profile and credentials recruiter-ready.',
+        path: '/candidate/profile',
+        icon: UserCircle,
+        badge: 'Settings',
+        tone: 'bg-amber-50 text-amber-700 border-amber-100'
     }
 ];
 
 const SeekerDashboard = () => {
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const userId = user.uid || user._id || user.id;
+    const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
 
-    // Fetch seeker's applications using React Query
-    const { data: userApplications = [], isLoading: appsLoading } = useQuery({
+    // Dynamic Job Readiness Score query (cached, lightweight multi-pillar engine)
+    const { data: jobReadiness = null } = useQuery({
+        queryKey: ['jobReadiness', userId],
+        queryFn: async () => {
+            if (!userId) return null;
+            const res = await axios.get(`${API_URL}/candidate/job-readiness/${userId}`);
+            return res.data;
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000,
+    });
+
+    // Fetch lightweight candidate stats instantly (<5ms)
+    const { data: serverStats, isLoading: statsLoading } = useQuery({
+        queryKey: ['applications', 'stats', userId],
+        queryFn: async () => {
+            if (!userId) return { applied: 0, eligible: 0, shortlisted: 0, availableJobs: 0 };
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}/stats`);
+            return res.data;
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000,
+    });
+
+    // Secondary query for seeker's applications in background (caches for MyApplications tab)
+    const { data: userApplications = [] } = useQuery({
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/seeker/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                if (error.response?.status !== 404) throw error;
+                return axios.get(`${API_URL}/applications/seeker/${userId}`);
+            });
             return res.data;
         },
-        enabled: !!userId
+        enabled: !!userId && !serverStats,
+        staleTime: 60 * 1000,
     });
 
-    // Fetch all jobs using React Query
-    const { data: jobs = [], isLoading: jobsLoading } = useQuery({
+    // Secondary query for jobs (caches for BrowseJobs tab)
+    const { data: jobs = [] } = useQuery({
         queryKey: ['jobs'],
         queryFn: async () => {
             const res = await axios.get(`${API_URL}/jobs`);
             return res.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000,
     });
 
-    const loading = (userId ? appsLoading : false) || jobsLoading;
-
     const stats = useMemo(() => {
+        if (serverStats) {
+            return {
+                applied: serverStats.applied || 0,
+                eligible: serverStats.eligible || 0,
+                shortlisted: serverStats.shortlisted || 0,
+                availableJobs: serverStats.availableJobs || jobs.length || 0
+            };
+        }
         return {
             applied: userApplications.length,
             eligible: userApplications.filter((item) => item.status === 'ELIGIBLE' || item.status === 'SHORTLISTED').length,
             shortlisted: userApplications.filter((item) => item.status === 'SHORTLISTED').length,
             availableJobs: jobs.length
         };
-    }, [userApplications, jobs]);
+    }, [serverStats, userApplications, jobs]);
+
+    const loading = statsLoading && !serverStats && userApplications.length === 0;
 
     const headline = useMemo(() => {
         if (stats.shortlisted > 0) {
-            return 'Your applications are gaining traction.';
+            return 'Your applications are gaining strong recruiter traction.';
         }
-
         if (stats.applied > 0) {
-            return 'Your candidate pipeline is active.';
+            return 'Your candidate pipeline is actively being reviewed.';
         }
-
-        return 'Your next opportunity starts here.';
+        return 'Discover curated roles, test your skills, and fast-track your hiring.';
     }, [stats.applied, stats.shortlisted]);
+
+    // Recommended top 3 open jobs preview
+    const recommendedJobs = useMemo(() => {
+        return jobs.slice(0, 3);
+    }, [jobs]);
 
     if (loading) return <SeekerDashboardSkeleton />;
 
     return (
-        <div className="space-y-8">
-            <header className="overflow-hidden rounded-[2.5rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4efe6] px-8 py-9 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
+            {/* Header Hero Banner (Compact & Sleek) */}
+            <header className="overflow-hidden rounded-2xl md:rounded-[1.75rem] border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] py-4.5 px-6 md:py-5 md:px-7 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr] xl:items-center">
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Candidate dashboard</p>
-                        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-gray-900">
-                            Welcome back, {user.name || 'Candidate'}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-black/5 bg-[#f4efe6] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Candidate Dashboard
+                            </div>
+                            {jobReadiness && (
+                                <button
+                                    onClick={() => setIsReadinessModalOpen(true)}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/90 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+                                >
+                                    <Award size={12} className="text-indigo-600" />
+                                    <span>Readiness: <strong className="font-bold text-indigo-900">{jobReadiness.overallScore}%</strong></span>
+                                    <span className="text-[10px] bg-indigo-200/60 px-1.5 py-0.2 rounded-full font-medium">{jobReadiness.tier?.split(' - ')[0]}</span>
+                                </button>
+                            )}
+                        </div>
+                        <h1 className="mt-2 text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900 leading-tight">
+                            Welcome back, {user.name || 'Candidate'} 👋
                         </h1>
-                        <p className="mt-4 max-w-3xl text-base leading-8 text-gray-500">{headline}</p>
+                        <p className="mt-1 max-w-2xl text-xs md:text-sm text-gray-600 font-normal line-clamp-1 md:line-clamp-none">{headline}</p>
 
-                        <div className="mt-8 flex flex-wrap gap-3">
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
                             <Link
-                                to="/seeker/jobs"
-                                className="inline-flex items-center gap-2 rounded-2xl bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+                                to="/candidate/jobs"
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-black px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-gray-800 active:scale-[0.99]"
                             >
-                                Browse roles
-                                <ArrowRight size={18} />
+                                <span>Browse Roles</span>
+                                <ArrowRight size={13} />
                             </Link>
                             <Link
-                                to="/seeker/applications"
-                                className="inline-flex items-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
+                                to="/candidate/applications"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white/80 px-3.5 py-2 text-xs font-semibold text-gray-700 transition hover:bg-white active:scale-[0.99]"
                             >
-                                Track applications
+                                <span>Track Applications</span>
                             </Link>
+                            <Link
+                                to="/candidate/mock-interview"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/70 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-100"
+                            >
+                                <Zap size={13} className="text-purple-600" />
+                                <span>Practice AI Interview</span>
+                            </Link>
+                            <button
+                                onClick={() => setIsReadinessModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 cursor-pointer shadow-xs"
+                            >
+                                <Award size={13} className="text-indigo-600" />
+                                <span>Readiness ({jobReadiness ? jobReadiness.overallScore : 0}%)</span>
+                            </button>
                         </div>
                     </div>
 
-                <div className="rounded-[2rem] border border-black/10 bg-white/80 p-6 backdrop-blur-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white">
-                                <Zap size={22} />
+                    {/* AI Copilot Status Card (Compact) */}
+                    <div className="rounded-xl border border-black/10 bg-white/90 p-3.5 backdrop-blur-sm shadow-xs">
+                        <div className="flex items-center justify-between border-b border-black/5 pb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black text-white shadow-xs">
+                                    <Zap size={14} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-gray-900 leading-tight">Hiring Momentum</p>
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-400">AI Screening Pipeline</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Hiring momentum</p>
-                                <p className="text-lg font-semibold text-gray-900">Candidate-ready experience</p>
-                            </div>
+                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200/60">
+                                Active
+                            </span>
                         </div>
 
-                        <div className="mt-6 space-y-4">
+                        <div className="mt-2 space-y-1.5">
                             {[
-                                'Upload once and extract your resume details automatically.',
-                                'Move through resume screening, assessment, and interview in one clean flow.',
-                                'Track application progress from submission to final selection.'
-                            ].map((item) => (
-                                <div key={item} className="flex items-start gap-3">
-                                    <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-black text-white">
-                                        <CheckCircle2 size={14} />
+                                { title: 'Resume Parsing', desc: 'Auto-extract skills & experience' },
+                                { title: 'Skill Match & Assessment', desc: 'Instant qualification benchmark' },
+                                { title: 'AI Mock Interview', desc: 'Live practice with instant feedback' }
+                            ].map((step, idx) => (
+                                <div key={step.title} className="flex items-start gap-2">
+                                    <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-black text-white text-[8px] font-bold">
+                                        {idx + 1}
                                     </div>
-                                    <p className="text-sm leading-6 text-gray-600">{item}</p>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-gray-900 leading-none">{step.title}</p>
+                                        <p className="text-[10px] text-gray-500 leading-tight truncate">{step.desc}</p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -144,84 +294,317 @@ const SeekerDashboard = () => {
                 </div>
             </header>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Applied Jobs" value={stats.applied} icon={Briefcase} tone="bg-[#eef4ff] text-blue-700" />
-                <StatCard label="Eligible Roles" value={stats.eligible} icon={Star} tone="bg-[#eef9f0] text-emerald-700" />
-                <StatCard label="Shortlisted" value={stats.shortlisted} icon={CheckCircle2} tone="bg-[#fff7e8] text-amber-700" />
-                <StatCard label="Open Roles" value={stats.availableJobs} icon={Clock3} tone="bg-[#f4efe6] text-gray-700" />
+            {/* Metrics 4-Stat Grid */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard 
+                    label="Applied Jobs" 
+                    value={stats.applied} 
+                    icon={Briefcase} 
+                    tone="bg-blue-50 text-blue-700 border border-blue-100" 
+                    sublabel="Active in your pipeline"
+                    index={0}
+                />
+                <StatCard 
+                    label="Eligible Roles" 
+                    value={stats.eligible} 
+                    icon={Star} 
+                    tone="bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                    sublabel="Qualified match >= 60%"
+                    index={1}
+                />
+                <StatCard 
+                    label="Shortlisted" 
+                    value={stats.shortlisted} 
+                    icon={CheckCircle2} 
+                    tone="bg-amber-50 text-amber-700 border border-amber-100" 
+                    sublabel="Ready for interview round"
+                    index={2}
+                />
+                <StatCard 
+                    label="Open Roles" 
+                    value={stats.availableJobs} 
+                    icon={Clock3} 
+                    tone="bg-purple-50 text-purple-700 border border-purple-100" 
+                    sublabel="Active hiring postings"
+                    index={3}
+                />
             </div>
 
-            <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                    <div className="flex items-center justify-between gap-4">
+            {/* Featured Recommended Jobs Preview */}
+            {recommendedJobs.length > 0 && (
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Quick actions</p>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">Continue your candidate journey</h2>
+                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Featured Roles</p>
+                            <h2 className="text-xl font-bold tracking-tight text-gray-900">Recommended for your profile</h2>
                         </div>
+                        <Link 
+                            to="/candidate/jobs" 
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-black transition"
+                        >
+                            <span>View all roles ({stats.availableJobs})</span>
+                            <ChevronRight size={14} />
+                        </Link>
                     </div>
 
-                    <div className="mt-8 grid gap-4 md:grid-cols-3">
-                        {quickActions.map((item, index) => {
-                            const Icon = item.icon;
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {recommendedJobs.map((job, idx) => {
+                            const { companyName, logoUrl, gradient, initials } = getCompanyMeta(job, idx);
 
                             return (
                                 <motion.div
-                                    key={item.title}
-                                    initial={{ opacity: 0, y: 16 }}
+                                    key={job._id}
+                                    initial={{ opacity: 0, y: 12 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.08 }}
+                                    transition={{ delay: idx * 0.04 }}
+                                    className="group flex flex-col justify-between rounded-2xl border border-black/10 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all duration-200 hover:-translate-y-1 hover:border-black/20 hover:shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
                                 >
-                                    <Link
-                                        to={item.path}
-                                        className="block rounded-[1.9rem] border border-black/10 bg-[#fcfaf6] p-6 transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(15,23,42,0.08)]"
-                                    >
-                                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-700 shadow-sm">
-                                            <Icon size={22} />
+                                    <div>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                {logoUrl ? (
+                                                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-black/10 bg-white">
+                                                        <img src={logoUrl} alt={companyName} className="h-full w-full object-cover" />
+                                                    </div>
+                                                ) : (
+                                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} font-bold text-xs`}>
+                                                        {initials}
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-xs font-medium text-gray-500" title={companyName}>
+                                                        {companyName}
+                                                    </p>
+                                                    <span className="inline-block rounded-md border border-black/5 bg-[#f8f4ed] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
+                                                        {job.type || 'Full-time'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <h3 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">{item.title}</h3>
-                                        <p className="mt-2 text-sm leading-7 text-gray-500">{item.description}</p>
-                                        <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                            Open
-                                            <ArrowRight size={16} />
+
+                                        <h3 className="mt-3 text-sm font-bold text-gray-900 line-clamp-1 group-hover:text-black" title={job.title}>
+                                            {job.title}
+                                        </h3>
+
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-[#faf7f1] px-2 py-0.5 border border-black/[0.04] text-[11px]">
+                                                <MapPin size={11} className="text-gray-400" />
+                                                {job.location || 'Remote'}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-[#faf7f1] px-2 py-0.5 border border-black/[0.04] text-[11px]">
+                                                <Clock3 size={11} className="text-gray-400" />
+                                                {job.experienceLevel || `${job.minExperience || 0}+ yrs`}
+                                            </span>
                                         </div>
-                                    </Link>
+                                    </div>
+
+                                    <div className="mt-3.5 pt-3 border-t border-black/5 flex items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                            <Sparkles size={12} className="text-amber-500" />
+                                            Match: {job.minPercentage || 60}%
+                                        </span>
+
+                                        <Link
+                                            to={`/candidate/job/${job._id}`}
+                                            className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gray-800"
+                                        >
+                                            <span>Apply</span>
+                                            <ChevronRight size={13} />
+                                        </Link>
+                                    </div>
                                 </motion.div>
                             );
                         })}
                     </div>
+                </section>
+            )}
+
+            {/* Quick Action Grid & Profile Readiness Split Section */}
+            <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                {/* Quick Actions 2x2 Grid */}
+                <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Action Center</p>
+                                <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">Career Tools & Navigation</h2>
+                            </div>
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f4efe6] text-gray-600">
+                                <Target size={15} />
+                            </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            {quickActions.map((item, index) => {
+                                const Icon = item.icon;
+
+                                return (
+                                    <motion.div
+                                        key={item.title}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.04 }}
+                                    >
+                                        <Link
+                                            to={item.path}
+                                            className="group flex flex-col justify-between rounded-2xl border border-black/10 bg-[#fdfbf7] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-black/20 hover:bg-white hover:shadow-[0_12px_30px_rgba(15,23,42,0.05)] h-full"
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone} border`}>
+                                                        <Icon size={18} />
+                                                    </div>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                        {item.badge}
+                                                    </span>
+                                                </div>
+                                                <h3 className="mt-3 text-sm font-bold text-gray-900 group-hover:text-black">{item.title}</h3>
+                                                <p className="mt-1 text-xs leading-relaxed text-gray-500">{item.description}</p>
+                                            </div>
+                                            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-gray-900 group-hover:underline">
+                                                <span>Open</span>
+                                                <ArrowRight size={13} />
+                                            </div>
+                                        </Link>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="rounded-[2.25rem] border border-black/10 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">Next best step</p>
-                    <h2 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900">Keep your profile and resume ready</h2>
-                    <p className="mt-4 text-sm leading-7 text-gray-500">
-                        The stronger your candidate profile is, the smoother your assessment and interview workflow becomes.
-                    </p>
+                {/* Job Readiness Score Cockpit */}
+                <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.04)] flex flex-col justify-between relative overflow-hidden group">
+                    {/* Decorative accent background gradient */}
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-indigo-50/70 via-purple-50/40 to-transparent rounded-bl-full pointer-events-none" />
 
-                    <div className="mt-8 space-y-4">
-                        {[
-                            'Upload a current resume before starting any application.',
-                            'Review your skills and public professional links in profile settings.',
-                            'Check application tracking after every completed round.'
-                        ].map((item) => (
-                            <div key={item} className="flex items-start gap-3 rounded-2xl border border-black/10 bg-[#fbf8f3] px-4 py-4">
-                                <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-black text-white">
-                                    <CheckCircle2 size={14} />
+                    <div>
+                        {/* Header */}
+                        <div className="flex items-start justify-between relative z-10">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">Readiness Engine</p>
+                                    <span className="flex h-2 w-2 relative">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
                                 </div>
-                                <p className="text-sm leading-6 text-gray-600">{item}</p>
+                                <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+                                    <span>Job Readiness Score</span>
+                                </h2>
                             </div>
-                        ))}
+                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border shadow-xs ${
+                                (jobReadiness?.overallScore ?? 0) >= 80
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : (jobReadiness?.overallScore ?? 0) >= 60
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}>
+                                {jobReadiness?.tier?.split(' - ')[0] || 'Evaluating'}
+                            </span>
+                        </div>
+
+                        {/* Readiness Score Big Counter & Percentile */}
+                        <div className="mt-5 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-[#faf7f1] to-white p-4.5 relative">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-extrabold tracking-tight text-gray-900">
+                                        {jobReadiness ? jobReadiness.overallScore : '--'}
+                                    </span>
+                                    <span className="text-sm font-semibold text-gray-400">/ 100</span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="flex items-center justify-end gap-1 text-xs font-bold text-indigo-600">
+                                        <Sparkles size={13} />
+                                        <span>Top {jobReadiness ? (100 - (jobReadiness.percentile || 50)) : 20}% Percentile</span>
+                                    </div>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Recruiter candidate ranking</p>
+                                </div>
+                            </div>
+
+                            {/* Overall progress bar */}
+                            <div className="mt-3.5 h-2 w-full rounded-full bg-gray-200/80 overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-700"
+                                    style={{ width: `${jobReadiness ? jobReadiness.overallScore : 0}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 5 Core Pillars Preview */}
+                        <div className="mt-4 space-y-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Readiness Factors</p>
+                            
+                            {[
+                                { key: 'skills', label: 'Skills & Endorsements', score: jobReadiness?.dimensions?.skills?.percent ?? jobReadiness?.breakdown?.skills?.percent ?? 50 },
+                                { key: 'assessments', label: 'Verified Assessments', score: jobReadiness?.dimensions?.assessments?.percent ?? jobReadiness?.breakdown?.assessments?.percent ?? 0 },
+                                { key: 'projects', label: 'Portfolio & Projects', score: jobReadiness?.dimensions?.projects?.percent ?? jobReadiness?.breakdown?.projects?.percent ?? 0 },
+                                { key: 'resume', label: 'Resume & Profile Strength', score: jobReadiness?.dimensions?.resume?.percent ?? jobReadiness?.breakdown?.resume?.percent ?? 70 },
+                                { key: 'interview', label: 'AI Mock Interview', score: jobReadiness?.dimensions?.interview?.percent ?? jobReadiness?.breakdown?.interview?.percent ?? 0 },
+                            ].map((pillar) => (
+                                <div key={pillar.key} className="flex items-center justify-between text-xs py-1 border-b border-black/[0.03] last:border-0">
+                                    <span className="text-gray-600 font-medium">{pillar.label}</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${
+                                                    pillar.score >= 75 ? 'bg-emerald-500' : pillar.score >= 50 ? 'bg-indigo-500' : 'bg-amber-400'
+                                                }`}
+                                                style={{ width: `${pillar.score}%` }}
+                                            />
+                                        </div>
+                                        <span className="font-semibold text-gray-900 w-7 text-right">{pillar.score}%</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Highest Leverage Action Preview */}
+                        {jobReadiness?.improvementActions && jobReadiness.improvementActions.length > 0 && (
+                            <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                                        <Zap size={11} className="text-amber-600" />
+                                        Recommended Action
+                                    </span>
+                                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md">
+                                        {jobReadiness.improvementActions[0].pointsBoost}
+                                    </span>
+                                </div>
+                                <p className="text-xs font-semibold text-gray-900 mt-1 leading-snug">
+                                    {jobReadiness.improvementActions[0].title}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <Link
-                        to="/seeker/profile"
-                        className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-black/10 px-6 py-4 text-sm font-semibold text-gray-700 transition hover:bg-[#faf7f1]"
-                    >
-                        Update profile
-                        <ArrowRight size={16} />
-                    </Link>
+                    <div className="mt-5 space-y-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsReadinessModalOpen(true)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800 active:scale-[0.99] shadow-sm cursor-pointer"
+                        >
+                            <Award size={14} className="text-amber-400" />
+                            <span>View Full Readiness Diagnostic</span>
+                            <ArrowRight size={14} />
+                        </button>
+
+                        <Link
+                            to="/candidate/profile"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-[#faf7f1] py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                        >
+                            <span>Update Profile Settings</span>
+                        </Link>
+                    </div>
                 </div>
             </section>
+
+            {/* Detailed Job Readiness Diagnostic & Action Modal */}
+            <JobReadinessModal
+                isOpen={isReadinessModalOpen}
+                onClose={() => setIsReadinessModalOpen(false)}
+                readinessData={jobReadiness}
+            />
         </div>
     );
 };

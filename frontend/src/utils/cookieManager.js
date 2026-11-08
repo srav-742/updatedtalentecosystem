@@ -3,6 +3,7 @@
  * Handles local storage based cookie consent tracking.
  */
 
+import { updateConsent } from './analytics';
 const CONSENT_KEY = "h1p_cookie_consent";
 
 export const cookieManager = {
@@ -12,6 +13,7 @@ export const cookieManager = {
      */
     setConsent: (preferences = { accepted: true, timestamp: new Date().toISOString() }) => {
         localStorage.setItem(CONSENT_KEY, JSON.stringify(preferences));
+        updateConsent(!!preferences.accepted);
     },
 
     /**
@@ -36,7 +38,20 @@ export const cookieManager = {
      */
     clearConsent: () => {
         localStorage.removeItem(CONSENT_KEY);
+        updateConsent(false);
     }
 };
+
+// Apply existing saved consent status immediately on application load
+if (typeof window !== 'undefined') {
+    try {
+        const existingConsent = cookieManager.getConsent();
+        if (existingConsent) {
+            updateConsent(!!existingConsent.accepted);
+        }
+    } catch (error) {
+        console.warn('[COOKIE-MANAGER] Unable to apply saved consent:', error);
+    }
+}
 
 export default cookieManager;

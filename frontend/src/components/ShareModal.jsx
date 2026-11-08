@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Copy, Mail, Check } from 'lucide-react';
+import { X, Copy, Mail, Check, Share2 } from 'lucide-react';
 
-const ShareModal = ({ isOpen, onClose, applicationId, candidateName }) => {
+const ShareModal = ({ isOpen, onClose, applicationId, candidateName, title }) => {
     const [copied, setCopied] = useState(false);
 
     if (!isOpen || !applicationId) return null;
@@ -10,26 +10,63 @@ const ShareModal = ({ isOpen, onClose, applicationId, candidateName }) => {
     const shareUrl = `${window.location.origin}/public/interview/${applicationId}`;
     const formattedCandidate = candidateName ? candidateName : 'Candidate';
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(shareUrl).then(() => {
+    const fallbackCopy = (text) => {
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        }).catch((err) => {
-            console.error('Failed to copy share link:', err);
-        });
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+        }
+    };
+
+    const handleCopy = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }).catch(() => {
+                fallbackCopy(shareUrl);
+            });
+        } else {
+            fallbackCopy(shareUrl);
+        }
     };
 
     const handleWhatsAppShare = () => {
-        const text = `Hi, please review the AI interview recording and evaluation for ${formattedCandidate} on hire1percent:\n\n${shareUrl}`;
+        const text = `Hi, please review candidate ${formattedCandidate}'s video introduction and AI interview on hire1percent:\n\n${shareUrl}`;
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
         window.open(whatsappUrl, '_blank');
     };
 
     const handleEmailShare = () => {
-        const subject = `AI Interview Review: ${formattedCandidate}`;
-        const body = `Hi,\n\nPlease find the candidate's AI interview recording, transcript, and aggregate evaluation metrics here:\n${shareUrl}\n\nBest regards,\nHiring Team`;
+        const subject = `Candidate Review: ${formattedCandidate}`;
+        const body = `Hi,\n\nPlease review candidate ${formattedCandidate}'s video introduction and AI interview evaluation here:\n${shareUrl}\n\nBest regards,\nHiring Team`;
         const emailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         window.open(emailUrl, '_self');
+    };
+
+    const handleNativeShare = () => {
+        if (navigator.share) {
+            navigator.share({
+                title: `Candidate Review: ${formattedCandidate}`,
+                text: `Review candidate ${formattedCandidate}'s video introduction and AI interview on hire1percent:`,
+                url: shareUrl
+            }).catch((err) => {
+                if (err.name !== 'AbortError') {
+                    console.error('Native share failed:', err);
+                }
+            });
+        }
     };
 
     return (
@@ -45,7 +82,7 @@ const ShareModal = ({ isOpen, onClose, applicationId, candidateName }) => {
                     {/* Header */}
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h3 className="text-xl font-bold uppercase tracking-tight text-white">Share Interview</h3>
+                            <h3 className="text-xl font-bold uppercase tracking-tight text-white">{title || 'Share Candidate'}</h3>
                             <p className="text-xs text-gray-400 mt-1">Review candidate: <span className="text-purple-400 font-bold">{formattedCandidate}</span></p>
                         </div>
                         <button
@@ -99,9 +136,25 @@ const ShareModal = ({ isOpen, onClose, applicationId, candidateName }) => {
                             </div>
                             <div className="flex-1">
                                 <div className="text-sm font-bold text-white">Share via Email</div>
-                                <div className="text-xs text-gray-400 mt-0.5">Draft an email containing the evaluation link</div>
+                                <div className="text-xs text-gray-400 mt-0.5">Draft an email containing the review link</div>
                             </div>
                         </button>
+
+                        {/* Native Device Share (if available) */}
+                        {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                            <button
+                                onClick={handleNativeShare}
+                                className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 p-4 rounded-2xl text-left transition-all hover:scale-102 cursor-pointer group"
+                            >
+                                <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-all">
+                                    <Share2 size={18} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-sm font-bold text-white">More Sharing Options</div>
+                                    <div className="text-xs text-gray-400 mt-0.5">Share via device apps or messengers</div>
+                                </div>
+                            </button>
+                        )}
                     </div>
                 </motion.div>
             </div>
