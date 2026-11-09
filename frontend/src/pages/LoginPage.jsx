@@ -3,13 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, CLIENT_ID, signupWithEmail, resetPasswordWithFirebase, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import apiClient from '../utils/apiClient';
 import SEO from '../components/SEO';
 import { trackEvent } from '../utils/analytics';
 
-const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
-const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
 const normalizeRole = (value) => value === 'seeker' ? 'candidate' : value;
 const isSupportedRole = (value) => ['recruiter', 'candidate', 'admin'].includes(value);
 
@@ -260,7 +258,6 @@ const LoginPage = () => {
                 }, {
                     headers: {
                         'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
                     }
                 });
 
@@ -286,7 +283,6 @@ const LoginPage = () => {
                             }, {
                                 headers: {
                                     'X-Client-ID': CLIENT_ID,
-                                    'X-Client-Secret': CLIENT_SECRET
                                 }
                             });
                             
@@ -342,6 +338,10 @@ const LoginPage = () => {
                     return;
                 }
 
+                if (user.emailVerified) {
+                    apiClient.post('/auth/sync-verification', { email: normalizedEmail, uid: user.uid }).catch(() => {});
+                }
+
                 const fetchedProfile = await withRetry(
                     () => getUserProfile(normalizedEmail),
                     3,
@@ -371,10 +371,32 @@ const LoginPage = () => {
                 }
 
                 // Check the stored role before syncing the selected role to backend services.
-                const profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
+                let profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
                 const selectedIsStaff = role === 'recruiter' || role === 'admin';
                 if (profileIsStaff !== selectedIsStaff) {
-                    throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    if (selectedIsStaff && (profile.role === 'candidate' || profile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: user.uid,
+                                email: user.email || normalizedEmail,
+                                name: user.displayName || profile.name || normalizedEmail.split('@')[0],
+                                role: role
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                profile.role = 'recruiter';
+                                profileIsStaff = true;
+                            }
+                        } catch {
+                            const refetched = await getUserProfile(normalizedEmail).catch(() => null);
+                            if (refetched && (refetched.role === 'recruiter' || refetched.role === 'admin')) {
+                                profile = refetched;
+                                profileIsStaff = true;
+                            }
+                        }
+                    }
+                    if (profileIsStaff !== selectedIsStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    }
                 }
 
                 await Promise.all([
@@ -404,7 +426,6 @@ const LoginPage = () => {
                     }, {
                         headers: {
                             'X-Client-ID': CLIENT_ID,
-                            'X-Client-Secret': CLIENT_SECRET
                         }
                     }).catch(err => {
                         console.warn('[LOGIN] Password backfill failed (non-fatal):', err.message);
@@ -479,10 +500,26 @@ const LoginPage = () => {
             ).catch(() => null);
 
             if (existingProfile && existingProfile.role) {
-                const isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
-                const isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                let isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
+                let isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
                 if (isSelectedStaff !== isDbStaff) {
-                    throw new Error(`Unauthorized. This account is registered as a ${existingProfile.role}.`);
+                    if (isSelectedStaff && (existingProfile.role === 'candidate' || existingProfile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: googleUser.uid,
+                                email: normalizedEmail,
+                                name: googleUser.displayName || normalizedEmail.split('@')[0],
+                                role: targetRole
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                existingProfile.role = 'recruiter';
+                                isDbStaff = true;
+                            }
+                        } catch {}
+                    }
+                    if (isSelectedStaff !== isDbStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${existingProfile.role}.`);
+                    }
                 }
             }
 
@@ -747,6 +784,8 @@ const LoginPage = () => {
                     throw new Error('Please select a valid role before continuing.');
                 }
 
+                apiClient.post('/auth/sync-verification', { email: normalizedEmail, uid: refreshedUser.uid }).catch(() => {});
+
                 const fetchedProfile = await withRetry(
                     () => getUserProfile(normalizedEmail),
                     3,
@@ -765,10 +804,32 @@ const LoginPage = () => {
                     await withRetry(() => saveUserProfile(refreshedUser.uid, profile), 3, 'autoCreateProfile').catch(() => {});
                 }
 
-                const profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
+                let profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
                 const selectedIsStaff = targetRole === 'recruiter' || targetRole === 'admin';
                 if (profileIsStaff !== selectedIsStaff) {
-                    throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    if (selectedIsStaff && (profile.role === 'candidate' || profile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: refreshedUser.uid,
+                                email: normalizedEmail,
+                                name: refreshedUser.displayName || profile.name || normalizedEmail.split('@')[0],
+                                role: targetRole
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                profile.role = 'recruiter';
+                                profileIsStaff = true;
+                            }
+                        } catch {
+                            const refetched = await getUserProfile(normalizedEmail).catch(() => null);
+                            if (refetched && (refetched.role === 'recruiter' || refetched.role === 'admin')) {
+                                profile = refetched;
+                                profileIsStaff = true;
+                            }
+                        }
+                    }
+                    if (profileIsStaff !== selectedIsStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    }
                 }
 
                 await Promise.all([
@@ -843,7 +904,7 @@ const LoginPage = () => {
 
             // Also trigger backend branded email with CTA button
             axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+                headers: { 'X-Client-ID': CLIENT_ID }
             }).catch(e => {
                 console.warn('[LOGIN] Backend resend-verification warning (non-fatal):', e.message);
             });
@@ -1183,7 +1244,7 @@ const LoginPage = () => {
                                 {role !== 'admin' && (
                                     <p className="mt-8 text-center text-[#5E6577] text-sm">
                                         New here?{' '}
-                                        <Link to="/signup" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors cursor-pointer ml-1">
+                                        <Link to={role ? `/signup?role=${role}` : '/signup'} className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors cursor-pointer ml-1">
                                             Create an account
                                         </Link>
                                     </p>

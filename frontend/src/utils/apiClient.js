@@ -2,7 +2,7 @@
  * API Client — Centralized HTTP wrapper for the API Gateway.
  */
 
-import { API_URL, CLIENT_ID, CLIENT_SECRET, getGatewayHeaders } from '../config';
+import { API_URL, CLIENT_ID, getGatewayHeaders } from '../config';
 
 export const getTokens = () => {
     try {
@@ -74,11 +74,17 @@ export const apiRequest = async (endpoint, options = {}, retry = true) => {
         ...getGatewayHeaders()
     };
 
-    if (accessToken && !headers.Authorization) {
-        headers.Authorization = `Bearer ${accessToken}`;
-    }
-    if (accessToken) {
-        headers.ACCESS_TOKEN = accessToken;
+    // Keep an independently issued Java gateway token for legacy gateway URLs.
+    const isGatewayRequest = url.includes(':9090') || url.includes('/backend_service');
+    const tokenToSend = isGatewayRequest
+        ? (localStorage.getItem('gatewayAccessToken') || accessToken)
+        : accessToken;
+
+    if (tokenToSend) {
+        if (!headers.Authorization) {
+            headers.Authorization = `Bearer ${tokenToSend}`;
+        }
+        headers['ACCESS_TOKEN'] = tokenToSend;
     }
     if (refreshToken) {
         headers['X-Refresh-Token'] = refreshToken;
@@ -165,7 +171,46 @@ const apiClient = {
         });
     },
 
-    initializeGatewaySession: async (email, uid) => {
+    initializeGatewaySession: async (email, uid, clientSecret = null) => {
+        // Step 1: Try Java API Gateway OAuth (Port 9090) if uid and secret are available
+        if (uid) {
+            try {
+                const clientId = `client_${uid}`;
+                const storedSecret = localStorage.getItem('h1p_client_secret');
+                const secretToUse = clientSecret || storedSecret;
+                if (secretToUse) {
+                    const credentials = btoa(`${clientId}:${secretToUse}`);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    try {
+                        const res = await fetch('http://localhost:9090/oauth-service/oauth/authenticate', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Basic ${credentials}`,
+                                'Content-Type': 'application/json'
+                            },
+                            signal: controller.signal
+                        });
+
+                        if (res.ok) {
+                            const authResponse = await res.json().catch(() => null);
+                            if (authResponse && authResponse.accessToken) {
+                                setTokens(authResponse.accessToken, authResponse.refreshToken || '');
+                                console.log('[API-CLIENT] Java Gateway OAuth session initialized for:', clientId);
+                                return { accessToken: authResponse.accessToken, refreshToken: authResponse.refreshToken };
+                            }
+                        }
+                    } finally {
+                        clearTimeout(timeoutId);
+                    }
+                }
+            } catch (oauthErr) {
+                console.warn('[API-CLIENT] Java Gateway OAuth error (non-fatal):', oauthErr.message);
+            }
+        }
+
+        // Step 2: Fallback to Node Gateway token exchange
         try {
             const { auth } = await import('../firebase');
             const firebaseUser = auth.currentUser;
@@ -240,5 +285,5 @@ export const pingBackendWarmup = async () => {
 
 apiClient.pingBackendWarmup = pingBackendWarmup;
 
-export { API_URL, CLIENT_ID, CLIENT_SECRET };
+export { API_URL, CLIENT_ID };
 export default apiClient;

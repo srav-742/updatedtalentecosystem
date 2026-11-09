@@ -96,9 +96,27 @@ const verifyRefreshToken = (token) => {
  * @returns {Promise<string[]>} Array of role names
  */
 const getClientRoles = async (clientId) => {
-    const client = await Client.findOne({ clientId }).populate('roles');
-    if (!client || !client.roles) return [];
-    return client.roles.map(r => r.name);
+    try {
+        if (!clientId) return [];
+        const client = await Client.findOne({ clientId });
+        if (!client) return [];
+
+        const directRoles = Array.isArray(client.roles)
+            ? client.roles.map(r => (typeof r === 'string' ? r : r?.name)).filter(Boolean)
+            : [];
+
+        const ClientRole = require('../models/ClientRole');
+        const clientRoles = await ClientRole.find({ client: client._id }).populate({
+            path: 'role',
+            strictPopulate: false
+        });
+        const mappedRoles = clientRoles.map(cr => cr.role?.name).filter(Boolean);
+
+        return [...new Set([...directRoles, ...mappedRoles])];
+    } catch (err) {
+        console.error('[AUTH-SERVICE] Error in getClientRoles:', err.message);
+        return [];
+    }
 };
 
 /**
@@ -119,6 +137,15 @@ const getUserRoles = (user) => {
         } else if (user.role === 'candidate' && !roles.includes('seeker')) {
             roles.push('seeker');
         }
+
+        // Map selected plan to descriptive recruiter access roles for logging & authorization
+        if (user.role === 'recruiter' && user.selectedPlan === 'applicant_viewing') {
+            roles.push('RECRUITER_VIEW_APPLICANTS');
+        }
+        // If they are a recruiter and have paid, grant the premium_recruiter role dynamically
+        if (user.role === 'recruiter' && (user.isPro === true || user.hiringPattern === 'Premium Recruiter')) {
+            roles.push('premium_recruiter');
+        }
     }
 
     // Pro / premium recruiter distinction
@@ -131,7 +158,7 @@ const getUserRoles = (user) => {
         roles.push('user');
     }
 
-    return roles;
+    return [...new Set(roles)];
 };
 
 // ─── In-memory resource cache ─────────────────────────────────────────────

@@ -1,42 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Briefcase, 
-    MapPin, 
-    Users, 
-    Trash2, 
-    Edit3, 
-    ArrowUpRight, 
-    Search, 
-    Clock, 
-    CheckCircle2, 
-    XCircle, 
-    AlertCircle, 
-    Share2, 
-    Mail, 
-    Linkedin, 
-    Twitter, 
-    Copy, 
-    UploadCloud, 
-    Code2,
-    Plus,
-    Check,
-    Sparkles,
-    Eye,
-    TrendingUp,
-    ArrowUpDown,
-    Building2,
-    Banknote,
-    X,
-    Filter,
-    Layers,
-    FileText,
-    ExternalLink,
-    ShieldCheck
-} from 'lucide-react';
+import { Briefcase, MapPin, Users, Trash2, Edit3, ArrowUpRight, Search, Filter, Clock, CheckCircle2, XCircle, AlertCircle, Share2, Mail, Linkedin, Twitter, Copy, UploadCloud, Send, FileText, Code2, Plus, Check, Sparkles, Eye, TrendingUp, Building2, Banknote, X, Layers, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
+import apiClient from '../../utils/apiClient';
+import { loadRazorpayScript } from '../../utils/loadRazorpayScript';
 import BulkUploadModal from '../../components/BulkUploadModal';
 import CandidateWhitelistModal from '../../components/CandidateWhitelistModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -56,12 +25,179 @@ const MyJobs = () => {
     const [copiedJobId, setCopiedJobId] = useState(null);
     const [activeShareJobId, setActiveShareJobId] = useState(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+    const [selectedJobToPublish, setSelectedJobToPublish] = useState(null);
+    const [paymentProcessing, setPaymentProcessing] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [whitelistModalOpen, setWhitelistModalOpen] = useState(false);
     const [selectedWhitelistJob, setSelectedWhitelistJob] = useState(null);
+    const [deleteConfirmJob, setDeleteConfirmJob] = useState(null); // job object to confirm delete
+    const [limitWarning, setLimitWarning] = useState(null);
     const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
 
     const userId = user.uid || user._id || user.id;
+    const isPlanActive = (planName) => paymentStatus?.activePlans?.some(p => p.plan === planName) || paymentStatus?.selectedPlan === planName;
+
+    const handleSelectPlan = async (planName, planPrice) => {
+        if (!selectedJobToPublish) {
+            alert("No job selected to publish.");
+            return;
+        }
+
+        setPaymentProcessing(true);
+        try {
+            const loaded = await loadRazorpayScript();
+            if (!loaded) {
+                setPaymentProcessing(false);
+                alert("Razorpay SDK failed to load. Please check your internet connection.");
+                return;
+            }
+
+            const authHeaders = await getAuthHeaders();
+            const headers = {
+                ...authHeaders,
+                'x-user-id': userId || authHeaders['x-user-id'] || '',
+                ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+            };
+
+            const orderRes = await axios.post(`${API_URL}/payments/order`, {
+                amount: planPrice,
+                userId: userId,
+                plan: planName,
+                jobId: selectedJobToPublish._id
+            }, { headers });
+
+            if (!orderRes.data || !orderRes.data.success) {
+                alert("Failed to create payment order. " + (orderRes.data?.message || ''));
+                setPaymentProcessing(false);
+                return;
+            }
+
+            const { orderId, amount, currency, key_id } = orderRes.data;
+
+            const options = {
+                key: key_id || 'rzp_test_Sr8a8DZ72jBYCu',
+                amount: amount,
+                currency: currency || 'INR',
+                name: 'Hire1Percent',
+                description: `Publish Job: ${selectedJobToPublish.title} (${planName})`,
+                order_id: orderId,
+                handler: async function (response) {
+                    try {
+                        const verifyRes = await axios.post(`${API_URL}/payments/verify`, {
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            jobId: selectedJobToPublish._id
+                        }, { headers });
+
+                        if (verifyRes.data && verifyRes.data.success) {
+                            if (verifyRes.data.clientId) {
+                                localStorage.setItem('h1p_client_id', verifyRes.data.clientId);
+                            }
+                            if (verifyRes.data.clientSecret) {
+                                localStorage.setItem('h1p_client_secret', verifyRes.data.clientSecret);
+                            }
+                            try {
+                                const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                                localStorage.setItem('user', JSON.stringify({
+                                    ...storedUser,
+                                    selectedPlan: planName,
+                                    isPro: true,
+                                    hiringPattern: "Premium Recruiter"
+                                }));
+                            } catch (_) {}
+
+                            // Initialize Java API Gateway OAuth session in background
+                            apiClient.initializeGatewaySession(user.email, userId, verifyRes.data.clientSecret).catch(e => {
+                                console.warn('[MY-JOBS] Gateway session refresh warning:', e.message);
+                            });
+
+                            alert(`Payment Successful! Your job "${selectedJobToPublish.title}" has been submitted to Admin for approval.`);
+                            setIsSubscriptionModalOpen(false);
+                            setSelectedJobToPublish(null);
+                            queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['jobs'] });
+                            queryClient.invalidateQueries({ queryKey: ['recruiterJobs'] });
+                            queryClient.invalidateQueries({ queryKey: ['applicants'] });
+                        } else {
+                            alert("Payment verification failed: " + (verifyRes.data?.message || "Unknown error"));
+                        }
+                    } catch (verifyErr) {
+                        console.error("[PAYMENT-VERIFY] Error:", verifyErr);
+                        alert("Payment verification error: " + (verifyErr.response?.data?.message || verifyErr.message));
+                    } finally {
+                        setPaymentProcessing(false);
+                    }
+                },
+                prefill: {
+                    name: user.name || user.displayName || 'Recruiter',
+                    email: user.email || '',
+                },
+                theme: {
+                    color: '#2563eb'
+                },
+                modal: {
+                    ondismiss: function () {
+                        setPaymentProcessing(false);
+                    }
+                }
+            };
+
+            const rzp1 = new window.Razorpay(options);
+            rzp1.on('payment.failed', function (response) {
+                alert("Payment failed: " + (response.error?.description || "Transaction declined"));
+                setPaymentProcessing(false);
+            });
+            rzp1.open();
+
+        } catch (err) {
+            console.error("[PAYMENT-ORDER] Error:", err);
+            alert("Payment initialization error: " + (err.response?.data?.message || err.message));
+            setPaymentProcessing(false);
+        }
+    };
+
+    const handlePublishClick = async (job) => {
+        const publishedCount = jobs.filter(j => j.status === 'pending_approval' || j.status === 'approved').length;
+        const jobLimit = paymentStatus?.jobLimit || 0;
+
+        // If recruiter has available active quota in their plan
+        if (jobLimit > 0 && publishedCount < jobLimit) {
+            try {
+                const authHeaders = await getAuthHeaders();
+                const headers = {
+                    ...authHeaders,
+                    'x-user-id': userId || authHeaders['x-user-id'] || '',
+                    ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+                };
+
+                const res = await axios.patch(`${API_URL}/jobs/${job._id}/publish`, {}, { headers });
+                if (res.data && res.data.success) {
+                    alert(`Job "${job.title}" submitted for Admin approval! (${publishedCount + 1} / ${jobLimit} total slots used)`);
+                    queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+                    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+                    queryClient.invalidateQueries({ queryKey: ['paymentStatus', userId] });
+                    return;
+                }
+            } catch (err) {
+                console.warn("[DIRECT-PUBLISH] Failed or quota exceeded:", err.response?.data?.message || err.message);
+                if (err.response?.data?.requireUpgrade) {
+                    alert(err.response.data.message);
+                }
+            }
+        }
+
+        // If quota limit reached or no plan, open Subscription Modal to buy/upgrade plan
+        if (jobLimit > 0 && publishedCount >= jobLimit) {
+            setLimitWarning(`Present plan has access to ${jobLimit} job${jobLimit > 1 ? 's' : ''} only. To post multiple jobs, upgrade your plan.`);
+        } else {
+            setLimitWarning(null);
+        }
+        
+        setSelectedJobToPublish(job);
+        setIsSubscriptionModalOpen(true);
+    };
 
     // Handle outside clicks for the share popover
     useEffect(() => {
@@ -79,21 +215,58 @@ const MyJobs = () => {
         queryKey: ['jobs', 'recruiter', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
-            return res.data;
+            const authHeaders = await getAuthHeaders();
+            const headers = {
+                ...authHeaders,
+                'x-user-id': userId || authHeaders['x-user-id'] || '',
+                ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+            };
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`, { headers });
+            return Array.isArray(res.data) ? res.data : [];
         },
         enabled: !!userId,
         staleTime: 0,
         refetchOnMount: 'always'
     });
 
+    // Fetch recruiter's payment and subscription status
+    const { data: paymentStatus } = useQuery({
+        queryKey: ['paymentStatus', userId],
+        queryFn: async () => {
+            if (!userId) return null;
+            const authHeaders = await getAuthHeaders();
+            const headers = {
+                ...authHeaders,
+                'x-user-id': userId || authHeaders['x-user-id'] || '',
+                ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+            };
+            const res = await axios.get(`${API_URL}/payments/status/${userId}`, { headers });
+            return res.data;
+        },
+        enabled: !!userId
+    });
+
     // Delete job mutation
     const deleteJobMutation = useMutation({
         mutationFn: async (jobId) => {
-            await axios.delete(`${API_URL}/jobs/${jobId}`);
+            const authHeaders = await getAuthHeaders();
+            const headers = {
+                ...authHeaders,
+                'x-user-id': userId || authHeaders['x-user-id'] || '',
+                ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+            };
+            await axios.delete(`${API_URL}/jobs/${jobId}`, { headers });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+            queryClient.invalidateQueries({ queryKey: ['jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['recruiterJobs'] });
+            setDeleteConfirmJob(null);
+        },
+        onError: (error) => {
+            console.error('[DELETE-JOB]', error?.response?.data?.message || error.message);
+            alert("Failed to delete job: " + (error?.response?.data?.message || error.message));
+            setDeleteConfirmJob(null);
         }
     });
 
@@ -224,6 +397,13 @@ const MyJobs = () => {
     };
 
     const getStatusBadge = (job) => {
+        if (job.status === 'draft') {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                    <FileText size={12} /> Draft
+                </span>
+            );
+        }
         if (job.status === 'approved') {
             return (
                 <span className="rec-badge-emerald inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold uppercase tracking-wider shadow-2xs">
@@ -276,25 +456,27 @@ const MyJobs = () => {
     }
 
     return (
-        <div className="space-y-8 pb-16">
-            {/* 1. Executive Hero Header (Compact) */}
-            <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6 relative z-10">
-                    <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className="rec-badge-dark px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-xs">
-                                Requisition Hub
-                            </span>
-                            <span className="text-xs text-slate-500 font-medium">
-                                Real-time applicant screening & assessment configuration
-                            </span>
-                        </div>
-                        <h1 className="text-2xl md:text-[1.75rem] font-extrabold tracking-tight text-slate-900 leading-tight">
-                            My Job <span className="rec-text-gradient">Postings</span>
-                        </h1>
-                        <p className="text-xs md:text-sm text-slate-600 max-w-2xl font-normal line-clamp-1 md:line-clamp-none">
-                            Oversee active job requisitions, track candidate flow across automated AI screening stages, configure proctored rounds, and distribute public application links.
-                        </p>
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <div className="flex flex-wrap items-center gap-3 mb-1">
+                        <h1 className="text-3xl font-bold uppercase tracking-tight">Active Campaigns</h1>
+                    </div>
+                    <p className="text-gray-400 font-medium text-sm">
+                        Manage your {jobs.length} job postings ({jobs.filter(j => j.status === 'pending_approval' || j.status === 'approved').length} published, {jobs.filter(j => j.status === 'draft').length} drafts) and track applicant status.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search campaigns..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-12 pr-4 py-3 rounded-2xl bg-white/5 border border-white/10 focus:border-blue-500/50 outline-none transition-all w-64 text-sm font-medium"
+                        />
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
@@ -307,7 +489,7 @@ const MyJobs = () => {
                         </Link>
                     </div>
                 </div>
-            </header>
+            </div>
 
             {/* 2. Requisition KPI Summary Bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -615,7 +797,7 @@ const MyJobs = () => {
                                                         {job.education.map((edu, idx) => (
                                                             <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/70 rounded-lg text-[11px] font-semibold text-slate-600">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                                                                {edu.qualification} • {edu.specialization}
+                                                                {edu.qualification} â€¢ {edu.specialization}
                                                             </span>
                                                         ))}
                                                     </div>
@@ -624,7 +806,7 @@ const MyJobs = () => {
                                                         <div className="flex flex-wrap items-center gap-2 pt-0.5">
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/70 rounded-lg text-[11px] font-semibold text-slate-600">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                                                                {job.qualification || 'Any'} • {job.specialization || 'Any'}
+                                                                {job.qualification || 'Any'} â€¢ {job.specialization || 'Any'}
                                                             </span>
                                                         </div>
                                                     )
@@ -916,7 +1098,7 @@ const MyJobs = () => {
                                                     onClick={() => navigate(`/recruiter/post-job?edit=${job._id}`)}
                                                     className="text-xs font-bold text-rose-800 underline hover:text-rose-950 cursor-pointer"
                                                 >
-                                                    Edit requisition to address feedback →
+                                                    Edit requisition to address feedback â†’
                                                 </button>
                                             </div>
                                         </div>
@@ -990,6 +1172,334 @@ const MyJobs = () => {
                 job={selectedWhitelistJob}
                 onUpdateComplete={() => queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] })}
             />
+            {/* Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteConfirmJob && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style={{ backgroundColor: 'rgba(5, 7, 12, 0.85)', backdropFilter: 'blur(16px)' }}
+                        onClick={() => !deleteJobMutation.isPending && setDeleteConfirmJob(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                            className="relative w-full max-w-[420px] overflow-hidden"
+                            style={{
+                                borderRadius: '28px',
+                                background: '#0d0f17',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                padding: '28px',
+                                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Ambient top blue tint glow */}
+                            <div style={{
+                                position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                                width: '240px', height: '120px',
+                                background: 'radial-gradient(ellipse, rgba(59, 130, 246, 0.12) 0%, transparent 70%)',
+                                pointerEvents: 'none'
+                            }} />
+
+                            <div style={{ position: 'relative', zIndex: 10 }}>
+                                {/* Header row */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+                                    <div>
+                                        <div style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                            padding: '4px 12px', borderRadius: '9999px',
+                                            background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                                            color: '#f87171', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+                                            marginBottom: '8px'
+                                        }}>
+                                            <Trash2 size={12} style={{ color: '#f87171' }} /> Remove Job
+                                        </div>
+                                        <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
+                                            Delete Posting
+                                        </h3>
+                                    </div>
+                                    <button
+                                        onClick={() => !deleteJobMutation.isPending && setDeleteConfirmJob(null)}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            width: '36px', height: '36px', borderRadius: '12px',
+                                            background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.12)',
+                                            color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            cursor: 'pointer', fontSize: '16px', fontWeight: 600, transition: 'all 0.15s',
+                                            opacity: deleteJobMutation.isPending ? 0.4 : 1
+                                        }}
+                                    >
+                                        âœ•
+                                    </button>
+                                </div>
+
+                                {/* Job preview card */}
+                                <div style={{
+                                    borderRadius: '16px', background: 'rgba(255, 255, 255, 0.04)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)', padding: '16px',
+                                    marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '14px'
+                                }}>
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+                                        background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                                        color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <Briefcase size={20} style={{ color: '#f87171' }} />
+                                    </div>
+                                    <div style={{ overflow: 'hidden' }}>
+                                        <div style={{
+                                            fontSize: '16px', fontWeight: 800, color: '#ffffff',
+                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                            textTransform: 'capitalize'
+                                        }}>
+                                            {deleteConfirmJob.title}
+                                        </div>
+                                        <div style={{ marginTop: '4px' }}>
+                                            {deleteConfirmJob.status === 'pending_approval' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#fbbf24',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.25)'
+                                                }}>
+                                                    <Clock size={9} style={{ color: '#fbbf24' }} /> Awaiting Approval
+                                                </span>
+                                            )}
+                                            {deleteConfirmJob.status === 'draft' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#94a3b8',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(148, 163, 184, 0.12)', border: '1px solid rgba(148, 163, 184, 0.25)'
+                                                }}>
+                                                    <FileText size={9} style={{ color: '#94a3b8' }} /> Draft
+                                                </span>
+                                            )}
+                                            {deleteConfirmJob.status === 'approved' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#34d399',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.25)'
+                                                }}>
+                                                    <CheckCircle2 size={9} style={{ color: '#34d399' }} /> Live Now
+                                                </span>
+                                            )}
+                                            {deleteConfirmJob.status === 'rejected' && (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em',
+                                                    textTransform: 'uppercase', color: '#f87171',
+                                                    padding: '2px 8px', borderRadius: '6px',
+                                                    background: 'rgba(248, 113, 113, 0.12)', border: '1px solid rgba(248, 113, 113, 0.25)'
+                                                }}>
+                                                    <XCircle size={9} style={{ color: '#f87171' }} /> Rejected
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Confirmation warning */}
+                                <p style={{ fontSize: '14px', color: '#9ca3af', lineHeight: 1.6, marginBottom: '24px', fontWeight: 500 }}>
+                                    Are you sure you want to delete this job posting? All candidate applications and related data will be permanently removed.
+                                </p>
+
+                                {/* Action buttons */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <button
+                                        onClick={() => setDeleteConfirmJob(null)}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            flex: 1, padding: '14px 0', borderRadius: '14px',
+                                            background: 'rgba(255, 255, 255, 0.08)',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            color: '#ffffff', fontSize: '14px', fontWeight: 700,
+                                            cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center',
+                                            opacity: deleteJobMutation.isPending ? 0.4 : 1
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
+                                    >
+                                        Keep It
+                                    </button>
+                                    <button
+                                        onClick={confirmDelete}
+                                        disabled={deleteJobMutation.isPending}
+                                        style={{
+                                            flex: 1.4, padding: '14px 0', borderRadius: '14px',
+                                            background: deleteJobMutation.isPending ? '#991b1b' : '#dc2626',
+                                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                                            color: '#ffffff', fontSize: '14px', fontWeight: 800,
+                                            cursor: deleteJobMutation.isPending ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.15s', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', gap: '8px',
+                                            boxShadow: '0 6px 20px rgba(220, 38, 38, 0.35)'
+                                        }}
+                                        onMouseEnter={e => { if (!deleteJobMutation.isPending) e.currentTarget.style.background = '#ef4444'; }}
+                                        onMouseLeave={e => { if (!deleteJobMutation.isPending) e.currentTarget.style.background = '#dc2626'; }}
+                                    >
+                                        {deleteJobMutation.isPending ? (
+                                            <>
+                                                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24" style={{ color: '#ffffff' }}>
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                                </svg>
+                                                <span style={{ color: '#ffffff' }}>Deleting...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 size={16} style={{ color: '#ffffff' }} />
+                                                <span style={{ color: '#ffffff' }}>Yes, Delete It</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            
+            {/* Subscription Modal */}
+            <AnimatePresence>
+                {isSubscriptionModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style={{ backgroundColor: 'rgba(5, 7, 12, 0.75)', backdropFilter: 'blur(12px)' }}
+                        onClick={() => {
+                            setIsSubscriptionModalOpen(false);
+                            setLimitWarning(null);
+                        }}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="relative w-full max-w-4xl overflow-hidden rounded-3xl p-6 shadow-2xl"
+                            style={{ backgroundColor: '#0f111a', border: '1px solid rgba(255,255,255,0.1)' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-blue-500/20 blur-[80px] rounded-full pointer-events-none" />
+                            
+                            <div className="flex items-center justify-between mb-6 relative z-10">
+                                <div>
+                                    <h2 className="text-2xl font-black mb-1 tracking-tight" style={{ color: '#ffffff' }}>Select a Plan to Publish</h2>
+                                    <p className="text-sm" style={{ color: '#9ca3af' }}>Upgrade to Premium to make your job visible to top candidates.</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setIsSubscriptionModalOpen(false);
+                                        setLimitWarning(null);
+                                    }}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', color: '#9ca3af' }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)' }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)' }}
+                                >
+                                    âœ•
+                                </button>
+                            </div>
+
+                            {limitWarning && (
+                                <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 relative z-10">
+                                    <AlertCircle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+                                    <div className="text-sm font-medium text-amber-200/90">{limitWarning}</div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative z-10">
+                                {/* Starter Plan */}
+                                <div className="p-5 rounded-2xl flex flex-col h-full transition-all"
+                                     style={{ background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                    <h3 className="text-lg font-bold mb-1" style={{ color: '#d1d5db' }}>Starter Plan</h3>
+                                    <div className="text-3xl font-black mb-5" style={{ color: '#ffffff' }}>â‚¹999<span className="text-xs font-medium" style={{ color: '#6b7280' }}> / Month</span></div>
+                                    <ul className="space-y-3 mb-6 flex-1">
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Publish 1 Active Job</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Unlimited Draft Jobs</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Admin Approval Workflow</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> View Applicants</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Resume Matching</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Skill Assessment</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Interview Reports</li>
+                                    </ul>
+                                    <button onClick={() => handleSelectPlan('Starter Plan', 999)} 
+                                            disabled={paymentProcessing || isPlanActive('Starter Plan')}
+                                            className="w-full py-3 rounded-xl font-bold transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                            style={{ background: 'rgba(255, 255, 255, 0.08)', color: '#ffffff' }}
+                                            onMouseEnter={e => { if (!paymentProcessing && !isPlanActive('Starter Plan')) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)'; }}
+                                            onMouseLeave={e => { if (!paymentProcessing && !isPlanActive('Starter Plan')) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; }}>
+                                        {paymentProcessing ? 'Processing...' : isPlanActive('Starter Plan') ? 'Active Plan' : 'Choose Starter'}
+                                    </button>
+                                </div>
+
+                                {/* Growth Plan */}
+                                <div className="p-5 rounded-2xl flex flex-col h-full transform md:-translate-y-2 shadow-xl"
+                                     style={{ background: 'linear-gradient(180deg, rgba(37, 99, 235, 0.15) 0%, rgba(20, 184, 166, 0.05) 100%)', backdropFilter: 'blur(10px)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                                    <div className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#60a5fa' }}>Most Popular</div>
+                                    <h3 className="text-lg font-bold mb-1" style={{ color: '#ffffff' }}>Growth Plan</h3>
+                                    <div className="text-3xl font-black mb-5" style={{ color: '#ffffff' }}>â‚¹2,999<span className="text-xs font-medium" style={{ color: '#93c5fd', opacity: 0.7 }}> / Month</span></div>
+                                    <ul className="space-y-3 mb-6 flex-1">
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Publish 3 Active Jobs</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Unlimited Draft Jobs</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Admin Approval Workflow</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> View Applicants</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Resume Matching</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Skill Assessment</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> AI Interview Reports</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#d1d5db' }}><CheckCircle2 size={14} style={{ color: '#60a5fa' }} /> Priority Support</li>
+                                    </ul>
+                                    <button onClick={() => handleSelectPlan('Growth Plan', 2999)} 
+                                            disabled={paymentProcessing || isPlanActive('Growth Plan')}
+                                            className="w-full py-3 rounded-xl font-bold transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                            style={{ background: 'linear-gradient(90deg, #2563eb, #14b8a6)', color: '#ffffff', boxShadow: '0 4px 14px rgba(59, 130, 246, 0.25)' }}
+                                            onMouseEnter={e => { if (!paymentProcessing && !isPlanActive('Growth Plan')) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                                            onMouseLeave={e => { if (!paymentProcessing && !isPlanActive('Growth Plan')) e.currentTarget.style.transform = 'scale(1)'; }}>
+                                        {paymentProcessing ? 'Processing...' : isPlanActive('Growth Plan') ? 'Active Plan' : 'Choose Growth'}
+                                    </button>
+                                </div>
+
+                                {/* Business Plan */}
+                                <div className="p-5 rounded-2xl flex flex-col h-full transition-all"
+                                     style={{ background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                    <h3 className="text-lg font-bold mb-1" style={{ color: '#d1d5db' }}>Business Plan</h3>
+                                    <div className="text-3xl font-black mb-5" style={{ color: '#ffffff' }}>â‚¹5,999<span className="text-xs font-medium" style={{ color: '#6b7280' }}> / Month</span></div>
+                                    <ul className="space-y-3 mb-6 flex-1">
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> Publish 5 Active Jobs</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> Unlimited Draft Jobs</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> Admin Approval Workflow</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> View Applicants</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> AI Resume Matching</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> AI Skill Assessment</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> AI Interview Reports</li>
+                                        <li className="flex items-center gap-2 text-xs" style={{ color: '#9ca3af' }}><CheckCircle2 size={14} style={{ color: '#c084fc' }} /> Priority Support</li>
+                                    </ul>
+                                    <button onClick={() => handleSelectPlan('Business Plan', 5999)} 
+                                            disabled={paymentProcessing || isPlanActive('Business Plan')}
+                                            className="w-full py-3 rounded-xl font-bold transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                            style={{ background: 'rgba(255, 255, 255, 0.08)', color: '#ffffff' }}
+                                            onMouseEnter={e => { if (!paymentProcessing && !isPlanActive('Business Plan')) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)'; }}
+                                            onMouseLeave={e => { if (!paymentProcessing && !isPlanActive('Business Plan')) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; }}>
+                                        {paymentProcessing ? 'Processing...' : isPlanActive('Business Plan') ? 'Active Plan' : 'Choose Business'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

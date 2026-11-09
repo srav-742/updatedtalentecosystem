@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signI
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
 import { API_URL, getGatewayHeaders } from './config';
 
-export { API_URL, CLIENT_ID, CLIENT_SECRET } from './config';
+export { API_URL, CLIENT_ID } from './config';
 
 const firebaseConfig = {
     apiKey: "AIzaSyDd3YaduiL4mjuv6kNErlqkILfiAGuUh4o",

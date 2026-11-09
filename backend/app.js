@@ -63,7 +63,7 @@ app.use((req, res, next) => {
 });
 
 // Explicitly handle all preflight OPTIONS requests to guarantee CORS headers
-app.options('*', cors(corsOptions));
+app.options('/{*path}', cors(corsOptions));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -77,12 +77,12 @@ const assessmentRoutes = require('./routes/assessmentRoutes');
 const resumeRoutes = require('./routes/resumeRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
 const aiInterviewRoutes = require('./routes/aiInterviewRoutes');
-const aiInterviewUploadRoutes = require('./routes/aiInterviewUploadRoutes');
-const voiceRoutesNew = require('./routes/voiceRoutesNew');
+const aiInterviewUploadRoutes = require('./routes/interviewRecordingRoutes');
+const voiceRoutesNew = require('./routes/voice.routes');
 const calibrationRoutes = require('./routes/calibrationRoutes');
 const interviewFeedbackRoutes = require('./routes/interviewFeedbackRoutes');
 const agentRoutes = require("./routes/agentRoutes");
-const cloudinaryTestRoutes = require("./routes/cloudinaryTestRoutes");
+const cloudinaryTestRoutes = require("./routes/cloudinaryTest.routes");
 const applicationRoutes = require('./routes/applicationRoutes');
 const proctoringRoutes = require('./routes/proctoringRoutes');
 const contentRoutes = require("./routes/contentRoutes");
@@ -172,6 +172,7 @@ app.use('/api', adminPilotRoutes);
 
 // 🚀 High-traffic read routes — wrapped with cache middleware for instant responses
 // Jobs: cache 5 min (data changes rarely, public endpoint)
+app.use('/api/jobs', cacheMiddleware(300, { httpMaxAge: 60, staleWhileRevalidate: 600 }), jobRoutes);
 app.use('/api', cacheMiddleware(300, { httpMaxAge: 60, staleWhileRevalidate: 600 }), jobRoutes);
 app.use('/api', assessmentRoutes);
 app.use('/api', resumeRoutes);
@@ -286,7 +287,7 @@ app.get('/api/tts-debug', async (req, res) => {
         let edgeTtsSuccess = false;
         let edgeTtsError = null;
         try {
-            const { generateEdgeSpeech } = require('./services/edgeTtsService');
+            const { generateEdgeSpeech } = require('./services/tts.service');
             const testBuffer = await generateEdgeSpeech('Diagnostics test.');
             edgeTtsSuccess = testBuffer && testBuffer.length > 0;
         } catch (err) {

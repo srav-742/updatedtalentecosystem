@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, Briefcase, Users, UserCircle, LogOut, Zap, Package, Sparkles, Crown, ChevronLeft, ChevronRight, Wallet, Plus, FileText, BookOpen } from 'lucide-react';
-import { getUserProfile, auth, API_URL } from '../../firebase';
+import { getUserProfile, auth, API_URL, getAuthHeaders } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import axios from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
@@ -71,22 +71,34 @@ const RecruiterLayout = () => {
         if (uid) {
             queryClient.prefetchQuery({
                 queryKey: ['applicants', uid],
-                queryFn: () => axios.get(`${API_URL}/applications/recruiter/${uid}`).then(res => res.data),
+                queryFn: async () => {
+                    const headers = await getAuthHeaders();
+                    return axios.get(`${API_URL}/applications/recruiter/${uid}`, { headers }).then(res => res.data);
+                },
                 staleTime: 5 * 60 * 1000
             });
             queryClient.prefetchQuery({
                 queryKey: ['jobs', 'recruiter', uid],
-                queryFn: () => axios.get(`${API_URL}/jobs/recruiter/${uid}`).then(res => res.data),
+                queryFn: async () => {
+                    const headers = await getAuthHeaders();
+                    return axios.get(`${API_URL}/jobs/recruiter/${uid}`, { headers }).then(res => res.data);
+                },
                 staleTime: 5 * 60 * 1000
             });
             queryClient.prefetchQuery({
                 queryKey: ['dashboard', 'stats', uid],
-                queryFn: () => axios.get(`${API_URL}/dashboard/${uid}`).then(res => res.data),
+                queryFn: async () => {
+                    const headers = await getAuthHeaders();
+                    return axios.get(`${API_URL}/dashboard/${uid}`, { headers }).then(res => res.data);
+                },
                 staleTime: 5 * 60 * 1000
             });
             queryClient.prefetchQuery({
                 queryKey: ['wallet', 'balance', uid],
-                queryFn: () => axios.get(`${API_URL}/wallet/balance/${uid}`).then(res => res.data?.success ? res.data.balance : 0),
+                queryFn: async () => {
+                    const headers = await getAuthHeaders();
+                    return axios.get(`${API_URL}/wallet/balance/${uid}`, { headers }).then(res => res.data?.success ? res.data.balance : 0);
+                },
                 staleTime: 5 * 60 * 1000
             });
         }
@@ -167,6 +179,7 @@ const RecruiterLayout = () => {
                     }
 
                     setProfile(profileData);
+
                     // IMPORTANT: Always preserve the session role (set at login time).
                     // Never let a background DB fetch overwrite the role — if the DB has
                     // a stale or mismatched role, the user would get silently redirected
@@ -176,6 +189,7 @@ const RecruiterLayout = () => {
                         ...profileData,
                         role: user.role  // ← pin to login-session role
                     }));
+
                 }
             } catch (error) {
                 console.error("Layout profile fetch failed from Firebase:", error);
@@ -207,6 +221,7 @@ const RecruiterLayout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('gatewayAccessToken');
         localStorage.removeItem('h1p_client_id');
         localStorage.removeItem('h1p_client_secret');
         navigate('/login');
@@ -327,7 +342,6 @@ const RecruiterLayout = () => {
                             <Wallet size={15} />
                         </button>
                     )}
-
                     <button
                         onClick={handleLogout}
                         title={isMinimized ? "Logout" : undefined}
@@ -407,6 +421,7 @@ const RecruiterLayout = () => {
                 </div>
             </main>
             <CreatePasswordModal />
+            {/* TopUpModal commented out since wallet is disabled
             <TopUpModal 
                 isOpen={isTopUpOpen} 
                 onClose={() => setIsTopUpOpen(false)} 
@@ -416,6 +431,7 @@ const RecruiterLayout = () => {
                 }} 
                 currentBalance={walletBalance} 
             />
+            */}
         </div>
     );
 };

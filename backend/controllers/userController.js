@@ -74,6 +74,25 @@ const getUserProfile = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        if (user.role === 'candidate' || user.role === 'seeker') {
+            const Job = require('../models/Job');
+            const Recruiter = require('../models/Recruiter');
+            const { buildRecruiterJobQuery } = require('../utils/userResolver');
+            const recruiterJobQuery = await buildRecruiterJobQuery(user);
+            const [recruiterJob, recruiterProfile] = await Promise.all([
+                Job.exists(recruiterJobQuery),
+                Recruiter.exists({ $or: [{ userId: user._id }, { email: user.email }] })
+            ]);
+
+            if (recruiterJob || recruiterProfile) {
+                user.role = 'recruiter';
+                await user.save();
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(user);
+                console.info(`[USER-PROFILE] Restored recruiter role for verified job/profile owner ${user.email}`);
+            }
+        }
+
         // ─── DYNAMIC SELF-HEALING RECRUITER STATUS ───
         if (user.role === 'recruiter') {
             const Transaction = require('../models/Transaction');
@@ -208,7 +227,6 @@ const updateUserProfile = async (req, res) => {
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
-        
         res.json(toPublicUser(user));
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
@@ -223,7 +241,7 @@ const getAnalyticsData = async (req, res) => {
         const users = await User.find({}, 'name email role company designation skills phone isPro accountType pilotExpiresAt createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
-        const seekers = users.filter(u => u.role === 'candidate');
+        const seekers = users.filter(u => u.role === 'candidate' || u.role === 'seeker');
         
         // Fetch ResumeProfiles in one batch for seekers to enrich their location and skills
         const seekerUids = seekers.map(u => u.uid).filter(Boolean);
@@ -242,10 +260,10 @@ const getAnalyticsData = async (req, res) => {
         for (const s of seekers) {
             const candidateObj = s.toObject();
             const rp = resumeProfileMap.get(candidateObj.uid) || resumeProfileMap.get(String(candidateObj._id));
-            
+
             // Enrich location from ResumeProfile
             candidateObj.location = rp?.basics?.location || '';
-            
+
             // Enrich phone if not present in User
             candidateObj.phone = candidateObj.phone || rp?.basics?.phone || '';
 
@@ -259,20 +277,20 @@ const getAnalyticsData = async (req, res) => {
                     ...(rp.skills?.soft || [])
                 ] : [];
             }
-            
+
             candidates.push(candidateObj);
         }
-        
+
         // Sync to separate collections in parallel (as requested: store recruiters data separately and separate for candidate)
         await Promise.all([
-            ...recruiters.map(r => 
+            ...recruiters.map(r =>
                 Recruiter.findOneAndUpdate(
                     { userId: r._id },
                     { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, accountType: r.accountType || 'normal', pilotExpiresAt: r.pilotExpiresAt || null, createdAt: r.createdAt },
                     { upsert: true }
                 )
             ),
-            ...candidates.map(c => 
+            ...candidates.map(c =>
                 Candidate.findOneAndUpdate(
                     { userId: c._id },
                     { name: c.name, email: c.email, phone: c.phone, skills: c.skills, location: c.location, createdAt: c.createdAt },
@@ -303,10 +321,10 @@ const addUser = async (req, res) => {
             uid: new mongoose.Types.ObjectId().toString(), // Generate a fake uid since they are added manually
         });
         await newUser.save();
-        
+
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(newUser);
-        
+
         res.json(newUser);
     } catch (error) {
         console.error("[ADD-USER] Error:", error);

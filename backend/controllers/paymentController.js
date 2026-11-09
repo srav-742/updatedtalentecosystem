@@ -4,10 +4,10 @@ const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { findRecruiterUser } = require('../utils/userResolver');
 
-// Initialize Razorpay Instance with environment variables
+// Initialize Razorpay Instance with environment variables (with sandbox fallback)
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Sr8a8DZ72jBYCu',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'Ux8B43q4JDdmsFYV527STi34',
 });
 
 /**
@@ -16,7 +16,7 @@ const razorpay = new Razorpay({
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { amount, userId } = req.body;
+        const { amount, userId, plan, jobId } = req.body;
 
         if (!amount || !userId) {
             return res.status(400).json({ 
@@ -55,7 +55,8 @@ exports.createOrder = async (req, res) => {
             amount: amountInPaisa,
             currency: 'INR',
             status: 'pending',
-            receipt: receiptId
+            receipt: receiptId,
+            metadata: { plan: plan || 'job_posting', jobId: jobId || null }
         });
         await transaction.save();
 
@@ -64,7 +65,8 @@ exports.createOrder = async (req, res) => {
             orderId: order.id,
             amount: order.amount,
             currency: order.currency,
-            receipt: order.receipt
+            receipt: order.receipt,
+            key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Sr8a8DZ72jBYCu'
         });
     } catch (error) {
         console.error("[PAYMENT-ORDER-ERROR] Details:", error);
@@ -115,55 +117,103 @@ exports.verifyPayment = async (req, res) => {
             await transaction.save();
 
             // Here we can unlock the premium plan / upgrade recruiter credits
-            // For modularity, we will also update the user's role/plan if applicable
+            const planSelected = transaction.metadata?.plan || 'Starter Plan';
+            let limit = 1;
+            const pLower = planSelected.toLowerCase();
+            if (pLower.includes('growth')) limit = 3;
+            else if (pLower.includes('business')) limit = 5;
+
             const updatedUser = await User.findByIdAndUpdate(transaction.userId, {
-                $set: { hiringPattern: "Premium Recruiter", isPro: true } // Updates status safely without breaking userSchema fields
+                $set: { 
+                    hiringPattern: "Premium Recruiter", 
+                    isPro: true, 
+                    selectedPlan: planSelected
+                },
+                $inc: {
+                    jobLimit: limit
+                },
+                $push: {
+                    purchasedPlans: {
+                        plan: planSelected,
+                        jobLimit: limit,
+                        purchasedAt: new Date(),
+                        orderId: transaction.orderId,
+                        paymentId: razorpay_payment_id
+                    }
+                }
             }, { new: true });
+
+            let clientCreds = null;
 
             if (updatedUser) {
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(updatedUser);
 
-                // Dynamically link client credentials to the premium_recruiter role as well
+                // AUTOMATED CLIENT PROVISIONING IN JAVA AUTH SERVICE & MYSQL
                 try {
-                    const Client = require('../models/Client');
-                    const Role = require('../models/Role');
-                    const ClientRole = require('../models/ClientRole');
+                    const axios = require('axios');
+                    const PlaintextClientCredential = require('../models/PlaintextClientCredential');
 
-                    // Locate client record for the user (can be client_userId or matching by user lookup)
-                    const client = await Client.findOne({ 
-                        $or: [
-                            { clientId: `client_${updatedUser._id}` },
-                            { clientId: `client_${updatedUser.uid}` }
-                        ]
+                    const recruiterUid = updatedUser.uid || updatedUser._id.toString();
+                    
+                    console.log(`[PAYMENT-SUCCESS] Triggering client credentials registration for ${recruiterUid} with plan ${planSelected}`);
+
+                    const registerRes = await axios.post('http://localhost:9090/oauth-service/api/v1/auth/client/register', {
+                        uid: recruiterUid,
+                        plan: 'combined',
+                        clientName: updatedUser.name || 'Recruiter'
                     });
 
-                    if (client) {
-                        let premiumRole = await Role.findOne({ name: 'premium_recruiter' });
-                        if (!premiumRole) {
-                            premiumRole = new Role({
-                                name: 'premium_recruiter',
-                                description: 'Paid/pro recruiter with access to applicants'
-                            });
-                            await premiumRole.save();
-                        }
+                    if (registerRes.data && registerRes.data.success) {
+                        const { clientId, clientSecret } = registerRes.data;
 
-                        await ClientRole.findOneAndUpdate(
-                            { client: client._id, role: premiumRole._id },
-                            { client: client._id, role: premiumRole._id },
+                        // Save/Update credentials in MongoDB PlaintextClientCredential collection
+                        clientCreds = await PlaintextClientCredential.findOneAndUpdate(
+                            { clientId: clientId },
+                            {
+                                clientId: clientId,
+                                clientSecretRaw: clientSecret,
+                                name: updatedUser.name || 'Recruiter',
+                                description: `Plan: ${planSelected}`,
+                                status: 'active'
+                            },
                             { upsert: true, new: true }
                         );
-                        console.log(`[PAYMENT-SUCCESS] Associated premium_recruiter role with Client: ${client.clientId}`);
+
+                        console.log(`[PAYMENT-SUCCESS] Credentials saved in MongoDB for ${clientId}`);
                     }
-                } catch (clientRoleErr) {
-                    console.error('[PAYMENT-SUCCESS] Failed to map client role:', clientRoleErr.message);
+                } catch (provisionErr) {
+                    console.error('[PAYMENT-SUCCESS] Provisioning client credentials in Auth Service failed:', 
+                        provisionErr.response?.data || provisionErr.message);
+                }
+            }
+
+            // Move target job from draft to pending_approval
+            const targetJobId = req.body.jobId || transaction.metadata?.jobId;
+            if (targetJobId) {
+                try {
+                    const Job = require('../models/Job');
+                    const { clearJobsCache } = require('./jobController');
+                    const updatedJob = await Job.findByIdAndUpdate(
+                        targetJobId,
+                        { status: 'pending_approval' },
+                        { new: true }
+                    );
+                    if (updatedJob) {
+                        console.log(`[PAYMENT-SUCCESS] Updated job ${targetJobId} status to pending_approval`);
+                        clearJobsCache();
+                    }
+                } catch (jobErr) {
+                    console.error('[PAYMENT-SUCCESS] Failed to update job status:', jobErr.message);
                 }
             }
 
             return res.status(200).json({
                 success: true,
-                message: "Payment verified and processed successfully.",
-                transactionId: transaction._id
+                message: "Payment verified and processed successfully. Job submitted for admin approval.",
+                transactionId: transaction._id,
+                clientId: clientCreds ? clientCreds.clientId : `client_${updatedUser.uid || updatedUser._id}`,
+                clientSecret: clientCreds ? clientCreds.clientSecretRaw : null
             });
         } else {
             // Signature verification failed
@@ -205,9 +255,49 @@ exports.getPaymentStatus = async (req, res) => {
             status: 'paid' 
         }).sort({ createdAt: -1 });
 
+        const Job = require('../models/Job');
+        const { buildRecruiterJobQuery } = require('../utils/userResolver');
+        
+        let publishedCount = 0;
+        try {
+            const jobQuery = await buildRecruiterJobQuery(user._id);
+            publishedCount = await Job.countDocuments({
+                ...jobQuery,
+                status: { $in: ['pending_approval', 'approved'] }
+            });
+        } catch (err) {
+            console.error("Error getting published count:", err.message);
+        }
+
+        let activePlans = [];
+        let totalLimit = user.jobLimit || 0;
+        let remainingPublished = publishedCount;
+
+        if (user.purchasedPlans && user.purchasedPlans.length > 0) {
+            activePlans = user.purchasedPlans.map(p => {
+                const planLimit = p.jobLimit || 1;
+                const used = Math.min(planLimit, remainingPublished);
+                remainingPublished = Math.max(0, remainingPublished - planLimit);
+                return {
+                    plan: p.plan,
+                    jobLimit: planLimit,
+                    used: used,
+                    purchasedAt: p.purchasedAt
+                };
+            });
+        }
+
+        if (totalLimit === 0 && activePlans.length > 0) {
+            totalLimit = activePlans.reduce((sum, p) => sum + p.jobLimit, 0);
+        }
+
         return res.status(200).json({
             success: true,
-            isPremium: transactions.length > 0 && user.isPro === true,
+            isPremium: activePlans.length > 0 || user.isPro === true,
+            selectedPlan: user.selectedPlan || null,
+            jobLimit: totalLimit,
+            publishedCount: publishedCount,
+            activePlans: activePlans,
             history: transactions
         });
     } catch (error) {

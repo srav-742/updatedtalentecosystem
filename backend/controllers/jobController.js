@@ -69,7 +69,7 @@ const getAllJobs = async (req, res) => {
 // GET ALL JOBS FOR ADMIN — returns all regardless of status, with .lean() for speed
 const getAllJobsAdmin = async (req, res) => {
     try {
-        const jobs = await Job.find()
+        const jobs = await Job.find({ status: { $ne: 'draft' } })
             .populate('recruiter', 'name company email')
             .sort({ createdAt: -1 })
             .lean(); // lean() returns plain JS objects, not Mongoose documents — ~2x faster
@@ -212,14 +212,21 @@ const updateJob = async (req, res) => {
             return res.status(404).json({ message: "Job not found" });
         }
 
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        const jobData = { ...existingJob.toObject(), ...req.body };
-        if (isLocalhost) {
-            jobData.status = 'approved';
-        } else {
-            jobData.status = req.body.status || existingJob.status || 'pending_approval';
+        const reqUser = req.user;
+        const isAdmin = reqUser?.role === 'admin';
+        const recruiterIdentifiers = [reqUser?.uid, reqUser?._id, reqUser?.email]
+            .filter(Boolean)
+            .map(identifier => String(identifier).toLowerCase());
+        if (!isAdmin && !recruiterIdentifiers.includes(String(existingJob.recruiterId || '').toLowerCase())) {
+            return res.status(403).json({ message: 'Access denied. You can only update your own job postings.' });
         }
-        jobData.adminFeedback = { reason: '', reviewedAt: null };
+
+        const jobData = { ...existingJob.toObject(), ...req.body, recruiterId: existingJob.recruiterId };
+        if (!isAdmin) {
+            jobData.status = existingJob.status;
+            jobData.visibility = existingJob.visibility;
+            jobData.adminFeedback = existingJob.adminFeedback;
+        }
 
         normalizeCandidateQuotaAndAccess(jobData);
 
@@ -228,7 +235,7 @@ const updateJob = async (req, res) => {
             return res.status(400).json({ success: false, message: norm.error });
         }
 
-        const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true });
+        const updatedJob = await Job.findByIdAndUpdate(req.params.jobId, jobData, { new: true, runValidators: true });
         clearJobsCache(); // Clear all job caches
         res.json(updatedJob);
     } catch (error) {
@@ -239,16 +246,29 @@ const updateJob = async (req, res) => {
 
 const deleteJob = async (req, res) => {
     try {
-        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
-        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
-        if (!isPrimaryAdmin) {
-            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete jobs." });
-        }
-
         if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
             return res.status(400).json({ message: "Invalid Job ID" });
         }
-        await Job.findByIdAndDelete(req.params.jobId);
+
+        const job = await Job.findById(req.params.jobId);
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
+        // Ownership check: recruiters can only delete their own jobs (any status)
+        // Admins can delete any job
+        const reqUser = req.user;
+        const isAdmin = reqUser?.role === 'admin';
+        const recruiterIdentifiers = [reqUser?.uid, reqUser?._id, reqUser?.email]
+            .filter(Boolean)
+            .map(identifier => String(identifier).toLowerCase());
+        if (!isAdmin && !recruiterIdentifiers.includes(String(job.recruiterId || '').toLowerCase())) {
+            return res.status(403).json({
+                message: "Access denied. You can only delete your own job postings."
+            });
+        }
+
+        await job.deleteOne();
         clearJobsCache(); // Clear all job caches
         res.json({ message: "Job deleted successfully" });
     } catch (error) {
@@ -271,9 +291,18 @@ const createJob = async (req, res) => {
             }
         }
 
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
-        const jobData = { ...req.body, status: initialStatus };
+        const reqUser = req.user;
+        if (!reqUser || !['recruiter', 'admin'].includes(reqUser.role)) {
+            return res.status(403).json({ success: false, message: 'Only recruiters and admins can create job postings.' });
+        }
+
+        const isAdmin = reqUser.role === 'admin';
+        const jobData = {
+            ...req.body,
+            recruiterId: isAdmin ? (req.body.recruiterId || reqUser.uid || String(reqUser._id)) : (reqUser.uid || String(reqUser._id)),
+            status: isAdmin && req.body.status ? req.body.status : 'draft',
+            visibility: isAdmin && req.body.visibility ? req.body.visibility : 'private'
+        };
 
         if (jobData.recruiterId) {
             const { findRecruiterUser } = require('../utils/userResolver');
@@ -422,4 +451,95 @@ Do NOT include any conversational filler (like "Here is the job description"). O
     }
 };
 
-module.exports = { getAllJobs, getAllJobsAdmin, getJobById, updateJob, deleteJob, createJob, approveJob, rejectJob, clearJobsCache, generateJobDescription, parseQuestions };
+// RECRUITER: Publish a draft job using active plan quota
+const publishDraftJob = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ success: false, message: "Invalid Job ID" });
+        }
+
+        const job = await Job.findById(jobId);
+        if (!job) {
+            return res.status(404).json({ success: false, message: "Job not found" });
+        }
+
+        const reqUser = req.user;
+        if (!reqUser) {
+            return res.status(401).json({ success: false, message: 'Authentication required.' });
+        }
+        const isAdmin = reqUser.role === 'admin';
+        const { resolveRecruiterIdentifiers } = require('../utils/userResolver');
+        const { allIds } = await resolveRecruiterIdentifiers(reqUser);
+        if (!isAdmin && !allIds.some(identifier => String(identifier).toLowerCase() === String(job.recruiterId || '').toLowerCase())) {
+            return res.status(403).json({ success: false, message: 'You can only publish your own job postings.' });
+        }
+        if (job.status !== 'draft') {
+            return res.status(409).json({ success: false, message: 'Only draft jobs can be published.' });
+        }
+
+        const { findRecruiterUser, buildRecruiterJobQuery } = require('../utils/userResolver');
+        const recruiterId = job.recruiterId;
+        const user = await findRecruiterUser(recruiterId);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Recruiter account not found." });
+        }
+
+        // Count existing published jobs for this recruiter (pending_approval or approved)
+        const jobQuery = await buildRecruiterJobQuery(recruiterId);
+        const publishedCount = await Job.countDocuments({
+            ...jobQuery,
+            status: { $in: ['pending_approval', 'approved'] }
+        });
+
+        // Determine active job limit
+        let limit = user.jobLimit || 0;
+        if (!limit && (user.selectedPlan || user.isPro)) {
+            const pLower = (user.selectedPlan || '').toLowerCase();
+            if (pLower.includes('growth')) limit = 3;
+            else if (pLower.includes('business')) limit = 5;
+            else limit = 1;
+        }
+
+        // If limit reached, return requireUpgrade flag
+        if (!isAdmin && (publishedCount >= limit || limit === 0)) {
+            return res.status(403).json({
+                success: false,
+                requireUpgrade: true,
+                message: `You have published ${publishedCount} / ${limit} jobs allowed by your current plan. Please upgrade to publish more jobs.`
+            });
+        }
+
+        // Update job status to pending_approval
+        job.status = 'pending_approval';
+        const updatedJob = await job.save();
+        clearJobsCache();
+
+        console.log(`[PUBLISH-JOB] Direct publish using plan quota: ${job._id} - "${job.title}" (${publishedCount + 1}/${limit})`);
+
+        return res.json({
+            success: true,
+            message: `Job "${job.title}" submitted for Admin approval! (${publishedCount + 1} / ${limit} active slots used)`,
+            job: updatedJob
+        });
+    } catch (error) {
+        console.error("[PUBLISH-JOB] Failure:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = {
+    getAllJobs,
+    getAllJobsAdmin,
+    getJobById,
+    updateJob,
+    deleteJob,
+    createJob,
+    approveJob,
+    rejectJob,
+    publishDraftJob,
+    clearJobsCache,
+    generateJobDescription,
+    parseQuestions
+};

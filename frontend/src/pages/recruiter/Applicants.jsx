@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw, Zap, Briefcase, ChevronDown, Lock, ShieldCheck, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL, getAuthHeaders } from '../../firebase';
+import apiClient from '../../utils/apiClient';
+import { loadRazorpayScript } from '../../utils/loadRazorpayScript';
 import { ApplicantsSkeleton } from '../../components/Skeleton';
 import AssessmentDetail, { prefetchAssessmentDetails } from './AssessmentDetail';
 import CodingAssessmentDetail, { prefetchCodingDetails } from './CodingAssessmentDetail';
@@ -27,33 +29,53 @@ const Applicants = () => {
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
     });
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
-    const [unlockingItem, setUnlockingItem] = useState(null); // { id, type, cost }
+    const [unlockingItem, setUnlockingItem] = useState(null);
     const [unlockingInProgress, setUnlockingInProgress] = useState(false);
     const [unlockError, setUnlockError] = useState('');
+    const [subscribingId, setSubscribingId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchParams] = useSearchParams();
     const targetJobId = searchParams.get('jobId');
+    const [selectedJobId, setSelectedJobId] = useState(targetJobId || 'ALL');
+    const [paymentProcessing, setPaymentProcessing] = useState(false);
+    const [selectedPlanToPay, setSelectedPlanToPay] = useState(null);
+    const [planError, setPlanError] = useState('');
 
     const userId = user.uid || user._id || user.id;
 
-    // Fetch wallet balance
     const { data: walletBalance = user.walletBalance || 0 } = useQuery({
         queryKey: ['wallet', 'balance', userId],
         queryFn: async () => {
             if (!userId) return 0;
-            const res = await axios.get(`${API_URL}/wallet/balance/${userId}`);
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/wallet/balance/${userId}`, { headers });
             return res.data?.success ? res.data.balance : 0;
         },
         enabled: !!userId
     });
 
-    // Fetch fresh recruiter profile to check isPro status
-    const { data: profile = null } = useQuery({
+    // Fetch fresh recruiter profile to check isPro status and selectedPlan
+    const { data: profile = null, isLoading: isProfileLoading } = useQuery({
         queryKey: ['recruiter', 'profile', userId],
         queryFn: async () => {
             if (!userId) return null;
-            const res = await axios.get(`${API_URL}/profile/${userId}`);
-            return res.data;
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/profile/${userId}`, { headers });
+            if (res.data) {
+                const isPremium = res.data.hiringPattern === "Premium Recruiter" || res.data.isPro === true;
+                setIsPro(isPremium);
+                // Keep localStorage.user in sync with the latest selectedPlan
+                if (res.data.selectedPlan) {
+                    try {
+                        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+                        if (stored.selectedPlan !== res.data.selectedPlan) {
+                            localStorage.setItem('user', JSON.stringify({ ...stored, selectedPlan: res.data.selectedPlan }));
+                        }
+                    } catch (_) {}
+                }
+                return res.data;
+            }
+            return null;
         },
         enabled: !!userId,
         staleTime: 5 * 60 * 1000
@@ -70,28 +92,204 @@ const Applicants = () => {
         }
     }, [profile]);
 
-    // Fetch applicants list using React Query
-    const { data: rawApplicants = [], isLoading: loading } = useQuery({
+    const { data: jobsData = [], isLoading: loadingJobs } = useQuery({
+        queryKey: ['jobs', 'recruiter', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`, { headers });
+            return Array.isArray(res.data) ? res.data : [];
+        },
+        enabled: !!userId,
+        staleTime: 5 * 60 * 1000
+    });
+    const jobs = jobsData;
+
+    const handleSelectPlan = async (planName, planPrice) => {
+        setPaymentProcessing(true);
+        setSelectedPlanToPay(planName);
+        setPlanError('');
+        try {
+            const loaded = await loadRazorpayScript();
+            if (!loaded) {
+                setPaymentProcessing(false);
+                setSelectedPlanToPay(null);
+                setPlanError("Razorpay SDK failed to load. Please check your internet connection.");
+                alert("Razorpay SDK failed to load. Please check your internet connection.");
+                return;
+            }
+
+            const authHeaders = await getAuthHeaders();
+            const headers = {
+                ...authHeaders,
+                'x-user-id': userId || authHeaders['x-user-id'] || '',
+                ...(localStorage.getItem('accessToken') ? { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } : {})
+            };
+
+            const orderRes = await axios.post(`${API_URL}/payments/order`, {
+                amount: planPrice,
+                userId: userId,
+                plan: planName,
+                jobId: null
+            }, { headers });
+
+            if (!orderRes.data || !orderRes.data.success) {
+                const errMsg = orderRes.data?.message || 'Failed to initialize payment order';
+                setPlanError(errMsg);
+                alert(errMsg);
+                setPaymentProcessing(false);
+                setSelectedPlanToPay(null);
+                return;
+            }
+
+            const { orderId, amount, currency, key_id } = orderRes.data;
+
+            const options = {
+                key: key_id || 'rzp_test_Sr8a8DZ72jBYCu',
+                amount: amount,
+                currency: currency || 'INR',
+                name: 'Hire1Percent',
+                description: `${planName} - Access Candidate Applications & AI Evaluations`,
+                order_id: orderId,
+                handler: async function (response) {
+                    try {
+                        const verifyRes = await axios.post(`${API_URL}/payments/verify`, {
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            plan: planName
+                        }, { headers });
+
+                        if (verifyRes.data && verifyRes.data.success) {
+                            if (verifyRes.data.clientId) {
+                                localStorage.setItem('h1p_client_id', verifyRes.data.clientId);
+                            }
+                            if (verifyRes.data.clientSecret) {
+                                localStorage.setItem('h1p_client_secret', verifyRes.data.clientSecret);
+                            }
+                            try {
+                                const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                                localStorage.setItem('user', JSON.stringify({
+                                    ...storedUser,
+                                    selectedPlan: planName,
+                                    isPro: true,
+                                    hiringPattern: "Premium Recruiter"
+                                }));
+                            } catch (_) {}
+
+                            setIsPro(true);
+
+                            // Re-authenticate with Java Gateway OAuth to acquire session token with RECRUITER_VIEW_APPLICANTS
+                            await apiClient.initializeGatewaySession(user.email, userId, verifyRes.data.clientSecret).catch(e => {
+                                console.warn('[APPLICANTS] Gateway OAuth initialization warning:', e.message);
+                            });
+
+                            alert(`Payment Successful! Your account has been upgraded with the ${planName}. You now have full access to view applicants.`);
+
+                            queryClient.invalidateQueries({ queryKey: ['recruiter', 'profile', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+                            queryClient.invalidateQueries({ queryKey: ['paymentStatus'] });
+                            queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
+                        } else {
+                            alert("Payment verification failed: " + (verifyRes.data?.message || "Unknown error"));
+                        }
+                    } catch (verifyErr) {
+                        console.error("[PAYMENT-VERIFY] Error:", verifyErr);
+                        alert("Payment verification error: " + (verifyErr.response?.data?.message || verifyErr.message));
+                    } finally {
+                        setPaymentProcessing(false);
+                        setSelectedPlanToPay(null);
+                    }
+                },
+                prefill: {
+                    name: user.name || user.displayName || 'Recruiter',
+                    email: user.email || '',
+                },
+                theme: {
+                    color: '#2563eb'
+                },
+                modal: {
+                    ondismiss: function () {
+                        setPaymentProcessing(false);
+                        setSelectedPlanToPay(null);
+                    }
+                }
+            };
+
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', function (response) {
+                alert("Payment failed: " + (response.error?.description || "Transaction declined"));
+                setPaymentProcessing(false);
+                setSelectedPlanToPay(null);
+            });
+            rzp.open();
+
+        } catch (err) {
+            console.error("[PAYMENT-ORDER] Error:", err);
+            alert("Payment initialization error: " + (err.response?.data?.message || err.message));
+            setPaymentProcessing(false);
+            setSelectedPlanToPay(null);
+        }
+    };
+
+    // Fetch applicants list using React Query with Java API Gateway & Auth Service verification
+    const { data: rawApplicants = [], isLoading: loading, error, refetch: refetchApplicants } = useQuery({
         queryKey: ['applicants', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/recruiter/${userId}`);
-            return res.data;
+            
+            const accessTokenUUID = localStorage.getItem('accessToken') || user.accessToken || user.token || '';
+            const authHeaders = await getAuthHeaders();
+
+            // Step 1: Query through Java API Gateway (Port 9090)
+            try {
+                const res = await axios.get(`http://localhost:9090/backend_service/api/applications?recruiterId=${userId}`, {
+                    headers: {
+                        'ACCESS_TOKEN': accessTokenUUID,
+                        ...authHeaders
+                    },
+                    timeout: 8000
+                });
+                return res.data;
+            } catch (gwErr) {
+                // If Gateway returns 403 Forbidden or 401 Unauthorized, client lacks role (RECRUITER_VIEW_APPLICANTS) or valid token
+                if (gwErr.response?.status === 403 || gwErr.response?.status === 401) {
+                    const forbiddenErr = new Error(gwErr.response?.data?.error || 'Access denied');
+                    forbiddenErr.status = gwErr.response?.status;
+                    forbiddenErr.isGated = true;
+                    throw forbiddenErr;
+                }
+
+                // If gateway is down / offline, fallback gracefully to direct Node API
+                const isConnectionError = !gwErr.response || gwErr.code === 'ERR_NETWORK' || gwErr.code === 'ECONNABORTED';
+                if (isConnectionError) {
+                    console.warn('[APPLICANTS] Java Gateway on 9090 unreachable, using direct backend fallback');
+                    const fallbackRes = await axios.get(`${API_URL}/applications/recruiter/${userId}`, {
+                        headers: authHeaders
+                    });
+                    return fallbackRes.data;
+                }
+
+                throw gwErr;
+            }
         },
         enabled: !!userId,
+        retry: false,
         staleTime: 5 * 60 * 1000,
         placeholderData: (previousData) => previousData
     });
 
     const applicants = useMemo(() => {
-        let mapped = rawApplicants.map((app, index) => ({
-            id: app._id,
-            userId: app.userId,
-            isLocked: app.isLocked,
-            isResumeLocked: app.isResumeLocked,
-            isAssessmentLocked: app.isAssessmentLocked,
-            isInterviewLocked: app.isInterviewLocked,
-            jobId: app.jobId?._id?.toString() || app.jobId?.toString(),
+        const list = Array.isArray(rawApplicants) ? rawApplicants : (Array.isArray(rawApplicants?.applications) ? rawApplicants.applications : []);
+        let mapped = list.map((app, index) => ({
+            id: app._id || `app-${index}`,
+            userId: app.userId || '',
+            isLocked: false,
+            isResumeLocked: false,
+            isAssessmentLocked: false,
+            isInterviewLocked: false,
+            jobId: app.jobId?._id?.toString() || app.jobId?.toString() || '',
             name: app.applicantName || app.user?.name || `Candidate ${index + 1}`,
             email: app.applicantEmail || 'No Email',
             job: app.jobId?.title || 'Unknown Job',
@@ -111,8 +309,8 @@ const Applicants = () => {
                     ? app.integrityScore
                     : (app.integrityPenalty > 0 ? Math.max(0, 100 - Math.round((app.integrityPenalty || 0) * 2.5)) : null)),
             proctoringFlags: app.proctoringFlags || [],
-            status: app.status,
-            teamFit: app.teamFit,
+            status: app.status || 'PENDING',
+            teamFit: app.teamFit || 'Pending',
             videoIntroUrl: app.videoIntroUrl,
             resultsVisibleAt: app.resultsVisibleAt,
             interviewAnswerCount: app.interviewAnswers?.length || 0,
@@ -126,21 +324,25 @@ const Applicants = () => {
             assessmentRecordingUploadedAt: app.assessmentRecordingUploadedAt
         }));
 
-        if (targetJobId) {
-            mapped = mapped.filter(app => String(app.jobId) === String(targetJobId));
+        const currentJobs = Array.isArray(jobs) ? jobs : (Array.isArray(jobs?.jobs) ? jobs.jobs : []);
+        
+        if (selectedJobId !== 'ALL') {
+            mapped = mapped.filter(app => String(app.jobId) === String(selectedJobId));
+        } else {
+            const approvedJobIds = currentJobs.filter(j => j.status === 'approved').map(j => String(j._id));
+            mapped = mapped.filter(app => approvedJobIds.includes(String(app.jobId)));
         }
         return mapped;
-    }, [rawApplicants, targetJobId]);
+    }, [rawApplicants, selectedJobId, jobs]);
 
-    // Mutation for unlocking applicant details
     const unlockMutation = useMutation({
         mutationFn: async ({ applicationId, itemType }) => {
-            const recruiterId = user.uid || user._id || user.id;
+            const headers = await getAuthHeaders();
             const res = await axios.post(`${API_URL}/wallet/unlock`, {
-                recruiterId,
+                recruiterId: userId,
                 applicationId,
                 itemType
-            });
+            }, { headers });
             return res.data;
         },
         onMutate: () => {
@@ -196,13 +398,13 @@ const Applicants = () => {
             return;
         }
 
-        const handleWalletUpdate = () => {
-            queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
-        };
-        window.addEventListener('wallet-update', handleWalletUpdate);
-        return () => {
-            window.removeEventListener('wallet-update', handleWalletUpdate);
-        };
+        // const handleWalletUpdate = () => {
+        //     queryClient.invalidateQueries({ queryKey: ['wallet', 'balance', userId] });
+        // };
+        // window.addEventListener('wallet-update', handleWalletUpdate);
+        // return () => {
+        //     window.removeEventListener('wallet-update', handleWalletUpdate);
+        // };
     }, [userId, queryClient]);
 
     // Filter & Sorting State
@@ -261,12 +463,11 @@ const Applicants = () => {
     const filteredApplicants = useMemo(() => {
         return applicants
             .filter(app => {
-                // 1. Text Search Filter
-                const term = searchTerm.toLowerCase();
+                const term = (searchTerm || '').toLowerCase();
                 const matchesSearch = !term ||
-                    app.name.toLowerCase().includes(term) ||
-                    app.job.toLowerCase().includes(term) ||
-                    app.email.toLowerCase().includes(term);
+                String(app.name || '').toLowerCase().includes(term) ||
+                String(app.job || '').toLowerCase().includes(term) ||
+                String(app.email || '').toLowerCase().includes(term);
 
                 // 2. Status Filter
                 const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
@@ -350,10 +551,10 @@ const Applicants = () => {
 
     // Handle View Assessment
     const handleViewAssessment = (applicationId, isAssessmentLocked) => {
-        if (isAssessmentLocked) {
-            setUnlockingItem({ id: applicationId, type: 'assessment', cost: 5 });
-            return;
-        }
+        // if (isAssessmentLocked) {
+        //     setUnlockingItem({ id: applicationId, type: 'assessment', cost: 5 });
+        //     return;
+        // }
         setSelectedApplicationId(applicationId);
         setShowAssessmentDetail(true);
     };
@@ -370,10 +571,10 @@ const Applicants = () => {
 
     // Handle View Interview
     const handleViewInterview = (applicationId, isInterviewLocked) => {
-        if (isInterviewLocked) {
-            setUnlockingItem({ id: applicationId, type: 'interview', cost: 10 });
-            return;
-        }
+        // if (isInterviewLocked) {
+        //     setUnlockingItem({ id: applicationId, type: 'interview', cost: 10 });
+        //     return;
+        // }
         setSelectedInterviewApplicationId(applicationId);
         setShowInterviewDetail(true);
     };
@@ -429,6 +630,271 @@ const Applicants = () => {
         };
     };
 
+    const hasActivePlan = isPro || Boolean(profile?.selectedPlan) || (Array.isArray(profile?.purchasedPlans) && profile.purchasedPlans.length > 0);
+    const isAdminUser = user.role === 'admin' || profile?.role === 'admin';
+    const isAccessGated = !isAdminUser && (Boolean(error?.isGated) || error?.status === 403 || error?.status === 401 || !hasActivePlan);
+
+    if (loadingJobs || loading || isProfileLoading) {
+        return <ApplicantsSkeleton />;
+    }
+
+    // Render Subscription / Payment Gating View
+    if (isAccessGated) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="max-w-5xl mx-auto my-8 p-6 md:p-10 rounded-[2.5rem] bg-[#0f172a] border border-blue-500/20 text-white shadow-2xl relative overflow-hidden"
+            >
+                {/* Background decorative glow */}
+                <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 blur-[120px] rounded-full pointer-events-none" />
+                <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-teal-500/10 blur-[120px] rounded-full pointer-events-none" />
+
+                {/* Header */}
+                <div className="text-center max-w-2xl mx-auto mb-10 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider mb-4">
+                        <Lock size={12} />
+                        Recruiter Access Plan Required
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-black tracking-tight mb-3">
+                        Unlock Candidate Applications & AI Evaluations
+                    </h2>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                        To view candidate profiles, AI-evaluated resume matches, coding assessments, and interview recordings, choose an active recruiter plan. Client credentials and the <span className="text-blue-400 font-mono font-semibold">RECRUITER_VIEW_APPLICANTS</span> role are provisioned automatically.
+                    </p>
+                    {planError && (
+                        <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center justify-center gap-2">
+                            <AlertCircle size={14} />
+                            <span>{planError}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Pricing Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 mb-8">
+                    {/* Starter Plan */}
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Entry Level</div>
+                            <h3 className="text-xl font-bold mb-2">Starter Plan</h3>
+                            <div className="text-3xl font-black mb-4">
+                                ₹999<span className="text-xs font-normal text-slate-400"> / month</span>
+                            </div>
+                            <ul className="space-y-2.5 text-xs text-slate-300 mb-6">
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Publish 1 Active Job
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Unlimited Draft Jobs
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Full Applicant Viewing Access
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Resume Matching & Ranking
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Skill Assessment
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Interview Reports
+                                </li>
+                            </ul>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleSelectPlan('Starter Plan', 999)}
+                            disabled={paymentProcessing}
+                            className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/15 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                            {paymentProcessing && selectedPlanToPay === 'Starter Plan' ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Processing Payment...
+                                </>
+                            ) : (
+                                <>
+                                    Choose Starter (₹999)
+                                    <ArrowRight size={13} />
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Growth Plan - Featured */}
+                    <div className="p-6 rounded-2xl bg-gradient-to-b from-blue-500/15 to-teal-500/5 border border-blue-500/40 relative flex flex-col justify-between shadow-xl shadow-blue-500/10 transform md:-translate-y-2">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-teal-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md">
+                            Most Popular
+                        </div>
+                        <div>
+                            <div className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-1 mt-1">Scale Hiring</div>
+                            <h3 className="text-xl font-bold mb-2">Growth Plan</h3>
+                            <div className="text-3xl font-black mb-4">
+                                ₹2,999<span className="text-xs font-normal text-slate-400"> / month</span>
+                            </div>
+                            <ul className="space-y-2.5 text-xs text-slate-200 mb-6">
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Publish 3 Active Jobs
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Unlimited Draft Jobs
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Full Applicant Viewing Access
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Resume Matching & Ranking
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Skill Assessment
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Interview Reports
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-teal-400 shrink-0" />
+                                    Priority Candidate Ranking
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-teal-400 shrink-0" />
+                                    Priority Recruiter Support
+                                </li>
+                            </ul>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleSelectPlan('Growth Plan', 2999)}
+                            disabled={paymentProcessing}
+                            className="w-full py-3.5 px-4 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                            {paymentProcessing && selectedPlanToPay === 'Growth Plan' ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Processing Payment...
+                                </>
+                            ) : (
+                                <>
+                                    Choose Growth (₹2,999)
+                                    <ArrowRight size={13} />
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Business Plan */}
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Enterprise Ready</div>
+                            <h3 className="text-xl font-bold mb-2">Business Plan</h3>
+                            <div className="text-3xl font-black mb-4">
+                                ₹5,999<span className="text-xs font-normal text-slate-400"> / month</span>
+                            </div>
+                            <ul className="space-y-2.5 text-xs text-slate-300 mb-6">
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Publish 5 Active Jobs
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Unlimited Draft Jobs
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Full Applicant Viewing Access
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Resume Matching & Ranking
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Skill Assessment
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    AI Interview Reports
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Dedicated Account Manager
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 size={14} className="text-blue-400 shrink-0" />
+                                    Fast-Track Admin Approval
+                                </li>
+                            </ul>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleSelectPlan('Business Plan', 5999)}
+                            disabled={paymentProcessing}
+                            className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/15 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                            {paymentProcessing && selectedPlanToPay === 'Business Plan' ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Processing Payment...
+                                </>
+                            ) : (
+                                <>
+                                    Choose Business (₹5,999)
+                                    <ArrowRight size={13} />
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="text-center text-xs text-slate-500 flex items-center justify-center gap-1.5 relative z-10">
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                    <span>Secure payments powered by Razorpay. Automated instant OAuth role provisioning upon verification.</span>
+                </div>
+            </motion.div>
+        );
+    }
+
+    const jobsList = Array.isArray(jobs) ? jobs : [];
+    if (jobsList.length === 0) {
+        return (
+            <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl text-center text-gray-900">
+                <Briefcase className="w-8 h-8 mx-auto text-blue-600 mb-4" />
+                <h2 className="text-2xl font-bold mb-3">Post a Job to View Applicants</h2>
+                <p className="text-gray-500 text-sm mb-6">Post a job first to start receiving and viewing candidate applications.</p>
+                <button type="button" onClick={() => navigate('/recruiter/post-job')} className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold cursor-pointer">
+                    Post a Job Now
+                </button>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="text-center my-12 p-8 max-w-md mx-auto rounded-3xl bg-red-500/5 border border-red-500/20">
+                <div className="text-red-500 font-bold mb-2">Error loading applicants</div>
+                <div className="text-gray-500 text-sm mb-4">{error.response?.data?.message || error.message || 'Please try again later.'}</div>
+                <button
+                    onClick={() => refetchApplicants()}
+                    className="px-6 py-2.5 rounded-xl bg-black text-white text-xs font-bold shadow hover:bg-black/80 transition-all cursor-pointer"
+                >
+                    Retry Loading
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-8 min-h-[80vh]" onClick={() => setActiveMenuId(null)}>
             <header className="rec-hero rounded-2xl md:rounded-[1.75rem] py-4.5 px-6 md:py-5 md:px-7">
@@ -463,6 +929,18 @@ const Applicants = () => {
                             />
                         </div>
 
+                        <select
+                            value={selectedJobId}
+                            onChange={(event) => setSelectedJobId(event.target.value)}
+                            className="rec-input px-3 py-2 text-xs rounded-xl"
+                            aria-label="Filter applicants by job"
+                        >
+                            <option value="ALL">All approved jobs</option>
+                            {jobsList.filter(job => job.status === 'approved').map(job => (
+                                <option key={job._id} value={String(job._id)}>{job.title}</option>
+                            ))}
+                        </select>
+
                         {targetJobId && (
                             <button
                                 onClick={() => setUploadModalOpen(true)}
@@ -477,7 +955,7 @@ const Applicants = () => {
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
                             <Wallet size={14} className="text-slate-500" />
                             <div className="text-xs font-semibold text-slate-700">
-                                ₹<span className="font-bold text-slate-900">{walletBalance.toFixed(2)}</span>
+                                ₹<span className="font-bold text-slate-900">{Number(walletBalance || 0).toFixed(2)}</span>
                             </div>
                             <button 
                                 onClick={() => setIsTopUpOpen(true)}
@@ -571,7 +1049,7 @@ const Applicants = () => {
                                         className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-sm font-bold text-gray-300 transition-colors"
                                         title={sortOrder === 'desc' ? 'Sorting Descending' : 'Sorting Ascending'}
                                     >
-                                        {sortOrder === 'desc' ? '↓' : '↑'}
+                                        {sortOrder === 'desc' ? 'â†“' : 'â†‘'}
                                     </button>
                                 )}
                             </div>
@@ -637,6 +1115,42 @@ const Applicants = () => {
 
             {loading ? (
                 <ApplicantsSkeleton />
+            ) : selectedJobId !== 'ALL' && jobsList.find(j => String(j._id) === selectedJobId)?.status !== 'approved' ? (
+                <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900 animate-in fade-in duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[60px] rounded-full pointer-events-none" />
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 border border-amber-500/20">
+                        <Sparkles className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-3">Pending Admin Approval</h2>
+                    <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                        This job is still pending approval from the admin. Please wait for the admin to approve it before you can view its applicants.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedJobId('ALL')}
+                        className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
+                    >
+                        View All Active Jobs
+                    </button>
+                </div>
+            ) : selectedJobId === 'ALL' && !jobsList.some(j => j.status === 'approved') ? (
+                <div className="max-w-md mx-auto my-12 p-8 rounded-[2.5rem] bg-[#fcfbf8] border border-black/10 shadow-2xl relative overflow-hidden text-center text-gray-900 animate-in fade-in duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none" />
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-6 border border-blue-500/20">
+                        <Briefcase className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-3">No Active Jobs</h2>
+                    <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                        You don't have any approved jobs yet. Jobs must be approved by an admin before you can view applicants.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/recruiter/my-jobs')}
+                        className="w-full py-4 rounded-2xl bg-black text-white text-sm font-bold shadow-lg hover:bg-black/80 transition-all cursor-pointer"
+                    >
+                        Go to My Jobs
+                    </button>
+                </div>
             ) : filteredApplicants.length > 0 ? (
                 Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => {
                     const firstApp = jobApplicants[0];
@@ -704,7 +1218,7 @@ const Applicants = () => {
                                                                     Locked
                                                                 </span>
                                                             )}
-                                                            {/* ─── SOCIAL INTEGRATIONS ─── */}
+                                                            {/* â”€â”€â”€ SOCIAL INTEGRATIONS â”€â”€â”€ */}
                                                             {!app.isResumeLocked && app.githubUrl && (
                                                                 <a href={app.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-teal-400 transition-colors" title="GitHub Profile">
                                                                     <Github size={14} />
@@ -728,7 +1242,7 @@ const Applicants = () => {
                                                                     setUnlockingItem({ id: app.id, type: 'interview', cost: 10 });
                                                                 }}
                                                                 className="w-10 h-10 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer animate-pulse"
-                                                                title="Unlock Candidate to Watch Video (₹10)"
+                                                                title="Unlock Candidate to Watch Video (â‚¹10)"
                                                             >
                                                                 <Video size={16} />
                                                             </button>
@@ -762,7 +1276,7 @@ const Applicants = () => {
                                                                          setUnlockingItem({ id: app.id, type: 'resume', cost: 3 });
                                                                      }}
                                                                      className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                                                                     title="Unlock Candidate Resume (₹3)"
+                                                                     title="Unlock Candidate Resume (â‚¹3)"
                                                                  >
                                                                      <Eye size={15} />
                                                                  </button>
@@ -795,7 +1309,7 @@ const Applicants = () => {
                                                                           handleViewAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
                                                                       className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
-                                                                      title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
+                                                                      title={app.isAssessmentLocked ? "Unlock Assessment Details (â‚¹5)" : "View Assessment Details"}
                                                                   >
                                                                       <Eye size={15} />
                                                                   </button>
@@ -817,7 +1331,7 @@ const Applicants = () => {
                                                                           handleViewCodingAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
                                                                       className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-teal-400/80 hover:text-teal-300 hover:bg-teal-500/10'}`}
-                                                                      title={app.isAssessmentLocked ? "Unlock Coding Details (₹5)" : "View Coding Details"}
+                                                                      title={app.isAssessmentLocked ? "Unlock Coding Details (â‚¹5)" : "View Coding Details"}
                                                                   >
                                                                       <Eye size={15} />
                                                                   </button>
@@ -839,7 +1353,7 @@ const Applicants = () => {
                                                                          handleViewInterview(app.id, app.isInterviewLocked);
                                                                      }}
                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
-                                                                     title={app.isInterviewLocked ? "Unlock Interview Status (₹10)" : "View Interview Status"}
+                                                                     title={app.isInterviewLocked ? "Unlock Interview Status (â‚¹10)" : "View Interview Status"}
                                                                  >
                                                                      <Eye size={15} />
                                                                  </button>
@@ -1151,7 +1665,8 @@ const Applicants = () => {
                 candidateName={shareCandidateName}
             />
 
-            {/* Unlock Confirmation Modal */}
+            {/* Unlock Confirmation Modal (COMMENTED OUT) */}
+            {/*
             {unlockingItem && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="relative w-full max-w-sm bg-[#1a1d24] rounded-[2rem] border border-white/10 p-8 text-center shadow-2xl animate-in zoom-in duration-300">
@@ -1162,7 +1677,7 @@ const Applicants = () => {
                             Unlock {unlockingItem.type === 'resume' ? 'Resume' : unlockingItem.type === 'assessment' ? 'Skill Assessment' : 'Interview'}?
                         </h3>
                         <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                            This will deduct <span className="text-white font-extrabold">₹{unlockingItem.cost.toFixed(2)} INR</span> from your wallet balance to unlock the candidate's {unlockingItem.type === 'resume' ? 'full profile & resume' : unlockingItem.type === 'assessment' ? 'detailed skill assessment logs' : 'video introduction & interview answers'}.
+                            This will deduct <span className="text-white font-extrabold">â‚¹{Number(unlockingItem?.cost || 0).toFixed(2)} INR</span> from your wallet balance to unlock the candidate's {unlockingItem?.type === 'resume' ? 'full profile & resume' : unlockingItem?.type === 'assessment' ? 'detailed skill assessment logs' : 'video introduction & interview answers'}.
                         </p>
 
                         {unlockError && (
@@ -1219,7 +1734,6 @@ const Applicants = () => {
                 }}
                 currentBalance={walletBalance}
             />
-
             {/* In-Page Candidate Evaluation Report View / Modal */}
             {showReportModal && selectedReportApplicationId && (
                 <div className="fixed inset-0 z-[100] flex flex-col bg-gray-50 overflow-y-auto animate-in fade-in duration-200">

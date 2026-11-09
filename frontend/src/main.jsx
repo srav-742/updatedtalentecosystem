@@ -37,9 +37,13 @@ axios.interceptors.request.use(
     if (isTargetApi) {
       Object.assign(config.headers, getGatewayHeaders());
 
-      const accessToken = localStorage.getItem('accessToken');
-      if (accessToken && !config.headers['Authorization']) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
+      const isGatewayRequest = urlStr.includes(':9090') || urlStr.includes('/backend_service');
+      const tokenToSend = isGatewayRequest 
+        ? (localStorage.getItem('gatewayAccessToken') || localStorage.getItem('accessToken'))
+        : localStorage.getItem('accessToken');
+
+      if (tokenToSend && !config.headers['Authorization']) {
+        config.headers['Authorization'] = `Bearer ${tokenToSend}`;
       }
 
       const refreshToken = localStorage.getItem('refreshToken');
@@ -162,9 +166,13 @@ window.fetch = async function (url, options = {}) {
       ...getGatewayHeaders()
     };
 
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken && !options.headers['Authorization']) {
-      options.headers['Authorization'] = `Bearer ${accessToken}`;
+    const isGatewayRequest = urlStr.includes(':9090') || urlStr.includes('/backend_service');
+    const tokenToSend = isGatewayRequest 
+      ? (localStorage.getItem('gatewayAccessToken') || localStorage.getItem('accessToken'))
+      : localStorage.getItem('accessToken');
+
+    if (tokenToSend && !options.headers['Authorization']) {
+      options.headers['Authorization'] = `Bearer ${tokenToSend}`;
     }
 
     const refreshToken = localStorage.getItem('refreshToken');

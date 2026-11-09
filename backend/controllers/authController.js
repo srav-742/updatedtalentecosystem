@@ -69,7 +69,20 @@ const syncUser = async (req, res) => {
                 console.log(`[AUTH-SYNC] Preserving admin role for ${normalizedEmail} (incoming role: ${role})`);
                 // Continue sync but don't change role
             } else if (role && user.role !== role) {
-                return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                if (role === 'recruiter' && (user.role === 'candidate' || user.role === 'seeker')) {
+                    const Job = require('../models/Job');
+                    const Recruiter = require('../models/Recruiter');
+                    const hasJobs = await Job.exists({ $or: [{ recruiterId: uid }, { recruiterId: user.uid }, { recruiterId: String(user._id) }, { email: normalizedEmail }] });
+                    const hasRecProfile = await Recruiter.exists({ $or: [{ userId: user._id }, { email: normalizedEmail }] });
+                    if (hasJobs || hasRecProfile) {
+                        console.log(`[AUTH-SYNC] Upgrading verified recruiter ${normalizedEmail} from candidate to recruiter`);
+                        user.role = 'recruiter';
+                    } else {
+                        return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                    }
+                } else {
+                    return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                }
             }
             if (user.uid !== uid) {
                 const oldUid = user.uid;
@@ -259,6 +272,19 @@ const login = async (req, res) => {
                 { label: `login:findAnyRole(${normalizedEmail})` }
             );
             if (existingUserAnyRole) {
+                if (role === 'recruiter' && (existingUserAnyRole.role === 'candidate' || existingUserAnyRole.role === 'seeker')) {
+                    const Job = require('../models/Job');
+                    const Recruiter = require('../models/Recruiter');
+                    const hasJobs = await Job.exists({ $or: [{ recruiterId: existingUserAnyRole.uid }, { recruiterId: String(existingUserAnyRole._id) }, { email: normalizedEmail }] });
+                    const hasRecProfile = await Recruiter.exists({ $or: [{ userId: existingUserAnyRole._id }, { email: normalizedEmail }] });
+                    if (hasJobs || hasRecProfile) {
+                        existingUserAnyRole.role = 'recruiter';
+                        await existingUserAnyRole.save();
+                        const { syncUserToProfile } = require('../utils/dbSync');
+                        await syncUserToProfile(existingUserAnyRole);
+                        console.log(`[AUTH-LOGIN] Auto-healed recruiter role for ${normalizedEmail}`);
+                    }
+                }
                 // Allow recruiter and admin to cross-login smoothly
                 const isExistingStaff = existingUserAnyRole.role === 'recruiter' || existingUserAnyRole.role === 'admin';
                 const isRequestedStaff = role === 'recruiter' || role === 'admin';

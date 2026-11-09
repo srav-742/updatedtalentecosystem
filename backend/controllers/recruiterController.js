@@ -151,7 +151,7 @@ const getRecruiterDashboard = async (req, res) => {
 const getRecruiterApplications = async (req, res) => {
     try {
         const reqUser = req.user;
-        const recruiterId = req.params.recruiterId;
+        const recruiterId = req.query.recruiterId || req.params.recruiterId || req.user?._id?.toString() || req.user?.uid;
 
         // Check if pilot recruiter access has expired
         if (await isPilotExpired(recruiterId, reqUser)) {
@@ -369,10 +369,12 @@ const getRecruiterApplications = async (req, res) => {
             const flags = applicationFlagsMap[appKey];
             app.proctoringFlags = flags ? Array.from(flags) : [];
             
-            let isResumeLocked = true;
-            let isAssessmentLocked = true;
-            let isInterviewLocked = true;
+            let isResumeLocked = false;
+            let isAssessmentLocked = false;
+            let isInterviewLocked = false;
 
+            // 🔒 Backend masking logic bypassed for subscription-based plan
+            /*
             if (isAdmin) {
                 isResumeLocked = false;
                 isAssessmentLocked = false;
@@ -383,6 +385,7 @@ const getRecruiterApplications = async (req, res) => {
                 isAssessmentLocked = !items.includes('assessment');
                 isInterviewLocked = !items.includes('interview');
             }
+            */
 
             app.isResumeLocked = isResumeLocked;
             app.isAssessmentLocked = isAssessmentLocked;
@@ -525,8 +528,21 @@ const createJob = async (req, res) => {
         }
 
         delete jobData._id;
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        jobData.status = isLocalhost ? 'approved' : 'pending_approval';
+        const reqUser = req.user;
+        if (!reqUser || !['recruiter', 'admin'].includes(reqUser.role)) {
+            return res.status(403).json({ message: 'Only recruiters and admins can create job postings.' });
+        }
+        if (reqUser.role !== 'admin') {
+            const recruiterIdentifiers = [reqUser.uid, reqUser._id]
+                .filter(Boolean)
+                .map(identifier => String(identifier).toLowerCase());
+            if (!recruiterIdentifiers.includes(String(recruiterId).toLowerCase())) {
+                return res.status(403).json({ message: 'You can only create job postings for your own recruiter account.' });
+            }
+            jobData.recruiterId = reqUser.uid || String(reqUser._id);
+        }
+        jobData.status = 'draft';
+        jobData.visibility = 'private';
 
         const job = new Job(jobData);
         const savedJob = await job.save();

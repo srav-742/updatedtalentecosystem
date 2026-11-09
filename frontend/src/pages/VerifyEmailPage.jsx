@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { API_URL, CLIENT_ID, CLIENT_SECRET, auth, verifyEmailWithActionCode, reloadFirebaseUser, sendVerificationEmail } from '../firebase';
+import { API_URL, CLIENT_ID, auth, verifyEmailWithActionCode, reloadFirebaseUser, sendVerificationEmail } from '../firebase';
 import SEO from '../components/SEO';
 
 /**
@@ -192,7 +192,6 @@ const VerifyEmailPage = () => {
                         }, {
                             headers: {
                                 'X-Client-ID': CLIENT_ID,
-                                'X-Client-Secret': CLIENT_SECRET
                             }
                         });
                     } catch (syncErr) {
@@ -272,7 +271,6 @@ const VerifyEmailPage = () => {
                     params: { token },
                     headers: {
                         'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
                     }
                 });
 
@@ -413,7 +411,6 @@ const VerifyEmailPage = () => {
                 {
                     headers: {
                         'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
                     }
                 }
             );

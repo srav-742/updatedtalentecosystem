@@ -94,6 +94,7 @@ const SeekerLayout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('gatewayAccessToken');
         localStorage.removeItem('h1p_client_id');
         localStorage.removeItem('h1p_client_secret');
         navigate('/login');
