@@ -74,15 +74,28 @@ export const useFirebaseAuthSync = () => {
                         role: role
                     };
 
+                    const firebaseIdToken = await firebaseUser.getIdToken();
                     // Step 3: Run dual-write to ensure both User & Candidate/Recruiter documents exist
-                    await Promise.allSettled([
-                        apiClient.post('/users/sync', payload),
+                    const [syncResult, profileResult, gatewayResult] = await Promise.allSettled([
+                        apiClient.post('/users/sync', payload, {
+                            headers: { Authorization: `Bearer ${firebaseIdToken}` }
+                        }),
                         saveUserProfile(uid, {
                             ...payload,
                             createdAt: new Date().toISOString()
                         }),
                         apiClient.initializeGatewaySession(normalizedEmail, uid)
                     ]);
+
+                    if (syncResult.status === 'rejected' || !syncResult.value.ok) {
+                        throw new Error('Backend user sync failed.');
+                    }
+                    if (profileResult.status === 'rejected') {
+                        console.warn('[AUTH-AUTO-SYNC] Secondary profile write failed:', profileResult.reason);
+                    }
+                    if (gatewayResult.status === 'rejected' || !gatewayResult.value) {
+                        console.warn('[AUTH-AUTO-SYNC] Gateway session was not initialized.');
+                    }
 
                     syncedUids.add(uid);
                     localStorage.setItem('user', JSON.stringify({ ...payload, isSelfHealed: true }));

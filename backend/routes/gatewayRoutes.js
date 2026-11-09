@@ -1,57 +1,84 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const { generateAccessToken, generateRefreshToken, refreshAccessToken, validateClient } = require('../services/authService');
+const Client = require('../models/Client');
+const admin = require('../config/firebase');
+const {
+    generateAccessToken,
+    generateRefreshToken,
+    refreshAccessToken,
+    verifyAccessToken,
+    verifyRefreshToken,
+    getUserRoles
+} = require('../services/authService');
 
-/**
- * POST /api/gateway/token
- * Issue access + refresh tokens after user login
- * 
- * Body: { email, uid }
- * Headers: X-Client-ID, X-Client-Secret
- */
+const PUBLIC_CLIENT_ID = process.env.GATEWAY_PUBLIC_CLIENT_ID || 'hire1percent_web_client';
+
+const validatePublicClient = async (req, res) => {
+    const clientId = req.headers['x-client-id'];
+    if (clientId !== PUBLIC_CLIENT_ID) {
+        res.status(401).json({ success: false, message: 'Invalid gateway client.' });
+        return null;
+    }
+
+    const client = await Client.findOne({ clientId, status: 'active' });
+    if (!client) {
+        res.status(401).json({ success: false, message: 'Gateway client is unavailable.' });
+        return null;
+    }
+
+    return client;
+};
+
 router.post('/token', async (req, res) => {
     try {
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
+        const client = await validatePublicClient(req, res);
+        if (!client) return;
 
-        // Validate client credentials
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required.'
-            });
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'A Firebase ID token is required.' });
         }
 
-        const client = await validateClient(clientId, clientSecret);
-        if (!client) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid client credentials.'
-            });
+        let decodedToken;
+        try {
+            if (admin.apps.length > 0) {
+                decodedToken = await admin.auth().verifyIdToken(authHeader.slice('Bearer '.length));
+            } else {
+                const jwt = require('jsonwebtoken');
+                const rawToken = authHeader.slice('Bearer '.length);
+                decodedToken = jwt.decode(rawToken);
+                if (!decodedToken || (!decodedToken.uid && !decodedToken.user_id && !decodedToken.sub)) {
+                    throw new Error('Unable to decode Firebase ID token');
+                }
+                decodedToken.uid = decodedToken.uid || decodedToken.user_id || decodedToken.sub;
+            }
+        } catch {
+            return res.status(401).json({ success: false, message: 'Invalid Firebase ID token.' });
         }
 
         const { email, uid } = req.body;
-        if (!email && !uid) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email or UID is required.'
-            });
+        if ((uid && uid !== decodedToken.uid)
+            || (email && decodedToken.email && email.toLowerCase() !== decodedToken.email.toLowerCase())) {
+            return res.status(403).json({ success: false, message: 'The requested account does not match the authenticated user.' });
         }
 
-        // Find the user
-        const query = uid ? { uid } : { email };
-        const user = await User.findOne(query);
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found.'
-            });
+        let user = await User.findOne({ uid: decodedToken.uid });
+        if (!user && (email || decodedToken.email)) {
+            const queryEmail = (email || decodedToken.email).toLowerCase().trim();
+            user = await User.findOne({ email: queryEmail });
+            if (user && (!user.uid || user.uid !== decodedToken.uid)) {
+                user.uid = decodedToken.uid;
+                await user.save();
+            }
+        }
+        if (!user || user.isActive === false) {
+            return res.status(401).json({ success: false, message: 'User account is unavailable.' });
         }
 
-        // Generate tokens
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
+        const roles = getUserRoles(user);
+        const accessToken = generateAccessToken(user, client.clientId, roles);
+        const refreshToken = generateRefreshToken(user, client.clientId);
 
         return res.status(200).json({
             success: true,
@@ -66,157 +93,70 @@ router.post('/token', async (req, res) => {
                 role: user.role
             }
         });
-
     } catch (error) {
-        console.error('[GATEWAY] Token generation error:', error.message);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to generate tokens.',
-            error: error.message
-        });
+        console.error('[GATEWAY] Token generation failed:', error.message);
+        return res.status(500).json({ success: false, message: 'Failed to generate gateway tokens.' });
     }
 });
 
-/**
- * POST /api/gateway/refresh
- * Refresh an expired access token using a valid refresh token
- * 
- * Body: { refreshToken }
- * Headers: X-Client-ID, X-Client-Secret
- */
 router.post('/refresh', async (req, res) => {
     try {
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
-
-        // Validate client credentials
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required.'
-            });
-        }
-
-        const client = await validateClient(clientId, clientSecret);
-        if (!client) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid client credentials.'
-            });
-        }
+        const client = await validatePublicClient(req, res);
+        if (!client) return;
 
         const { refreshToken } = req.body;
         if (!refreshToken) {
-            return res.status(400).json({
-                success: false,
-                message: 'Refresh token is required.'
-            });
+            return res.status(400).json({ success: false, message: 'Refresh token is required.' });
+        }
+
+        const decodedToken = verifyRefreshToken(refreshToken);
+        if (decodedToken.clientId !== client.clientId) {
+            return res.status(401).json({ success: false, message: 'Invalid refresh token.' });
         }
 
         const result = await refreshAccessToken(refreshToken);
-
         return res.status(200).json({
             success: true,
             message: 'Token refreshed successfully.',
-            accessToken: result.accessToken,
-            user: {
-                id: result.user._id,
-                uid: result.user.uid,
-                name: result.user.name,
-                email: result.user.email,
-                role: result.user.role
-            }
+            accessToken: result.accessToken
         });
-
     } catch (error) {
-        const statusCode = error.code === 'SESSION_EXPIRED' ? 401 : 500;
+        const invalidToken = error.name === 'TokenExpiredError'
+            || error.name === 'JsonWebTokenError'
+            || error.code === 'SESSION_EXPIRED';
+        const statusCode = invalidToken ? 401 : 500;
         return res.status(statusCode).json({
             success: false,
-            message: error.message,
-            code: error.code || 'REFRESH_ERROR'
+            message: invalidToken ? 'Invalid or expired refresh token.' : 'Failed to refresh token.',
+            code: invalidToken ? 'SESSION_EXPIRED' : 'REFRESH_ERROR'
         });
     }
 });
 
-/**
- * GET /api/gateway/validate
- * Validate whether a current access token is still valid
- * 
- * Headers: Authorization: Bearer <token>
- */
-router.get('/validate', async (req, res) => {
+router.get('/validate', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, valid: false, message: 'No token provided.' });
+    }
+
     try {
-        const { verifyAccessToken } = require('../services/authService');
-
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, valid: false, message: 'No token provided.' });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const decoded = verifyAccessToken(token);
-
+        const decoded = verifyAccessToken(authHeader.slice('Bearer '.length));
         return res.status(200).json({
             success: true,
             valid: true,
             user: {
                 userId: decoded.userId,
                 email: decoded.email,
-                role: decoded.role,
+                role: decoded.roles?.[0],
                 name: decoded.name
             }
         });
-    } catch (error) {
+    } catch {
         return res.status(401).json({
             success: false,
             valid: false,
-            message: error.message,
-            code: error.code
+            message: 'Invalid or expired access token.'
         });
-    }
-});
-
-/**
- * Diagnostic route to verify database records for vinay@gmail.com
- */
-router.get('/check-vinay', async (req, res) => {
-    try {
-        const User = require('../models/User');
-        const Client = require('../models/Client');
-        const PlaintextClientCredential = require('../models/PlaintextClientCredential');
-        
-        const user = await User.findOne({ email: 'vinay@gmail.com' });
-        if (!user) {
-            return res.json({ success: false, message: 'User vinay@gmail.com not found in MongoDB' });
-        }
-        
-        const client = await Client.findOne({ clientId: `client_${user.uid || user._id}` });
-        const plaintext = await PlaintextClientCredential.findOne({ clientId: `client_${user.uid || user._id}` });
-        
-        return res.json({
-            success: true,
-            user: {
-                _id: user._id,
-                uid: user.uid,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                isActive: user.isActive,
-                createdAt: user.createdAt,
-            },
-            client: client ? {
-                _id: client._id,
-                clientId: client.clientId,
-                hasHashedSecret: client.clientSecret ? client.clientSecret.startsWith('$2a$') || client.clientSecret.startsWith('$2b$') : false,
-                clientSecretPrefix: client.clientSecret ? client.clientSecret.substring(0, 10) + '...' : null,
-            } : null,
-            plaintext: plaintext ? {
-                clientId: plaintext.clientId,
-                clientSecretRaw: plaintext.clientSecretRaw,
-            } : null,
-        });
-    } catch (err) {
-        return res.json({ success: false, error: err.message });
     }
 });
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { trackEvent } from '../../utils/analytics';
+import { API_URL } from '../../config';
 
 export default function PaymentUpgrade() {
     const navigate = useNavigate();
@@ -37,8 +38,7 @@ export default function PaymentUpgrade() {
 
                 const uid = parsed.uid || parsed._id || parsed.id;
                 if (uid) {
-                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-                    axios.get(`${apiUrl}/wallet/balance/${uid}`)
+                    axios.get(`${API_URL}/wallet/balance/${uid}`)
                         .then(res => {
                             if (res.data && res.data.success) {
                                 setWalletBalance(res.data.balance);
@@ -62,10 +62,9 @@ export default function PaymentUpgrade() {
         setErrorMsg("");
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
             const userId = user.uid || user._id || user.id;
 
-            const res = await axios.post(`${apiUrl}/wallet/pay-upgrade`, {
+            const res = await axios.post(`${API_URL}/wallet/pay-upgrade`, {
                 userId,
                 amount: 10
             });
@@ -122,11 +121,8 @@ export default function PaymentUpgrade() {
         }
 
         try {
-            // Get Backend base URL
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
             // 2. Request Order ID from the Express server
-            const orderRes = await axios.post(`${apiUrl}/payments/order`, {
+            const orderRes = await axios.post(`${API_URL}/payments/order`, {
                 amount: 10, // ₹10 INR (Testing Phase)
                 userId: user.uid || user._id
             });
@@ -158,7 +154,7 @@ export default function PaymentUpgrade() {
                     setLoading(false);
                     try {
                         // 4. Submit response metadata for secure backend signature verification
-                        const verifyRes = await axios.post(`${apiUrl}/payments/verify`, {
+                        const verifyRes = await axios.post(`${API_URL}/payments/verify`, {
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,

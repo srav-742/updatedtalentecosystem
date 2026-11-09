@@ -14,7 +14,10 @@ const EliteCommunity = () => {
         const checkVettedStatus = async () => {
             try {
                 const userId = user.uid || user._id || user.id;
-                const res = await axios.get(`${API_URL}/applications/candidate/${userId}`);
+                const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                    if (error.response?.status !== 404) throw error;
+                    return axios.get(`${API_URL}/applications/seeker/${userId}`);
+                });
                 const apps = res.data;
                 const vetted = apps.some((item) => item.status === 'SHORTLISTED' || item.status === 'ELIGIBLE');
                 setIsVetted(vetted);

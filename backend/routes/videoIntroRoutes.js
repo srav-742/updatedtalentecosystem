@@ -27,6 +27,8 @@ const upload = multer({
 });
 
 router.post('/upload-video-intro', upload.single('video'), async (req, res) => {
+    let failureStage = 'cloudinary_upload';
+
     try {
         const { userId, jobId } = req.body;
         const file = req.file;
@@ -49,8 +51,10 @@ router.post('/upload-video-intro', upload.single('video'), async (req, res) => {
         });
 
         // Cleanup local file
+        failureStage = 'local_cleanup';
         fs.unlinkSync(file.path);
 
+        failureStage = 'application_save';
         const application = await Application.findOneAndUpdate(
             { jobId: new mongoose.Types.ObjectId(jobId), userId },
             { 
@@ -74,8 +78,14 @@ router.post('/upload-video-intro', upload.single('video'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[VIDEO-INTRO-UPLOAD] Error:", error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+        const diagnostic = {
+            stage: failureStage,
+            name: error?.name,
+            httpCode: error?.http_code || error?.statusCode,
+            message: error?.message || 'Unknown upload error'
+        };
+        console.error("[VIDEO-INTRO-UPLOAD] Error:", diagnostic);
+        res.status(500).json({ message: "Internal Server Error", error: diagnostic.message });
     }
 });
 

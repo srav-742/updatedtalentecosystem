@@ -985,9 +985,9 @@ const PostJob = () => {
                                     onChange={handleChange}
                                     rows="10"
                                     placeholder="Example:
-• Prefer candidates with startup experience
-• Avoid candidates who frequently change jobs
-• Prioritize candidates with system design knowledge"
+â€¢ Prefer candidates with startup experience
+â€¢ Avoid candidates who frequently change jobs
+â€¢ Prioritize candidates with system design knowledge"
                                     className="rec-input w-full p-3.5 text-xs font-medium resize-y min-h-[250px] flex-1 leading-relaxed text-xs"
                                 ></textarea>
                                 <p className="mt-2 text-[10px] text-gray-500 italic">
@@ -1718,7 +1718,7 @@ const PostJob = () => {
                                                                         <span className="font-bold text-white truncate">{q.title}</span>
                                                                     </div>
                                                                     <span className="text-[10px] text-gray-400 block truncate">
-                                                                        {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} • {q.testCases?.length || 0} test cases
+                                                                        {Array.isArray(q.topics) ? q.topics.join(', ') : (q.topics || 'Coding')} â€¢ {q.testCases?.length || 0} test cases
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -2476,7 +2476,7 @@ const PostJob = () => {
                                     )}
 
                                     <p className="text-[11px] text-slate-500 leading-relaxed bg-purple-50/60 p-2.5 rounded-xl border border-purple-100">
-                                        🔒 When enabled, candidate identity is strictly verified. Only candidates logged in with these email addresses can take the assessment or submit applications.
+                                        ðŸ”’ When enabled, candidate identity is strictly verified. Only candidates logged in with these email addresses can take the assessment or submit applications.
                                     </p>
                                 </div>
                             ) : (
@@ -2547,7 +2547,7 @@ const PostJob = () => {
                                     </div>
 
                                     <p className="text-[11px] text-slate-500 leading-relaxed bg-purple-50/60 p-2.5 rounded-xl border border-purple-100">
-                                        🔒 When set (e.g. {jobData.candidateLimit || 20}), only {jobData.candidateLimit || 20} candidates can take the test or apply. Further attempts will be closed. <strong>This count is strictly confidential and is never displayed to candidates.</strong>
+                                        ðŸ”’ When set (e.g. {jobData.candidateLimit || 20}), only {jobData.candidateLimit || 20} candidates can take the test or apply. Further attempts will be closed. <strong>This count is strictly confidential and is never displayed to candidates.</strong>
                                     </p>
                                 </div>
                             ) : (
@@ -2562,17 +2562,13 @@ const PostJob = () => {
                 </div>
 
                 {/* Submit */}
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium flex items-start gap-3">
-                    <Clock size={18} className="shrink-0 mt-0.5" />
-                    <span>After posting, your job will go through a brief admin review before being visible to candidates. You'll see the approval status in your job listings.</span>
-                </div>
                 <button
                     type="submit"
                     disabled={loading}
                     className="rec-btn-primary w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 >
-                    {loading ? <Loader2 className="animate-spin" /> : <FilePlus />}
-                    {loading ? 'Submitting for Review...' : 'Submit for Admin Review'}
+                    {loading ? <Loader2 className="animate-spin" /> : <Save />}
+                    {loading ? 'Saving...' : 'Save Job'}
                 </button>
             </form >
 
@@ -2652,7 +2648,7 @@ const PostJob = () => {
                                     <span>Parser Notices:</span>
                                 </div>
                                 {previewStats.warnings.map((w, i) => (
-                                    <p key={i} className="text-[11px] pl-5">• {w}</p>
+                                    <p key={i} className="text-[11px] pl-5">â€¢ {w}</p>
                                 ))}
                             </div>
                         )}
@@ -2667,7 +2663,7 @@ const PostJob = () => {
                                         <p className="font-medium text-slate-800">{q.text}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] text-slate-500 font-medium">{q.category}</span>
-                                            <span className="text-[10px] text-purple-600 font-bold">• {q.difficulty}</span>
+                                            <span className="text-[10px] text-purple-600 font-bold">â€¢ {q.difficulty}</span>
                                         </div>
                                     </div>
                                 </div>

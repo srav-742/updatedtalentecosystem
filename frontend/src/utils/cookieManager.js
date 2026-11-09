@@ -4,7 +4,6 @@
  */
 
 import { updateConsent } from './analytics';
-
 const CONSENT_KEY = "h1p_cookie_consent";
 
 export const cookieManager = {
@@ -39,6 +38,7 @@ export const cookieManager = {
      */
     clearConsent: () => {
         localStorage.removeItem(CONSENT_KEY);
+        updateConsent(false);
     }
 };
 
@@ -49,8 +49,8 @@ if (typeof window !== 'undefined') {
         if (existingConsent) {
             updateConsent(!!existingConsent.accepted);
         }
-    } catch {
-        // Safe fallback
+    } catch (error) {
+        console.warn('[COOKIE-MANAGER] Unable to apply saved consent:', error);
     }
 }
 

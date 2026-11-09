@@ -6,8 +6,8 @@ import axios from 'axios'
 import './index.css'
 import App from './App.jsx'
 import { initRoutePrefetcher } from './utils/routePrefetcher'
-
-import apiClient, { CLIENT_ID, CLIENT_SECRET, pingBackendWarmup } from './utils/apiClient'
+import apiClient, { API_URL, pingBackendWarmup } from './utils/apiClient'
+import { getGatewayHeaders } from './config'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,10 +27,6 @@ const queryClient = new QueryClient({
 });
 
 window.apiClient = apiClient;
-window.CLIENT_ID = CLIENT_ID;
-window.CLIENT_SECRET = CLIENT_SECRET;
-
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || 'https://updatedtalentecosystem-kl0c.onrender.com/api');
 
 // --- Axios Request Interceptor ---
 axios.interceptors.request.use(
@@ -39,12 +35,15 @@ axios.interceptors.request.use(
     const isTargetApi = urlStr.startsWith('http') ? urlStr.includes('/api') : urlStr.startsWith('/api');
     
     if (isTargetApi) {
-      config.headers['X-Client-ID'] = CLIENT_ID;
-      config.headers['X-Client-Secret'] = CLIENT_SECRET;
+      Object.assign(config.headers, getGatewayHeaders());
 
-      const accessToken = localStorage.getItem('accessToken');
-      if (accessToken && !config.headers['Authorization']) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
+      const isGatewayRequest = urlStr.includes(':9090') || urlStr.includes('/backend_service');
+      const tokenToSend = isGatewayRequest 
+        ? (localStorage.getItem('gatewayAccessToken') || localStorage.getItem('accessToken'))
+        : localStorage.getItem('accessToken');
+
+      if (tokenToSend && !config.headers['Authorization']) {
+        config.headers['Authorization'] = `Bearer ${tokenToSend}`;
       }
 
       const refreshToken = localStorage.getItem('refreshToken');
@@ -68,6 +67,11 @@ axios.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    const requestUrl = originalRequest?.url || '';
+    // Never clear the user session for 401s from the Java API Gateway (port 9090).
+    // Those are gateway-level rejections (invalid/missing token for that service).
+    // Only handle session clearing for Node backend (port 5000) 401s.
+    const isGatewayRequest = requestUrl.includes(':9090');
     const resData = error.response?.data;
     const status = error.response?.status;
 
@@ -91,7 +95,7 @@ axios.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    if (error.response && status === 401 && originalRequest && !originalRequest._retry && !isGatewayRequest) {
       const errCode = error.response.data?.code;
       if (errCode === 'TOKEN_EXPIRED' || errCode === 'INVALID_TOKEN') {
         originalRequest._retry = true;
@@ -102,10 +106,7 @@ axios.interceptors.response.use(
           const refreshRes = await axios.post(`${API_URL}/gateway/refresh`, {
             refreshToken
           }, {
-            headers: {
-              'X-Client-ID': CLIENT_ID,
-              'X-Client-Secret': CLIENT_SECRET
-            }
+            headers: getGatewayHeaders()
           });
 
           const refreshPayload = refreshRes.data?.data || refreshRes.data;
@@ -162,13 +163,16 @@ window.fetch = async function (url, options = {}) {
   if (isTargetApi) {
     options.headers = {
       ...options.headers,
-      'X-Client-ID': CLIENT_ID,
-      'X-Client-Secret': CLIENT_SECRET
+      ...getGatewayHeaders()
     };
 
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken && !options.headers['Authorization']) {
-      options.headers['Authorization'] = `Bearer ${accessToken}`;
+    const isGatewayRequest = urlStr.includes(':9090') || urlStr.includes('/backend_service');
+    const tokenToSend = isGatewayRequest 
+      ? (localStorage.getItem('gatewayAccessToken') || localStorage.getItem('accessToken'))
+      : localStorage.getItem('accessToken');
+
+    if (tokenToSend && !options.headers['Authorization']) {
+      options.headers['Authorization'] = `Bearer ${tokenToSend}`;
     }
 
     const refreshToken = localStorage.getItem('refreshToken');
@@ -200,7 +204,9 @@ window.fetch = async function (url, options = {}) {
             window.location.href = '/login?expired=true';
           }
         }
-      } catch (e) {}
+      } catch (parseError) {
+        console.warn('[GLOBAL-FETCH-INTERCEPTOR] Unable to inspect auth response:', parseError.message);
+      }
     }
   }
 
@@ -216,7 +222,6 @@ createRoot(document.getElementById('root')).render(
     </HelmetProvider>
   </StrictMode>,
 )
-
 // Activate viewport-based route prefetching (preloads chunks when links are visible)
 initRoutePrefetcher();
 

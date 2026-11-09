@@ -24,7 +24,7 @@ import {
     BookOpen
 } from 'lucide-react';
 import axios from 'axios';
-import { API_URL } from '../../firebase';
+import { API_URL, getAuthHeaders } from '../../firebase';
 import { getAllBlogPostsAdmin } from '../../services/blogService';
 import { useQuery } from '@tanstack/react-query';
 import { RecruiterDashboardSkeleton } from '../../components/Skeleton';
@@ -42,7 +42,8 @@ const RecruiterDashboard = () => {
         queryKey: ['dashboard', 'stats', userId],
         queryFn: async () => {
             if (!userId) return { jobCount: 0, applicationCount: 0, shortlistedCount: 0, recentJobs: [] };
-            const res = await axios.get(`${API_URL}/dashboard/${userId}`);
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/dashboard/${userId}`, { headers });
             return res.data;
         },
         enabled: !!userId,
@@ -54,7 +55,8 @@ const RecruiterDashboard = () => {
         queryKey: ['jobs', 'recruiter', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
+            const headers = await getAuthHeaders();
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`, { headers });
             return res.data;
         },
         enabled: !!userId && (!stats.recentJobs || stats.recentJobs.length === 0),

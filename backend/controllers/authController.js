@@ -1,17 +1,45 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const firebaseAdmin = require('../config/firebase');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const { withRetry } = require('../utils/retry');
-const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com'];
+const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'hemangi@web3today.io', 'admin@hire1percent.com'];
 
+const toPublicUser = (user) => {
+    const userObject = user.toObject();
+    for (const field of [
+        'password', 'resetPasswordToken', 'resetPasswordExpires',
+        'emailVerificationToken', 'emailVerificationExpires', '__v'
+    ]) {
+        delete userObject[field];
+    }
+    return userObject;
+};
 
 const syncUser = async (req, res) => {
     try {
         const { uid, email, name, profilePic, role } = req.body;
         const normalizedEmail = email ? email.toLowerCase().trim() : '';
 
-        if (!normalizedEmail) {
-            return res.status(400).json({ message: "Email is required for sync." });
+        if (!normalizedEmail || !uid) {
+            return res.status(400).json({ message: 'Email and UID are required for sync.' });
+        }
+
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ') || firebaseAdmin.apps.length === 0) {
+            return res.status(401).json({ message: 'A valid Firebase ID token is required for sync.' });
+        }
+
+        let verifiedIdentity;
+        try {
+            verifiedIdentity = await firebaseAdmin.auth().verifyIdToken(authHeader.slice('Bearer '.length));
+        } catch {
+            return res.status(401).json({ message: 'Invalid Firebase ID token.' });
+        }
+
+        if (verifiedIdentity.uid !== uid
+            || normalizedEmail !== (verifiedIdentity.email || '').toLowerCase().trim()) {
+            return res.status(403).json({ message: 'The requested account does not match the authenticated user.' });
         }
         
         // Find user by email first (primary anchor) — with retry
@@ -41,7 +69,20 @@ const syncUser = async (req, res) => {
                 console.log(`[AUTH-SYNC] Preserving admin role for ${normalizedEmail} (incoming role: ${role})`);
                 // Continue sync but don't change role
             } else if (role && user.role !== role) {
-                return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                if (role === 'recruiter' && (user.role === 'candidate' || user.role === 'seeker')) {
+                    const Job = require('../models/Job');
+                    const Recruiter = require('../models/Recruiter');
+                    const hasJobs = await Job.exists({ $or: [{ recruiterId: uid }, { recruiterId: user.uid }, { recruiterId: String(user._id) }, { email: normalizedEmail }] });
+                    const hasRecProfile = await Recruiter.exists({ $or: [{ userId: user._id }, { email: normalizedEmail }] });
+                    if (hasJobs || hasRecProfile) {
+                        console.log(`[AUTH-SYNC] Upgrading verified recruiter ${normalizedEmail} from candidate to recruiter`);
+                        user.role = 'recruiter';
+                    } else {
+                        return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                    }
+                } else {
+                    return res.status(400).json({ message: `This email is already registered as a ${user.role}. Please log in with that role.` });
+                }
             }
             if (user.uid !== uid) {
                 const oldUid = user.uid;
@@ -91,7 +132,7 @@ const syncUser = async (req, res) => {
         }
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(user);
-        res.json(user);
+        res.json(toPublicUser(user));
     } catch (error) {
         console.error("[AUTH-SYNC] Critical Failure:", error);
         res.status(500).json({ message: error.message });
@@ -231,6 +272,19 @@ const login = async (req, res) => {
                 { label: `login:findAnyRole(${normalizedEmail})` }
             );
             if (existingUserAnyRole) {
+                if (role === 'recruiter' && (existingUserAnyRole.role === 'candidate' || existingUserAnyRole.role === 'seeker')) {
+                    const Job = require('../models/Job');
+                    const Recruiter = require('../models/Recruiter');
+                    const hasJobs = await Job.exists({ $or: [{ recruiterId: existingUserAnyRole.uid }, { recruiterId: String(existingUserAnyRole._id) }, { email: normalizedEmail }] });
+                    const hasRecProfile = await Recruiter.exists({ $or: [{ userId: existingUserAnyRole._id }, { email: normalizedEmail }] });
+                    if (hasJobs || hasRecProfile) {
+                        existingUserAnyRole.role = 'recruiter';
+                        await existingUserAnyRole.save();
+                        const { syncUserToProfile } = require('../utils/dbSync');
+                        await syncUserToProfile(existingUserAnyRole);
+                        console.log(`[AUTH-LOGIN] Auto-healed recruiter role for ${normalizedEmail}`);
+                    }
+                }
                 // Allow recruiter and admin to cross-login smoothly
                 const isExistingStaff = existingUserAnyRole.role === 'recruiter' || existingUserAnyRole.role === 'admin';
                 const isRequestedStaff = role === 'recruiter' || role === 'admin';
@@ -280,7 +334,7 @@ const login = async (req, res) => {
         }
 
         console.log(`[AUTH-LOGIN] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
-        res.json({ message: "Login successful", user });
+        res.json({ message: "Login successful", user: toPublicUser(user) });
     } catch (error) {
         console.error(`[AUTH-LOGIN] Error in ${Date.now() - start}ms:`, error.message);
         res.status(500).json({ message: error.message });
@@ -291,6 +345,26 @@ const googleAuth = async (req, res) => {
     try {
         const { email, name, profilePic, role } = req.body;
         const normalizedEmail = email ? email.toLowerCase().trim() : '';
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: 'A Firebase ID token is required.' });
+        }
+        if (firebaseAdmin.apps.length === 0) {
+            return res.status(503).json({ message: 'Firebase authentication is unavailable.' });
+        }
+
+        let verifiedIdentity;
+        try {
+            verifiedIdentity = await firebaseAdmin.auth().verifyIdToken(authHeader.slice('Bearer '.length));
+        } catch {
+            return res.status(401).json({ message: 'Invalid Firebase ID token.' });
+        }
+
+        if (!normalizedEmail
+            || normalizedEmail !== (verifiedIdentity.email || '').toLowerCase().trim()
+            || verifiedIdentity.email_verified !== true) {
+            return res.status(403).json({ message: 'The requested account does not match a verified Firebase identity.' });
+        }
 
         let user = await withRetry(
             () => User.findOne({ email: normalizedEmail }),
@@ -313,7 +387,7 @@ const googleAuth = async (req, res) => {
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(user);
             }
-            return res.json({ message: "Login successful", user });
+            return res.json({ message: "Login successful", user: toPublicUser(user) });
         } else {
             if (!role) return res.status(400).json({ message: "Role is required for first-time signup" });
             
@@ -321,7 +395,7 @@ const googleAuth = async (req, res) => {
                 return res.status(403).json({ message: "Unauthorized. Admin role is restricted." });
             }
 
-            user = new User({ name, email: normalizedEmail, profilePic, role });
+            user = new User({ uid: verifiedIdentity.uid, name, email: normalizedEmail, profilePic, role });
             await withRetry(
                 () => user.save(),
                 { label: `googleAuth:save(${normalizedEmail})` }
@@ -329,7 +403,7 @@ const googleAuth = async (req, res) => {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            return res.json({ message: "Signup successful", user });
+            return res.json({ message: "Signup successful", user: toPublicUser(user) });
         }
     } catch (error) {
         console.error("[GOOGLE-AUTH] Error:", error.message);
@@ -340,7 +414,7 @@ const googleAuth = async (req, res) => {
                 const normalizedEmail = (req.body.email || '').toLowerCase().trim();
                 const user = await User.findOne({ email: normalizedEmail });
                 if (user) {
-                    return res.json({ message: "Login successful", user });
+                    return res.json({ message: "Login successful", user: toPublicUser(user) });
                 }
             } catch (retryErr) {
                 // Fall through to generic error
@@ -618,4 +692,3 @@ const linkPassword = async (req, res) => {
 };
 
 module.exports = { syncUser, signup, login, googleAuth, forgotPassword, verifyOtp, resetPassword, linkPassword };
-

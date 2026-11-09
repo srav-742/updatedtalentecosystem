@@ -1,31 +1,25 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieBanner from './components/CookieBanner';
 import RouteTracker from './components/RouteTracker';
 import Navbar from './components/Navbar';
 import { GlobalPageSkeleton } from './components/Skeleton';
+import useFirebaseAuthSync from './hooks/useFirebaseAuthSync';
 
-// ─── ALL page components are lazy-loaded ───────────────────────────────────────
-// Only the shell (Router, Navbar, Skeleton, ProtectedRoute) is in the initial bundle.
-// Each page's code is downloaded on-demand when the user navigates to that route.
-
-// Public pages — ALL pages are lazy-loaded on demand for maximum initial performance
 const AssessmentsHome = lazy(() => import('./pages/AssessmentsHome'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
+const AssessmentPricingPage = lazy(() => import('./pages/AssessmentPricingPage'));
 const SampleReportPage = lazy(() => import('./pages/SampleReportPage'));
-
-// Legal pages
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Cookies = lazy(() => import('./pages/Cookies'));
 const Contact = lazy(() => import('./pages/Contact'));
 
-// Recruiter pages
 const RecruiterLayout = lazy(() => import('./pages/recruiter/RecruiterLayout'));
 const RecruiterDashboard = lazy(() => import('./pages/recruiter/RecruiterDashboard'));
 const PostJob = lazy(() => import('./pages/recruiter/PostJob'));
@@ -46,7 +40,6 @@ const RecruiterKnowledgeHub = lazy(() => import('./pages/recruiter/RecruiterKnow
 const PaymentUpgrade = lazy(() => import('./pages/payment/PaymentUpgrade'));
 const AdminQuestionBankRedirect = lazy(() => import('./pages/admin/AdminQuestionBankRedirect'));
 
-// Candidate / Seeker pages
 const SeekerLayout = lazy(() => import('./pages/seeker/SeekerLayout'));
 const SeekerDashboard = lazy(() => import('./pages/seeker/SeekerDashboard'));
 const BrowseJobs = lazy(() => import('./pages/seeker/BrowseJobs'));
@@ -59,221 +52,200 @@ const ApplicationFlow = lazy(() => import('./pages/seeker/ApplicationFlow'));
 const InterviewFeedbackForm = lazy(() => import('./pages/seeker/ApplicationFlow/InterviewFeedbackForm'));
 const EliteCommunity = lazy(() => import('./pages/seeker/EliteCommunity'));
 const ProctoringTest = lazy(() => import('./pages/seeker/ProctoringTest'));
-
-// Blog pages (context + wrapper also lazy-loaded — not needed outside /blog)
+const CandidateCareerHub = lazy(() => import('./pages/public/CandidateCareerHub'));
 const BlogLandingPage = lazy(() => import('./pages/blog/BlogLandingPage'));
 const BlogPostDetailsPage = lazy(() => import('./pages/blog/BlogPostDetailsPage'));
 
-// SEO pages
-const AIInterviewPlatform = lazy(() => import('./pages/seo/AIInterviewPlatform.jsx'));
-const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftware.jsx'));
-const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring.jsx'));
-const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening.jsx'));
-const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis.jsx'));
-
-// Public pages
+const AIInterviewPlatform = lazy(() => import('./pages/seo/AIInterviewPlatform'));
+const AIRecruitmentSoftware = lazy(() => import('./pages/seo/AIRecruitmentSoftware'));
+const AutomatedHiring = lazy(() => import('./pages/seo/AutomatedHiring'));
+const CandidateScreening = lazy(() => import('./pages/seo/CandidateScreening'));
+const ResumeAnalysis = lazy(() => import('./pages/seo/ResumeAnalysis'));
 const PublicInterviewDetail = lazy(() => import('./pages/public/PublicInterviewDetail'));
-const CandidateCareerHub = lazy(() => import('./pages/public/CandidateCareerHub'));
-
-// Email Verification landing page
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
-
-// 404 Not Found page
 const NotFound = lazy(() => import('./pages/NotFound'));
 
-// ─── Lazy Blog Route Shell ─────────────────────────────────────────────────────
-// BlogThemeContext + BlogNavbar are only imported when user visits /blog routes.
-// This keeps the entire blog context/navbar out of the initial bundle.
-const LazyBlogShell = lazy(() => import('./pages/blog/BlogThemeContext').then(mod => {
-  // Return a component that wraps children with BlogThemeProvider + Navbar
-  const { BlogThemeProvider, useBlogTheme } = mod;
-  // We need a separate inner component to use the context
-  function BlogRouteInner({ children }) {
-    const { isDark } = useBlogTheme();
-    return (
-      <div className="min-h-screen" style={{ background: isDark ? '#0e121e' : '#F8F8FA' }}>
-        {children}
-      </div>
-    );
-  }
-  // Return a wrapper component
-  return {
-    default: function BlogShell({ children }) {
-      return (
-        <BlogThemeProvider>
-          <BlogRouteInner>{children}</BlogRouteInner>
-        </BlogThemeProvider>
-      );
+const LazyBlogShell = lazy(() => import('./pages/blog/BlogThemeContext').then((module) => {
+    const { BlogThemeProvider: Provider, useBlogTheme } = module;
+    function BlogShellContent({ children }) {
+        const { isDark } = useBlogTheme();
+        return (
+            <div className="min-h-screen" style={{ background: isDark ? '#0e121e' : '#F8F8FA' }}>
+                {children}
+            </div>
+        );
     }
-  };
+
+    return {
+        default: function BlogShell({ children }) {
+            return (
+                <Provider>
+                    <BlogShellContent>{children}</BlogShellContent>
+                </Provider>
+            );
+        }
+    };
 }));
 
-function SeekerJobRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/candidate/job/${id}`} replace />;
-}
-
 function SeekerApplyRedirect() {
-  const { jobId } = useParams();
-  const location = useLocation();
-  return <Navigate to={`/candidate/apply/${jobId}${location.search}`} replace />;
+    const { jobId } = useParams();
+    const location = useLocation();
+    return <Navigate to={`/candidate/apply/${jobId}${location.search}`} replace />;
 }
-
-import useFirebaseAuthSync from './hooks/useFirebaseAuthSync';
 
 function FirebaseAuthSync() {
-  useFirebaseAuthSync();
-  return null;
+    useFirebaseAuthSync();
+    return null;
 }
 
 function App() {
-  return (
-    <BrowserRouter>
-      <RouteTracker />
-      <FirebaseAuthSync />
-      <CookieBanner />
+    return (
+        <BrowserRouter>
+            <RouteTracker />
+            <FirebaseAuthSync />
+            <CookieBanner />
+            <Suspense fallback={<GlobalPageSkeleton />}>
+                <Routes>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/assessments" element={<AssessmentsHome />} />
+                    <Route path="/service" element={<Navigate to="/assessments" replace />} />
+                    <Route path="/assessments-home" element={<Navigate to="/assessments" replace />} />
+                    <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/assessment-pricing" element={<AssessmentPricingPage />} />
+                    <Route path="/about" element={<AboutPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/sample-report" element={<SampleReportPage />} />
+                    <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
+                    <Route path="/privacy" element={<PrivacyPolicy />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/cookies" element={<Cookies />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-      <Suspense fallback={<GlobalPageSkeleton />}>
-      <Routes>
-        <Route path="/" element={<AssessmentsHome />} />
-        <Route path="/service" element={<Navigate to="/" replace />} />
-        <Route path="/assessments-home" element={<Navigate to="/" replace />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/sample-report" element={<SampleReportPage />} />
-        <Route path="/test-feedback" element={<InterviewFeedbackForm />} />
+                    <Route path="/job/:id" element={
+                        <div className="min-h-screen bg-[#f7f4ee]">
+                            <Navbar theme="light" />
+                            <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
+                                <JobDetails />
+                            </main>
+                        </div>
+                    } />
 
-        {/* Legal Routes */}
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/cookies" element={<Cookies />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
+                    <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
+                        <Route index element={<RecruiterDashboard />} />
+                        <Route path="post-job" element={<PostJob />} />
+                        <Route path="my-jobs" element={<MyJobs />} />
+                        <Route path="applicants" element={<Applicants />} />
+                        <Route path="transcript/:applicationId" element={<RecruiterTranscriptPage />} />
+                        <Route path="proctoring-reports" element={<ProctoringReports />} />
+                        <Route path="profile" element={<RecruiterProfile />} />
+                        <Route path="performance" element={<PerformanceDashboard />} />
+                        <Route path="onboarding-kit" element={<OnboardingKit />} />
+                        <Route path="ai-search" element={<TalentSearch />} />
+                        <Route path="knowledge-hub" element={<RecruiterKnowledgeHub />} />
+                        <Route path="blog" element={<BlogPosts />} />
+                        <Route path="blog/new" element={<BlogEditor />} />
+                        <Route path="blog/edit/:id" element={<BlogEditor />} />
+                        <Route path="blog-editor" element={<BlogEditor />} />
+                        <Route path="blog-editor/:id" element={<BlogEditor />} />
+                        <Route path="coding-assessment/:jobId" element={<CodingAssessmentConfig />} />
+                        <Route path="custom-coding-assessment/:jobId" element={<CustomCodingAssessmentConfig />} />
+                        <Route path="question-bank" element={<QuestionBank />} />
+                        <Route path="upgrade" element={<PaymentUpgrade />} />
+                    </Route>
 
-        {/* Public Job Details Route — accessible without login */}
-        <Route path="/job/:id" element={
-          <div className="min-h-screen bg-[#f7f4ee]">
-            <Navbar theme="light" />
-            <main className="mx-auto max-w-6xl px-6 pb-16 pt-28">
-              <JobDetails />
-            </main>
-          </div>
-        } />
+                    <Route path="/admin/question-bank" element={<AdminQuestionBankRedirect />} />
+                    <Route path="/admin-question-bank" element={<AdminQuestionBankRedirect />} />
 
-        {/* Recruiter Routes */}
-        <Route path="/recruiter" element={<ProtectedRoute><RecruiterLayout /></ProtectedRoute>}>
-          <Route index element={<RecruiterDashboard />} />
-          <Route path="post-job" element={<PostJob />} />
-          <Route path="my-jobs" element={<MyJobs />} />
-          <Route path="applicants" element={<Applicants />} />
-          <Route path="transcript/:applicationId" element={<RecruiterTranscriptPage />} />
-          <Route path="proctoring-reports" element={<ProctoringReports />} />
-          <Route path="profile" element={<RecruiterProfile />} />
-          <Route path="performance" element={<PerformanceDashboard />} />
-          <Route path="onboarding-kit" element={<OnboardingKit />} />
-          <Route path="ai-search" element={<TalentSearch />} />
-          <Route path="knowledge-hub" element={<RecruiterKnowledgeHub />} />
-          <Route path="blog" element={<BlogPosts />} />
-          <Route path="blog/new" element={<BlogEditor />} />
-          <Route path="blog/edit/:id" element={<BlogEditor />} />
-          <Route path="blog-editor" element={<BlogEditor />} />
-          <Route path="blog-editor/:id" element={<BlogEditor />} />
-          <Route path="coding-assessment/:jobId" element={<CodingAssessmentConfig />} />
-          <Route path="custom-coding-assessment/:jobId" element={<CustomCodingAssessmentConfig />} />
-          <Route path="question-bank" element={<QuestionBank />} />
+                    <Route path="/seeker/job/:id" element={<PublicJobDetails />} />
+                    <Route path="/candidate/job/:id" element={<PublicJobDetails />} />
+                    <Route path="/candidate/jobs" element={
+                        <div className="min-h-screen bg-[#f7f4ee]">
+                            <Navbar theme="light" />
+                            <main className="mx-auto max-w-7xl px-4 pb-16 pt-28 sm:px-6 lg:px-8">
+                                <BrowseJobs />
+                            </main>
+                        </div>
+                    } />
 
-          <Route path="upgrade" element={<PaymentUpgrade />} />
-        </Route>
+                    <Route path="/seeker" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
+                        <Route index element={<SeekerDashboard />} />
+                        <Route path="jobs" element={<BrowseJobs />} />
+                        <Route path="job/:id" element={<JobDetails />} />
+                        <Route path="apply/:jobId" element={<ApplicationFlow />} />
+                        <Route path="applications" element={<MyApplications />} />
+                        <Route path="profile" element={<SeekerProfile />} />
+                        <Route path="mock-interview" element={<AgentInterview />} />
+                        <Route path="agent-interview" element={<AgentInterview />} />
+                        <Route path="agentInterview" element={<AgentInterview />} />
+                        <Route path="agentInterview.jsx" element={<AgentInterview />} />
+                        <Route path="community" element={<EliteCommunity />} />
+                        <Route path="proctoring-test" element={<ProctoringTest />} />
+                    </Route>
 
-        <Route path="/admin/question-bank" element={<AdminQuestionBankRedirect />} />
-        <Route path="/admin-question-bank" element={<AdminQuestionBankRedirect />} />
+                    <Route path="/candidate" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
+                        <Route index element={<SeekerDashboard />} />
+                        <Route path="jobs" element={<BrowseJobs />} />
+                        <Route path="job/:id" element={<JobDetails />} />
+                        <Route path="apply/:jobId" element={<ApplicationFlow />} />
+                        <Route path="applications" element={<MyApplications />} />
+                        <Route path="profile" element={<SeekerProfile />} />
+                        <Route path="mock-interview" element={<AgentInterview />} />
+                        <Route path="agent-interview" element={<AgentInterview />} />
+                        <Route path="community" element={<EliteCommunity />} />
+                        <Route path="proctoring-test" element={<ProctoringTest />} />
+                        <Route path="career-hub" element={<CandidateCareerHub isCandidatePortal />} />
+                    </Route>
 
-        {/* Public Candidate Job Details — accessible without login */}
-        <Route path="/candidate/job/:id" element={<PublicJobDetails />} />
-        <Route path="/candidate/jobs" element={
-          <div className="min-h-screen bg-[#f7f4ee]">
-            <Navbar theme="light" />
-            <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16 pt-28">
-              <BrowseJobs />
-            </main>
-          </div>
-        } />
+                    <Route path="/career-hub" element={<CandidateCareerHub />} />
+                    <Route path="/career-guide" element={<Navigate to="/career-hub" replace />} />
+                    <Route path="/career-questions" element={<Navigate to="/career-hub" replace />} />
+                    <Route path="/candidate-career-hub" element={<Navigate to="/career-hub" replace />} />
 
-        {/* Candidate Routes */}
-        <Route path="/candidate" element={<ProtectedRoute><SeekerLayout /></ProtectedRoute>}>
-          <Route index element={<SeekerDashboard />} />
-          <Route path="jobs" element={<BrowseJobs />} />
-          <Route path="job/:id" element={<JobDetails />} />
-          <Route path="apply/:jobId" element={<ApplicationFlow />} />
-          <Route path="applications" element={<MyApplications />} />
-          <Route path="profile" element={<SeekerProfile />} />
-          <Route path="mock-interview" element={<AgentInterview />} />
-          <Route path="agent-interview" element={<AgentInterview />} />
-          <Route path="agentInterview" element={<AgentInterview />} />
-          <Route path="agentInterview.jsx" element={<AgentInterview />} />
-          <Route path="community" element={<EliteCommunity />} />
-          <Route path="proctoring-test" element={<ProctoringTest />} />
-          <Route path="career-hub" element={<CandidateCareerHub isCandidatePortal={true} />} />
-        </Route>
+                    <Route path="/blog" element={
+                        <LazyBlogShell>
+                            <BlogLandingPage />
+                        </LazyBlogShell>
+                    } />
+                    <Route path="/blog/:slug" element={
+                        <LazyBlogShell>
+                            <BlogPostDetailsPage />
+                        </LazyBlogShell>
+                    } />
 
-        {/* Career Question Hub (Public) */}
-        <Route path="/career-hub" element={<CandidateCareerHub />} />
-        <Route path="/career-guide" element={<Navigate to="/career-hub" replace />} />
-        <Route path="/career-questions" element={<Navigate to="/career-hub" replace />} />
-        <Route path="/candidate-career-hub" element={<Navigate to="/career-hub" replace />} />
+                    <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />
+                    <Route path="/ai-recruitment-software" element={<AIRecruitmentSoftware />} />
+                    <Route path="/automated-hiring" element={<AutomatedHiring />} />
+                    <Route path="/candidate-screening" element={<CandidateScreening />} />
+                    <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+                    <Route path="/public/interview/:applicationId" element={<PublicInterviewDetail />} />
 
-        {/* Blog Routes — BlogThemeContext/Navbar lazy-loaded only when visiting /blog */}
-        <Route path="/blog" element={
-          <LazyBlogShell>
-            <BlogLandingPage />
-          </LazyBlogShell>
-        } />
-        <Route path="/blog/:slug" element={
-          <LazyBlogShell>
-            <BlogPostDetailsPage />
-          </LazyBlogShell>
-        } />
+                    <Route path="/AIInterviewPlatform" element={<Navigate to="/ai-interview-platform" replace />} />
+                    <Route path="/AIRecruitmentSoftware" element={<Navigate to="/ai-recruitment-software" replace />} />
+                    <Route path="/AutomatedHiring" element={<Navigate to="/automated-hiring" replace />} />
+                    <Route path="/CandidateScreening" element={<Navigate to="/candidate-screening" replace />} />
+                    <Route path="/ResumeAnalysis" element={<Navigate to="/resume-analysis" replace />} />
 
-        <Route path="/ai-interview-platform" element={<AIInterviewPlatform />} />
-        <Route path="/ai-recruitment-software" element={<AIRecruitmentSoftware />} />
-        <Route path="/automated-hiring" element={<AutomatedHiring />} />
-        <Route path="/candidate-screening" element={<CandidateScreening />} />
-        <Route path="/resume-analysis" element={<ResumeAnalysis />} />
-        <Route path="/public/interview/:applicationId" element={<PublicInterviewDetail />} />
+                    <Route path="/admin" element={<Navigate to="/recruiter" replace />} />
+                    <Route path="/admin/dashboard" element={<Navigate to="/recruiter" replace />} />
+                    <Route path="/admindashboard" element={<Navigate to="/recruiter" replace />} />
+                    <Route path="/admin/blogs" element={<Navigate to="/recruiter/blog" replace />} />
+                    <Route path="/admin/blog" element={<Navigate to="/recruiter/blog" replace />} />
+                    <Route path="/admin/blog/new" element={<Navigate to="/recruiter/blog/new" replace />} />
+                    <Route path="/admin/blog-editor" element={<Navigate to="/recruiter/blog/new" replace />} />
+                    <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />
+                    <Route path="/seeker/apply/:jobId" element={<SeekerApplyRedirect />} />
+                    <Route path="/seeker/applications" element={<Navigate to="/candidate/applications" replace />} />
+                    <Route path="/seeker/profile" element={<Navigate to="/candidate/profile" replace />} />
+                    <Route path="/seeker/mock-interview" element={<Navigate to="/candidate/mock-interview" replace />} />
+                    <Route path="/seeker/community" element={<Navigate to="/candidate/community" replace />} />
 
-        {/* PascalCase aliases */}
-        <Route path="/AIInterviewPlatform" element={<Navigate to="/ai-interview-platform" replace />} />
-        <Route path="/AIRecruitmentSoftware" element={<Navigate to="/ai-recruitment-software" replace />} />
-        <Route path="/AutomatedHiring" element={<Navigate to="/automated-hiring" replace />} />
-        <Route path="/CandidateScreening" element={<Navigate to="/candidate-screening" replace />} />
-        <Route path="/ResumeAnalysis" element={<Navigate to="/resume-analysis" replace />} />
-
-        {/* Admin Aliases */}
-        <Route path="/admin" element={<Navigate to="/recruiter" replace />} />
-        <Route path="/admin/dashboard" element={<Navigate to="/recruiter" replace />} />
-        <Route path="/admindashboard" element={<Navigate to="/recruiter" replace />} />
-        <Route path="/admin/blogs" element={<Navigate to="/recruiter/blog" replace />} />
-        <Route path="/admin/blog" element={<Navigate to="/recruiter/blog" replace />} />
-        <Route path="/admin/blog/new" element={<Navigate to="/recruiter/blog/new" replace />} />
-        <Route path="/admin/blog-editor" element={<Navigate to="/recruiter/blog/new" replace />} />
-        {/* Redirects from old /seeker paths to /candidate */}
-        <Route path="/seeker" element={<Navigate to="/candidate" replace />} />
-        <Route path="/seeker/jobs" element={<Navigate to="/candidate/jobs" replace />} />
-        <Route path="/seeker/job/:id" element={<SeekerJobRedirect />} />
-        <Route path="/seeker/apply/:jobId" element={<SeekerApplyRedirect />} />
-        <Route path="/seeker/applications" element={<Navigate to="/candidate/applications" replace />} />
-        <Route path="/seeker/profile" element={<Navigate to="/candidate/profile" replace />} />
-        <Route path="/seeker/mock-interview" element={<Navigate to="/candidate/mock-interview" replace />} />
-        <Route path="/seeker/community" element={<Navigate to="/candidate/community" replace />} />
-
-        {/* Catch-all 404 — must be last */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-      </Suspense>
-    </BrowserRouter>
-  );
+                    <Route path="*" element={<NotFound />} />
+                </Routes>
+            </Suspense>
+        </BrowserRouter>
+    );
 }
 
-export default App
+export default App;

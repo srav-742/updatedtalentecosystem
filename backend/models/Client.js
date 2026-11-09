@@ -5,7 +5,8 @@ const clientSchema = new mongoose.Schema({
     clientSecret: { type: String, required: true }, // Hashed with bcrypt
     name: { type: String, required: true },
     description: { type: String, default: '' },
-    status: { type: String, enum: ['active', 'suspended'], default: 'active' }
-}, { timestamps: true });
+    status: { type: String, enum: ['active', 'suspended'], default: 'active' },
+    roles: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Role' }]
+}, { timestamps: true, strictPopulate: false });
 
 module.exports = mongoose.model('Client', clientSchema);

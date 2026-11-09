@@ -4,7 +4,7 @@ const BlogThemeContext = createContext();
 
 export function BlogThemeProvider({ children }) {
     const [isDark, setIsDark] = useState(() => {
-        const saved = localStorage.getItem('blog-theme-v2');
+        const saved = localStorage.getItem('blog-theme-v2') ?? localStorage.getItem('blog-theme');
         if (saved !== null) return saved === 'dark';
         // Default to Light mode to match the homepage Navy & Gold theme
         return false;

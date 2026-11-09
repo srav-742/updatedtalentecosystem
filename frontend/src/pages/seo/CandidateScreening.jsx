@@ -30,6 +30,7 @@ export default function CandidateScreening() {
       <SEO 
         title={content.title}
         description={content.description}
+        keywords="candidate screening, AI screening, resume filtering, talent assessment"
         canonicalUrl={content.canonicalUrl}
         schema={schemas}
       />

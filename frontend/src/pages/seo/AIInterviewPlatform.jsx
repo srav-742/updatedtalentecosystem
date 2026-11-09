@@ -30,6 +30,7 @@ export default function AIInterviewPlatform() {
       <SEO 
         title={content.title}
         description={content.description}
+        keywords="AI interview platform, automated interviews, candidate screening, AI hiring"
         canonicalUrl={content.canonicalUrl}
         schema={schemas}
       />

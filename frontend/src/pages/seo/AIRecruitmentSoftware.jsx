@@ -30,6 +30,7 @@ export default function AIRecruitmentSoftware() {
       <SEO 
         title={content.title}
         description={content.description}
+        keywords="AI recruitment, recruitment software, automated hiring, candidate ranking"
         canonicalUrl={content.canonicalUrl}
         schema={schemas}
       />

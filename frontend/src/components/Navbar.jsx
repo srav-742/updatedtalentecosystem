@@ -58,24 +58,30 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                         Hire<span className="text-[#C99A45]">1Percent</span>
                     </span>
                 </Link>
-                <div className="hidden md:flex items-center space-x-7">
+                <div className="hidden xl:flex items-center space-x-4">
                     <a href="/#how-it-works" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>How it works</a>
                     <a href="/#anti-cheat" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>4-Layer Anti-Cheat</a>
+                    <a href="/#elite-talent" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Elite Talent</a>
+                    <a href="/#operations" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Operations</a>
+                    <a href="/#safety" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Safety</a>
                     <Link to="/sample-report" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Sample Report</Link>
                     <Link to="/pricing" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Pricing</Link>
                     <Link to="/blog" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Blog</Link>
                     <Link to="/contact" className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>Contact</Link>
 
-                    <div className="flex items-center space-x-3 pl-2">
+                    <div className="flex items-center space-x-2 pl-2">
                         {themeToggle}
                         {user ? (
-                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/candidate'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                            <Link to={user.role === 'recruiter' ? '/recruiter' : '/seeker'} className={`text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
                                 Dashboard
                             </Link>
                         ) : (
                             <>
-                                <Link to="/login" className={`px-4 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                                <Link to="/login" className={`px-2 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
                                     Sign In
+                                </Link>
+                                <Link to="/signup" className={`px-2 py-2 text-sm font-medium transition-colors ${isLight ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 hover:text-white'}`}>
+                                    Sign Up
                                 </Link>
                                 <Link to="/?book-demo=true" className="px-4 py-2 text-xs font-bold rounded-xl bg-[#20263A] text-[#E6BC6B] hover:bg-[#2c344e] border border-[#E6BC6B]/30 shadow-sm transition-all duration-200">
                                     Book Demo ↗
@@ -88,7 +94,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                 {/* Hamburger for Mobile */}
                 <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className={`md:hidden p-2 transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}
+                    className={`xl:hidden p-2 transition-colors ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}`}
                     aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                     aria-expanded={isMenuOpen}
                 >
@@ -104,11 +110,15 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
 
             {/* Mobile Menu */}
             <div
-                className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${isMenuOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'} ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
+                style={{ maxHeight: isMenuOpen ? '80vh' : 0 }}
+                className={`xl:hidden overflow-y-auto transition-all duration-300 ease-in-out ${isMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isLight ? 'border-t border-gray-200 bg-white' : 'border-t border-white/10 bg-[#0c0f16]'}`}
             >
                 <div className="flex flex-col p-6 space-y-4">
                     <a href="/#how-it-works" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>How it works</a>
                     <a href="/#anti-cheat" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>4-Layer Anti-Cheat</a>
+                    <a href="/#elite-talent" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Elite Talent</a>
+                    <a href="/#operations" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Operations</a>
+                    <a href="/#safety" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Safety</a>
                     <Link to="/sample-report" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Sample Report</Link>
                     <Link to="/pricing" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Pricing</Link>
                     <Link to="/blog" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Blog</Link>
@@ -130,7 +140,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                     <div className="pt-4 flex flex-col space-y-4">
                         {user ? (
                             <Link
-                                to={user.role === 'recruiter' ? '/recruiter' : '/candidate'}
+                                to={user.role === 'recruiter' ? '/recruiter' : '/seeker'}
                                 onClick={() => setIsMenuOpen(false)}
                                 className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}
                             >
@@ -139,6 +149,7 @@ const Navbar = ({ theme = 'dark', onToggleTheme }) => {
                         ) : (
                             <>
                                 <Link to="/login" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Sign In</Link>
+                                <Link to="/signup" onClick={() => setIsMenuOpen(false)} className={isLight ? 'text-gray-600 hover:text-gray-900' : 'text-gray-400 hover:text-white'}>Sign Up</Link>
                                 <Link to="/?book-demo=true" onClick={() => setIsMenuOpen(false)} className="py-2.5 text-center text-xs font-bold rounded-xl bg-[#20263A] text-[#E6BC6B] border border-[#E6BC6B]/30">Book Demo ↗</Link>
                             </>
                         )}

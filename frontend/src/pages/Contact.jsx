@@ -74,6 +74,14 @@ const Contact = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const body = [
+      `Name: ${formData.name}`,
+      `Email: ${formData.email}`,
+      `Assessment session: ${formData.sessionUrl || 'Not provided'}`,
+      '',
+      formData.message
+    ].join('\n');
+    window.location.href = `mailto:contact@hire1percent.com?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(body)}`;
     setSubmitted(true);
   };
 
@@ -275,6 +283,24 @@ const Contact = () => {
                   background: 'white'
                 }}>
                   <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: 800, color: 'var(--navy)' }}>
+                    Grievance Officer
+                  </h4>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 10px', lineHeight: 1.6 }}>
+                    For legal disputes or data protection concerns under India IT Act compliance:
+                  </p>
+                  <p style={{ margin: '0 0 6px', fontSize: '13px' }}>
+                    Email: <a href="mailto:grievance@hire1percent.com" style={{ fontWeight: 800, color: 'var(--navy)', textDecoration: 'underline' }}>grievance@hire1percent.com</a>
+                  </p>
+                  <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Tech Hub, Bengaluru, India</small>
+                </div>
+
+                <div style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: '14px',
+                  padding: '22px 24px',
+                  background: 'white'
+                }}>
+                  <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: 800, color: 'var(--navy)' }}>
                     Compliance, SOC2 &amp; GDPR
                   </h4>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
@@ -295,7 +321,7 @@ const Contact = () => {
                   Send a Direct Message
                 </h3>
                 <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 24px' }}>
-                  Our technical support engineering team will follow up promptly.
+                  Your email app will open with your inquiry ready to send.
                 </p>
 
                 {submitted ? (
@@ -312,10 +338,10 @@ const Contact = () => {
                       margin: '0 auto 16px'
                     }}>✓</div>
                     <h4 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy)', margin: '0 0 8px' }}>
-                      Message Received
+                      Email Draft Ready
                     </h4>
                     <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 20px', lineHeight: 1.6 }}>
-                      Thank you for contacting us. A support engineer will reply to <strong>{formData.email}</strong> shortly.
+                      Your email app should open with your message addressed to <strong>contact@hire1percent.com</strong>. If it did not open, email us directly.
                     </p>
                     <button 
                       type="button" 

@@ -17,7 +17,7 @@ const syncAll = async () => {
 
         for (const user of users) {
             console.log(`Syncing user: ${user.email} (role: ${user.role || 'candidate'})`);
-            if (user.role === 'candidate') {
+            if ((user.role === 'candidate' || user.role === 'seeker')) {
                 await syncUserToProfile(user);
                 syncedCandidatesCount++;
             } else if (user.role === 'recruiter') {

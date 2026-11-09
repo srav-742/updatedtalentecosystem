@@ -1,44 +1,52 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { auth } from '../firebase';
 
 const ProtectedRoute = ({ children, role, allowedRoles }) => {
-    const [user] = useState(() => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState(null);
+    const location = useLocation();
+
+    useEffect(() => {
         try {
             const storedUser = localStorage.getItem('user');
-            return storedUser ? JSON.parse(storedUser) : null;
-        } catch (e) {
-            console.error("Failed to parse user from localStorage", e);
-            return null;
+            if (storedUser) {
+                setUser(JSON.parse(storedUser));
+            }
+        } catch (error) {
+            console.error('Failed to parse user from localStorage:', error);
+        } finally {
+            setIsLoading(false);
         }
-    });
-    const location = useLocation();
-    const isPilotAccount = user?.role === 'recruiter' && user?.accountType === 'pilot';
+    }, []);
 
+    if (isLoading) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-[#0c0f16]">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            </div>
+        );
+    }
 
-    if (import.meta.env.DEV) console.log("[ProtectedRoute] Current Auth State:", { hasUser: !!user, roleRequired: role, allowedRoles, userRole: user?.role });
-
-    if (!user || !user.uid) {
-        if (import.meta.env.DEV) console.log("[ProtectedRoute] No valid user, redirecting to login");
+    if (!user || (!user.uid && !user._id && !user.id)) {
         if (window.location.pathname.includes('AdminContentPage')) {
             return <Navigate to="/login" replace />;
         }
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // ─── Pilot Expiration Guard ──────────────────────────────────
-    if (isPilotAccount && user.pilotExpiresAt) {
-        const now = new Date();
+    if (user.role === 'recruiter' && user.accountType === 'pilot' && user.pilotExpiresAt) {
         const expiresAt = new Date(user.pilotExpiresAt);
-        if (now > expiresAt) {
-            console.warn("[ProtectedRoute] Pilot account expired for user:", user.email);
-            try { 
+        if (Number.isFinite(expiresAt.getTime()) && Date.now() > expiresAt.getTime()) {
+            console.warn('[ProtectedRoute] Pilot account expired.');
+            try {
                 localStorage.removeItem('user');
                 localStorage.removeItem('accessToken');
                 localStorage.removeItem('refreshToken');
                 sessionStorage.setItem('login_notice_msg', 'Your session has expired.');
-            } catch (e) {}
+            } catch (error) {
+                console.error('[ProtectedRoute] Failed to clear expired session:', error);
+            }
             return (
                 <Navigate
                     to="/login?expired=true"
@@ -46,7 +54,7 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
                         from: location,
                         pilotExpired: true,
                         sessionExpired: true,
-                        message: "Your session has expired."
+                        message: 'Your session has expired.'
                     }}
                     replace
                 />
@@ -54,29 +62,21 @@ const ProtectedRoute = ({ children, role, allowedRoles }) => {
         }
     }
 
-    // ─── Role-Based Access Check ─────────────────────────────────
-    // Support both legacy `role` prop (single string) and new `allowedRoles` prop (array)
     const effectiveAllowedRoles = allowedRoles
         ? (Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles])
         : (role ? [role] : null);
 
     if (effectiveAllowedRoles && !effectiveAllowedRoles.includes(user.role)) {
-        if (import.meta.env.DEV) console.log(`[ProtectedRoute] Role mismatch: Expected one of [${effectiveAllowedRoles.join(', ')}], got "${user.role}". Redirecting...`);
-        const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/candidate';
-        
-        // Hard fallback if Navigate seems to be ignored
+        const redirectPath = user.role === 'recruiter' ? '/recruiter/my-jobs' : '/seeker';
+
         if (window.location.pathname.includes('AdminContentPage') && user.role !== 'admin') {
             return <Navigate to={redirectPath} replace />;
         }
-        
+
         return <Navigate to={redirectPath} replace />;
     }
 
-
-    if (import.meta.env.DEV) console.log("[ProtectedRoute] Access Granted");
     return children;
 };
 
-
 export default ProtectedRoute;
-

@@ -142,7 +142,10 @@ const SeekerDashboard = () => {
         queryKey: ['applications', userId],
         queryFn: async () => {
             if (!userId) return [];
-            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`);
+            const res = await axios.get(`${API_URL}/applications/candidate/${userId}`).catch((error) => {
+                if (error.response?.status !== 404) throw error;
+                return axios.get(`${API_URL}/applications/seeker/${userId}`);
+            });
             return res.data;
         },
         enabled: !!userId && !serverStats,

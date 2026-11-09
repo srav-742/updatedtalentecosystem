@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie, X, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import cookieManager from '../utils/cookieManager';
@@ -27,12 +28,15 @@ const CookieBanner = () => {
         setShow(false);
     };
 
-    if (!show) return null;
-
     return (
-        <div
-            className="fixed bottom-6 left-6 right-6 z-[9999] md:max-w-xl md:left-auto animate-in fade-in slide-in-from-bottom-6 duration-300"
-        >
+        <AnimatePresence>
+            {show && (
+                <motion.div
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 100, opacity: 0 }}
+                    className="fixed bottom-6 left-6 right-6 z-[9999] md:max-w-xl md:left-auto"
+                >
                     <div className="bg-[#121620]/90 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-6 shadow-2xl shadow-black/50">
                         <div className="flex gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
@@ -72,7 +76,9 @@ const CookieBanner = () => {
                             </div>
                         </div>
                     </div>
-        </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 

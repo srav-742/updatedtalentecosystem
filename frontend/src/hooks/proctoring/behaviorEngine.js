@@ -520,7 +520,7 @@ export function analyzeFrame(state, signals) {
                 }
             }
 
-            const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case'];
+            const TARGET_OBJECTS = ['book', 'bottle', 'pen', 'pencil', 'cup', 'paper', 'headphones', 'envelope', 'tablet computer', 'tablet', 'mug', 'pencil case', 'laptop'];
             if (TARGET_OBJECTS.includes(track.class) || TARGET_OBJECTS.includes(track.class.toLowerCase())) {
                 const bbox = track.currentBbox || {};
                 const objectKey = `${track.class}_${Math.round((bbox.x || 0) / 120)}_${Math.round((bbox.y || 0) / 90)}`;
@@ -551,7 +551,12 @@ export function analyzeFrame(state, signals) {
 
                 if (isNew && isSustained && isObjectNearUser) {
                     state.environmentObjects.add(objectKey);
-                    const eventType = track.class === 'book' ? 'book_detected' : 'suspicious_object_detected';
+                    const className = track.class.toLowerCase();
+                    const eventType = className === 'book'
+                        ? 'book_detected'
+                        : className === 'laptop'
+                            ? 'new_object_appeared'
+                            : 'suspicious_object_detected';
                     actions.push({
                         action: 'warning',
                         eventType: eventType,
@@ -594,6 +599,16 @@ export function analyzeFrame(state, signals) {
                 });
             }
         }
+    }
+
+    if (signals.audioSignals?.multipleVoices) {
+        actions.push({
+            action: 'warning',
+            eventType: 'multiple_voices',
+            severity: 'high',
+            reason: 'Multiple voices detected in audio stream',
+            data: { audioLevel: signals.audioSignals.level },
+        });
     }
 
     for (const act of actions) {

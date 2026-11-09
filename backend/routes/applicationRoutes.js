@@ -8,7 +8,9 @@ router.post('/applications/proctoring-reset', applicationController.resetApplica
 router.post('/applications/:id/retest', applicationController.retestApplicationRound);
 router.post('/applications/:id/grant-retest', applicationController.grantRetestAccess);
 router.get('/applications/candidate/:userId/stats', applicationController.getSeekerDashboardStats);
+router.get('/applications/seeker/:userId/stats', applicationController.getSeekerDashboardStats);
 router.get('/applications/candidate/:userId', applicationController.getSeekerApplications);
+router.get('/applications/seeker/:userId', applicationController.getSeekerApplications);
 router.put('/applications/:id/status', applicationController.updateApplicationStatus);
 router.delete('/applications/:id', authMiddleware, applicationController.deleteApplication);
 

@@ -154,7 +154,10 @@ const ApplicationFlow = () => {
                 const candidateEmail = (storedUser.email || storedUser.emailId || '').trim().toLowerCase();
                 try {
                     const candidateUserId = storedUser.uid || storedUser._id || storedUser.id;
-                    const appsRes = await axios.get(`${API_URL}/applications/candidate/${candidateUserId}`);
+                    const appsRes = await axios.get(`${API_URL}/applications/candidate/${candidateUserId}`).catch((error) => {
+                        if (error.response?.status !== 404) throw error;
+                        return axios.get(`${API_URL}/applications/seeker/${candidateUserId}`);
+                    });
                     const candidateApps = Array.isArray(appsRes.data) ? appsRes.data : appsRes.data?.applications || [];
                     existingApp = candidateApps.find(app => {
                         const appJobId = app?.jobId?._id || app?.jobId;

@@ -30,6 +30,7 @@ export default function AutomatedHiring() {
       <SEO 
         title={content.title}
         description={content.description}
+        keywords="automated hiring, recruitment automation, AI hiring, screening automation"
         canonicalUrl={content.canonicalUrl}
         schema={schemas}
       />

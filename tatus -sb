@@ -1,0 +1,61 @@
+[33mc1a5455[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mauth-updates[m[33m)[m Integrate latest main updates and finalize authorization
+ backend/app.js                                     |  11 [32m+[m[31m-[m
+ backend/controllers/assessmentController.js        |  10 [32m+[m[31m-[m
+ backend/controllers/authController.js              |  28 [32m+[m[31m-[m
+ backend/controllers/interviewController.js         |  10 [32m+[m[31m-[m
+ backend/controllers/jobController.js               | 160 [32m+++++[m[31m-[m
+ backend/controllers/paymentController.js           | 166 [32m++++[m[31m--[m
+ backend/controllers/recruiterController.js         |  28 [32m+[m[31m-[m
+ backend/controllers/userController.js              |  38 [32m+[m[31m-[m
+ backend/middleware/authMiddleware.js               |  72 [32m++[m[31m-[m
+ backend/middleware/gatewayMiddleware.js            | 113 [32m++[m[31m--[m
+ backend/models/Client.js                           |   5 [32m+[m[31m-[m
+ backend/models/Job.js                              |   9 [32m+[m[31m-[m
+ backend/models/User.js                             |   9 [32m+[m
+ backend/package-lock.json                          |   8 [32m+[m
+ backend/package.json                               |   2 [32m+[m
+ .../1772433090891-517091237.webm                   | Bin [31m820462[m -> [32m0[m bytes
+ .../1772433170135-46125819.webm                    | Bin [31m634990[m -> [32m0[m bytes
+ .../1772433249185-239100699.webm                   | Bin [31m589588[m -> [32m0[m bytes
+ .../1772433344644-338327178.webm                   | Bin [31m704542[m -> [32m0[m bytes
+ .../1772433421609-985467666.webm                   | Bin [31m449486[m -> [32m0[m bytes
+ .../1772433475744-787344367.webm                   | Bin [31m4160[m -> [32m0[m bytes
+ .../1772433561167-971648133.webm                   | Bin [31m577996[m -> [32m0[m bytes
+ .../1772433644524-635408004.webm                   | Bin [31m579928[m -> [32m0[m bytes
+ .../1772433731050-893107296.webm                   | Bin [31m415676[m -> [32m0[m bytes
+ .../1772433805634-249509996.webm                   | Bin [31m594418[m -> [32m0[m bytes
+ .../1774943226797-93419851.webm                    | Bin [31m451418[m -> [32m0[m bytes
+ .../1774943288053-835559097.webm                   | Bin [31m365444[m -> [32m0[m bytes
+ .../1774943368299-737660836.webm                   | Bin [31m434996[m -> [32m0[m bytes
+ .../1774943436095-184252953.webm                   | Bin [31m379934[m -> [32m0[m bytes
+ .../1774943502689-845901328.webm                   | Bin [31m427268[m -> [32m0[m bytes
+ .../1774943576499-764746254.webm                   | Bin [31m390560[m -> [32m0[m bytes
+ .../1774943666852-99328555.webm                    | Bin [31m420506[m -> [32m0[m bytes
+ .../1774943727963-268170998.webm                   | Bin [31m323906[m -> [32m0[m bytes
+ .../1774943799905-623093819.webm                   | Bin [31m500716[m -> [32m0[m bytes
+ .../1774943888156-262975122.webm                   | Bin [31m510376[m -> [32m0[m bytes
+ backend/routes/gatewayRoutes.js                    |  55 [32m+[m[31m-[m
+ backend/routes/jobRoutes.js                        |  11 [32m+[m[31m-[m
+ backend/routes/recruiterRoutes.js                  |   2 [32m+[m
+ backend/routes/videoIntroRoutes.js                 |  14 [32m+[m[31m-[m
+ backend/services/authService.js                    |  35 [32m+[m[31m-[m
+ frontend/.env.example                              |   5 [32m+[m[31m-[m
+ frontend/index.html                                |   5 [32m+[m[31m-[m
+ frontend/src/config.js                             |  16 [32m+[m[31m-[m
+ frontend/src/firebase.js                           |   2 [32m+[m[31m-[m
+ frontend/src/main.jsx                              |  20 [32m+[m[31m-[m
+ frontend/src/pages/LoginPage.jsx                   |  91 [32m++[m[31m-[m
+ frontend/src/pages/SignupPage.jsx                  |  75 [32m+[m[31m--[m
+ frontend/src/pages/VerifyEmailPage.jsx             |   5 [32m+[m[31m-[m
+ frontend/src/pages/recruiter/Applicants.jsx        | 634 [32m+++++++++++++++++++[m[31m--[m
+ frontend/src/pages/recruiter/MyJobs.jsx            | 632 [32m++++++++++++++++++[m[31m--[m
+ frontend/src/pages/recruiter/PostJob.jsx           |  24 [32m+[m[31m-[m
+ .../src/pages/recruiter/RecruiterDashboard.jsx     |   8 [32m+[m[31m-[m
+ frontend/src/pages/recruiter/RecruiterLayout.jsx   |  28 [32m+[m[31m-[m
+ frontend/src/pages/seeker/SeekerLayout.jsx         |   1 [32m+[m
+ frontend/src/services/blogService.js               |   5 [32m+[m[31m-[m
+ frontend/src/utils/apiClient.js                    |  61 [32m+[m[31m-[m
+ frontend/src/utils/loadRazorpayScript.js           |  35 [32m+[m[31m-[m
+ frontend/vercel.json                               |   4 [32m+[m[31m-[m
+ frontend/vite.config.js                            |   4 [32m+[m[31m-[m
+ 59 files changed, 2042 insertions(+), 399 deletions(-)

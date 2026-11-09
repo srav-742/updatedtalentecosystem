@@ -1,189 +1,193 @@
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const Client = require('../models/Client');
 const Role = require('../models/Role');
-const ClientRole = require('../models/ClientRole');
 const Resource = require('../models/Resource');
 const User = require('../models/User');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'hire1percent_jwt_secret_key_2026';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'hire1percent_jwt_refresh_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '24h';   // 24 hours (supports multi-stage assessments)
 const REFRESH_TOKEN_EXPIRY = '7d';   // 7 days
 
-/**
- * Generate an Access Token for a user
- */
-const generateAccessToken = (user) => {
-    return jwt.sign(
-        {
-            userId: user._id || user.uid,
-            email: user.email,
-            role: user.role,
-            name: user.name
-        },
-        JWT_SECRET,
-        { expiresIn: ACCESS_TOKEN_EXPIRY }
-    );
-};
-
-/**
- * Generate a Refresh Token for a user
- */
-const generateRefreshToken = (user) => {
-    return jwt.sign(
-        {
-            userId: user._id || user.uid,
-            email: user.email,
-            tokenType: 'refresh'
-        },
-        JWT_REFRESH_SECRET,
-        { expiresIn: REFRESH_TOKEN_EXPIRY }
-    );
-};
-
-/**
- * Verify an Access Token
- * Returns decoded payload on success, or throws an error
- */
-const fs = require('fs');
-const path = require('path');
-
-let cachedPublicKey = null;
-const loadPublicKey = () => {
-    if (cachedPublicKey) return cachedPublicKey;
-    try {
-        const keyPath = path.resolve(__dirname, '../../auth-service/keys/public.pem');
-        cachedPublicKey = fs.readFileSync(keyPath, 'utf8');
-        return cachedPublicKey;
-    } catch (err) {
-        console.error('Failed to load RSA public key in backend authService:', err.message);
-        return null;
+const requireSecret = (secret, name) => {
+    if (!secret) {
+        throw new Error(`${name} must be configured.`);
     }
-};
-
-const verifyAccessToken = (token) => {
-    try {
-        const isJwt = token && token.split('.').length === 3;
-        if (isJwt) {
-            // Decode the header to check the algorithm
-            let alg = 'HS256';
-            try {
-                const headerSegment = token.split('.')[0];
-                const headerJson = Buffer.from(headerSegment, 'base64').toString('utf8');
-                const header = JSON.parse(headerJson);
-                alg = header.alg || 'HS256';
-            } catch (e) {
-                // Fallback to HS256 if header parsing fails
-            }
-
-            if (alg === 'RS256') {
-                const pubKey = loadPublicKey();
-                if (!pubKey) {
-                    throw new Error('Public key not loaded');
-                }
-                const decoded = jwt.verify(token, pubKey, { algorithms: ['RS256'] });
-                return {
-                    userId: decoded.UserId || decoded.userId,
-                    email: decoded.email,
-                    role: decoded.Role || decoded.role,
-                    name: decoded.name || ''
-                };
-            } else {
-                // Verify using legacy/monolith symmetric secret
-                const decoded = jwt.verify(token, JWT_SECRET);
-                return {
-                    userId: decoded.userId || decoded.UserId,
-                    email: decoded.email,
-                    role: decoded.role || decoded.Role,
-                    name: decoded.name || ''
-                };
-            }
-        } else {
-            // Legacy opaque tokens (non-JWT)
-            return jwt.verify(token, JWT_SECRET);
-        }
-    } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            const error = new Error('Access token expired');
-            error.code = 'TOKEN_EXPIRED';
-            throw error;
-        }
-        const error = new Error('Invalid access token');
-        error.code = 'INVALID_TOKEN';
-        throw error;
-    }
+    return secret;
 };
 
 /**
- * Verify a Refresh Token
- * Returns decoded payload on success, or throws an error
+ * Validate client credentials (Client ID and Client Secret)
+ * @param {string} clientId
+ * @param {string} clientSecret
+ * @returns {Promise<object|null>} Client document or null if invalid
  */
-const verifyRefreshToken = (token) => {
-    try {
-        return jwt.verify(token, JWT_REFRESH_SECRET);
-    } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            const error = new Error('Session expired. Please log in again.');
-            error.code = 'SESSION_EXPIRED';
-            throw error;
-        }
-        const error = new Error('Invalid refresh token');
-        error.code = 'INVALID_REFRESH_TOKEN';
-        throw error;
-    }
-};
-
-/**
- * Validate Client ID and Client Secret against the Clients collection
- * Returns the client document if valid, or null
- */
-const validateClient = async (clientId, clientSecret) => {
+const validateClientCredentials = async (clientId, clientSecret) => {
     if (!clientId || !clientSecret) return null;
 
     const client = await Client.findOne({ clientId, status: 'active' });
     if (!client) return null;
 
-    const knownSecrets = ['hire1percent_secret_key_2026', 'h1p_secret_2026_gateway_key', 'hire1percent_web_client'];
-    if (knownSecrets.includes(clientSecret)) return client;
+    const isValid = await client.compareSecret(clientSecret);
+    if (!isValid) return null;
 
-    const isValid = await bcrypt.compare(clientSecret, client.clientSecret).catch(() => false);
-    if (isValid) return client;
-
-    return null;
+    return client;
 };
 
 /**
- * Get all roles assigned to a specific client
- * Returns an array of role name strings
+ * Generate a JWT access token for an authenticated user
+ * @param {object} user - User document
+ * @param {string} clientId - Client ID making the request
+ * @param {string[]} roles - Array of role names
+ * @returns {string} Signed JWT access token
+ */
+const generateAccessToken = (user, clientId, roles = []) => {
+    const payload = {
+        userId: user._id || user.uid,
+        email: user.email,
+        roles: roles,
+        clientId: clientId,
+        tokenType: 'access'
+    };
+
+    return jwt.sign(payload, requireSecret(JWT_SECRET, 'JWT_SECRET'), { expiresIn: ACCESS_TOKEN_EXPIRY });
+};
+
+/**
+ * Generate a JWT refresh token
+ * @param {object} user - User document
+ * @param {string} clientId - Client ID
+ * @returns {string} Signed JWT refresh token
+ */
+const generateRefreshToken = (user, clientId) => {
+    const payload = {
+        userId: user._id || user.uid,
+        clientId: clientId,
+        tokenType: 'refresh'
+    };
+
+    return jwt.sign(payload, requireSecret(JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET'), { expiresIn: REFRESH_TOKEN_EXPIRY });
+};
+
+/**
+ * Verify a JWT access token
+ * @param {string} token
+ * @returns {object} Decoded token payload
+ * @throws {JsonWebTokenError} If token is invalid or expired
+ */
+const verifyAccessToken = (token) => {
+    return jwt.verify(token, requireSecret(JWT_SECRET, 'JWT_SECRET'));
+};
+
+/**
+ * Verify a JWT refresh token
+ * @param {string} token
+ * @returns {object} Decoded token payload
+ * @throws {JsonWebTokenError} If token is invalid or expired
+ */
+const verifyRefreshToken = (token) => {
+    return jwt.verify(token, requireSecret(JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET'));
+};
+
+/**
+ * Get all role names assigned to a client
+ * @param {string} clientId
+ * @returns {Promise<string[]>} Array of role names
  */
 const getClientRoles = async (clientId) => {
-    const client = await Client.findOne({ clientId });
-    if (!client) return [];
+    try {
+        if (!clientId) return [];
+        const client = await Client.findOne({ clientId });
+        if (!client) return [];
 
-    const clientRoles = await ClientRole.find({ client: client._id }).populate('role');
-    return clientRoles.map(cr => cr.role.name);
+        const directRoles = Array.isArray(client.roles)
+            ? client.roles.map(r => (typeof r === 'string' ? r : r?.name)).filter(Boolean)
+            : [];
+
+        const ClientRole = require('../models/ClientRole');
+        const clientRoles = await ClientRole.find({ client: client._id }).populate({
+            path: 'role',
+            strictPopulate: false
+        });
+        const mappedRoles = clientRoles.map(cr => cr.role?.name).filter(Boolean);
+
+        return [...new Set([...directRoles, ...mappedRoles])];
+    } catch (err) {
+        console.error('[AUTH-SERVICE] Error in getClientRoles:', err.message);
+        return [];
+    }
 };
 
 /**
- * Get all roles assigned to a specific user (from the User model's role field)
- * Returns an array containing the user's role
+ * Get role names for a user based on their User record
+ * Normalizes 'seeker' and 'candidate' so both roles are granted interchangeably.
+ * @param {object} user - User document
+ * @returns {string[]} Array of role names
  */
 const getUserRoles = (user) => {
     if (!user) return [];
-    
     const roles = [];
+
     if (user.role) {
         roles.push(user.role);
+        // Normalize candidate and seeker aliases
+        if (user.role === 'seeker' && !roles.includes('candidate')) {
+            roles.push('candidate');
+        } else if (user.role === 'candidate' && !roles.includes('seeker')) {
+            roles.push('seeker');
+        }
+
+        // Map selected plan to descriptive recruiter access roles for logging & authorization
+        if (user.role === 'recruiter' && user.selectedPlan === 'applicant_viewing') {
+            roles.push('RECRUITER_VIEW_APPLICANTS');
+        }
         // If they are a recruiter and have paid, grant the premium_recruiter role dynamically
         if (user.role === 'recruiter' && (user.isPro === true || user.hiringPattern === 'Premium Recruiter')) {
             roles.push('premium_recruiter');
         }
-    } else {
+    }
+
+    // Pro / premium recruiter distinction
+    if (user.role === 'recruiter' && user.isPro) {
+        roles.push('premium_recruiter');
+    }
+
+    // Default authenticated role
+    if (!roles.includes('user')) {
         roles.push('user');
     }
-    return roles;
+
+    return [...new Set(roles)];
+};
+
+// ─── In-memory resource cache ─────────────────────────────────────────────
+let _resourceCache = null;
+let _resourceCacheTime = 0;
+const RESOURCE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const _getResources = async () => {
+    if (_resourceCache && Date.now() - _resourceCacheTime < RESOURCE_CACHE_TTL) {
+        return _resourceCache;
+    }
+    _resourceCache = await Resource.find({}).populate('allowedRoles').lean();
+    _resourceCacheTime = Date.now();
+    return _resourceCache;
+};
+
+const clearResourceCache = () => {
+    _resourceCache = null;
+    _resourceCacheTime = 0;
+};
+
+/**
+ * Returns a specificity score for a path pattern.
+ * Higher score = more specific = wins over lower-scoring patterns.
+ */
+const _patternSpecificity = (pattern) => {
+    if (pattern.endsWith('/**')) return (pattern.length - 3);
+    if (pattern.endsWith('/*'))  return (pattern.length - 2) + 1000;
+    return pattern.length + 2000;
 };
 
 /**
@@ -191,66 +195,64 @@ const getUserRoles = (user) => {
  * @param {string[]} userRoles - Array of role names the user has
  * @param {string} path - The API path being accessed
  * @param {string} method - The HTTP method (GET, POST, etc.)
- * @returns {boolean} - Whether access should be granted
+ * @returns {Promise<boolean>} - Whether access should be granted
  */
 const checkResourceAccess = async (userRoles, path, method) => {
-    // Find matching resources for this path and method
-    const resources = await Resource.find({}).populate('allowedRoles');
+    const resources = await _getResources();
 
-    for (const resource of resources) {
-        const pattern = resource.pathPattern;
-        const resourceMethod = resource.method;
+    // Collect every rule that matches this request
+    const matches = resources.filter(resource => {
+        const isPathMatch = matchPath(path, resource.pathPattern);
+        const isMethodMatch = resource.method === 'ALL' || resource.method === method.toUpperCase();
+        return isPathMatch && isMethodMatch;
+    });
 
-        // Check if the path matches the pattern
-        const isPathMatch = matchPath(path, pattern);
-        const isMethodMatch = resourceMethod === 'ALL' || resourceMethod === method.toUpperCase();
-
-        if (isPathMatch && isMethodMatch) {
-            // Check if any of the user's roles match the allowed roles
-            const allowedRoleNames = resource.allowedRoles.map(r => r.name);
-            const hasAccess = userRoles.some(role => allowedRoleNames.includes(role));
-
-            if (!hasAccess) {
-                return false; // Explicitly denied — user's roles don't match
-            }
-            return true; // Access granted
-        }
+    // If no explicit resource rule exists, default to allowing access
+    if (matches.length === 0) {
+        return true;
     }
 
-    // If no resource rule matches, default to allowing access
-    // (only explicitly protected routes are restricted)
-    return true;
+    // Sort descending by specificity so matches[0] is the most specific
+    matches.sort((a, b) =>
+        _patternSpecificity(b.pathPattern) - _patternSpecificity(a.pathPattern)
+    );
+
+    const bestMatch = matches[0];
+    const allowedRoleNames = bestMatch.allowedRoles.map(r => r.name);
+    return userRoles.some(role => allowedRoleNames.includes(role));
 };
 
 /**
  * Match a request path against a resource pattern
- * Supports patterns like:
- *   /api/jobs          → exact match
- *   /api/recruiter/**  → wildcard match (any sub-path)
- *   /api/admin/*       → single-level wildcard
+ * Supports:
+ *   /api/resource/**  - matches /api/resource and all subpaths
+ *   /api/resource/*   - matches /api/resource/something (one level only)
+ *   /api/resource     - exact match only
+ * @param {string} requestPath - e.g. /api/jobs/123
+ * @param {string} pattern - e.g. /api/jobs/**
+ * @returns {boolean}
  */
 const matchPath = (requestPath, pattern) => {
-    // Exact match
-    if (requestPath === pattern) return true;
+    if (pattern === requestPath) return true;
 
-    // Wildcard patterns
     if (pattern.endsWith('/**')) {
-        const prefix = pattern.slice(0, -3); // Remove /**
-        return requestPath.startsWith(prefix);
+        const prefix = pattern.slice(0, -3);
+        return requestPath === prefix || requestPath.startsWith(prefix + '/');
     }
 
     if (pattern.endsWith('/*')) {
-        const prefix = pattern.slice(0, -2); // Remove /*
-        const remaining = requestPath.slice(prefix.length);
-        // Should match exactly one level deeper
-        return requestPath.startsWith(prefix) && remaining.split('/').filter(Boolean).length <= 1;
+        const prefix = pattern.slice(0, -2);
+        const remainder = requestPath.slice(prefix.length + 1);
+        return requestPath.startsWith(prefix + '/') && !remainder.includes('/');
     }
 
     return false;
 };
 
 /**
- * Handle token refresh: validate refresh token and issue new access token
+ * Refresh an access token using a valid refresh token
+ * @param {string} refreshToken
+ * @returns {Promise<{ accessToken: string }>}
  */
 const refreshAccessToken = async (refreshToken) => {
     const decoded = verifyRefreshToken(refreshToken);
@@ -263,23 +265,26 @@ const refreshAccessToken = async (refreshToken) => {
 
     if (!user) {
         const error = new Error('User not found');
-        error.code = 'USER_NOT_FOUND';
+        error.name = 'UserNotFoundError';
         throw error;
     }
 
-    const newAccessToken = generateAccessToken(user);
-    return { accessToken: newAccessToken, user };
+    const roles = getUserRoles(user);
+    const newAccessToken = generateAccessToken(user, decoded.clientId, roles);
+
+    return { accessToken: newAccessToken };
 };
 
 module.exports = {
+    validateClientCredentials,
     generateAccessToken,
     generateRefreshToken,
     verifyAccessToken,
     verifyRefreshToken,
-    validateClient,
     getClientRoles,
     getUserRoles,
     checkResourceAccess,
+    clearResourceCache,
     refreshAccessToken,
     JWT_SECRET,
     JWT_REFRESH_SECRET

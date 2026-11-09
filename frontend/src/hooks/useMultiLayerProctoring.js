@@ -143,8 +143,8 @@ export function useMultiLayerProctoring({
                 onAutoSubmit(warningRecord);
             }
 
-            // Expose confirmed alerts
-            if (warningRecord.shouldShowPopup || warningRecord.level === ESCALATION_LEVELS.AUTO_SUBMIT) {
+            // Report each confirmed event independently of the candidate-facing alert cooldown.
+            if (!warningRecord.isMergedUpdate) {
                 onViolation(warningRecord.eventType, warningRecord.reason, {
                     severity: warningRecord.severity,
                     level: warningRecord.level,

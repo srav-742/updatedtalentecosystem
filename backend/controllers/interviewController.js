@@ -226,7 +226,7 @@ const getInterviewDetails = async (req, res) => {
         }
 
         // 🔒 Pro recruiter validation check
-        const recruiterId = (req.headers && (req.headers['x-user-id'] || req.headers['x-h1p-user-id'])) || (req.user && (req.user.uid || req.user._id));
+        const recruiterId = req.user && (req.user.uid || req.user._id);
         if (!recruiterId) {
             return res.status(403).json({ message: "Forbidden: Pro Recruiter status required." });
         }
@@ -253,6 +253,14 @@ const getInterviewDetails = async (req, res) => {
 
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
+        }
+
+        const jobRecruiterId = String(application.jobId?.recruiterId || '').toLowerCase();
+        const recruiterIdentifiers = [recruiterDoc._id, recruiterDoc.uid, recruiterDoc.email]
+            .filter(Boolean)
+            .map(identifier => String(identifier).toLowerCase());
+        if (!isAdmin && !recruiterIdentifiers.includes(jobRecruiterId)) {
+            return res.status(403).json({ message: 'Forbidden: You can only view interviews for your own applicants.' });
         }
 
         let socialUser = application.user;

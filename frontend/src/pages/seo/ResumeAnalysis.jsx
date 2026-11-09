@@ -30,6 +30,7 @@ export default function ResumeAnalysis() {
       <SEO 
         title={content.title}
         description={content.description}
+        keywords="resume analysis, AI resume parsing, skill matching, experience verification"
         canonicalUrl={content.canonicalUrl}
         schema={schemas}
       />

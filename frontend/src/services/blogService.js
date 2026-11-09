@@ -1,10 +1,9 @@
-import { API_URL, CLIENT_ID, CLIENT_SECRET, getAuthHeaders } from "../firebase";
+import { API_URL, CLIENT_ID, getAuthHeaders } from "../firebase";
 
 const getHeaders = () => {
     return {
         "Content-Type": "application/json",
-        "X-Client-ID": CLIENT_ID,
-        "X-Client-Secret": CLIENT_SECRET
+        "X-Client-ID": CLIENT_ID
     };
 };
 

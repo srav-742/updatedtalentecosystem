@@ -3,10 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, User, CheckCircle, ArrowLeft, Globe, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
+import { signupWithEmail, saveUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, getUserProfile, API_URL, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import apiClient from '../utils/apiClient';
 import SEO from '../components/SEO';
 import { trackEvent } from '../utils/analytics';
+
+import { CLIENT_ID } from '../config';
+const normalizeRole = (value) => value === 'seeker' ? 'candidate' : value;
+const isSupportedRole = (value) => ['recruiter', 'candidate', 'admin'].includes(value);
 
 // Retry wrapper for critical operations
 const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
@@ -32,16 +36,17 @@ const SignupPage = () => {
 
     const [role, setRole] = useState(() => {
         const queryParams = new URLSearchParams(location.search);
-        return queryParams.get('role') || location.state?.role || null;
+        const requestedRole = normalizeRole(queryParams.get('role') || location.state?.role);
+        return isSupportedRole(requestedRole) ? requestedRole : null;
     }); // 'recruiter' or 'candidate'
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [acceptedTerms, setAcceptedTerms] = useState(false);
-    const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
+    const [clientCredentials] = useState(null);
 
     // Email verification state for email/password signups
-    const [verificationPending, setVerificationPending] = useState(null); // { email, user, role, profileData, savedProfile }
+    const [verificationPending, setVerificationPending] = useState(null); // { email, user, role, profileData }
     const [checkingVerification, setCheckingVerification] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
     const [verificationNotice, setVerificationNotice] = useState({ type: '', text: '' });
@@ -61,7 +66,10 @@ const SignupPage = () => {
             try {
                 const redirectRes = await getGoogleRedirectResult();
                 if (redirectRes && redirectRes.user) {
-                    const savedRole = sessionStorage.getItem('pendingRole') || role || 'candidate';
+                    const savedRole = normalizeRole(sessionStorage.getItem('pendingRole') || role || 'candidate');
+                    if (!isSupportedRole(savedRole)) {
+                        throw new Error('Please select a valid role before continuing.');
+                    }
                     setRole(savedRole);
                     await processGoogleSignupUser(redirectRes.user, savedRole);
                     sessionStorage.removeItem('pendingRole');
@@ -75,7 +83,9 @@ const SignupPage = () => {
     }, []);
 
     const handleRoleSelect = (selectedRole) => {
-        setRole(selectedRole);
+        const normalizedRole = normalizeRole(selectedRole);
+        if (!isSupportedRole(normalizedRole)) return;
+        setRole(normalizedRole);
         setMessage({ type: '', text: '' });
     };
 
@@ -99,17 +109,25 @@ const SignupPage = () => {
             const refreshedUser = await reloadFirebaseUser(currentUser);
 
             if (refreshedUser && refreshedUser.emailVerified) {
-                // Email is successfully verified! Establish session and navigate
+                // Email is successfully verified! Sync verification status to MongoDB
+                apiClient.post('/auth/sync-verification', {
+                    email: verificationPending.email,
+                    uid: refreshedUser.uid
+                }).catch(() => {});
+
+                // Establish session and navigate
+                await withRetry(
+                    () => apiClient.initializeGatewaySession(verificationPending.email, refreshedUser.uid),
+                    3,
+                    'gatewaySession'
+                ).catch(err => {
+                    console.warn('[SIGNUP] Gateway session warning:', err.message);
+                });
                 localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
 
-                if (verificationPending.role === 'recruiter' && verificationPending.savedProfile && verificationPending.savedProfile.client) {
-                    setClientCredentials(verificationPending.savedProfile.client);
-                    setVerificationPending(null);
-                } else {
-                    if (verificationPending.role === 'admin') navigate('/recruiter/my-jobs');
-                    else if (verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
-                    else navigate('/candidate');
-                }
+                if (verificationPending.role === 'admin') navigate('/admin');
+                else if (verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
+                else navigate('/candidate');
             } else {
                 setVerificationNotice({
                     type: 'warning',
@@ -143,22 +161,13 @@ const SignupPage = () => {
             }
 
             // Check if already verified
-            await reloadFirebaseUser(currentUser);
-            if (currentUser.emailVerified) {
+            const refreshedUser = await reloadFirebaseUser(currentUser);
+            if (refreshedUser && refreshedUser.emailVerified) {
                 setVerificationNotice({
                     type: 'success',
                     text: "Your email is already verified! Navigating to dashboard..."
                 });
-                localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
-                setTimeout(() => {
-                    if (verificationPending.role === 'recruiter' && verificationPending.savedProfile?.client) {
-                        setClientCredentials(verificationPending.savedProfile.client);
-                        setVerificationPending(null);
-                    } else {
-                        if (verificationPending.role === 'admin' || verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
-                        else navigate('/candidate');
-                    }
-                }, 1000);
+                await handleCheckVerification();
                 return;
             }
 
@@ -166,9 +175,7 @@ const SignupPage = () => {
             await sendVerificationEmail(currentUser);
 
             // Also trigger backend branded email with CTA button
-            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
-            }).catch(e => {
+            apiClient.post('/auth/resend-verification', { email: verificationPending.email }).catch(e => {
                 console.warn('[SIGNUP] Backend resend-verification warning (non-fatal):', e.message);
             });
 
@@ -228,7 +235,7 @@ const SignupPage = () => {
             };
 
             // 4. Save to MongoDB via BOTH endpoints for maximum reliability:
-            const [, savedProfile] = await Promise.all([
+            await Promise.all([
                 // 4a. Backend signup — persists password hash + UID to MongoDB
                 withRetry(async () => {
                     await axios.post(`${API_URL}/signup`, {
@@ -239,8 +246,7 @@ const SignupPage = () => {
                         uid: user.uid
                     }, {
                         headers: {
-                            'X-Client-ID': CLIENT_ID,
-                            'X-Client-Secret': CLIENT_SECRET
+                            'X-Client-ID': CLIENT_ID
                         }
                     });
                 }, 3, 'backendSignup'),
@@ -253,6 +259,13 @@ const SignupPage = () => {
                 console.warn('[SIGNUP] Parallel save partial failure:', err.message);
                 return [null, null];
             });
+
+            // Avoid reusing a previous account's gateway session during signup.
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('gatewayAccessToken');
+            localStorage.removeItem('h1p_client_id');
+            localStorage.removeItem('h1p_client_secret');
 
             // 4c. Also call /users/sync for UID consistency
             await withRetry(async () => {
@@ -267,17 +280,8 @@ const SignupPage = () => {
             });
 
             // 4d. Initialize Gateway session tokens
-            await withRetry(
-                () => apiClient.initializeGatewaySession(normalizedEmail, user.uid),
-                3, 'gatewaySession'
-            ).catch(err => {
-                console.warn('[SIGNUP] Gateway session warning:', err.message);
-            });
-
             // 4e. Trigger backend branded verification email
-            axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
-            }).catch(err => {
+            apiClient.post('/auth/send-verification', { email: normalizedEmail }).catch(err => {
                 console.warn('[SIGNUP] Backend verification email warning (non-fatal):', err.message);
             });
 
@@ -289,8 +293,7 @@ const SignupPage = () => {
                 email: normalizedEmail,
                 user: user,
                 role: role,
-                profileData: profileData,
-                savedProfile: savedProfile
+                profileData: profileData
             });
             setLoading(false);
             setResendCooldown(60);
@@ -318,6 +321,10 @@ const SignupPage = () => {
     const processGoogleSignupUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
+            targetRole = normalizeRole(targetRole);
+            if (!isSupportedRole(targetRole)) {
+                throw new Error('Please select a valid role before continuing.');
+            }
             const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
             // Check for role mismatch if existing profile in DB
@@ -345,8 +352,15 @@ const SignupPage = () => {
                 isOptimistic: true
             };
 
+            // Ensure the next gateway token belongs to this Firebase account.
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('gatewayAccessToken');
+            localStorage.removeItem('h1p_client_id');
+            localStorage.removeItem('h1p_client_secret');
+
             // Save to MongoDB — call BOTH endpoints in parallel for complete resilience
-            const [savedProfile] = await Promise.all([
+            await Promise.all([
                 withRetry(
                     () => saveUserProfile(googleUser.uid, newProfile),
                     3, 'googleSaveProfile'
@@ -379,13 +393,10 @@ const SignupPage = () => {
             // Track GA4 sign_up conversion event (zero PII)
             trackEvent('sign_up', { method: 'google', role: targetRole || 'candidate' });
 
-            if (targetRole === 'recruiter' && savedProfile && savedProfile.client) {
-                setClientCredentials(savedProfile.client);
-            } else {
-                setMessage({ type: 'success', text: "Account created! Logging in..." });
-                if (targetRole === 'admin') navigate('/recruiter/my-jobs');
-                else navigate('/candidate');
-            }
+            setMessage({ type: 'success', text: "Account created! Logging in..." });
+            if (targetRole === 'admin') navigate('/admin');
+            else if (targetRole === 'recruiter') navigate('/recruiter');
+            else navigate('/candidate');
 
         } catch (error) {
             console.error(error);
@@ -886,14 +897,13 @@ const SignupPage = () => {
                                         <input
                                             type="text"
                                             readOnly
-                                            value={clientCredentials.clientSecret}
+                                            value=""
                                             className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                navigator.clipboard.writeText(clientCredentials.clientSecret);
-                                                alert("Client Secret copied!");
+                                                navigate('/recruiter');
                                             }}
                                             className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
                                         >
@@ -909,7 +919,6 @@ const SignupPage = () => {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setClientCredentials(null);
                                     navigate('/recruiter');
                                 }}
                                 className="w-full py-3.5 bg-[#20263A] hover:bg-[#151A2D] text-white font-bold rounded-xl shadow-md transition-all text-sm uppercase tracking-wider relative z-10 cursor-pointer"

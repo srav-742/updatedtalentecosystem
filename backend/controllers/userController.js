@@ -4,6 +4,36 @@ const Recruiter = require('../models/Recruiter');
 const Candidate = require('../models/Candidate');
 const mongoose = require('mongoose');
 
+const ADMIN_EMAILS = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];
+const PROFILE_FIELDS = [
+    'name', 'profilePic', 'designation', 'phone', 'location', 'company', 'skills',
+    'education', 'experience', 'languages', 'projects', 'professionalProfiles',
+    'bio', 'resumeUrl', 'githubUrl', 'linkedinUrl'
+];
+
+const isAdminUser = (user) => user?.role === 'admin'
+    || (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim()));
+
+const canAccessProfile = (user, userId) => {
+    if (!user) return false;
+    if (isAdminUser(user)) return true;
+
+    const target = String(userId).toLowerCase();
+    return [user.uid, user._id, user.email]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === target);
+};
+
+const toPublicUser = (user) => {
+    const userObject = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+    for (const field of [
+        'password', 'resetPasswordToken', 'resetPasswordExpires',
+        'emailVerificationToken', 'emailVerificationExpires', '__v'
+    ]) {
+        delete userObject[field];
+    }
+    return userObject;
+};
 
 const getAllUsers = async (req, res) => {
     try {
@@ -17,7 +47,11 @@ const getAllUsers = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
     try {
-        const { userId } = req.params;
+        const { userId: requestedUserId } = req.params;
+        if (!canAccessProfile(req.user, requestedUserId)) {
+            return res.status(403).json({ message: 'Forbidden: You cannot access this profile.' });
+        }
+        const userId = isAdminUser(req.user) ? requestedUserId : String(req.user._id);
         
         let user;
         
@@ -40,25 +74,24 @@ const getUserProfile = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // ─── SELF-HEALING UID SYNC ───
-        // If the lookup parameter was a Firebase UID but it doesn't match what's in our DB,
-        // it means the user has re-signed up or changed Firebase projects.
-        if (userId && !mongoose.Types.ObjectId.isValid(userId) && !userId.includes('@') && user.uid !== userId) {
-            const oldUid = user.uid;
-            console.log(`[PROFILE-SYNC] Auto-migrating UID for ${user.email}: ${oldUid} -> ${userId}`);
-            
-            user.uid = userId;
-            await user.save();
-
+        if (user.role === 'candidate' || user.role === 'seeker') {
             const Job = require('../models/Job');
-            const Application = require('../models/Application');
-            const ResumeProfile = require('../models/ResumeProfile');
+            const Recruiter = require('../models/Recruiter');
+            const { buildRecruiterJobQuery } = require('../utils/userResolver');
+            const recruiterJobQuery = await buildRecruiterJobQuery(user);
+            const [recruiterJob, recruiterProfile] = await Promise.all([
+                Job.exists(recruiterJobQuery),
+                Recruiter.exists({ $or: [{ userId: user._id }, { email: user.email }] })
+            ]);
 
-            await Job.updateMany({ recruiterId: oldUid }, { $set: { recruiterId: userId } });
-            await Application.updateMany({ userId: oldUid }, { $set: { userId: userId } });
-            await ResumeProfile.updateMany({ userId: oldUid }, { $set: { userId: userId } });
+            if (recruiterJob || recruiterProfile) {
+                user.role = 'recruiter';
+                await user.save();
+                const { syncUserToProfile } = require('../utils/dbSync');
+                await syncUserToProfile(user);
+                console.info(`[USER-PROFILE] Restored recruiter role for verified job/profile owner ${user.email}`);
+            }
         }
-        // ──────────────────────────────
 
         // ─── DYNAMIC SELF-HEALING RECRUITER STATUS ───
         if (user.role === 'recruiter') {
@@ -117,7 +150,7 @@ const getUserProfile = async (req, res) => {
             }
         }
 
-        res.json(mergedUser);
+        res.json(toPublicUser(mergedUser));
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -126,32 +159,32 @@ const getUserProfile = async (req, res) => {
 
 const updateUserProfile = async (req, res) => {
     try {
-        const { userId } = req.params;
-        const updateData = req.body;
-        delete updateData._id;
-        delete updateData.isPro;
-        delete updateData.hiringPattern;
+        const { userId: requestedUserId } = req.params;
+        if (!canAccessProfile(req.user, requestedUserId)) {
+            return res.status(403).json({ message: 'Forbidden: You cannot update this profile.' });
+        }
+        const userId = isAdminUser(req.user) ? requestedUserId : String(req.user._id);
+
+        const updateData = {};
+        for (const field of PROFILE_FIELDS) {
+            if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) {
+                updateData[field] = req.body[field];
+            }
+        }
+
         let query = {};
         if (mongoose.Types.ObjectId.isValid(userId)) {
             query = { _id: userId };
         } else {
-            if (updateData.email) {
-                const existingUser = await User.findOne({ email: updateData.email });
-                if (existingUser) {
-                    if (existingUser.uid !== userId) {
-                        existingUser.uid = userId;
-                        await existingUser.save();
-                    }
-                    query = { _id: existingUser._id };
-                } else {
-                    query = { uid: userId };
-                }
-            } else {
-                query = { uid: userId };
-            }
+            query = req.user.email?.toLowerCase() === String(userId).toLowerCase()
+                ? { email: req.user.email.toLowerCase() }
+                : { uid: userId };
         }
-        const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
-        let clientCredentials = null;
+        const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: false });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
         if (user) {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
@@ -187,11 +220,6 @@ const updateUserProfile = async (req, res) => {
                     });
                     await newPlaintext.save();
                     
-                    clientCredentials = {
-                        clientId: expectedClientId,
-                        clientSecret: clientSecretRaw
-                    };
-                    
                     console.log(`[CLIENT-GENERATION] Generated API Client Credentials for Recruiter: ${user.email}`);
                 }
             }
@@ -199,12 +227,7 @@ const updateUserProfile = async (req, res) => {
 
         const isSeekerComplete = updateData.skills && updateData.skills.length > 3;
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
-        
-        const userObj = user.toObject();
-        if (clientCredentials) {
-            userObj.client = clientCredentials;
-        }
-        res.json(userObj);
+        res.json(toPublicUser(user));
     } catch (error) {
         console.error("[GET-USERS] Error:", error);
         res.status(500).json({ message: error.message });
@@ -218,7 +241,7 @@ const getAnalyticsData = async (req, res) => {
         const users = await User.find({}, 'name email role company designation skills phone isPro accountType pilotExpiresAt createdAt uid');
         
         const recruiters = users.filter(u => u.role === 'recruiter');
-        const seekers = users.filter(u => u.role === 'candidate');
+        const seekers = users.filter(u => u.role === 'candidate' || u.role === 'seeker');
         
         // Fetch ResumeProfiles in one batch for seekers to enrich their location and skills
         const seekerUids = seekers.map(u => u.uid).filter(Boolean);
@@ -237,10 +260,10 @@ const getAnalyticsData = async (req, res) => {
         for (const s of seekers) {
             const candidateObj = s.toObject();
             const rp = resumeProfileMap.get(candidateObj.uid) || resumeProfileMap.get(String(candidateObj._id));
-            
+
             // Enrich location from ResumeProfile
             candidateObj.location = rp?.basics?.location || '';
-            
+
             // Enrich phone if not present in User
             candidateObj.phone = candidateObj.phone || rp?.basics?.phone || '';
 
@@ -254,20 +277,20 @@ const getAnalyticsData = async (req, res) => {
                     ...(rp.skills?.soft || [])
                 ] : [];
             }
-            
+
             candidates.push(candidateObj);
         }
-        
+
         // Sync to separate collections in parallel (as requested: store recruiters data separately and separate for candidate)
         await Promise.all([
-            ...recruiters.map(r => 
+            ...recruiters.map(r =>
                 Recruiter.findOneAndUpdate(
                     { userId: r._id },
                     { name: r.name, email: r.email, phone: r.phone, company: r.company, designation: r.designation, isPro: r.isPro, accountType: r.accountType || 'normal', pilotExpiresAt: r.pilotExpiresAt || null, createdAt: r.createdAt },
                     { upsert: true }
                 )
             ),
-            ...candidates.map(c => 
+            ...candidates.map(c =>
                 Candidate.findOneAndUpdate(
                     { userId: c._id },
                     { name: c.name, email: c.email, phone: c.phone, skills: c.skills, location: c.location, createdAt: c.createdAt },
@@ -298,10 +321,10 @@ const addUser = async (req, res) => {
             uid: new mongoose.Types.ObjectId().toString(), // Generate a fake uid since they are added manually
         });
         await newUser.save();
-        
+
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(newUser);
-        
+
         res.json(newUser);
     } catch (error) {
         console.error("[ADD-USER] Error:", error);
@@ -333,8 +356,11 @@ const deleteUser = async (req, res) => {
 
 const getSampleSeekers = async (req, res) => {
     try {
-        const seekers = await User.find({ role: 'candidate' }, '-password');
-        res.json(seekers);
+        const seekers = await User.find(
+            { role: 'candidate' },
+            'name email uid role profilePic designation phone location company skills education experience languages projects professionalProfiles bio resumeUrl githubUrl linkedinUrl'
+        );
+        res.json(seekers.map(toPublicUser));
     } catch (error) {
         console.error("[GET-SAMPLE-SEEKERS] Error:", error);
         res.status(500).json({ message: error.message });

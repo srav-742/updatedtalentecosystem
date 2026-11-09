@@ -42,7 +42,16 @@ const SeekerLayout = () => {
             });
             queryClient.prefetchQuery({
                 queryKey: ['applications', uid],
-                queryFn: () => axios.get(`${API_URL}/applications/candidate/${uid}`).then(res => res.data),
+                queryFn: async () => {
+                    try {
+                        const res = await axios.get(`${API_URL}/applications/candidate/${uid}`);
+                        return res.data;
+                    } catch (error) {
+                        if (error.response?.status !== 404) throw error;
+                        const res = await axios.get(`${API_URL}/applications/seeker/${uid}`);
+                        return res.data;
+                    }
+                },
                 staleTime: 5 * 60 * 1000
             });
         }
@@ -83,6 +92,11 @@ const SeekerLayout = () => {
         }
 
         localStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('gatewayAccessToken');
+        localStorage.removeItem('h1p_client_id');
+        localStorage.removeItem('h1p_client_secret');
         navigate('/login');
     };
 

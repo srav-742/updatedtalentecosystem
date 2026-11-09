@@ -90,8 +90,13 @@ const jobSchema = new mongoose.Schema({
     allowedCandidates: [{ type: String, trim: true, lowercase: true }],
     status: {
         type: String,
-        enum: ['pending_approval', 'approved', 'rejected'],
-        default: 'pending_approval'
+        enum: ['draft', 'pending_approval', 'approved', 'rejected'],
+        default: 'draft'
+    },
+    visibility: {
+        type: String,
+        enum: ['private', 'public'],
+        default: 'private'
     },
     adminFeedback: {
         reason: { type: String, default: '' },

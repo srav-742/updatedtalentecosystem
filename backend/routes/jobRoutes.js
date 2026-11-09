@@ -10,7 +10,7 @@ router.patch("/:jobId/approve", authMiddleware, roleCheck('admin'), jobControlle
 router.patch("/:jobId/reject", authMiddleware, roleCheck('admin'), jobController.rejectJob);
 
 // RECRUITER SPECIFIC (Must be above /:jobId to avoid collision)
-router.get('/recruiter/:recruiterId', recruiterController.getRecruiterJobs);
+router.get('/recruiter/:recruiterId', authMiddleware, roleCheck(['recruiter', 'admin']), recruiterController.getRecruiterJobs);
 
 // GENERATE JOB DESCRIPTION AI
 router.post("/generate-description", authMiddleware, roleCheck('recruiter', 'admin'), jobController.generateJobDescription);
@@ -39,15 +39,16 @@ router.post("/parse-questions", (req, res, next) => {
 }, jobController.parseQuestions);
 
 // CREATE JOB
-router.post("/create", jobController.createJob);
-router.post("/", jobController.createJob);
+router.post("/create", authMiddleware, roleCheck(['recruiter', 'admin']), jobController.createJob);
+router.post("/", authMiddleware, roleCheck(['recruiter', 'admin']), jobController.createJob);
 
 // GET ALL JOBS (candidates)
 router.get("/", jobController.getAllJobs);
 
 // GENERIC LOOKUP
 router.get('/:jobId', jobController.getJobById);
-router.put('/:jobId', jobController.updateJob);
-router.delete('/:jobId', jobController.deleteJob);
+router.patch('/:jobId/publish', authMiddleware, roleCheck(['recruiter', 'admin']), jobController.publishDraftJob);
+router.put('/:jobId', authMiddleware, roleCheck(['recruiter', 'admin']), jobController.updateJob);
+router.delete('/:jobId', authMiddleware, roleCheck(['recruiter', 'admin']), jobController.deleteJob);
 
 module.exports = router;

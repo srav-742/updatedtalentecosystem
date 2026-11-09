@@ -1,6 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, linkWithCredential, sendEmailVerification, reload, applyActionCode, checkActionCode } from "firebase/auth";
 import { getDatabase, ref, set, get, child, update } from "firebase/database";
+import { API_URL, getGatewayHeaders } from './config';
+
+export { API_URL, CLIENT_ID } from './config';
 
 const firebaseConfig = {
     apiKey: "AIzaSyDd3YaduiL4mjuv6kNErlqkILfiAGuUh4o",
@@ -149,24 +152,26 @@ export const linkFirebasePassword = async (email, password) => {
 };
 
 // Database Helpers - Redirected to MongoDB Backend
-export const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:5000/api' : (import.meta.env.VITE_API_URL || 'https://updatedtalentecosystem-kl0c.onrender.com/api');
-export const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || 'hire1percent_web_client';
-export const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || 'h1p_secret_2026_gateway_key';
+const fetchWithTimeout = async (url, options, timeoutMs = 35000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
 
 export const saveUserProfile = async (userId, data) => {
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000);
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
             method: 'PUT', // Using PUT for upsert (Create or Update)
-            signal: controller.signal,
             headers: { 
                 'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                ...await getAuthHeaders()
             },
             body: JSON.stringify({ ...data, uid: userId })
-        }).finally(() => clearTimeout(timeoutId));
+        });
 
         if (!response.ok) throw new Error("Failed to save to MongoDB");
         return await response.json();
@@ -178,15 +183,9 @@ export const saveUserProfile = async (userId, data) => {
 
 export const getUserProfile = async (userId) => {
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000);
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
-            signal: controller.signal,
-            headers: {
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
-            }
-        }).finally(() => clearTimeout(timeoutId));
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
+            headers: await getAuthHeaders()
+        });
         if (!response.ok) {
             // If 404, return null so logic can handle 'not found'
             if (response.status === 404) return null;
@@ -203,18 +202,14 @@ export const getUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, data) => {
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000);
-        const response = await fetch(`${API_URL}/profile/${userId}`, {
+        const response = await fetchWithTimeout(`${API_URL}/profile/${userId}`, {
             method: 'PUT',
-            signal: controller.signal,
             headers: { 
                 'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                ...await getAuthHeaders()
             },
             body: JSON.stringify(data)
-        }).finally(() => clearTimeout(timeoutId));
+        });
         if (!response.ok) throw new Error("Update failed");
         return true;
     } catch (error) {
@@ -224,10 +219,7 @@ export const updateUserProfile = async (userId, data) => {
 };
 
 export const getAuthHeaders = async () => {
-    const headers = {
-        'X-Client-ID': CLIENT_ID,
-        'X-Client-Secret': CLIENT_SECRET
-    };
+    const headers = getGatewayHeaders();
 
     // 1. Try Firebase Auth (Priority)
     const user = auth.currentUser;
@@ -280,4 +272,3 @@ export const getAuthHeaders = async () => {
 
     return headers;
 };
-

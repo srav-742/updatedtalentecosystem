@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Users, Mail, Lock, CheckCircle, ArrowLeft, Globe, ShieldCheck, Loader2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, signupWithEmail, resetPasswordWithFirebase, CLIENT_ID, CLIENT_SECRET, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
+import { loginWithEmail, getUserProfile, signInWithGoogle, signInWithGoogleRedirect, getGoogleRedirectResult, saveUserProfile, API_URL, CLIENT_ID, signupWithEmail, resetPasswordWithFirebase, sendVerificationEmail, reloadFirebaseUser, auth } from '../firebase';
 import apiClient from '../utils/apiClient';
 import SEO from '../components/SEO';
 import { trackEvent } from '../utils/analytics';
+
+const normalizeRole = (value) => value === 'seeker' ? 'candidate' : value;
+const isSupportedRole = (value) => ['recruiter', 'candidate', 'admin'].includes(value);
 
 // Retry wrapper for critical operations
 const withRetry = async (fn, maxAttempts = 3, label = 'operation') => {
@@ -31,8 +34,8 @@ const LoginPage = () => {
     const location = useLocation();
     const [role, setRole] = useState(() => {
         const params = new URLSearchParams(location.search);
-        const roleParam = params.get('role');
-        if (roleParam === 'recruiter' || roleParam === 'candidate' || roleParam === 'admin') {
+        const roleParam = normalizeRole(params.get('role'));
+        if (isSupportedRole(roleParam)) {
             return roleParam;
         }
         if (params.get('expired') === 'true' || location.state?.pilotExpired || location.state?.sessionExpired) {
@@ -40,7 +43,7 @@ const LoginPage = () => {
         }
         
         const fromPath = location.state?.from?.pathname || '';
-        if (fromPath.startsWith('/candidate')) return 'candidate';
+        if (fromPath.startsWith('/candidate') || fromPath.startsWith('/seeker')) return 'candidate';
         if (fromPath.startsWith('/recruiter')) return 'recruiter';
         return null;
     }); // 'recruiter', 'candidate', or 'admin'
@@ -78,7 +81,7 @@ const LoginPage = () => {
         }
     }, [location.search, location.state]);
 
-    // Email verification state (disabled for login - email verification is signup only)
+    // Email verification state for unverified Firebase accounts
     const [verificationRequired, setVerificationRequired] = useState(null);
     const [checkingVerification, setCheckingVerification] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
@@ -110,9 +113,9 @@ const LoginPage = () => {
             try {
                 const googleUserLink = await getGoogleRedirectResult();
                 if (googleUserLink && googleUserLink.user) {
-                    const savedRole = sessionStorage.getItem('pendingRole');
+                    const savedRole = normalizeRole(sessionStorage.getItem('pendingRole'));
 
-                    if (savedRole) {
+                    if (isSupportedRole(savedRole)) {
                         setRole(savedRole); // Restore role
                         await processGoogleUser(googleUserLink.user, savedRole);
                         sessionStorage.removeItem('pendingRole');
@@ -129,7 +132,9 @@ const LoginPage = () => {
     }, []);
 
     const handleRoleSelect = (selectedRole) => {
-        setRole(selectedRole);
+        const normalizedRole = normalizeRole(selectedRole);
+        if (!isSupportedRole(normalizedRole)) return;
+        setRole(normalizedRole);
         setMessage({ type: '', text: '' });
     };
 
@@ -253,7 +258,6 @@ const LoginPage = () => {
                 }, {
                     headers: {
                         'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
                     }
                 });
 
@@ -263,6 +267,7 @@ const LoginPage = () => {
                 const normalizedEmail = formData.email.toLowerCase().trim();
                 let user;
                 let backendUser = null;
+                let newlyMigratedFirebaseUser = false;
                 try {
                     // 1. Firebase Auth Login for others
                     const userCredential = await loginWithEmail(normalizedEmail, formData.password);
@@ -278,7 +283,6 @@ const LoginPage = () => {
                             }, {
                                 headers: {
                                     'X-Client-ID': CLIENT_ID,
-                                    'X-Client-Secret': CLIENT_SECRET
                                 }
                             });
                             
@@ -289,19 +293,12 @@ const LoginPage = () => {
                                 try {
                                     const newFbUser = await signupWithEmail(normalizedEmail, formData.password);
                                     user = newFbUser.user;
-                                    
-                                    // Sync new UID to MongoDB to link the old profile
-                                    await withRetry(async () => {
-                                        await apiClient.post('/users/sync', {
-                                            uid: user.uid,
-                                            email: normalizedEmail,
-                                            role: role
-                                        });
-                                    }, 3, 'migrationSync');
+                                    newlyMigratedFirebaseUser = true;
                                 } catch (signupErr) {
                                     if (signupErr.code === 'auth/email-already-in-use') {
-                                        console.log("Firebase user exists, bypassing Firebase login and using backend session.");
-                                        user = backendRes.data.user; 
+                                        const firebaseLoginError = new Error("This account already has a Firebase login. Use its Firebase password or reset it to continue.");
+                                        firebaseLoginError.code = 'auth/firebase-login-required';
+                                        throw firebaseLoginError;
                                     } else {
                                         throw signupErr;
                                     }
@@ -313,6 +310,9 @@ const LoginPage = () => {
                             if (backendError.response?.data?.message) {
                                 throw new Error(backendError.response.data.message);
                             }
+                            if (backendError.code === 'auth/firebase-login-required') {
+                                throw backendError;
+                            }
                             throw error;
                         }
                     } else {
@@ -320,23 +320,33 @@ const LoginPage = () => {
                     }
                 }
 
-                // Fetch Profile and initialize Gateway Session in parallel
-                const [fetchedProfile] = await Promise.all([
-                    withRetry(() => getUserProfile(normalizedEmail), 3, 'getProfile').catch(() => null),
-                    withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, user.uid), 3, 'gatewaySession').catch(err => {
-                        console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
-                    }),
-                    withRetry(async () => {
-                        await apiClient.post('/users/sync', {
-                            uid: user.uid,
-                            email: user.email || normalizedEmail,
-                            name: user.displayName || normalizedEmail.split('@')[0],
-                            role: role
+                if (!user?.uid) {
+                    throw new Error("Unable to authenticate this account with Firebase. Please reset your password and try again.");
+                }
+
+                if (user.emailVerified === false) {
+                    if (newlyMigratedFirebaseUser) {
+                        await sendVerificationEmail(user).catch(err => {
+                            console.warn('[LOGIN] Initial verification email warning:', err.message);
                         });
-                    }, 2, 'loginSync').catch(err => {
-                        console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
-                    })
-                ]);
+                    }
+                    setVerificationRequired({ email: normalizedEmail, user, role });
+                    setVerificationNotice({
+                        type: 'warning',
+                        text: "Please verify your email before logging in. Check your inbox and spam folder."
+                    });
+                    return;
+                }
+
+                if (user.emailVerified) {
+                    apiClient.post('/auth/sync-verification', { email: normalizedEmail, uid: user.uid }).catch(() => {});
+                }
+
+                const fetchedProfile = await withRetry(
+                    () => getUserProfile(normalizedEmail),
+                    3,
+                    'getProfile'
+                ).catch(() => null);
 
                 profile = fetchedProfile || backendUser;
 
@@ -360,6 +370,51 @@ const LoginPage = () => {
                     }
                 }
 
+                // Check the stored role before syncing the selected role to backend services.
+                let profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
+                const selectedIsStaff = role === 'recruiter' || role === 'admin';
+                if (profileIsStaff !== selectedIsStaff) {
+                    if (selectedIsStaff && (profile.role === 'candidate' || profile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: user.uid,
+                                email: user.email || normalizedEmail,
+                                name: user.displayName || profile.name || normalizedEmail.split('@')[0],
+                                role: role
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                profile.role = 'recruiter';
+                                profileIsStaff = true;
+                            }
+                        } catch {
+                            const refetched = await getUserProfile(normalizedEmail).catch(() => null);
+                            if (refetched && (refetched.role === 'recruiter' || refetched.role === 'admin')) {
+                                profile = refetched;
+                                profileIsStaff = true;
+                            }
+                        }
+                    }
+                    if (profileIsStaff !== selectedIsStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    }
+                }
+
+                await Promise.all([
+                    withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, user.uid), 3, 'gatewaySession').catch(err => {
+                        console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
+                    }),
+                    withRetry(async () => {
+                        await apiClient.post('/users/sync', {
+                            uid: user.uid,
+                            email: user.email || normalizedEmail,
+                            name: user.displayName || normalizedEmail.split('@')[0],
+                            role: role
+                        });
+                    }, 2, 'loginSync').catch(err => {
+                        console.warn('[LOGIN] Sync call failed (non-fatal):', err.message);
+                    })
+                ]);
+
                 // Also backfill password to MongoDB in background if missing (self-healing for Bug #2)
                 if (formData.password && profile && !profile.password) {
                     axios.post(`${API_URL}/signup`, {
@@ -371,19 +426,12 @@ const LoginPage = () => {
                     }, {
                         headers: {
                             'X-Client-ID': CLIENT_ID,
-                            'X-Client-Secret': CLIENT_SECRET
                         }
                     }).catch(err => {
                         console.warn('[LOGIN] Password backfill failed (non-fatal):', err.message);
                     });
                 }
 
-                // Rule: recruiter and admin share the same email — allow crossing between them.
-                const profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
-                const selectedIsStaff = role === 'recruiter' || role === 'admin';
-                if (profileIsStaff !== selectedIsStaff) {
-                    throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
-                }
             }
 
             // Enforce expiration check for pilot recruiter accounts
@@ -408,7 +456,7 @@ const LoginPage = () => {
             if (from && from !== '/recruiter' && from !== '/admin') {
                 navigate(from, { replace: true });
             } else if (role === 'admin') {
-                navigate('/recruiter/my-jobs', { replace: true });
+                navigate('/admin', { replace: true });
             } else {
                 navigate(role === 'recruiter' ? '/recruiter/my-jobs' : '/candidate', { replace: true });
             }
@@ -439,6 +487,10 @@ const LoginPage = () => {
     const processGoogleUser = async (googleUser, targetRole) => {
         setLoading(true);
         try {
+            targetRole = normalizeRole(targetRole);
+            if (!isSupportedRole(targetRole)) {
+                throw new Error('Please select a valid role before continuing.');
+            }
             const normalizedEmail = (googleUser.email || '').toLowerCase().trim();
 
             // Step 1: Check if this Google account already has a profile in the backend.
@@ -448,10 +500,26 @@ const LoginPage = () => {
             ).catch(() => null);
 
             if (existingProfile && existingProfile.role) {
-                const isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
-                const isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
-                if (!(isSelectedStaff && isDbStaff)) {
-                    targetRole = existingProfile.role;
+                let isSelectedStaff = targetRole === 'recruiter' || targetRole === 'admin';
+                let isDbStaff = existingProfile.role === 'recruiter' || existingProfile.role === 'admin';
+                if (isSelectedStaff !== isDbStaff) {
+                    if (isSelectedStaff && (existingProfile.role === 'candidate' || existingProfile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: googleUser.uid,
+                                email: normalizedEmail,
+                                name: googleUser.displayName || normalizedEmail.split('@')[0],
+                                role: targetRole
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                existingProfile.role = 'recruiter';
+                                isDbStaff = true;
+                            }
+                        } catch {}
+                    }
+                    if (isSelectedStaff !== isDbStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${existingProfile.role}.`);
+                    }
                 }
             }
 
@@ -508,7 +576,7 @@ const LoginPage = () => {
             if (from && from !== '/recruiter' && from !== '/admin') {
                 navigate(from, { replace: true });
             } else if (targetRole === 'admin') {
-                navigate('/recruiter/my-jobs', { replace: true });
+                navigate('/admin', { replace: true });
             } else if (targetRole === 'recruiter') {
                 navigate('/recruiter/my-jobs', { replace: true });
             } else {
@@ -711,11 +779,60 @@ const LoginPage = () => {
                 });
 
                 const normalizedEmail = (refreshedUser.email || verificationRequired.email).toLowerCase().trim();
-                const targetRole = verificationRequired.role || role || 'candidate';
+                const targetRole = normalizeRole(verificationRequired.role || role || 'candidate');
+                if (!isSupportedRole(targetRole)) {
+                    throw new Error('Please select a valid role before continuing.');
+                }
 
-                // Fetch Profile and initialize Gateway Session in parallel
-                const [fetchedProfile] = await Promise.all([
-                    withRetry(() => getUserProfile(normalizedEmail), 3, 'getProfile').catch(() => null),
+                apiClient.post('/auth/sync-verification', { email: normalizedEmail, uid: refreshedUser.uid }).catch(() => {});
+
+                const fetchedProfile = await withRetry(
+                    () => getUserProfile(normalizedEmail),
+                    3,
+                    'getProfile'
+                ).catch(() => null);
+
+                let profile = fetchedProfile;
+                if (!profile) {
+                    profile = {
+                        uid: refreshedUser.uid,
+                        name: refreshedUser.displayName || normalizedEmail.split('@')[0],
+                        email: normalizedEmail,
+                        role: targetRole,
+                        createdAt: new Date().toISOString()
+                    };
+                    await withRetry(() => saveUserProfile(refreshedUser.uid, profile), 3, 'autoCreateProfile').catch(() => {});
+                }
+
+                let profileIsStaff = profile.role === 'recruiter' || profile.role === 'admin';
+                const selectedIsStaff = targetRole === 'recruiter' || targetRole === 'admin';
+                if (profileIsStaff !== selectedIsStaff) {
+                    if (selectedIsStaff && (profile.role === 'candidate' || profile.role === 'seeker')) {
+                        try {
+                            const syncRes = await apiClient.post('/users/sync', {
+                                uid: refreshedUser.uid,
+                                email: normalizedEmail,
+                                name: refreshedUser.displayName || profile.name || normalizedEmail.split('@')[0],
+                                role: targetRole
+                            });
+                            if (syncRes.data?.role === 'recruiter' || syncRes.data?.user?.role === 'recruiter') {
+                                profile.role = 'recruiter';
+                                profileIsStaff = true;
+                            }
+                        } catch {
+                            const refetched = await getUserProfile(normalizedEmail).catch(() => null);
+                            if (refetched && (refetched.role === 'recruiter' || refetched.role === 'admin')) {
+                                profile = refetched;
+                                profileIsStaff = true;
+                            }
+                        }
+                    }
+                    if (profileIsStaff !== selectedIsStaff) {
+                        throw new Error(`Unauthorized. This account is registered as a ${profile.role}.`);
+                    }
+                }
+
+                await Promise.all([
                     withRetry(() => apiClient.initializeGatewaySession(normalizedEmail, refreshedUser.uid), 3, 'gatewaySession').catch(err => {
                         console.warn('[LOGIN] Gateway session init failed (non-fatal):', err.message);
                     }),
@@ -731,18 +848,6 @@ const LoginPage = () => {
                     })
                 ]);
 
-                let profile = fetchedProfile;
-                if (!profile) {
-                    profile = {
-                        uid: refreshedUser.uid,
-                        name: refreshedUser.displayName || normalizedEmail.split('@')[0],
-                        email: normalizedEmail,
-                        role: targetRole,
-                        createdAt: new Date().toISOString()
-                    };
-                    await withRetry(() => saveUserProfile(refreshedUser.uid, profile), 3, 'autoCreateProfile').catch(() => {});
-                }
-
                 localStorage.setItem('user', JSON.stringify({ ...profile, role: targetRole }));
 
                 // Track GA4 login conversion event (zero PII)
@@ -752,7 +857,7 @@ const LoginPage = () => {
                 if (from && from !== '/recruiter' && from !== '/admin') {
                     navigate(from, { replace: true });
                 } else if (targetRole === 'admin') {
-                    navigate('/recruiter/my-jobs', { replace: true });
+                    navigate('/admin', { replace: true });
                 } else {
                     navigate(targetRole === 'recruiter' ? '/recruiter/my-jobs' : '/candidate', { replace: true });
                 }
@@ -799,7 +904,7 @@ const LoginPage = () => {
 
             // Also trigger backend branded email with CTA button
             axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
+                headers: { 'X-Client-ID': CLIENT_ID }
             }).catch(e => {
                 console.warn('[LOGIN] Backend resend-verification warning (non-fatal):', e.message);
             });
@@ -1139,7 +1244,7 @@ const LoginPage = () => {
                                 {role !== 'admin' && (
                                     <p className="mt-8 text-center text-[#5E6577] text-sm">
                                         New here?{' '}
-                                        <Link to="/signup" className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors cursor-pointer ml-1">
+                                        <Link to={role ? `/signup?role=${role}` : '/signup'} className="text-[#20263A] hover:text-[#C99A45] font-bold underline transition-colors cursor-pointer ml-1">
                                             Create an account
                                         </Link>
                                     </p>

@@ -567,6 +567,7 @@ const registryRaw = [
     tags: ['Attempts']
   },
 
+
   // ─── Coding Assessment Service ─────────────────────────
   {
     version: 'v1',

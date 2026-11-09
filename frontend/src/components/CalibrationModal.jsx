@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, User, Mail, Phone, ArrowRight, Building, Target } from 'lucide-react';
 import { PhoneInput } from 'react-international-phone';
@@ -34,7 +34,7 @@ const CalibrationModal = ({ isOpen, onClose }) => {
                         console.error("Location-based country refinement failed:", error);
                     }
                 },
-                (error) => {
+                () => {
                     console.warn("Location access denied or unavailable. Falling back to US (+1).");
                 }
             );

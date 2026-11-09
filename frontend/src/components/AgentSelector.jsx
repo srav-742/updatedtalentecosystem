@@ -41,7 +41,7 @@ const DEFAULT_ROLES = [
 
 export default function AgentSelector({ onSelectRole }) {
   const [roles, setRoles] = useState(DEFAULT_ROLES);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -55,9 +55,14 @@ export default function AgentSelector({ onSelectRole }) {
         setRoles(data);
       } else if (data && Array.isArray(data.roles) && data.roles.length > 0) {
         setRoles(data.roles);
+      } else if (!Array.isArray(data) && !Array.isArray(data?.roles)) {
+        setError("Unexpected response format. Showing available interview tracks.");
       }
     } catch (err) {
       console.warn("Background roles sync failed, using default tracks:", err.message);
+      setError("Unable to refresh interview tracks. Showing available tracks.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,25 +93,25 @@ export default function AgentSelector({ onSelectRole }) {
     );
   }
 
-  if (error) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-12">
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center shadow-xs">
-          <p className="text-sm font-bold text-red-800">{error}</p>
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center sm:flex-row sm:text-left">
+          <p className="text-sm font-medium text-amber-900">{error}</p>
           <button
-            onClick={fetchRoles}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              fetchRoles();
+            }}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-amber-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-800"
           >
             <RefreshCw size={14} />
             Retry
           </button>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="space-y-6">
       {/* Studio Header Banner */}
       <header className="overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br from-white via-[#fcfaf6] to-[#f4eee4] px-7 py-7 shadow-[0_16px_50px_rgba(15,23,42,0.04)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

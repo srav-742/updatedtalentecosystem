@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { logDiag, recordError, recordInferenceTime, getOrCreateDiagnostics } from "../utils/proctoringDiagnostics";
 import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import { useYOLODetector } from './proctoring/useYOLODetector';
 
 /**
@@ -114,6 +115,7 @@ const SUSPICIOUS_OBJECTS = {
     "remote": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "telephone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
     "Mobile phone": { type: "PHONE_DETECTED", label: "Cell phone", ranking: 2 },
+    "laptop": { type: "OBJECT_DETECTED", label: "Secondary laptop/computer", ranking: 2 },
     "book": { type: "OBJECT_DETECTED", label: "Object used (Book/notes)", ranking: 2 },
     "Book": { type: "OBJECT_DETECTED", label: "Object used (Book/notes)", ranking: 2 },
     "tablet": { type: "OBJECT_DETECTED", label: "Object used (Tablet)", ranking: 2 },
