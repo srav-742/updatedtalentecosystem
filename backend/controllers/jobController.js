@@ -300,6 +300,26 @@ const createJob = async (req, res) => {
         const job = new Job(jobData);
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches
+
+        // Provision / ensure Recruiter Client and roles exist in MySQL via Gateway / Auth-Service
+        if (jobData.recruiterId) {
+            try {
+                const { findRecruiterUser } = require('../utils/userResolver');
+                findRecruiterUser(jobData.recruiterId).then(recruiterUser => {
+                    if (recruiterUser && recruiterUser.role === 'recruiter') {
+                        const { provisionClientForRecruiter } = require('./paymentController');
+                        provisionClientForRecruiter(recruiterUser, 'combined').catch(err => {
+                            console.warn('[CREATE-JOB] Recruiter client provision async notice:', err.message);
+                        });
+                    }
+                }).catch(err => {
+                    console.warn('[CREATE-JOB] Recruiter lookup notice:', err.message);
+                });
+            } catch (pErr) {
+                console.warn('[CREATE-JOB] Recruiter provision hook error:', pErr.message);
+            }
+        }
+
         res.status(201).json({ success: true, job: savedJob });
     } catch (error) {
         console.error("[CREATE-JOB] Failure:", error);

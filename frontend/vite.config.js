@@ -101,12 +101,12 @@ export default defineConfig(({ mode }) => ({
 
   server: {
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';",
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com https://checkout.razorpay.com https://*.razorpay.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.razorpay.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://api.razorpay.com https://*.razorpay.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com; object-src 'none'; base-uri 'self';",
       'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Cross-Origin-Opener-Policy': 'unsafe-none',
       'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
       'X-DNS-Prefetch-Control': 'on'
     },
@@ -138,12 +138,12 @@ export default defineConfig(({ mode }) => ({
 
   preview: {
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app; object-src 'none'; base-uri 'self';",
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://apis.google.com https://accounts.google.com https://identitytoolkit.googleapis.com https://*.firebaseapp.com https://www.googletagmanager.com https://checkout.razorpay.com https://*.razorpay.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com https://*.razorpay.com; media-src 'self' blob: data: https:; connect-src 'self' https: https://cdn.jsdelivr.net https://unpkg.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://api.razorpay.com https://*.razorpay.com wss: ws: http://localhost:* ws://localhost:*; frame-src 'self' https://accounts.google.com https://practiceproject-f0b0e.firebaseapp.com https://*.firebaseapp.com https://*.web.app https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com; object-src 'none'; base-uri 'self';",
       'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Cross-Origin-Opener-Policy': 'unsafe-none',
       'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
       'X-DNS-Prefetch-Control': 'on'
     },

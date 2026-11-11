@@ -26,9 +26,9 @@ const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
  *   X-Refresh-Token: <refreshToken>  (optional, used for silent refresh)
  */
 const PUBLIC_ROUTES = [
-    { method: 'POST', pattern: /^\/api\/signup$/i },
-    { method: 'POST', pattern: /^\/api\/login$/i },
-    { method: 'POST', pattern: /^\/api\/users\/sync$/i },
+    { method: 'POST', pattern: /^\/api\/(auth\/)?signup$/i },
+    { method: 'POST', pattern: /^\/api\/(auth\/)?login$/i },
+    { method: 'POST', pattern: /^\/api\/(auth\/)?users\/sync$/i },
     { method: 'POST', pattern: /^\/api\/auth\/google$/i },
     { method: 'POST', pattern: /^\/api\/forgot-password$/i },
     { method: 'POST', pattern: /^\/api\/auth\/forgot-password$/i },
@@ -62,6 +62,7 @@ const PUBLIC_ROUTES = [
     { method: '*', pattern: /^\/api\/proctoring-pipeline(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/wallet(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/payments(\/.*)?$/i },
+    { method: '*', pattern: /^\/api\/tickets(\/.*)?$/i },
     { method: '*', pattern: /^\/api\/user-resumes(\/.*)?$/i },
     { method: 'GET', pattern: /^\/api\/interview\/public\/interview-details\/[a-f0-9]{24}$/i },
     { method: '*', pattern: /^\/api\/recruiter-knowledge(\/.*)?$/i },
@@ -97,6 +98,28 @@ const gatewayMiddleware = async (req, res, next) => {
         }
 
         const fullPath = req.baseUrl + req.path;
+
+        // ─── Trusted API Gateway Inbound Proxy ───────────────────────────
+        const gatewaySecret = req.headers['x-gateway-secret'];
+        const sharedSecret = process.env.GATEWAY_SHARED_SECRET || 'hire1percent_gateway_secret_key_2026';
+        if (gatewaySecret && gatewaySecret === sharedSecret) {
+            const clientId = req.headers['x-client-id'];
+            if (clientId) {
+                const uid = clientId.startsWith('client_') ? clientId.substring(7) : clientId;
+                const user = await User.findOne({
+                    $or: [
+                        { uid },
+                        ...(OBJECT_ID_REGEX.test(uid) ? [{ _id: uid }] : [])
+                    ]
+                });
+                if (user) {
+                    req.user = user;
+                }
+                req.clientId = clientId;
+            }
+            console.log(`[GATEWAY-INBOUND-TRUSTED] ✅ Verified gateway proxy request: ${req.method} ${fullPath} | Client: ${clientId || 'unknown'}`);
+            return next();
+        }
 
         // ─── Admin Bypass Check ──────────────────────────────────────────
         const adminEmails = ['sravyaadmin@gmail.com', 'sravyadhadi@gmail.com', 'admin@hire1percent.com', 'hemangi@web3today.io'];

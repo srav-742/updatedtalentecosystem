@@ -174,28 +174,40 @@ async function generateEdgeSpeech(text, voice) {
         const edgeVoice = resolveEdgeVoice(voice);
         console.log(`[TTS-EDGE] Generating Edge Neural TTS | voice: ${edgeVoice} | chars: ${text.length}`);
 
-        const communicate = new Communicate(text, {
-            voice: edgeVoice,
-            rate: '-5%',       // Slightly slower — natural professional pacing
-            pitch: '-3Hz',     // Deeper, gentle, low-pitch human resonance
-            volume: '+0%'      // Neutral volume for clean audio
-        });
+        const streamPromise = (async () => {
+            const communicate = new Communicate(text, {
+                voice: edgeVoice,
+                rate: '-5%',       // Slightly slower — natural professional pacing
+                pitch: '-3Hz',     // Deeper, gentle, low-pitch human resonance
+                volume: '+0%'      // Neutral volume for clean audio
+            });
 
-        const chunks = [];
-        for await (const chunk of communicate.stream()) {
-            if (chunk.type === 'audio' && chunk.data) {
-                chunks.push(chunk.data);
+            const chunks = [];
+            for await (const chunk of communicate.stream()) {
+                if (chunk.type === 'audio' && chunk.data) {
+                    chunks.push(chunk.data);
+                }
             }
-        }
 
-        if (chunks.length === 0) {
-            console.warn('[TTS-EDGE] No audio chunks received.');
-            return null;
-        }
+            if (chunks.length === 0) {
+                console.warn('[TTS-EDGE] No audio chunks received.');
+                return null;
+            }
 
-        const buffer = Buffer.concat(chunks);
-        console.log(`[TTS-EDGE] Audio generated successfully: ${buffer.length} bytes`);
-        return { buffer, mimeType: 'audio/mpeg', engine: 'edge' };
+            const buffer = Buffer.concat(chunks);
+            console.log(`[TTS-EDGE] Audio generated successfully: ${buffer.length} bytes`);
+            return { buffer, mimeType: 'audio/mpeg', engine: 'edge' };
+        })();
+
+        // Cap Edge TTS generation to 5 seconds so it never stalls the server
+        const timeoutPromise = new Promise((resolve) =>
+            setTimeout(() => {
+                console.warn('[TTS-EDGE] Timeout reached (5000ms), continuing without audio');
+                resolve(null);
+            }, 5000)
+        );
+
+        return await Promise.race([streamPromise, timeoutPromise]);
     } catch (err) {
         console.error('[TTS-EDGE ERROR]:', err.message);
         return null;
@@ -327,6 +339,9 @@ async function generateGeminiSpeech(text, voice) {
         const status = err.response?.status;
         const detail = err.response?.data?.error?.message || err.message;
         console.error(`[TTS-GEMINI ERROR] ${status || 'NETWORK'}: ${detail}`);
+        if (status === 402 || String(detail).includes('prepayment') || String(detail).includes('credits') || String(detail).includes('depleted')) {
+            return { quotaExhausted: true };
+        }
         return null;
     }
 }
@@ -359,21 +374,25 @@ const generateSpeech = async (text, voice = 'professional_interviewer', options 
         if (edgeResult) return edgeResult;
         // Edge failed — try Gemini as last resort
         const geminiResult = await generateGeminiSpeech(cleanedText, voice);
-        if (geminiResult) return geminiResult;
+        if (geminiResult && !geminiResult.quotaExhausted) return geminiResult;
         return null;
     }
 
     // Default: Try Gemini first with retries, then fallback to Edge
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         const geminiResult = await generateGeminiSpeech(cleanedText, voice);
-        if (geminiResult) return geminiResult;
+        if (geminiResult && !geminiResult.quotaExhausted) return geminiResult;
+        if (geminiResult?.quotaExhausted) {
+            console.warn('[TTS] Gemini credits depleted. Skipping further Gemini attempts.');
+            break;
+        }
         if (attempt < maxRetries) {
             console.warn(`[TTS] Gemini attempt ${attempt}/${maxRetries} failed. Retrying...`);
             await new Promise(r => setTimeout(r, 500));
         }
     }
 
-    console.warn('[TTS] Gemini TTS failed after retries. Falling back to Edge TTS...');
+    console.warn('[TTS] Falling back to Edge TTS...');
 
     // Fallback to Microsoft Edge TTS (free, no IP restrictions, human-quality neural voices)
     return await generateEdgeSpeech(cleanedText, voice);

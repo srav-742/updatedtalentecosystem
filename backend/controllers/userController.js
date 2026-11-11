@@ -151,49 +151,18 @@ const updateUserProfile = async (req, res) => {
             }
         }
         const user = await User.findOneAndUpdate(query, updateData, { new: true, upsert: true });
-        let clientCredentials = null;
         if (user) {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            // Generate unique API Client Credentials for Recruiter if they don't exist yet
+            // Provision / update Recruiter Client credentials in MySQL via Auth-Service / API Gateway in background
             if (user.role === 'recruiter') {
-                const Client = require('../models/Client');
-                const PlaintextClientCredential = require('../models/PlaintextClientCredential');
-                const bcrypt = require('bcryptjs');
-                
-                const expectedClientId = `client_${user.uid || user._id}`;
-                const existingClient = await Client.findOne({ clientId: expectedClientId });
-                
-                if (!existingClient) {
-                    const clientSecretRaw = `h1p_sec_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
-                    const hashedSecret = await bcrypt.hash(clientSecretRaw, 10);
-
-                    const newClient = new Client({
-                        clientId: expectedClientId,
-                        clientSecret: hashedSecret,
-                        name: `Client for Recruiter ${user.name || user.email}`,
-                        description: `API Client for recruiter: ${user.email}`,
-                        status: 'active'
+                try {
+                    const { provisionClientForRecruiter } = require('./paymentController');
+                    provisionClientForRecruiter(user, 'combined').catch(err => {
+                        console.warn('[USER-UPDATE] Client provision async notice:', err.message);
                     });
-                    await newClient.save();
-
-                    const newPlaintext = new PlaintextClientCredential({
-                        clientId: expectedClientId,
-                        clientSecretRaw: clientSecretRaw,
-                        name: `Client for Recruiter ${user.name || user.email}`,
-                        description: `API Client for recruiter: ${user.email}`,
-                        status: 'active'
-                    });
-                    await newPlaintext.save();
-                    
-                    clientCredentials = {
-                        clientId: expectedClientId,
-                        clientSecret: clientSecretRaw
-                    };
-                    
-                    console.log(`[CLIENT-GENERATION] Generated API Client Credentials for Recruiter: ${user.email}`);
-                }
+                } catch (pErr) {}
             }
         }
 
@@ -201,9 +170,6 @@ const updateUserProfile = async (req, res) => {
         const isRecruiterComplete = updateData.company && updateData.company.name && updateData.designation;
         
         const userObj = user.toObject();
-        if (clientCredentials) {
-            userObj.client = clientCredentials;
-        }
         res.json(userObj);
     } catch (error) {
         console.error("[GET-USERS] Error:", error);

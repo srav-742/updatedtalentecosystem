@@ -100,15 +100,15 @@ body {
   color: #111827;
 }
 
-.recruiter-content [class~="bg-white/5"],
-.recruiter-content [class~="bg-white/10"],
-.recruiter-content [class~="bg-white/20"],
-.recruiter-content [class~="bg-white/[0.01]"],
-.recruiter-content [class~="bg-white/[0.02]"],
-.recruiter-content [class~="bg-black/20"],
-.recruiter-content [class~="bg-[#11131a]"],
-.recruiter-content [class~="bg-[#13171e]"],
-.recruiter-content [class~="bg-[#1a1d24]"] {
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-white/5"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-white/10"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-white/20"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-white/[0.01]"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-white/[0.02]"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-black/20"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-[#11131a]"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-[#13171e]"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-[#1a1d24]"] {
   background-color: #ffffff !important;
 }
 
@@ -140,8 +140,8 @@ body {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-.recruiter-content [class~="text-white"],
-.recruiter-content [class~="text-gray-300"] {
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-white"],
+.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-gray-300"] {
   color: #111827 !important;
 }
 
@@ -215,6 +215,81 @@ body {
 
 .recruiter-content [class~="hover:text-white"]:hover {
   color: #111827 !important;
+}
+
+/* =========================================================================
+   Payment Upgrade Dark Theme - Protect white text and numbers from light-theme overrides
+   ========================================================================= */
+.recruiter-content .payment-upgrade-view,
+.recruiter-content .payment-upgrade-view [class~="text-white"],
+.recruiter-content .payment-upgrade-view .price-amount,
+.recruiter-content .payment-upgrade-view .plan-price-text,
+.recruiter-content .payment-upgrade-view h1:not([class~="bg-clip-text"]),
+.recruiter-content .payment-upgrade-view h2:not([class~="bg-clip-text"]),
+.recruiter-content .payment-upgrade-view h3:not([class~="bg-clip-text"]),
+.recruiter-content .payment-upgrade-view h4:not([class~="bg-clip-text"]),
+.recruiter-content .payment-upgrade-view p[class~="text-white"],
+.recruiter-content .payment-upgrade-view span[class~="text-white"],
+.recruiter-content .payment-upgrade-view div[class~="text-white"],
+.payment-upgrade-view [class~="text-white"],
+.payment-upgrade-view .price-amount {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="text-slate-300"] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="text-slate-400"] {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="text-transparent"][class~="bg-clip-text"] {
+  background-image: linear-gradient(to right, #60a5fa, #5eead4, #fcd34d) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="bg-[#0c0f16]"] {
+  background-color: #0c0f16 !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="bg-[#151c2d]"] {
+  background-color: #151c2d !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="bg-[#111622]/80"],
+.recruiter-content .payment-upgrade-view [class~="bg-[#111622]/90"],
+.recruiter-content .payment-upgrade-view [class~="bg-[#111622]"] {
+  background-color: #111622 !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="border-white/5"] {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="border-white/10"] {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.recruiter-content .payment-upgrade-view [class~="border-white/20"] {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.recruiter-content .payment-upgrade-view :is(button, a)[class~="bg-white/5"] {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.recruiter-content .payment-upgrade-view :is(button, a)[class~="bg-white/5"]:hover {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
 }
 
 .admin-content [class~="bg-white/5"],

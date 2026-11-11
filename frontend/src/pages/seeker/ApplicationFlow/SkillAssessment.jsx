@@ -12,6 +12,7 @@ import {
     FileLock2,
     ListChecks,
     Loader2,
+    Lock,
     Play
 } from 'lucide-react';
 import axios from 'axios';
@@ -56,6 +57,8 @@ const SkillAssessment = ({
     const [error, setError] = useState(null);
     const [securityResetting, setSecurityResetting] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [isTicketLocked, setIsTicketLocked] = useState(false);
+    const [ticketLockMessage, setTicketLockMessage] = useState('');
 
     const localRecordingSessionIdRef = useRef(null);
     const localRecorderRef = useRef(null);
@@ -198,21 +201,29 @@ const SkillAssessment = ({
             const currentUserId = user?.uid || user?._id || user?.id || '';
             const currentJobId = job?._id || job?.id || '';
 
-            // 1. Generate full assessment questions with retries
+            // 1. Generate full assessment questions with retries (15s timeout per request)
             let res;
             let lastErr;
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     res = await axios.post(`${API_URL}/generate-full-assessment`, {
                         jobId: currentJobId || job?._id || job?.id,
-                        userId: currentUserId
-                    });
+                        userId: currentUserId,
+                        email: user?.email || user?.emailId || ''
+                    }, { timeout: 15000 });
                     if (Array.isArray(res.data?.questions) && res.data.questions.length > 0) {
                         break;
                     }
                     throw new Error('No questions in server response');
                 } catch (err) {
                     lastErr = err;
+                    // Intercept recruiter ticket exhaustion immediately (do not loop)
+                    if (err.response?.status === 402 || err.response?.data?.code === 'INSUFFICIENT_TICKETS') {
+                        setIsTicketLocked(true);
+                        setTicketLockMessage(err.response?.data?.message || 'This job assessment is temporarily locked because the recruiter has no available interview tickets.');
+                        setLoading(false);
+                        return;
+                    }
                     console.warn(`Assessment generation attempt ${attempt} failed:`, err);
                     if (attempt < 3) {
                         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -224,23 +235,20 @@ const SkillAssessment = ({
                 throw lastErr || new Error('Failed to retrieve assessment questions after multiple attempts.');
             }
 
-            // 2. Pre-start interview session if enabled to get recordingSessionId
-            let interviewData = null;
+            // 2. Pre-warm interview session asynchronously if enabled (never blocks assessment start)
             if (job?.mockInterview?.enabled) {
-                try {
-                    const interviewRes = await axios.post(`${API_URL}/interview/start`, {
-                        jobId: currentJobId || job?._id || job?.id,
-                        userId: currentUserId
-                    });
+                axios.post(`${API_URL}/interview/start`, {
+                    jobId: currentJobId || job?._id || job?.id,
+                    userId: currentUserId
+                }, { timeout: 6000 }).then(interviewRes => {
                     if (interviewRes.data?.success) {
-                        interviewData = interviewRes.data;
                         setSharedSessionId(interviewRes.data.sessionId);
                         setSharedRecordingSessionId(interviewRes.data.recordingSessionId);
                         setFirstQuestionData(interviewRes.data);
                     }
-                } catch (interviewErr) {
-                    console.warn("Failed to pre-start interview session:", interviewErr);
-                }
+                }).catch(interviewErr => {
+                    console.warn("Non-blocking interview pre-start notice:", interviewErr?.message);
+                });
             }
 
             // 3. Generate distinct assessmentRecordingSessionId
@@ -455,6 +463,37 @@ const SkillAssessment = ({
             violation
         });
     };
+
+    if (isTicketLocked) {
+        return (
+            <div className="mx-auto max-w-xl p-8 rounded-[2.5rem] border border-amber-200 bg-white shadow-2xl text-center my-12">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-100">
+                    <Lock size={32} />
+                </div>
+                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold uppercase tracking-wider mb-3 inline-block">
+                    Assessment Temporarily Locked
+                </span>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Interview Capacity Reached</h3>
+                <p className="text-gray-600 mb-6 text-sm leading-relaxed max-w-md mx-auto">
+                    {ticketLockMessage || "The recruiter for this position has temporarily exhausted their interview evaluation tickets. Your application and profile have been saved successfully. Please check back later or contact the recruiter."}
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                    <button
+                        onClick={() => window.location.href = '/candidate/my-jobs'}
+                        className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition cursor-pointer"
+                    >
+                        Go to My Applications
+                    </button>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+                    >
+                        Check Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (

@@ -176,6 +176,42 @@ const getRecruiterApplications = async (req, res) => {
             }
         }
 
+        // Enforce active recruiter plan entitlement (admins bypass)
+        // Resolve ticket wallet for recruiter
+        const ticketService = require('../services/ticketService');
+        const wallet = await ticketService.getWallet(recruiterId);
+        const hasTicketsOrPurchased = wallet && (wallet.availableTickets > 0 || wallet.totalPurchased > 0);
+        let hasViewRole = isAdmin || recruiterDoc?.isPro === true || recruiterDoc?.hiringPattern === 'Premium Recruiter' || hasTicketsOrPurchased;
+
+        if (!hasViewRole && recruiterDoc) {
+            try {
+                const Client = require('../models/Client');
+                const Role = require('../models/Role');
+                const ClientRole = require('../models/ClientRole');
+                const client = await Client.findOne({
+                    $or: [
+                        { clientId: `client_${recruiterDoc._id}` },
+                        { clientId: `client_${recruiterDoc.uid}` }
+                    ]
+                });
+                if (client) {
+                    const viewRole = await Role.findOne({ name: 'premium_recruiter' });
+                    if (viewRole) {
+                        const cr = await ClientRole.findOne({ client: client._id, role: viewRole._id });
+                        if (cr) hasViewRole = true;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // Asynchronously ensure recruiter client credentials exist in MySQL and MongoDB
+        if (recruiterDoc && recruiterDoc.role === 'recruiter') {
+            try {
+                const { provisionClientForRecruiter } = require('./paymentController');
+                provisionClientForRecruiter(recruiterDoc, 'combined').catch(() => {});
+            } catch (pErr) {}
+        }
+
         let jobQuery = {};
         if (!isAdmin) {
             jobQuery = await resolveRecruiterJobQuery(recruiterId);

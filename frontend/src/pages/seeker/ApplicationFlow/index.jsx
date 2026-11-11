@@ -226,15 +226,15 @@ const ApplicationFlow = () => {
                         const codingDone = !enabledIds.includes('coding') || (existingApp.codingScore !== null && existingApp.codingScore !== undefined);
 
                         let targetIndex = 0;
-                        if (resumeDone && !videoDone && enabledIds.includes('candidate-deck')) {
-                            targetIndex = enabledIds.indexOf('candidate-deck');
-                        } else if (resumeDone && videoDone && !assessmentDone && enabledIds.includes('assessment')) {
+                        if (resumeDone && !assessmentDone && enabledIds.includes('assessment')) {
                             targetIndex = enabledIds.indexOf('assessment');
-                        } else if (resumeDone && videoDone && assessmentDone && !codingDone && enabledIds.includes('coding')) {
+                        } else if (resumeDone && !codingDone && enabledIds.includes('coding')) {
                             targetIndex = enabledIds.indexOf('coding');
-                        } else if (resumeDone && videoDone && assessmentDone && codingDone && !interviewDone && enabledIds.includes('interview')) {
+                        } else if (resumeDone && !videoDone && enabledIds.includes('candidate-deck')) {
+                            targetIndex = enabledIds.indexOf('candidate-deck');
+                        } else if (resumeDone && !interviewDone && enabledIds.includes('interview')) {
                             targetIndex = enabledIds.indexOf('interview');
-                        } else if ((resumeDone && videoDone && assessmentDone && codingDone && interviewDone) || (interviewDone && resumeDone)) {
+                        } else if ((resumeDone && assessmentDone && codingDone && interviewDone) || (interviewDone && resumeDone)) {
                             queryClient.invalidateQueries({ queryKey: ['applications'] });
                             navigate('/candidate/applications');
                             return;

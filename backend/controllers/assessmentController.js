@@ -306,6 +306,10 @@ const generateFullAssessment = async (req, res) => {
         if (!user && mongoose.Types.ObjectId.isValid(userId)) {
             user = await User.findById(userId);
         }
+        if (!user && (req.body?.email || req.user?.email)) {
+            const rawEmail = (req.body?.email || req.user?.email).trim().toLowerCase();
+            user = await User.findOne({ email: new RegExp(`^${rawEmail}$`, 'i') });
+        }
 
         // 🔒 Whitelist check
         const candidateEmail = (user?.email || req.body?.email || req.user?.email || '').trim().toLowerCase();
@@ -319,16 +323,29 @@ const generateFullAssessment = async (req, res) => {
         }
 
         // Application record is the source of truth (supports shadow user fallback by email)
-        let application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), userId });
+        const jobObjId = mongoose.Types.ObjectId.isValid(jobId) ? new mongoose.Types.ObjectId(jobId) : null;
+        const jobMatchQuery = jobObjId ? { $in: [jobId, jobObjId] } : jobId;
+
+        let application = await Application.findOne({
+            jobId: jobMatchQuery,
+            $or: [
+                { userId: userId },
+                ...(user?._id ? [{ userId: user._id.toString() }] : []),
+                ...(candidateEmail ? [{ applicantEmail: new RegExp(`^${candidateEmail}$`, 'i') }] : [])
+            ]
+        });
         if (!application && candidateEmail) {
-            application = await Application.findOne({ jobId: new mongoose.Types.ObjectId(jobId), applicantEmail: candidateEmail });
+            application = await Application.findOne({
+                jobId: jobMatchQuery,
+                applicantEmail: new RegExp(`^${candidateEmail}$`, 'i')
+            });
             if (application && application.userId !== userId) {
                 application.userId = userId;
                 await application.save();
             } else if (!application && isWhitelisted) {
                 // If candidate is whitelisted by recruiter, auto-create their application so they can immediately take the assessment
                 application = new Application({
-                    jobId: new mongoose.Types.ObjectId(jobId),
+                    jobId: jobObjId || jobId,
                     userId,
                     applicantEmail: candidateEmail,
                     applicantName: user?.name || 'Candidate',
@@ -355,6 +372,47 @@ const generateFullAssessment = async (req, res) => {
             const minThreshold = (job.minPercentage || 60) * 0.10;
             if (application.resumeMatchPercent < minThreshold) {
                 return res.status(400).json({ message: `Resume match below ${job.minPercentage || 60}%` });
+            }
+        }
+
+        if (!application) {
+            application = new Application({
+                jobId: jobObjId || jobId,
+                userId,
+                applicantEmail: candidateEmail,
+                applicantName: user?.name || 'Candidate',
+                status: 'APPLIED',
+                resumeMatchPercent: 85,
+                appliedAt: new Date()
+            });
+            await application.save();
+        }
+
+        // 🎟️ TICKET DEDUCTION: 1 Ticket = 1 Candidate Assessment
+        // Atomically deduct 1 ticket from the job recruiter's wallet
+        const ticketService = require('../services/ticketService');
+        const deductionResult = await ticketService.deductTicketForAssessment({
+            recruiterId: job.recruiterId,
+            jobId: job._id,
+            applicationId: application._id,
+            candidateId: userId,
+            candidateEmail
+        });
+
+        if (!deductionResult.success) {
+            if (deductionResult.reason === 'INSUFFICIENT_TICKETS') {
+                return res.status(402).json({
+                    success: false,
+                    code: 'INSUFFICIENT_TICKETS',
+                    locked: true,
+                    message: "This job assessment is temporarily locked because the recruiter has no available interview tickets. Please check back later or contact the recruiter."
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    code: deductionResult.reason,
+                    message: deductionResult.message || "Failed to authorize assessment ticket."
+                });
             }
         }
 
@@ -537,6 +595,25 @@ NO extra markdown, explanations, or commentary. Strictly valid JSON.
 
                 if (finalQuestions.length >= totalQuestions) break;
             }
+
+            // Pass 2: Fallback library guarantee (essential for candidates retesting or whose questionlogs already contain hashes)
+            if (finalQuestions.length < totalQuestions) {
+                for (const fb of shuffledFallback) {
+                    if (finalQuestions.some(q => q.question === fb.question)) continue;
+                    finalQuestions.push({ ...fb });
+                    if (finalQuestions.length >= totalQuestions) break;
+                }
+            }
+
+            // Pass 3: If role bank has fewer questions than totalQuestions, pad with general engineering questions
+            if (finalQuestions.length < totalQuestions) {
+                const generalBank = getRoleFallbackQuestions('');
+                for (const gb of generalBank) {
+                    if (finalQuestions.some(q => q.question === gb.question)) continue;
+                    finalQuestions.push({ ...gb });
+                    if (finalQuestions.length >= totalQuestions) break;
+                }
+            }
         }
 
         // Final trim
@@ -546,6 +623,10 @@ NO extra markdown, explanations, or commentary. Strictly valid JSON.
         res.json({
             sessionId: seed,
             questions: output,
+            ticketInfo: {
+                consumed: !deductionResult.alreadyConsumed,
+                remainingTickets: deductionResult.availableTickets
+            },
             job: {
                 title: job.title,
                 skills: job.skills,

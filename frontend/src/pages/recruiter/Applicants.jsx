@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw } from 'lucide-react';
+import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw, Ticket, AlertCircle, Briefcase } from 'lucide-react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_URL, getAuthHeaders } from '../../firebase';
@@ -12,6 +12,7 @@ import ProctoringDetail from './ProctoringDetail';
 import GeneratedResumeModal from './GeneratedResumeModal';
 import TeamFitBadge from '../../components/TeamFitBadge';
 import BulkUploadModal from '../../components/BulkUploadModal';
+import BuyTicketsModal from '../payment/BuyTicketsModal';
 import './recruiter-theme.css';
 import TopUpModal from '../../components/TopUpModal';
 import ShareModal from '../../components/ShareModal';
@@ -27,6 +28,9 @@ const Applicants = () => {
         return u.hiringPattern === "Premium Recruiter" || u.isPro === true;
     });
     const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+    const [showBuyTicketsModal, setShowBuyTicketsModal] = useState(false);
+    const [modalJobId, setModalJobId] = useState(null);
+    const [hasDismissedPrompt, setHasDismissedPrompt] = useState(false);
     const [unlockingItem, setUnlockingItem] = useState(null); // { id, type, cost }
     const [unlockingInProgress, setUnlockingInProgress] = useState(false);
     const [unlockError, setUnlockError] = useState('');
@@ -35,6 +39,18 @@ const Applicants = () => {
     const targetJobId = searchParams.get('jobId');
 
     const userId = user.uid || user._id || user.id;
+
+    // Fetch recruiter posted jobs
+    const { data: recruiterJobs = [] } = useQuery({
+        queryKey: ['recruiter', 'jobs', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
+            return Array.isArray(res.data) ? res.data : (res.data?.jobs || []);
+        },
+        enabled: !!userId,
+        staleTime: 60 * 1000
+    });
 
     // Fetch wallet balance
     const { data: walletBalance = user.walletBalance || 0 } = useQuery({
@@ -46,6 +62,30 @@ const Applicants = () => {
         },
         enabled: !!userId
     });
+
+    // Fetch interview ticket wallet
+    const { data: ticketWallet = { availableTickets: 0, totalPurchased: 0, totalConsumed: 0, jobs: [] }, refetch: refetchWallet } = useQuery({
+        queryKey: ['tickets', 'wallet', userId],
+        queryFn: async () => {
+            if (!userId) return { availableTickets: 0, totalPurchased: 0, totalConsumed: 0, jobs: [] };
+            const res = await axios.get(`${API_URL}/tickets/wallet/${userId}`);
+            return res.data?.wallet || { availableTickets: 0, totalPurchased: 0, totalConsumed: 0, jobs: [] };
+        },
+        enabled: !!userId,
+        refetchInterval: 15000
+    });
+
+    const targetJobTickets = useMemo(() => {
+        if (!targetJobId || !ticketWallet?.jobs) return null;
+        return ticketWallet.jobs.find(j => String(j.jobId) === String(targetJobId)) || null;
+    }, [targetJobId, ticketWallet]);
+
+    // Auto-prompt modal if recruiter has 0 tickets and never purchased tickets
+    useEffect(() => {
+        if (ticketWallet && ticketWallet.totalPurchased === 0 && !hasDismissedPrompt && user?.role === 'recruiter') {
+            setShowBuyTicketsModal(true);
+        }
+    }, [ticketWallet, hasDismissedPrompt, user?.role]);
 
     // Fetch fresh recruiter profile to check isPro status
     const { data: profile = null } = useQuery({
@@ -318,17 +358,129 @@ const Applicants = () => {
             });
     }, [applicants, searchTerm, filterStatus, filterVideo, minResumeScore, minAssessmentScore, sortBy, sortOrder]);
 
-    // Group filtered applicants by job title
-    const groupedApplicants = useMemo(() => {
-        return filteredApplicants.reduce((acc, app) => {
-            const jobTitle = app.job || 'Unknown Job';
-            if (!acc[jobTitle]) {
-                acc[jobTitle] = [];
+    // Unified list of all jobs for top filter tabs
+    const allRecruiterJobs = useMemo(() => {
+        const map = new Map();
+        (recruiterJobs || []).forEach(j => {
+            const idStr = String(j._id || j.id);
+            map.set(idStr, {
+                jobId: idStr,
+                jobTitle: j.title || 'Untitled Job',
+                totalPurchased: 0,
+                totalConsumed: 0,
+                availableTickets: 0
+            });
+        });
+        (ticketWallet?.jobs || []).forEach(wJob => {
+            if (!wJob?.jobId) return;
+            const idStr = String(wJob.jobId);
+            const existing = map.get(idStr);
+            if (existing) {
+                existing.totalPurchased = wJob.totalPurchased || 0;
+                existing.totalConsumed = wJob.totalConsumed || 0;
+                existing.availableTickets = wJob.availableTickets || 0;
+                if (wJob.jobTitle) existing.jobTitle = wJob.jobTitle;
+            } else {
+                map.set(idStr, {
+                    jobId: idStr,
+                    jobTitle: wJob.jobTitle || 'Untitled Job',
+                    totalPurchased: wJob.totalPurchased || 0,
+                    totalConsumed: wJob.totalConsumed || 0,
+                    availableTickets: wJob.availableTickets || 0
+                });
             }
-            acc[jobTitle].push(app);
-            return acc;
-        }, {});
-    }, [filteredApplicants]);
+        });
+        return Array.from(map.values());
+    }, [recruiterJobs, ticketWallet]);
+
+    // Group filtered applicants and merge with job requisitions and tickets
+    const jobRequisitions = useMemo(() => {
+        const map = new Map();
+
+        // 1. Initialize from recruiterJobs
+        (recruiterJobs || []).forEach(j => {
+            const idStr = String(j._id || j.id);
+            map.set(idStr, {
+                jobId: idStr,
+                title: j.title || 'Untitled Job',
+                company: j.company || user?.companyName || user?.company || '',
+                totalPurchased: 0,
+                totalConsumed: 0,
+                availableTickets: 0,
+                applicants: [],
+                hasAssessment: j.assessment?.enabled === true,
+                hasCoding: Boolean(j.codingAssessment?.enabled === true || (j.title && /python/i.test(j.title) && j.codingAssessment?.enabled !== false)),
+                hasInterview: j.mockInterview?.enabled !== false
+            });
+        });
+
+        // 2. Overlay ticket wallet info for each job
+        (ticketWallet?.jobs || []).forEach(wJob => {
+            if (!wJob?.jobId) return;
+            const idStr = String(wJob.jobId);
+            const existing = map.get(idStr);
+            if (existing) {
+                existing.totalPurchased = wJob.totalPurchased || 0;
+                existing.totalConsumed = wJob.totalConsumed || 0;
+                existing.availableTickets = wJob.availableTickets || 0;
+                if (wJob.jobTitle && !existing.title) existing.title = wJob.jobTitle;
+            } else {
+                map.set(idStr, {
+                    jobId: idStr,
+                    title: wJob.jobTitle || 'Untitled Job',
+                    company: user?.companyName || user?.company || '',
+                    totalPurchased: wJob.totalPurchased || 0,
+                    totalConsumed: wJob.totalConsumed || 0,
+                    availableTickets: wJob.availableTickets || 0,
+                    applicants: [],
+                    hasAssessment: true,
+                    hasCoding: false,
+                    hasInterview: true
+                });
+            }
+        });
+
+        // 3. Attach applicants
+        (filteredApplicants || []).forEach(app => {
+            const idStr = app.jobId ? String(app.jobId) : 'unknown';
+            let existing = map.get(idStr);
+            if (!existing) {
+                for (const val of map.values()) {
+                    if (val.title && app.job && val.title.toLowerCase() === app.job.toLowerCase()) {
+                        existing = val;
+                        break;
+                    }
+                }
+            }
+
+            if (!existing) {
+                existing = {
+                    jobId: idStr,
+                    title: app.job || 'Job Requisition',
+                    company: user?.companyName || user?.company || '',
+                    totalPurchased: 0,
+                    totalConsumed: 0,
+                    availableTickets: 0,
+                    applicants: [],
+                    hasAssessment: app.hasAssessment ?? true,
+                    hasCoding: Boolean(app.hasCoding),
+                    hasInterview: app.hasInterview ?? true
+                };
+                map.set(idStr, existing);
+            }
+
+            existing.applicants.push(app);
+        });
+
+        let list = Array.from(map.values());
+
+        // Filter by targetJobId if present
+        if (targetJobId) {
+            list = list.filter(r => String(r.jobId) === String(targetJobId));
+        }
+
+        return list;
+    }, [recruiterJobs, ticketWallet, filteredApplicants, targetJobId, user]);
 
     // Handle Status Update
     const handleStatusUpdate = async (id, newStatus) => {
@@ -473,18 +625,27 @@ const Applicants = () => {
                             </button>
                         )}
 
-                        {/* Wallet balance display pill */}
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-                            <Wallet size={14} className="text-slate-500" />
+                        {/* Interview Ticket Wallet Pill */}
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 shadow-xs">
+                            <Ticket size={15} className="text-blue-600" />
                             <div className="text-xs font-semibold text-slate-700">
-                                ₹<span className="font-bold text-slate-900">{walletBalance.toFixed(2)}</span>
+                                <span className={`font-bold ${(targetJobTickets ? targetJobTickets.availableTickets : ticketWallet.availableTickets) > 0 ? 'text-blue-700' : 'text-rose-600'}`}>
+                                    {targetJobTickets ? targetJobTickets.availableTickets : ticketWallet.availableTickets}
+                                </span>
+                                <span className="text-[11px] text-slate-500 ml-1">
+                                    {targetJobId ? 'Job Tickets' : 'Tickets'}
+                                </span>
                             </div>
                             <button 
-                                onClick={() => setIsTopUpOpen(true)}
-                                className="w-4.5 h-4.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer"
-                                title="Top Up Wallet"
+                                onClick={() => {
+                                    setModalJobId(targetJobId || null);
+                                    setShowBuyTicketsModal(true);
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold tracking-wider transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Buy Interview Tickets"
                             >
-                                +
+                                <Plus size={11} />
+                                <span>Buy</span>
                             </button>
                         </div>
 
@@ -506,6 +667,85 @@ const Applicants = () => {
                     </div>
                 </div>
             </header>
+
+            {/* Quick Job Navigation Pills / Tabs */}
+            {allRecruiterJobs.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2 scrollbar-none">
+                    <button
+                        onClick={() => navigate('/recruiter/applicants')}
+                        style={{
+                            backgroundColor: !targetJobId ? '#000000' : '#ffffff',
+                            color: !targetJobId ? '#ffffff' : '#0f172a',
+                            borderColor: !targetJobId ? '#000000' : 'rgba(15,23,42,0.12)'
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 border shadow-xs"
+                    >
+                        <span>All Jobs Combined</span>
+                        <span 
+                            style={{
+                                backgroundColor: !targetJobId ? 'rgba(255,255,255,0.22)' : '#eff6ff',
+                                color: !targetJobId ? '#ffffff' : '#1d4ed8'
+                            }}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                        >
+                            {ticketWallet.availableTickets || 0} Tickets Left
+                        </span>
+                    </button>
+
+                    {allRecruiterJobs.map((job) => {
+                        const isSelected = targetJobId === String(job.jobId);
+                        const left = job.availableTickets || 0;
+                        return (
+                            <button
+                                key={job.jobId}
+                                onClick={() => navigate(`/recruiter/applicants?jobId=${job.jobId}`)}
+                                style={{
+                                    backgroundColor: isSelected ? '#000000' : '#ffffff',
+                                    color: isSelected ? '#ffffff' : '#0f172a',
+                                    borderColor: isSelected ? '#000000' : 'rgba(15,23,42,0.12)'
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 border shadow-xs"
+                            >
+                                <span className="truncate max-w-[150px]">{job.jobTitle}</span>
+                                <span 
+                                    style={{
+                                        backgroundColor: isSelected ? 'rgba(255,255,255,0.22)' : (left > 0 ? '#ecfdf5' : '#fff1f2'),
+                                        color: isSelected ? '#ffffff' : (left > 0 ? '#047857' : '#be123c'),
+                                        border: isSelected ? 'none' : (left > 0 ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(244,63,94,0.3)')
+                                    }}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                                >
+                                    {left} left
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Zero Tickets Warning Banner */}
+            {ticketWallet && ticketWallet.availableTickets === 0 && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                            <Ticket size={20} />
+                        </div>
+                        <div>
+                            <p className="font-bold text-xs">Job Assessments Locked (0 Available Tickets)</p>
+                            <p className="text-[11px] text-amber-800/80 mt-0.5">
+                                Candidates cannot start skill assessments or technical interviews until additional interview tickets are purchased. (1 Ticket = 1 Candidate Assessment).
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowBuyTicketsModal(true)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer whitespace-nowrap"
+                    >
+                        <Sparkles size={14} />
+                        <span>Buy Tickets Now</span>
+                    </button>
+                </div>
+            )}
 
             {/* Expandable Filter Panel */}
             {showFilters && (
@@ -637,23 +877,106 @@ const Applicants = () => {
 
             {loading ? (
                 <ApplicantsSkeleton />
-            ) : filteredApplicants.length > 0 ? (
-                Object.entries(groupedApplicants).map(([jobTitle, jobApplicants]) => {
+            ) : jobRequisitions.length > 0 ? (
+                jobRequisitions.map((req) => {
+                    const jobApplicants = req.applicants;
                     const firstApp = jobApplicants[0];
-                    const showAssessment = firstApp?.hasAssessment ?? true;
-                    const showCoding = Boolean(firstApp?.hasCoding);
-                    const showInterview = firstApp?.hasInterview ?? true;
+                    const showAssessment = req.hasAssessment ?? (firstApp?.hasAssessment ?? true);
+                    const showCoding = req.hasCoding || Boolean(firstApp?.hasCoding);
+                    const showInterview = req.hasInterview ?? (firstApp?.hasInterview ?? true);
 
                     return (
-                    <div key={jobTitle} className={`space-y-4 mb-10 relative ${jobApplicants.some(app => app.id === activeMenuId) ? 'z-50' : 'z-0'}`}>
-                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
-                            <span className="w-2.5 h-6 bg-gradient-to-b from-blue-500 to-teal-500 rounded-full animate-pulse" />
-                            {jobTitle}
-                            <span className="rec-badge-blue px-2.5 py-0.5 text-[11px] font-bold">
-                                {jobApplicants.length} {jobApplicants.length === 1 ? 'Candidate' : 'Candidates'}
-                            </span>
-                        </h2>
+                    <div key={req.jobId || req.title} className={`space-y-4 mb-10 relative ${jobApplicants.some(app => app.id === activeMenuId) ? 'z-50' : 'z-0'}`}>
+                        {/* Executive Solid Black Job Requisition Banner */}
+                        <div 
+                            style={{ backgroundColor: '#000000', color: '#ffffff' }}
+                            className="rec-job-banner-black p-4.5 md:p-5.5 mb-4 rounded-2xl shadow-md border border-white/10"
+                        >
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="space-y-1.5">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span 
+                                            style={{ backgroundColor: '#1a1e29', color: '#f1f5f9', borderColor: 'rgba(255,255,255,0.18)' }}
+                                            className="badge-req px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border"
+                                        >
+                                            Job Requisition
+                                        </span>
+                                        {req.company && (
+                                            <span style={{ color: '#cbd5e1' }} className="text-xs font-semibold">
+                                                {req.company}
+                                            </span>
+                                        )}
+                                        <span 
+                                            style={{ backgroundColor: '#1e3a8a', color: '#dbeafe', borderColor: '#3b82f6' }}
+                                            className="badge-candidate-count px-2.5 py-0.5 rounded-md text-[10px] font-bold border"
+                                        >
+                                            {jobApplicants.length} {jobApplicants.length === 1 ? 'Candidate Applied' : 'Candidates Applied'}
+                                        </span>
+                                    </div>
+                                    <h2 style={{ color: '#ffffff' }} className="text-xl md:text-2xl font-black tracking-tight">
+                                        {req.title}
+                                    </h2>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                                    {/* Tickets Bought */}
+                                    <div 
+                                        style={{ backgroundColor: '#141722', borderColor: 'rgba(255,255,255,0.15)' }}
+                                        className="stat-box px-3.5 py-2 text-center min-w-[85px] border"
+                                    >
+                                        <p style={{ color: '#94a3b8' }} className="stat-label">Tickets Bought</p>
+                                        <p style={{ color: '#ffffff' }} className="stat-val">{req.totalPurchased}</p>
+                                    </div>
+
+                                    {/* Candidates Attended */}
+                                    <div 
+                                        style={{ backgroundColor: '#141722', borderColor: 'rgba(255,255,255,0.15)' }}
+                                        className="stat-box stat-box-attended px-3.5 py-2 text-center min-w-[85px] border"
+                                    >
+                                        <p style={{ color: '#94a3b8' }} className="stat-label">Attended / Used</p>
+                                        <p style={{ color: '#fbbf24' }} className="stat-val">{req.totalConsumed}</p>
+                                    </div>
+
+                                    {/* Tickets Left */}
+                                    <div 
+                                        style={{
+                                            backgroundColor: req.availableTickets > 0 ? 'rgba(16,185,129,0.16)' : 'rgba(244,63,94,0.16)',
+                                            borderColor: req.availableTickets > 0 ? 'rgba(16,185,129,0.4)' : 'rgba(244,63,94,0.4)'
+                                        }}
+                                        className={`stat-box px-3.5 py-2 text-center min-w-[85px] border ${
+                                            req.availableTickets > 0 ? 'stat-box-ready' : 'stat-box-locked'
+                                        }`}
+                                    >
+                                        <p style={{ color: req.availableTickets > 0 ? '#a7f3d0' : '#fecdd3' }} className="stat-label">Tickets Left</p>
+                                        <p style={{ color: req.availableTickets > 0 ? '#34d399' : '#fb7185' }} className="stat-val">
+                                            {req.availableTickets} {req.availableTickets > 0 ? 'Ready' : 'Locked'}
+                                        </p>
+                                    </div>
+
+                                    {/* Dedicated Buy Tickets Button for this Job */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setModalJobId(req.jobId);
+                                            setShowBuyTicketsModal(true);
+                                        }}
+                                        className="btn-buy-job px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+                                    >
+                                        <Plus size={14} />
+                                        <span>Buy Tickets for this Job</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {req.availableTickets === 0 && (
+                                <div style={{ borderColor: 'rgba(255,255,255,0.12)' }} className="mt-3.5 pt-3 border-t flex items-center gap-2 text-[11px]">
+                                    <AlertCircle size={14} className="text-amber-400 shrink-0" />
+                                    <span style={{ color: '#fde68a' }}>0 interview tickets remaining for "{req.title}". Candidates cannot take assessments until tickets are credited to this job.</span>
+                                </div>
+                            )}
+                        </div>
                         
+                        {jobApplicants.length > 0 ? (
                         <div className="rec-card p-6 md:p-8 space-y-4 overflow-visible relative shadow-sm">
                             <div className="absolute top-0 right-0 p-8 opacity-[0.01] pointer-events-none">
                                 <Users size={150} />
@@ -985,6 +1308,33 @@ const Applicants = () => {
                                 </tbody>
                             </table>
                         </div>
+                        ) : (
+                            <div className="rec-card p-8 text-center space-y-2 bg-white border border-slate-200/80 rounded-2xl shadow-xs">
+                                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+                                    <Users size={18} />
+                                </div>
+                                <h4 className="text-sm font-bold text-slate-800">
+                                    No candidates have applied to "{req.title}" yet
+                                </h4>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    {req.availableTickets > 0 
+                                        ? `You have ${req.availableTickets} interview ticket(s) ready for this job. Share the job posting or invite candidates to begin the AI evaluation.` 
+                                        : `You have 0 interview tickets for this job. Buy tickets now so candidates can instantly take assessments upon applying.`}
+                                </p>
+                                <div className="flex items-center justify-center gap-3 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            setModalJobId(req.jobId);
+                                            setShowBuyTicketsModal(true);
+                                        }}
+                                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                                    >
+                                        <Ticket size={13} />
+                                        <span>Buy Tickets for this Job</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )})
             ) : (
@@ -993,21 +1343,31 @@ const Applicants = () => {
                         <Users size={28} />
                     </div>
                     <h3 className="text-lg font-bold text-slate-900">
-                        {searchTerm ? 'No matching applicants' : 'No candidates in this pipeline yet'}
+                        {searchTerm ? 'No matching applicants' : 'No job requisitions found'}
                     </h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                         {searchTerm 
                             ? `No applicants matched "${searchTerm}". Try adjusting your search query or filters.`
-                            : 'Candidates will appear here once they apply to your open job requisitions.'}
+                            : 'Post your first job opening to start receiving candidates and administering AI-proctored technical assessments.'}
                     </p>
-                    {searchTerm && (
-                        <button
-                            onClick={() => setSearchTerm('')}
-                            className="rec-btn-secondary px-4 py-2 text-xs cursor-pointer"
-                        >
-                            Clear search
-                        </button>
-                    )}
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                        {searchTerm ? (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="rec-btn-secondary px-4 py-2 text-xs cursor-pointer"
+                            >
+                                Clear search
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => navigate('/recruiter/post-job')}
+                                className="rec-btn-primary px-4 py-2 text-xs cursor-pointer flex items-center gap-1.5"
+                            >
+                                <Plus size={14} />
+                                <span>Post a Job</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -1232,6 +1592,26 @@ const Applicants = () => {
                     />
                 </div>
             )}
+
+            {/* Buy Interview Tickets Modal */}
+            <BuyTicketsModal
+                isOpen={showBuyTicketsModal}
+                onClose={() => {
+                    setShowBuyTicketsModal(false);
+                    setModalJobId(null);
+                    setHasDismissedPrompt(true);
+                }}
+                onSuccess={(data) => {
+                    refetchWallet();
+                    queryClient.invalidateQueries({ queryKey: ['tickets', 'wallet', userId] });
+                    queryClient.invalidateQueries({ queryKey: ['applicants', userId] });
+                    queryClient.invalidateQueries({ queryKey: ['recruiter', 'jobs', userId] });
+                    window.dispatchEvent(new Event('wallet-update'));
+                }}
+                user={user}
+                currentTickets={targetJobTickets ? targetJobTickets.availableTickets : (ticketWallet?.availableTickets || 0)}
+                targetJobId={modalJobId || targetJobId}
+            />
         </div>
 
     );

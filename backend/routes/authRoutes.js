@@ -4,8 +4,11 @@ const authController = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
 router.post('/users/sync', authController.syncUser);
+router.post('/auth/users/sync', authController.syncUser);
 router.post('/signup', authController.signup);
+router.post('/auth/signup', authController.signup);
 router.post('/login', authController.login);
+router.post('/auth/login', authController.login);
 router.post('/auth/google', authController.googleAuth);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/auth/forgot-password', authController.forgotPassword);

@@ -382,24 +382,217 @@
 }
 
 .recruiter-content .rec-dark-surface *,
-.recruiter-content [class*="bg-slate-900"] *,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) *,
 .recruiter-content [class*="bg-slate-800"] *,
 .recruiter-content [class*="bg-[#0f172a]"] * {
     color: inherit;
 }
 
-.recruiter-content [class*="bg-slate-900"] h1,
-.recruiter-content [class*="bg-slate-900"] h2,
-.recruiter-content [class*="bg-slate-900"] h3,
-.recruiter-content [class*="bg-slate-900"] h4,
-.recruiter-content [class*="bg-slate-900"] p,
-.recruiter-content [class*="bg-slate-900"] span {
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) h1,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) h2,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) h3,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) h4,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) p,
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) span {
     color: #ffffff !important;
 }
 
-.recruiter-content [class*="bg-slate-900"] [class*="text-slate-300"],
-.recruiter-content [class*="bg-slate-900"] [class*="text-slate-400"] {
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) [class*="text-slate-300"],
+.recruiter-content [class*="bg-slate-900"]:not(.buy-tickets-modal-overlay):not(.ticket-wallet-modal-overlay):not([class*="fixed"]) [class*="text-slate-400"] {
     color: #cbd5e1 !important;
 }
+
+/* =========================================================================
+   Buy Tickets & Wallet Modals - High Contrast, Crystal-Clear Legibility
+   ========================================================================= */
+.buy-tickets-modal-container,
+.ticket-wallet-modal-container {
+    color: #0f172a !important;
+}
+
+.buy-tickets-modal-container .ticket-card-white {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+
+.buy-tickets-modal-container .ticket-card-selected {
+    background-color: #f0f7ff !important;
+    border-color: #2563eb !important;
+}
+
+.buy-tickets-modal-container .ticket-title {
+    color: #0f172a !important;
+    font-size: 1.125rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+}
+
+.buy-tickets-modal-container .ticket-price-val {
+    color: #0f172a !important;
+    font-size: 1.75rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.03em !important;
+}
+
+.buy-tickets-modal-container .ticket-count-badge {
+    color: #2563eb !important;
+    font-weight: 800 !important;
+    font-size: 0.8125rem !important;
+}
+
+.buy-tickets-modal-container .ticket-unit-cost {
+    color: #64748b !important;
+    font-weight: 600 !important;
+    font-size: 0.6875rem !important;
+}
+
+.buy-tickets-modal-container .ticket-feature-item {
+    color: #334155 !important;
+    font-size: 0.725rem !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+}
+
+.buy-tickets-modal-container .ticket-badge-pill {
+    font-weight: 800 !important;
+    font-size: 0.625rem !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-select {
+    font-weight: 800 !important;
+    font-size: 0.8125rem !important;
+    border-radius: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+    text-align: center !important;
+    transition: all 0.2s ease !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-active {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.4) !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-inactive {
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-inactive:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+
+/* =========================================================================
+   Executive Solid Black Job Requisition Banner
+   Guarantees 100% black background and pure white text/stats without color wipes
+   ========================================================================= */
+.rec-job-banner-black {
+    background-color: #000000 !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 1.25rem !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.rec-job-banner-black h1,
+.rec-job-banner-black h2,
+.rec-job-banner-black h3,
+.rec-job-banner-black h4,
+.rec-job-banner-black p,
+.rec-job-banner-black span,
+.rec-job-banner-black strong {
+    color: #ffffff !important;
+}
+
+.rec-job-banner-black .badge-req {
+    background-color: #1a1e29 !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    color: #f1f5f9 !important;
+}
+
+.rec-job-banner-black .badge-candidate-count {
+    background-color: #1e3a8a !important;
+    background-image: none !important;
+    border: 1px solid #3b82f6 !important;
+    color: #dbeafe !important;
+}
+
+.rec-job-banner-black .stat-box {
+    background-color: #141722 !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 0.875rem !important;
+}
+
+.rec-job-banner-black .stat-box .stat-label {
+    color: #94a3b8 !important;
+    font-size: 0.58rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    line-height: 1.2 !important;
+}
+
+.rec-job-banner-black .stat-box .stat-val {
+    color: #ffffff !important;
+    font-size: 0.95rem !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-attended .stat-val {
+    color: #fbbf24 !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-ready {
+    background-color: rgba(16, 185, 129, 0.16) !important;
+    border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-ready .stat-label {
+    color: #a7f3d0 !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-ready .stat-val {
+    color: #34d399 !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-locked {
+    background-color: rgba(244, 63, 94, 0.16) !important;
+    border: 1px solid rgba(244, 63, 94, 0.4) !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-locked .stat-label {
+    color: #fecdd3 !important;
+}
+
+.rec-job-banner-black .stat-box.stat-box-locked .stat-val {
+    color: #fb7185 !important;
+}
+
+.rec-job-banner-black .btn-buy-job {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid #3b82f6 !important;
+    box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.5) !important;
+    border-radius: 0.875rem !important;
+}
+
+.rec-job-banner-black .btn-buy-job:hover {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    transform: translateY(-1px);
+}
+
+.rec-job-banner-black .btn-buy-job * {
+    color: #ffffff !important;
+}
+
+
 
 

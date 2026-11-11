@@ -251,6 +251,7 @@ app.use('/api/transcripts', require('./routes/transcriptRoutes'));
 app.use('/api/user-resumes', require('./routes/userResumeRoutes'));
 app.use('/api', require('./routes/recruiterUploadRoutes'));
 app.use('/api', paymentRoutes);
+app.use('/api', require('./routes/ticketRoutes'));
 app.use('/api/recruiter-knowledge', require('./routes/knowledgeHubRoutes'));
 app.use('/api/candidate/job-readiness', require('./routes/jobReadinessRoutes'));
 try {

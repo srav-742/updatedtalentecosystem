@@ -91,6 +91,17 @@ const syncUser = async (req, res) => {
         }
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(user);
+
+        // Ensure recruiter client credentials exist in MySQL and MongoDB
+        if (user.role === 'recruiter') {
+            try {
+                const { provisionClientForRecruiter } = require('./paymentController');
+                provisionClientForRecruiter(user, 'combined').catch(err => {
+                    console.warn('[AUTH-SYNC] Client provision async notice:', err.message);
+                });
+            } catch (pErr) {}
+        }
+
         res.json(user);
     } catch (error) {
         console.error("[AUTH-SYNC] Critical Failure:", error);
@@ -184,6 +195,16 @@ const signup = async (req, res) => {
         const { syncUserToProfile } = require('../utils/dbSync');
         await syncUserToProfile(user);
 
+        // Ensure recruiter client credentials exist in MySQL and MongoDB
+        if (user.role === 'recruiter') {
+            try {
+                const { provisionClientForRecruiter } = require('./paymentController');
+                provisionClientForRecruiter(user, 'combined').catch(err => {
+                    console.warn('[AUTH-SIGNUP] Client provision async notice:', err.message);
+                });
+            } catch (pErr) {}
+        }
+
         console.log(`[AUTH-SIGNUP] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
         res.status(201).json({ 
             message: "User created successfully", 
@@ -241,15 +262,50 @@ const login = async (req, res) => {
                     return res.status(401).json({ message: `This email is registered as a ${existingUserAnyRole.role}. Please log in as a ${existingUserAnyRole.role}.` });
                 }
             } else {
-                console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
-                return res.status(401).json({ message: "Invalid credentials" });
+                // ─── CHECK RECRUITER / CANDIDATE COLLECTIONS FOR ORPHANED PROFILES ───
+                const Recruiter = require('../models/Recruiter');
+                const existingRecruiter = await withRetry(
+                    () => Recruiter.findOne({ email: normalizedEmail }),
+                    { label: `login:findRecruiterFallback(${normalizedEmail})` }
+                );
+                if (existingRecruiter) {
+                    const Client = require('../models/Client');
+                    const existingClient = await Client.findOne({ description: { $regex: normalizedEmail, $options: 'i' } });
+                    const resolvedUid = existingClient && existingClient.clientId?.startsWith('client_')
+                        ? existingClient.clientId.substring(7)
+                        : (existingRecruiter.userId ? String(existingRecruiter.userId) : undefined);
+
+                    const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
+                    user = new User({
+                        _id: existingRecruiter.userId || undefined,
+                        name: existingRecruiter.name || normalizedEmail.split('@')[0],
+                        email: normalizedEmail,
+                        role: 'recruiter',
+                        uid: resolvedUid,
+                        password: hashedPassword,
+                        emailVerified: true,
+                        isPro: existingRecruiter.isPro || false,
+                        company: existingRecruiter.company || {}
+                    });
+                    await user.save();
+                    console.log(`[AUTH-LOGIN] ✅ Self-healed missing User record from Recruiter collection for ${normalizedEmail}`);
+                } else {
+                    console.log(`[AUTH-LOGIN] User not found: ${normalizedEmail} in ${Date.now() - start}ms`);
+                    return res.status(401).json({ message: "Invalid credentials" });
+                }
             }
         }
 
         // If user has no password in MongoDB (signup bug), hash and save it now (self-healing)
         if (!user.password) {
-            console.log(`[AUTH-LOGIN] User ${normalizedEmail} has no password in MongoDB — cannot verify via backend.`);
-            return res.status(401).json({ message: "Invalid credentials. Please use your original sign-in method." });
+            if (password) {
+                user.password = await bcrypt.hash(password, 10);
+                await user.save();
+                console.log(`[AUTH-LOGIN] ✅ Self-healed missing password for user: ${normalizedEmail}`);
+            } else {
+                console.log(`[AUTH-LOGIN] User ${normalizedEmail} has no password in MongoDB — cannot verify via backend.`);
+                return res.status(401).json({ message: "Invalid credentials. Please use your original sign-in method." });
+            }
         }
 
         let isMatch = await bcrypt.compare(password, user.password);

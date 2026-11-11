@@ -38,7 +38,6 @@ const SignupPage = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [acceptedTerms, setAcceptedTerms] = useState(false);
-    const [clientCredentials, setClientCredentials] = useState(null); // { clientId, clientSecret }
 
     // Email verification state for email/password signups
     const [verificationPending, setVerificationPending] = useState(null); // { email, user, role, profileData, savedProfile }
@@ -101,14 +100,11 @@ const SignupPage = () => {
             if (refreshedUser && refreshedUser.emailVerified) {
                 // Email is successfully verified! Establish session and navigate
                 localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
-
-                if (verificationPending.role === 'recruiter' && verificationPending.savedProfile && verificationPending.savedProfile.client) {
-                    setClientCredentials(verificationPending.savedProfile.client);
-                    setVerificationPending(null);
+                setVerificationPending(null);
+                if (verificationPending.role === 'admin' || verificationPending.role === 'recruiter') {
+                    navigate('/recruiter/my-jobs');
                 } else {
-                    if (verificationPending.role === 'admin') navigate('/recruiter/my-jobs');
-                    else if (verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
-                    else navigate('/candidate');
+                    navigate('/candidate');
                 }
             } else {
                 setVerificationNotice({
@@ -151,12 +147,11 @@ const SignupPage = () => {
                 });
                 localStorage.setItem('user', JSON.stringify(verificationPending.profileData));
                 setTimeout(() => {
-                    if (verificationPending.role === 'recruiter' && verificationPending.savedProfile?.client) {
-                        setClientCredentials(verificationPending.savedProfile.client);
-                        setVerificationPending(null);
+                    setVerificationPending(null);
+                    if (verificationPending.role === 'admin' || verificationPending.role === 'recruiter') {
+                        navigate('/recruiter/my-jobs');
                     } else {
-                        if (verificationPending.role === 'admin' || verificationPending.role === 'recruiter') navigate('/recruiter/my-jobs');
-                        else navigate('/candidate');
+                        navigate('/candidate');
                     }
                 }, 1000);
                 return;
@@ -379,12 +374,11 @@ const SignupPage = () => {
             // Track GA4 sign_up conversion event (zero PII)
             trackEvent('sign_up', { method: 'google', role: targetRole || 'candidate' });
 
-            if (targetRole === 'recruiter' && savedProfile && savedProfile.client) {
-                setClientCredentials(savedProfile.client);
+            setMessage({ type: 'success', text: "Account created! Logging in..." });
+            if (targetRole === 'admin' || targetRole === 'recruiter') {
+                navigate('/recruiter/my-jobs');
             } else {
-                setMessage({ type: 'success', text: "Account created! Logging in..." });
-                if (targetRole === 'admin') navigate('/recruiter/my-jobs');
-                else navigate('/candidate');
+                navigate('/candidate');
             }
 
         } catch (error) {
@@ -835,91 +829,6 @@ const SignupPage = () => {
                 </div>
             </main>
 
-            {/* Recruiter API Client Credentials Modal */}
-            <AnimatePresence>
-                {clientCredentials && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20263A]/60 backdrop-blur-md p-6">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="w-full max-w-lg bg-white border border-[#E3E5EC] rounded-[2rem] p-8 sm:p-10 shadow-[0_25px_70px_rgba(32,38,58,0.2)] relative overflow-hidden"
-                        >
-                            <div className="flex items-center gap-3 mb-6 relative z-10">
-                                <div className="w-12 h-12 rounded-2xl bg-[#F4EBDD] border border-[#E6BC6B]/40 flex items-center justify-center text-[#C99A45]">
-                                    <ShieldCheck className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-[#20263A]">Signup Successful</h2>
-                                    <p className="text-[#5E6577] text-xs">Your API client credentials have been generated.</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-5 mb-8 relative z-10">
-                                {/* Client ID */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client ID</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={clientCredentials.clientId}
-                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(clientCredentials.clientId);
-                                                alert("Client ID copied!");
-                                            }}
-                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                        >
-                                            Copy
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Client Secret */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-[#5E6577] mb-2 uppercase tracking-wider">Client Secret</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={clientCredentials.clientSecret}
-                                            className="flex-1 px-4 py-3 rounded-xl bg-[#F8F8FA] border border-[#E3E5EC] text-[#20263A] font-mono text-sm outline-none"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(clientCredentials.clientSecret);
-                                                alert("Client Secret copied!");
-                                            }}
-                                            className="px-4 py-2 bg-[#20263A] hover:bg-[#151A2D] text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                        >
-                                            Copy
-                                        </button>
-                                    </div>
-                                    <p className="text-amber-800 text-xs mt-2 font-medium flex items-center gap-1.5">
-                                        ⚠️ The Client Secret will never be shown again.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setClientCredentials(null);
-                                    navigate('/recruiter');
-                                }}
-                                className="w-full py-3.5 bg-[#20263A] hover:bg-[#151A2D] text-white font-bold rounded-xl shadow-md transition-all text-sm uppercase tracking-wider relative z-10 cursor-pointer"
-                            >
-                                Close & Continue to Dashboard
-                            </button>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };

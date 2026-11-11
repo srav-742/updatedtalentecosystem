@@ -2297,6 +2297,7 @@ const PostJob = () => {
                 </div>
 
                 {/* I. Candidate Limit */}
+                {/* ── SECTION I: ASSESSMENT ACCESS CONFIGURATION ── */}
                 <div className="rec-card p-6 md:p-8 space-y-6">
                     <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
                         <div className="flex items-center gap-3">
@@ -2305,15 +2306,56 @@ const PostJob = () => {
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                                    <span>Candidate Limit</span>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                                        Quota Control
+                                    <span>Assessment Access Configuration</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        100% Free Job Posting
                                     </span>
                                 </h2>
                                 <p className="text-xs text-slate-500">
-                                    Set how many candidates can take this job's tests and interviews. This count is strictly confidential and never visible to candidates.
+                                    Posting jobs and inviting candidates is completely free. Interview tickets (1 Ticket = 1 Assessment) are only deducted from your wallet when an eligible candidate clicks Start Assessment.
                                 </p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Mode A vs Mode B Selection Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div
+                            onClick={() => setJobData(prev => ({ ...prev, isRestrictedToWhitelist: false }))}
+                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                !jobData.isRestrictedToWhitelist
+                                    ? 'border-blue-600 bg-blue-50/50 shadow-sm ring-1 ring-blue-500/20'
+                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs font-bold text-slate-900">Mode A: Open Assessment</span>
+                                {!jobData.isRestrictedToWhitelist && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">Active</span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 leading-relaxed">
+                                Any eligible applicant who meets resume criteria can start the assessment. Consumes 1 ticket per candidate who begins.
+                            </p>
+                        </div>
+
+                        <div
+                            onClick={() => setJobData(prev => ({ ...prev, isRestrictedToWhitelist: true }))}
+                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                jobData.isRestrictedToWhitelist
+                                    ? 'border-purple-600 bg-purple-50/50 shadow-sm ring-1 ring-purple-500/20'
+                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs font-bold text-slate-900">Mode B: Selected Candidates Only</span>
+                                {jobData.isRestrictedToWhitelist && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">Active</span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 leading-relaxed">
+                                Only specifically invited candidate email addresses can start the assessment. Consumes 1 ticket per invited candidate who begins.
+                            </p>
                         </div>
                     </div>
 
@@ -2332,10 +2374,10 @@ const PostJob = () => {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-sm font-bold text-slate-900">
-                                                Candidate Email Verification (Invite-Only)
+                                                Selected Candidate Email List
                                             </h3>
                                             <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full uppercase">
-                                                Recommended
+                                                Mode B
                                             </span>
                                         </div>
                                         <p className="text-[11px] text-slate-500">

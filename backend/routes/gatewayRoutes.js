@@ -220,4 +220,80 @@ router.get('/check-vinay', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/gateway/clients
+ * Admin endpoint to list all provisioned API clients with their credentials
+ */
+router.get('/clients', async (req, res) => {
+    try {
+        const PlaintextClientCredential = require('../models/PlaintextClientCredential');
+        const Client = require('../models/Client');
+        const User = require('../models/User');
+        const RecruiterTicketWallet = require('../models/RecruiterTicketWallet');
+
+        const filter = req.query.q ? String(req.query.q).toLowerCase().trim() : '';
+
+        const [plaintexts, clients, users, wallets] = await Promise.all([
+            PlaintextClientCredential.find().sort({ createdAt: -1 }).lean(),
+            Client.find().lean(),
+            User.find().lean(),
+            RecruiterTicketWallet.find().lean()
+        ]);
+
+        const clientMap = new Map();
+        clients.forEach(c => clientMap.set(c.clientId, c));
+
+        const userMap = new Map();
+        users.forEach(u => {
+            if (u.uid) userMap.set(u.uid, u);
+            if (u._id) userMap.set(u._id.toString(), u);
+            if (u.email) userMap.set(u.email.toLowerCase(), u);
+        });
+
+        const walletMap = new Map();
+        wallets.forEach(w => walletMap.set(w.recruiterId, w));
+
+        let results = plaintexts.map(p => {
+            const rawId = p.clientId.replace(/^client_/, '');
+            const matchedUser = userMap.get(rawId) || userMap.get(p.clientId);
+            const matchedClient = clientMap.get(p.clientId);
+            const matchedWallet = walletMap.get(rawId) || walletMap.get(matchedUser?.uid) || walletMap.get(matchedUser?._id?.toString());
+
+            return {
+                clientName: p.name || matchedClient?.name || matchedUser?.name || 'Recruiter Client',
+                email: matchedUser?.email || null,
+                clientId: p.clientId,
+                clientSecret: p.clientSecretRaw,
+                status: p.status || matchedClient?.status || 'active',
+                availableTickets: matchedWallet?.availableTickets || 0,
+                totalTicketsPurchased: matchedWallet?.totalPurchased || 0,
+                jobsCount: matchedWallet?.jobs?.length || 0,
+                jobs: matchedWallet?.jobs || [],
+                createdAt: p.createdAt
+            };
+        });
+
+        if (filter) {
+            results = results.filter(r => 
+                (r.clientName && r.clientName.toLowerCase().includes(filter)) ||
+                (r.email && r.email.toLowerCase().includes(filter)) ||
+                (r.clientId && r.clientId.toLowerCase().includes(filter))
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            count: results.length,
+            clients: results
+        });
+    } catch (err) {
+        console.error('[GATEWAY-CLIENTS] Error:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve clients',
+            error: err.message
+        });
+    }
+});
+
 module.exports = router;

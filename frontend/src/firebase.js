@@ -278,6 +278,22 @@ export const getAuthHeaders = async () => {
         headers['x-refresh-token'] = localRefreshToken;
     }
 
+    // 3. Attach OAuth Access Token UUID for API Gateway Inbound & Auth Service validation
+    const accessTokenUUID = localStorage.getItem('accessTokenUUID') || 
+        (() => {
+            try {
+                return JSON.parse(localStorage.getItem('authSessionTokens') || '{}')?.accessToken;
+            } catch (e) {
+                return null;
+            }
+        })();
+    if (accessTokenUUID) {
+        headers['ACCESS_TOKEN'] = accessTokenUUID;
+        if (!headers['Authorization']) {
+            headers['Authorization'] = `Bearer ${accessTokenUUID}`;
+        }
+    }
+
     return headers;
 };
 

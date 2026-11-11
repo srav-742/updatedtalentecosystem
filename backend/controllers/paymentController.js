@@ -1,13 +1,173 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const axios = require('axios');
+const bcrypt = require('bcryptjs');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { findRecruiterUser } = require('../utils/userResolver');
 
+/**
+ * Provision / Update recruiter client and roles in Authorization Service (MySQL) & MongoDB
+ */
+const provisionClientForRecruiter = async (user, plan = 'combined', customClientName = null) => {
+    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:8080/oauth-service';
+    const apiGatewayUrl = process.env.API_GATEWAY_URL || 'http://localhost:9090';
+    let clientProvisionResult = null;
+    let authSessionTokens = null;
+
+    const uid = user.uid || user._id.toString();
+    const clientId = `client_${uid}`;
+
+    // 1. Resolve or generate unique client secret
+    const Client = require('../models/Client');
+    const Role = require('../models/Role');
+    const ClientRole = require('../models/ClientRole');
+    const PlaintextClientCredential = require('../models/PlaintextClientCredential');
+
+    let clientSecretPlain = null;
+    try {
+        const existingPlaintext = await PlaintextClientCredential.findOne({ clientId });
+        if (existingPlaintext && existingPlaintext.clientSecretRaw) {
+            clientSecretPlain = existingPlaintext.clientSecretRaw;
+        } else {
+            clientSecretPlain = `h1p_sec_${crypto.randomBytes(8).toString('hex')}`;
+        }
+    } catch (e) {
+        clientSecretPlain = `h1p_sec_${crypto.randomBytes(8).toString('hex')}`;
+    }
+
+    // 2. Provision / Update Client & Roles in API Gateway Inbound / Auth Service
+    let clientName = customClientName
+        || (user.company && user.company.name)
+        || user.name
+        || (user.email ? user.email.split('@')[0] : 'Recruiter Client');
+
+    const registerPayload = {
+        uid: uid,
+        plan: plan, // Grants RECRUITER_POST_JOB & RECRUITER_VIEW_APPLICANTS
+        clientName: clientName
+    };
+
+    // Try API Gateway inbound first (/oauth-service/api/v1/auth/client/register), then direct Auth-Service
+    const targetEndpoints = [
+        `${apiGatewayUrl}/oauth-service/api/v1/auth/client/register`,
+        `${authServiceUrl}/api/v1/auth/client/register`,
+        `${apiGatewayUrl}/api/v1/auth/client/register`,
+        `${apiGatewayUrl}/api/gateway/client/register`
+    ];
+
+    for (const endpoint of targetEndpoints) {
+        try {
+            const regRes = await axios.post(endpoint, registerPayload, {
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
+                timeout: 4000
+            });
+            if (regRes.data && (regRes.data.success || regRes.data.clientId)) {
+                clientProvisionResult = regRes.data;
+                if (regRes.data.clientSecret) {
+                    clientSecretPlain = regRes.data.clientSecret;
+                }
+                if (regRes.data.clientName) {
+                    clientName = regRes.data.clientName;
+                }
+                console.log(`[PROVISION] Successfully registered client with Gateway/Auth-Service via ${endpoint}`);
+                break;
+            }
+        } catch (callErr) {
+            console.warn(`[PROVISION] Failed registering client at ${endpoint}:`, callErr.response?.data?.message || callErr.response?.data || callErr.message);
+        }
+    }
+
+    // 3. Synchronize with MongoDB Client, Role, ClientRole, and PlaintextClientCredential models
+    try {
+        const hashedSecret = await bcrypt.hash(clientSecretPlain, 10);
+
+        let mongoClient = await Client.findOne({ clientId });
+        if (!mongoClient) {
+            mongoClient = new Client({
+                clientId,
+                clientSecret: hashedSecret,
+                name: clientName,
+                status: 'active'
+            });
+            await mongoClient.save();
+        } else {
+            mongoClient.clientSecret = hashedSecret;
+            mongoClient.name = clientName;
+            mongoClient.status = 'active';
+            await mongoClient.save();
+        }
+
+        let premiumRole = await Role.findOne({ name: 'premium_recruiter' });
+        if (!premiumRole) {
+            premiumRole = new Role({
+                name: 'premium_recruiter',
+                description: 'Paid/pro recruiter with access to applicants'
+            });
+            await premiumRole.save();
+        }
+
+        await ClientRole.findOneAndUpdate(
+            { client: mongoClient._id, role: premiumRole._id },
+            { client: mongoClient._id, role: premiumRole._id },
+            { upsert: true, new: true }
+        );
+
+        await PlaintextClientCredential.findOneAndUpdate(
+            { clientId },
+            { 
+                clientId, 
+                clientSecretRaw: clientSecretPlain,
+                name: clientName,
+                description: `API Client for recruiter: ${user.email}`,
+                status: 'active'
+            },
+            { upsert: true, new: true }
+        );
+
+        console.log(`[PROVISION] Stored client credentials for ${user.email} (Client ID: ${clientId})`);
+    } catch (mongoErr) {
+        console.error('[PROVISION] MongoDB client sync error:', mongoErr.message);
+    }
+
+    // 4. Authenticate to generate active OAuth session tokens if auth service available
+    try {
+        const basicAuth = Buffer.from(`${clientId}:${clientSecretPlain}`).toString('base64');
+        const tokenRes = await axios.post(`${authServiceUrl}/oauth/authenticate`, {}, {
+            headers: { 'Authorization': `Basic ${basicAuth}` },
+            timeout: 3000
+        });
+        if (tokenRes.data) {
+            authSessionTokens = tokenRes.data;
+        }
+    } catch (tokErr) {
+        // Fallback local JWT tokens
+        try {
+            const { generateAccessToken, generateRefreshToken } = require('../services/authService');
+            authSessionTokens = {
+                accessToken: generateAccessToken(user),
+                refreshToken: generateRefreshToken(user)
+            };
+        } catch (jwtErr) {}
+    }
+
+    return {
+        client: {
+            clientId: clientId,
+            clientSecret: clientSecretPlain,
+            name: clientName,
+            roles: ['premium_recruiter', 'RECRUITER_VIEW_APPLICANTS', 'RECRUITER_POST_JOB']
+        },
+        tokens: authSessionTokens
+    };
+};
+
 // Initialize Razorpay Instance with environment variables
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Sr8a8DZ72jBYCu',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'g3rX2v3RjUf2F2h9a3A0K2cQ',
 });
 
 /**
@@ -100,6 +260,16 @@ exports.verifyPayment = async (req, res) => {
             });
         }
 
+        // Idempotency: Return early if already verified and paid
+        if (transaction.status === 'paid') {
+            return res.status(200).json({
+                success: true,
+                message: "Payment already verified and processed.",
+                transactionId: transaction._id,
+                alreadyProcessed: true
+            });
+        }
+
         // Generate SHA256 HMAC digest to verify authenticity of payment
         const text = razorpay_order_id + "|" + razorpay_payment_id;
         const generatedSignature = crypto
@@ -114,56 +284,36 @@ exports.verifyPayment = async (req, res) => {
             transaction.status = 'paid';
             await transaction.save();
 
-            // Here we can unlock the premium plan / upgrade recruiter credits
-            // For modularity, we will also update the user's role/plan if applicable
+            // Unlock premium recruiter plan
             const updatedUser = await User.findByIdAndUpdate(transaction.userId, {
-                $set: { hiringPattern: "Premium Recruiter", isPro: true } // Updates status safely without breaking userSchema fields
+                $set: { hiringPattern: "Premium Recruiter", isPro: true }
             }, { new: true });
 
+            let provisionData = null;
             if (updatedUser) {
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(updatedUser);
 
-                // Dynamically link client credentials to the premium_recruiter role as well
-                try {
-                    const Client = require('../models/Client');
-                    const Role = require('../models/Role');
-                    const ClientRole = require('../models/ClientRole');
-
-                    // Locate client record for the user (can be client_userId or matching by user lookup)
-                    const client = await Client.findOne({ 
-                        $or: [
-                            { clientId: `client_${updatedUser._id}` },
-                            { clientId: `client_${updatedUser.uid}` }
-                        ]
-                    });
-
-                    if (client) {
-                        let premiumRole = await Role.findOne({ name: 'premium_recruiter' });
-                        if (!premiumRole) {
-                            premiumRole = new Role({
-                                name: 'premium_recruiter',
-                                description: 'Paid/pro recruiter with access to applicants'
-                            });
-                            await premiumRole.save();
-                        }
-
-                        await ClientRole.findOneAndUpdate(
-                            { client: client._id, role: premiumRole._id },
-                            { client: client._id, role: premiumRole._id },
-                            { upsert: true, new: true }
-                        );
-                        console.log(`[PAYMENT-SUCCESS] Associated premium_recruiter role with Client: ${client.clientId}`);
-                    }
-                } catch (clientRoleErr) {
-                    console.error('[PAYMENT-SUCCESS] Failed to map client role:', clientRoleErr.message);
-                }
+                // Automatic Client Provisioning in Auth Service (MySQL 8.4) & MongoDB
+                provisionData = await provisionClientForRecruiter(updatedUser, 'combined');
             }
 
             return res.status(200).json({
                 success: true,
-                message: "Payment verified and processed successfully.",
-                transactionId: transaction._id
+                message: "Payment verified and recruiter credentials provisioned successfully.",
+                transactionId: transaction._id,
+                user: updatedUser ? {
+                    id: updatedUser._id,
+                    uid: updatedUser.uid,
+                    email: updatedUser.email,
+                    isPro: true,
+                    hiringPattern: updatedUser.hiringPattern
+                } : null,
+                client: provisionData?.client ? {
+                    clientId: provisionData.client.clientId,
+                    roles: provisionData.client.roles
+                } : null,
+                tokens: provisionData?.tokens
             });
         } else {
             // Signature verification failed
@@ -544,11 +694,19 @@ exports.payUpgradeWithWallet = async (req, res) => {
         });
         await transaction.save();
 
+        // Automatic Client Provisioning in Auth Service (MySQL 8.4) & MongoDB
+        const provisionData = await provisionClientForRecruiter(user, 'combined');
+
         return res.status(200).json({
             success: true,
             message: "Successfully upgraded to Premium Recruiter using wallet balance!",
             balance: user.walletBalance,
-            user
+            user,
+            client: provisionData?.client ? {
+                clientId: provisionData.client.clientId,
+                roles: provisionData.client.roles
+            } : null,
+            tokens: provisionData?.tokens
         });
     } catch (error) {
         console.error("[WALLET-UPGRADE-ERROR] Details:", error);
@@ -559,4 +717,6 @@ exports.payUpgradeWithWallet = async (req, res) => {
         });
     }
 };
+
+exports.provisionClientForRecruiter = provisionClientForRecruiter;
 
