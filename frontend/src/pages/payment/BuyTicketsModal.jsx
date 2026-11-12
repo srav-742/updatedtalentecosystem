@@ -404,7 +404,10 @@ export default function BuyTicketsModal({
                             <span>Assigning tickets to:</span>
                             <strong className="text-blue-900 truncate">{jobs[0].title}</strong>
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-600 text-white shrink-0">
+                        <span 
+                            className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded shrink-0 shadow-2xs"
+                            style={{ color: '#ffffff', backgroundColor: '#2563eb' }}
+                        >
                             Active Requisition
                         </span>
                     </div>

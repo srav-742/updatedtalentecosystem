@@ -140,9 +140,60 @@ body {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-white"],
-.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-gray-300"] {
+.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *):not(.assessment-modal-header):not(.assessment-modal-header *):not(.interview-modal-header):not(.interview-modal-header *):not(.proctoring-modal-header):not(.proctoring-modal-header *):not(.video-intro-modal):not(.video-intro-modal *):not(.coding-detail-modal):not(.coding-detail-modal *):not(.rec-modal-dark):not(.rec-modal-dark *) [class~="text-white"],
+.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *):not(.assessment-modal-header):not(.assessment-modal-header *):not(.interview-modal-header):not(.interview-modal-header *):not(.proctoring-modal-header):not(.proctoring-modal-header *):not(.video-intro-modal):not(.video-intro-modal *):not(.coding-detail-modal):not(.coding-detail-modal *):not(.rec-modal-dark):not(.rec-modal-dark *) [class~="text-gray-300"] {
   color: #111827 !important;
+}
+
+/* Protected white text on dark modal headers and cards */
+.recruiter-content .assessment-modal-header h1,
+.recruiter-content .assessment-modal-header h2,
+.recruiter-content .assessment-modal-header h3,
+.recruiter-content .assessment-modal-header div,
+.recruiter-content .assessment-modal-header span,
+.recruiter-content .assessment-modal-header p,
+.recruiter-content .assessment-modal-header [class*="text-white"],
+.recruiter-content .interview-modal-header h1,
+.recruiter-content .interview-modal-header h2,
+.recruiter-content .interview-modal-header h3,
+.recruiter-content .interview-modal-header div,
+.recruiter-content .interview-modal-header span,
+.recruiter-content .interview-modal-header p,
+.recruiter-content .interview-modal-header [class*="text-white"],
+.recruiter-content .proctoring-modal-header h1,
+.recruiter-content .proctoring-modal-header h2,
+.recruiter-content .proctoring-modal-header h3,
+.recruiter-content .proctoring-modal-header div,
+.recruiter-content .proctoring-modal-header span,
+.recruiter-content .proctoring-modal-header p,
+.recruiter-content .proctoring-modal-header [class*="text-white"],
+.recruiter-content .video-intro-modal h1,
+.recruiter-content .video-intro-modal h2,
+.recruiter-content .video-intro-modal h3,
+.recruiter-content .video-intro-modal h4,
+.recruiter-content .video-intro-modal div,
+.recruiter-content .video-intro-modal span,
+.recruiter-content .video-intro-modal [class*="text-white"],
+.recruiter-content .rec-modal-dark h1,
+.recruiter-content .rec-modal-dark h2,
+.recruiter-content .rec-modal-dark h3,
+.recruiter-content .rec-modal-dark h4,
+.recruiter-content .rec-modal-dark span,
+.recruiter-content .rec-modal-dark [class*="text-white"],
+.recruiter-content .coding-detail-modal [class*="text-white"] {
+  color: #ffffff !important;
+}
+
+.recruiter-content .assessment-modal-header [class*="text-gray-300"],
+.recruiter-content .assessment-modal-header [class*="text-gray-200"],
+.recruiter-content .interview-modal-header [class*="text-gray-300"],
+.recruiter-content .interview-modal-header [class*="text-gray-200"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-300"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-200"],
+.recruiter-content .video-intro-modal [class*="text-gray-400"],
+.recruiter-content .video-intro-modal p,
+.recruiter-content .rec-modal-dark [class*="text-gray-400"] {
+  color: #cbd5e1 !important;
 }
 
 .recruiter-content [class~="text-gray-400"],
@@ -168,20 +219,102 @@ body {
   color: #ffffff !important;
 }
 
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-black"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-blue-600"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-teal-600"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-purple-600"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-indigo-600"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-gray-600"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-red-500"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-green-500"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-emerald-500"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-orange-500"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-amber-500"] *,
-.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) :is(button, a)[class~="bg-white"][class~="text-black"] * {
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-black"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-blue-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-teal-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-purple-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-indigo-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-gray-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-red-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-green-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-emerald-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-orange-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) [class~="bg-amber-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.assessment-modal-header *):not(.interview-modal-header *):not(.proctoring-modal-header *):not(.video-intro-modal *):not(.rec-modal-dark *):not(.coding-detail-modal *) :is(button, a)[class~="bg-white"][class~="text-black"] * {
   color: inherit !important;
+}
+
+/* ─── Universal High-Priority White Text Protection for Modal Headers ─── */
+.recruiter-content .assessment-modal-header,
+.recruiter-content .assessment-modal-header *,
+.recruiter-content .interview-modal-header,
+.recruiter-content .interview-modal-header *,
+.recruiter-content .proctoring-modal-header,
+.recruiter-content .proctoring-modal-header *,
+.recruiter-content .video-intro-modal,
+.recruiter-content .video-intro-modal *,
+.recruiter-content .rec-modal-dark,
+.recruiter-content .rec-modal-dark *,
+.recruiter-content .coding-detail-modal,
+.recruiter-content .coding-detail-modal *,
+.assessment-modal-header,
+.assessment-modal-header *,
+.interview-modal-header,
+.interview-modal-header *,
+.proctoring-modal-header,
+.proctoring-modal-header *,
+.video-intro-modal,
+.video-intro-modal *,
+.rec-modal-dark,
+.rec-modal-dark *,
+.coding-detail-modal,
+.coding-detail-modal * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  fill: currentColor !important;
+}
+
+.recruiter-content .assessment-modal-header svg,
+.recruiter-content .assessment-modal-header svg *,
+.recruiter-content .interview-modal-header svg,
+.recruiter-content .interview-modal-header svg *,
+.recruiter-content .proctoring-modal-header svg,
+.recruiter-content .proctoring-modal-header svg *,
+.recruiter-content .video-intro-modal svg,
+.recruiter-content .video-intro-modal svg *,
+.recruiter-content .rec-modal-dark svg,
+.recruiter-content .rec-modal-dark svg *,
+.recruiter-content .coding-detail-modal svg,
+.recruiter-content .coding-detail-modal svg *,
+.assessment-modal-header svg,
+.assessment-modal-header svg *,
+.interview-modal-header svg,
+.interview-modal-header svg *,
+.proctoring-modal-header svg,
+.proctoring-modal-header svg *,
+.video-intro-modal svg,
+.video-intro-modal svg *,
+.rec-modal-dark svg,
+.rec-modal-dark svg *,
+.coding-detail-modal svg,
+.coding-detail-modal svg * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.recruiter-content .assessment-modal-header [class*="text-gray-300"],
+.recruiter-content .assessment-modal-header [class*="text-gray-200"],
+.recruiter-content .interview-modal-header [class*="text-gray-300"],
+.recruiter-content .interview-modal-header [class*="text-gray-200"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-300"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-200"],
+.recruiter-content .video-intro-modal [class*="text-gray-400"],
+.recruiter-content .video-intro-modal [class*="text-gray-500"],
+.recruiter-content .video-intro-modal p,
+.recruiter-content .rec-modal-dark [class*="text-gray-400"],
+.assessment-modal-header [class*="text-gray-300"],
+.assessment-modal-header [class*="text-gray-200"],
+.interview-modal-header [class*="text-gray-300"],
+.interview-modal-header [class*="text-gray-200"],
+.proctoring-modal-header [class*="text-gray-300"],
+.proctoring-modal-header [class*="text-gray-200"],
+.video-intro-modal [class*="text-gray-400"],
+.video-intro-modal [class*="text-gray-500"],
+.video-intro-modal p,
+.rec-modal-dark [class*="text-gray-400"] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
 }
 
 /* All dark buttons and action elements in recruiter-content MUST have crisp white text and white icons */
@@ -270,6 +403,15 @@ body {
 .buy-tickets-modal-container .ticket-btn-unselected * {
   color: #0f172a !important;
   background-color: #f8fafc !important;
+}
+
+.buy-tickets-modal-container [class*="bg-blue-600"],
+.buy-tickets-modal-container [class*="bg-blue-600"] * {
+  color: #ffffff !important;
+}
+
+.recruiter-content table button svg {
+  fill: none !important;
 }
 
 .recruiter-content input:not([type="range"]):not([type="file"]),

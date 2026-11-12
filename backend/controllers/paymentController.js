@@ -522,19 +522,30 @@ exports.unlockApplicant = async (req, res) => {
             });
         }
 
-        if ((recruiter.walletBalance || 0) < cost) {
+        // Check if recruiter has ticket package / active tickets (already paying for candidate evaluation)
+        const ticketService = require('../services/ticketService');
+        const ticketWallet = await ticketService.getWallet(recruiter._id);
+        const isAlreadyPaying = Boolean(
+            (ticketWallet && (ticketWallet.totalPurchased > 0 || ticketWallet.availableTickets > 0)) ||
+            recruiter.isPro ||
+            recruiter.hiringPattern === 'Premium Recruiter'
+        );
+
+        if ((recruiter.walletBalance || 0) < cost && !isAlreadyPaying) {
             return res.status(400).json({
                 success: false,
                 message: `Insufficient wallet balance. You need ₹${cost.toFixed(2)} to unlock, but have ₹${(recruiter.walletBalance || 0).toFixed(2)}.`
             });
         }
 
-        // Deduct balance and save recruiter
-        recruiter.walletBalance = Number(((recruiter.walletBalance || 0) - cost).toFixed(2));
-        await recruiter.save();
+        // Deduct balance only if not covered by active ticket plan
+        if (!isAlreadyPaying && (recruiter.walletBalance || 0) >= cost) {
+            recruiter.walletBalance = Number(((recruiter.walletBalance || 0) - cost).toFixed(2));
+            await recruiter.save();
 
-        const { syncUserToProfile } = require('../utils/dbSync');
-        await syncUserToProfile(recruiter);
+            const { syncUserToProfile } = require('../utils/dbSync');
+            await syncUserToProfile(recruiter);
+        }
 
         // Create or update unlock entry
         if (!unlockRecord) {

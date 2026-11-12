@@ -336,33 +336,74 @@
 
 /* 8. Modal & Dialog Protection */
 .rec-modal-dark,
+.rec-modal-dark *,
+.video-intro-modal,
+.video-intro-modal *,
+.assessment-modal-header,
+.assessment-modal-header *,
+.interview-modal-header,
+.interview-modal-header *,
+.proctoring-modal-header,
+.proctoring-modal-header *,
+.coding-detail-modal,
+.coding-detail-modal *,
+.recruiter-content .rec-modal-dark,
+.recruiter-content .rec-modal-dark *,
+.recruiter-content .video-intro-modal,
+.recruiter-content .video-intro-modal *,
+.recruiter-content .assessment-modal-header,
+.recruiter-content .assessment-modal-header *,
+.recruiter-content .interview-modal-header,
+.recruiter-content .interview-modal-header *,
+.recruiter-content .proctoring-modal-header,
+.recruiter-content .proctoring-modal-header *,
+.recruiter-content .coding-detail-modal,
+.recruiter-content .coding-detail-modal *,
 [class*="bg-[#1a1d24]"],
 [class*="bg-[#11131a]"],
 [class*="bg-zinc-950"] {
-    background-color: #0f172a !important;
     color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    -webkit-text-fill-color: #ffffff !important;
 }
 
-.rec-modal-dark h1,
-.rec-modal-dark h2,
-.rec-modal-dark h3,
-.rec-modal-dark h4,
-.rec-modal-dark p,
-.rec-modal-dark span,
-[class*="bg-[#1a1d24]"] h1,
-[class*="bg-[#1a1d24]"] h2,
-[class*="bg-[#1a1d24]"] h3,
-[class*="bg-[#1a1d24]"] h4,
-[class*="bg-[#1a1d24]"] p,
-[class*="bg-[#1a1d24]"] span,
-[class*="bg-zinc-950"] h1,
-[class*="bg-zinc-950"] h2,
-[class*="bg-zinc-950"] h3,
-[class*="bg-zinc-950"] h4,
-[class*="bg-zinc-950"] p,
-[class*="bg-zinc-950"] span {
-    color: inherit;
+.assessment-modal-header svg,
+.interview-modal-header svg,
+.proctoring-modal-header svg,
+.video-intro-modal svg,
+.rec-modal-dark svg,
+.coding-detail-modal svg,
+.recruiter-content .assessment-modal-header svg,
+.recruiter-content .interview-modal-header svg,
+.recruiter-content .proctoring-modal-header svg,
+.recruiter-content .video-intro-modal svg,
+.recruiter-content .rec-modal-dark svg,
+.recruiter-content .coding-detail-modal svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+}
+
+.assessment-modal-header [class*="text-gray-300"],
+.assessment-modal-header [class*="text-gray-200"],
+.interview-modal-header [class*="text-gray-300"],
+.interview-modal-header [class*="text-gray-200"],
+.proctoring-modal-header [class*="text-gray-300"],
+.proctoring-modal-header [class*="text-gray-200"],
+.video-intro-modal [class*="text-gray-400"],
+.video-intro-modal [class*="text-gray-500"],
+.video-intro-modal p,
+.rec-modal-dark [class*="text-gray-400"],
+.recruiter-content .assessment-modal-header [class*="text-gray-300"],
+.recruiter-content .assessment-modal-header [class*="text-gray-200"],
+.recruiter-content .interview-modal-header [class*="text-gray-300"],
+.recruiter-content .interview-modal-header [class*="text-gray-200"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-300"],
+.recruiter-content .proctoring-modal-header [class*="text-gray-200"],
+.recruiter-content .video-intro-modal [class*="text-gray-400"],
+.recruiter-content .video-intro-modal [class*="text-gray-500"],
+.recruiter-content .video-intro-modal p,
+.recruiter-content .rec-modal-dark [class*="text-gray-400"] {
+    color: #cbd5e1 !important;
+    -webkit-text-fill-color: #cbd5e1 !important;
 }
 
 /* Table Hover & Scrollbar */

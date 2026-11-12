@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Users, Search, Filter, MoreVertical, CheckCircle2, Eye, Video, Github, Linkedin, Sparkles, XCircle, UploadCloud, Wallet, Plus, Share2, FileText, Wand2, RotateCcw, Ticket, AlertCircle, Briefcase, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
@@ -1181,10 +1182,11 @@ const Applicants = () => {
                                                                     e.stopPropagation();
                                                                     setUnlockingItem({ id: app.id, type: 'interview', cost: 10 });
                                                                 }}
-                                                                className="w-10 h-10 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer animate-pulse"
-                                                                title="Unlock Candidate to Watch Video (₹10)"
+                                                                className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xs"
+                                                                style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#d97706' }}
+                                                                title="Unlock Candidate to Watch Video"
                                                             >
-                                                                <Video size={16} />
+                                                                <Eye size={15} style={{ color: '#d97706', stroke: '#d97706' }} />
                                                             </button>
                                                         ) : app.videoIntroUrl ? (
                                                             <button
@@ -1195,30 +1197,40 @@ const Applicants = () => {
                                                                     setSelectedVideoCandidateName(app.name);
                                                                     setShowVideoModal(true);
                                                                 }}
-                                                                className="w-10 h-10 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/5 group/video"
+                                                                className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs cursor-pointer"
+                                                                style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb' }}
                                                                 title="Watch Candidate Introduction"
                                                             >
-                                                                <Video size={16} className="group-hover/video:scale-110 transition-transform" />
+                                                                <Eye size={15} style={{ color: '#2563eb', stroke: '#2563eb' }} />
                                                             </button>
                                                         ) : (
-                                                            <span className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">N/A</span>
+                                                            <span 
+                                                                className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1.5 rounded-lg"
+                                                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', color: '#64748b' }}
+                                                            >
+                                                                N/A
+                                                            </span>
                                                         )}
                                                     </div>
                                                  </td>
                                                  <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                      <div className="flex items-center justify-center">
-                                                         <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-500/5 border border-blue-500/10 text-blue-400 font-extrabold text-sm shadow-sm">
-                                                             <span>{app.resumeScore}/10</span>
+                                                         <div 
+                                                             className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl font-extrabold text-sm shadow-sm"
+                                                             style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb' }}
+                                                         >
+                                                             <span style={{ color: '#2563eb' }}>{app.resumeScore}/10</span>
                                                              {app.isResumeLocked ? (
                                                                  <button
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
                                                                          setUnlockingItem({ id: app.id, type: 'resume', cost: 3 });
                                                                      }}
-                                                                     className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                                                                     title="Unlock Candidate Resume (₹3)"
+                                                                     className="p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                     style={{ color: '#d97706', backgroundColor: '#fef3c7' }}
+                                                                     title="Unlock Candidate Resume"
                                                                  >
-                                                                     <Eye size={15} />
+                                                                     <Eye size={15} style={{ color: '#d97706', stroke: '#d97706' }} />
                                                                  </button>
                                                              ) : (
                                                                  <button
@@ -1227,10 +1239,11 @@ const Applicants = () => {
                                                                          setSelectedResumeUserId(app.userId);
                                                                          setShowGeneratedResumeModal(true);
                                                                      }}
-                                                                     className="text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10 p-1 rounded-lg transition-all hover:scale-105 active:scale-95"
+                                                                     className="p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                     style={{ color: '#2563eb', backgroundColor: '#dbeafe' }}
                                                                      title="View AI Parsed Resume"
                                                                  >
-                                                                     <Eye size={15} />
+                                                                     <Eye size={15} style={{ color: '#2563eb', stroke: '#2563eb' }} />
                                                                  </button>
                                                              )}
                                                          </div>
@@ -1239,8 +1252,11 @@ const Applicants = () => {
                                                  {showAssessment && (
                                                  <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
-                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-orange-500/5 border border-orange-500/10 text-orange-400 font-extrabold text-sm shadow-sm">
-                                                              <span>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
+                                                          <div 
+                                                              className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl font-extrabold text-sm shadow-sm"
+                                                              style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#ea580c' }}
+                                                          >
+                                                              <span style={{ color: '#ea580c' }}>{app.assessmentScore !== null && app.assessmentScore !== undefined ? `${app.assessmentScore}/20` : '-'}</span>
                                                               {app.assessmentScore !== null && app.assessmentScore !== undefined && (
                                                                   <button
                                                                       onMouseEnter={() => !app.isAssessmentLocked && prefetchAssessmentDetails(app.id)}
@@ -1248,10 +1264,14 @@ const Applicants = () => {
                                                                           e.stopPropagation();
                                                                           handleViewAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
-                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-orange-400/80 hover:text-orange-300 hover:bg-orange-500/10'}`}
-                                                                      title={app.isAssessmentLocked ? "Unlock Assessment Details (₹5)" : "View Assessment Details"}
+                                                                      className="p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                      style={{ 
+                                                                          color: app.isAssessmentLocked ? '#d97706' : '#ea580c',
+                                                                          backgroundColor: app.isAssessmentLocked ? '#fef3c7' : '#ffedd5'
+                                                                      }}
+                                                                      title={app.isAssessmentLocked ? "Unlock Assessment Details" : "View Assessment Details"}
                                                                   >
-                                                                      <Eye size={15} />
+                                                                      <Eye size={15} style={{ color: app.isAssessmentLocked ? '#d97706' : '#ea580c', stroke: app.isAssessmentLocked ? '#d97706' : '#ea580c' }} />
                                                                   </button>
                                                               )}
                                                           </div>
@@ -1261,8 +1281,11 @@ const Applicants = () => {
                                                  {showCoding && (
                                                  <td className="py-5 px-2 text-center" style={{ whiteSpace: 'nowrap' }}>
                                                       <div className="flex items-center justify-center">
-                                                          <div className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl bg-teal-500/5 border border-teal-500/10 text-teal-400 font-extrabold text-sm shadow-sm">
-                                                              <span>{app.codingScore !== null && app.codingScore !== undefined ? `${app.codingScore}/100` : '-'}</span>
+                                                          <div 
+                                                              className="inline-flex items-center justify-center gap-2.5 px-3 py-1.5 rounded-xl font-extrabold text-sm shadow-sm"
+                                                              style={{ backgroundColor: '#f0fdfa', border: '1px solid #99f6e4', color: '#0d9488' }}
+                                                          >
+                                                              <span style={{ color: '#0d9488' }}>{app.codingScore !== null && app.codingScore !== undefined ? `${app.codingScore}/100` : '-'}</span>
                                                               {app.codingScore !== null && app.codingScore !== undefined && (
                                                                   <button
                                                                       onMouseEnter={() => !app.isAssessmentLocked && prefetchCodingDetails(app.id)}
@@ -1270,10 +1293,14 @@ const Applicants = () => {
                                                                           e.stopPropagation();
                                                                           handleViewCodingAssessment(app.id, app.isAssessmentLocked);
                                                                       }}
-                                                                      className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isAssessmentLocked ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-teal-400/80 hover:text-teal-300 hover:bg-teal-500/10'}`}
-                                                                      title={app.isAssessmentLocked ? "Unlock Coding Details (₹5)" : "View Coding Details"}
+                                                                      className="p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                      style={{ 
+                                                                          color: app.isAssessmentLocked ? '#d97706' : '#0d9488',
+                                                                          backgroundColor: app.isAssessmentLocked ? '#fef3c7' : '#ccfbf1'
+                                                                      }}
+                                                                      title={app.isAssessmentLocked ? "Unlock Coding Details" : "View Coding Details"}
                                                                   >
-                                                                      <Eye size={15} />
+                                                                      <Eye size={15} style={{ color: app.isAssessmentLocked ? '#d97706' : '#0d9488', stroke: app.isAssessmentLocked ? '#d97706' : '#0d9488' }} />
                                                                   </button>
                                                               )}
                                                           </div>
@@ -1292,10 +1319,14 @@ const Applicants = () => {
                                                                          e.stopPropagation();
                                                                          handleViewInterview(app.id, app.isInterviewLocked);
                                                                      }}
-                                                                     className={`p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${app.isInterviewLocked ? 'text-amber-500 hover:bg-amber-500/10' : 'opacity-80 hover:opacity-100 hover:bg-white/5'}`}
-                                                                     title={app.isInterviewLocked ? "Unlock Interview Status (₹10)" : "View Interview Status"}
+                                                                     className="p-1 rounded-lg transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                     style={{ 
+                                                                         color: app.isInterviewLocked ? '#d97706' : '#2563eb',
+                                                                         backgroundColor: app.isInterviewLocked ? '#fef3c7' : '#dbeafe'
+                                                                     }}
+                                                                     title={app.isInterviewLocked ? "Unlock Interview Status" : "View Interview Status"}
                                                                  >
-                                                                     <Eye size={15} />
+                                                                     <Eye size={15} style={{ color: app.isInterviewLocked ? '#d97706' : '#2563eb', stroke: app.isInterviewLocked ? '#d97706' : '#2563eb' }} />
                                                                  </button>
                                                              )}
                                                          </div>
@@ -1323,10 +1354,28 @@ const Applicants = () => {
                                                                       e.stopPropagation();
                                                                       handleViewProctoring(app.id);
                                                                   }}
-                                                                  className="p-1 rounded-lg transition-all hover:scale-110 active:scale-95 cursor-pointer opacity-80 hover:opacity-100 hover:bg-black/10"
+                                                                  className="p-1 rounded-lg transition-all hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+                                                                  style={{ 
+                                                                      color: app.proctoringScore != null 
+                                                                          ? (app.proctoringScore >= 80 ? '#059669' : app.proctoringScore >= 50 ? '#d97706' : '#dc2626')
+                                                                          : '#64748b',
+                                                                      backgroundColor: app.proctoringScore != null 
+                                                                          ? (app.proctoringScore >= 80 ? '#d1fae5' : app.proctoringScore >= 50 ? '#fef3c7' : '#fee2e2')
+                                                                          : '#f1f5f9'
+                                                                  }}
                                                                   title="View Proctoring Report"
                                                               >
-                                                                  <Eye size={15} />
+                                                                  <Eye 
+                                                                      size={15} 
+                                                                      style={{ 
+                                                                          color: app.proctoringScore != null 
+                                                                              ? (app.proctoringScore >= 80 ? '#059669' : app.proctoringScore >= 50 ? '#d97706' : '#dc2626')
+                                                                              : '#64748b',
+                                                                          stroke: app.proctoringScore != null 
+                                                                              ? (app.proctoringScore >= 80 ? '#059669' : app.proctoringScore >= 50 ? '#d97706' : '#dc2626')
+                                                                              : '#64748b'
+                                                                      }} 
+                                                                  />
                                                               </button>
                                                           </div>
                                                       </div>
@@ -1571,11 +1620,11 @@ const Applicants = () => {
             )}
 
             {/* Video Intro Modal */}
-            {showVideoModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="relative w-full max-w-4xl bg-[#1a1d24] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in duration-300">
-                        <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                            <h3 className="text-xl font-bold uppercase tracking-tight">Candidate Introduction</h3>
+            {showVideoModal && (typeof document !== 'undefined' ? createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 video-intro-modal">
+                    <div className="relative w-full max-w-4xl bg-[#1a1d24] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in duration-300" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                        <div className="p-6 border-b border-white/10 flex items-center justify-between" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                            <h3 className="text-xl font-bold uppercase tracking-tight text-white" style={{ color: '#ffffff' }}>Candidate Introduction</h3>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleShareInterview(
@@ -1583,8 +1632,9 @@ const Applicants = () => {
                                         selectedVideoCandidateName || applicants?.find(a => a.id === selectedVideoApplicationId)?.name
                                     )}
                                     className="bg-white/5 hover:bg-white/10 text-purple-400 border border-purple-500/25 px-4 py-2 rounded-xl font-bold text-xs transition-all hover:scale-102 flex items-center gap-1.5 cursor-pointer"
+                                    style={{ color: '#c084fc', borderColor: 'rgba(192, 132, 252, 0.25)' }}
                                 >
-                                    <Share2 size={13} />
+                                    <Share2 size={13} style={{ color: '#c084fc' }} />
                                     Share Intro
                                 </button>
                                 <button
@@ -1593,9 +1643,11 @@ const Applicants = () => {
                                         setSelectedVideoApplicationId(null);
                                         setSelectedVideoCandidateName('');
                                     }}
-                                    className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all"
+                                    className="p-2 rounded-xl hover:bg-white/10 text-white transition-all cursor-pointer"
+                                    style={{ color: '#ffffff' }}
+                                    title="Close Video"
                                 >
-                                    <XCircle size={24} />
+                                    <XCircle size={24} style={{ color: '#ffffff', stroke: '#ffffff' }} />
                                 </button>
                             </div>
                         </div>
@@ -1607,12 +1659,13 @@ const Applicants = () => {
                                 className="w-full h-full object-contain"
                             />
                         </div>
-                        <div className="p-6 bg-white/5 text-center">
-                            <p className="text-xs text-gray-500 font-medium italic">This 60-second introduction is mandatory for all applicants to this job.</p>
+                        <div className="p-6 text-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#cbd5e1' }}>
+                            <p className="text-xs font-medium italic" style={{ color: '#cbd5e1' }}>This 60-second introduction is mandatory for all applicants to this job.</p>
                         </div>
                     </div>
-                </div>
-            )}
+                </div>,
+                document.body
+            ) : null)}
 
             {/* Generated Resume Modal */}
             {showGeneratedResumeModal && (
@@ -1646,17 +1699,17 @@ const Applicants = () => {
             />
 
             {/* Unlock Confirmation Modal */}
-            {unlockingItem && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="relative w-full max-w-sm bg-[#1a1d24] rounded-[2rem] border border-white/10 p-8 text-center shadow-2xl animate-in zoom-in duration-300">
-                        <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 animate-bounce">
-                            <Wallet size={20} />
+            {unlockingItem && (typeof document !== 'undefined' ? createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 rec-modal-dark">
+                    <div className="relative w-full max-w-sm bg-[#1a1d24] rounded-[2rem] border border-white/10 p-8 text-center shadow-2xl animate-in zoom-in duration-300" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                        <div className="mx-auto w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
+                            <Eye size={22} style={{ color: '#60a5fa', stroke: '#60a5fa' }} />
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-tight">
+                        <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-tight" style={{ color: '#ffffff' }}>
                             Unlock {unlockingItem.type === 'resume' ? 'Resume' : unlockingItem.type === 'assessment' ? 'Skill Assessment' : 'Interview'}?
                         </h3>
-                        <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                            This will deduct <span className="text-white font-extrabold">₹{unlockingItem.cost.toFixed(2)} INR</span> from your wallet balance to unlock the candidate's {unlockingItem.type === 'resume' ? 'full profile & resume' : unlockingItem.type === 'assessment' ? 'detailed skill assessment logs' : 'video introduction & interview answers'}.
+                        <p className="text-xs leading-relaxed mb-6" style={{ color: '#cbd5e1' }}>
+                            Unlock candidate's {unlockingItem.type === 'resume' ? 'full profile & resume' : unlockingItem.type === 'assessment' ? 'detailed skill assessment logs' : 'video introduction & interview answers'}.
                         </p>
 
                         {unlockError && (
@@ -1676,35 +1729,23 @@ const Applicants = () => {
                             >
                                 Cancel
                             </button>
-                            {walletBalance < unlockingItem.cost ? (
-                                <button
-                                    onClick={() => {
-                                        setUnlockingItem(null);
-                                        setIsTopUpOpen(true);
-                                    }}
-                                    className="flex-1 py-3 px-4 rounded-xl text-xs font-bold transition shadow-md active:scale-95 cursor-pointer"
-                                    style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
-                                >
-                                    <span style={{ color: '#ffffff' }}>Top Up Wallet</span>
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => handleUnlockApplicant(unlockingItem.id, unlockingItem.type)}
-                                    disabled={unlockingInProgress}
-                                    className="flex-1 py-3 px-4 disabled:opacity-50 font-extrabold rounded-xl text-xs transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-                                    style={{ backgroundColor: '#f59e0b', color: '#000000' }}
-                                >
-                                    {unlockingInProgress ? (
-                                        <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                        <span style={{ color: '#000000' }}>Unlock</span>
-                                    )}
-                                </button>
-                            )}
+                            <button
+                                onClick={() => handleUnlockApplicant(unlockingItem.id, unlockingItem.type)}
+                                disabled={unlockingInProgress}
+                                className="flex-1 py-3 px-4 disabled:opacity-50 font-extrabold rounded-xl text-xs transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                            >
+                                {unlockingInProgress ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <span style={{ color: '#ffffff' }}>Unlock</span>
+                                )}
+                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                </div>,
+                document.body
+            ) : null)}
 
             <TopUpModal
                 isOpen={isTopUpOpen}

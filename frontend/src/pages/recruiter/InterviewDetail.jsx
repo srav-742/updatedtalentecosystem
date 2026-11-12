@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
     X,
@@ -102,7 +103,7 @@ const InterviewDetail = ({ applicationId, onClose }) => {
     }, [applicationId]);
 
     if (loading) {
-        return (
+        const loadingContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-3xl p-12 text-center max-w-md w-full">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-6"></div>
@@ -111,20 +112,21 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(loadingContent, document.body) : loadingContent;
     }
 
     if (error || !data) {
         const isUpgradeError = error?.includes('Pro Recruiter') || error?.includes('Forbidden') || error?.includes('Unauthorized');
-        return (
+        const errorContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl rec-modal-dark" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     {isUpgradeError ? (
                         <>
                             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/10">
                                 <Award className="w-8 h-8 text-black" />
                             </div>
-                            <h3 className="text-2xl font-black mb-3 text-white">Pro Access Required</h3>
-                            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                            <h3 className="text-2xl font-black mb-3 text-white" style={{ color: '#ffffff' }}>Pro Access Required</h3>
+                            <p className="text-gray-300 text-sm mb-8 leading-relaxed" style={{ color: '#cbd5e1' }}>
                                 Detailed candidate AI interview transcripts are exclusive to premium recruiters. Upgrade your plan to view full candidate answers.
                             </p>
                             <button
@@ -140,19 +142,21 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                     ) : (
                         <>
                             <X className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold mb-2">Error Loading Interview</h3>
-                            <p className="text-gray-400 mb-6">{error || 'Interview data not found'}</p>
+                            <h3 className="text-xl font-bold mb-2 text-white" style={{ color: '#ffffff' }}>Error Loading Interview</h3>
+                            <p className="text-gray-300 mb-6" style={{ color: '#cbd5e1' }}>{error || 'Interview data not found'}</p>
                         </>
                     )}
                     <button
                         onClick={onClose}
-                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl border border-white/10 transition-colors"
+                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold px-6 py-3 rounded-xl border border-white/10 transition-colors cursor-pointer"
+                        style={{ color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                     >
                         Close
                     </button>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(errorContent, document.body) : errorContent;
     }
 
     const { application, job, interview } = data;
@@ -164,53 +168,55 @@ const InterviewDetail = ({ applicationId, onClose }) => {
             ? 'Not Finalized'
             : 'Completed';
 
-    return (
+    const modalContent = (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto my-8"
+                className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto my-8 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-8 rounded-t-3xl">
+                <div className="sticky top-0 text-white p-8 rounded-t-3xl interview-modal-header shadow-lg z-10" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-4">
-                                <Award className="w-8 h-8" />
-                                <h2 className="text-3xl font-black">Interview Details</h2>
+                                <Award className="w-8 h-8 text-white shrink-0" style={{ color: '#ffffff', stroke: '#ffffff' }} />
+                                <h2 className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>Interview Details</h2>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-white">{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
-                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Overall Score' : 'Interview Status'}</div>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                <div className="rounded-xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>{hasCompletedInterview ? `${interview.score}%` : interviewStatusLabel}</div>
+                                    <div className="text-xs font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>{hasCompletedInterview ? 'Overall Score' : 'Interview Status'}</div>
                                 </div>
                                 {/* ─── OWNERSHIP V VETTING SCORE ─── */}
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-white/20">
-                                    <div className="text-3xl font-black text-white">{application.ownershipScore || 0}%</div>
-                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest italic">Ownership %</div>
+                                <div className="rounded-xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>{application.ownershipScore || 0}%</div>
+                                    <div className="text-xs font-bold uppercase tracking-widest mt-1 text-white italic" style={{ color: '#ffffff' }}>Ownership %</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-white">{hasCompletedInterview ? `${formatMarks(interview.marks)}/10` : '--'}</div>
-                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">Average Marks</div>
+                                <div className="rounded-xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>{hasCompletedInterview ? `${formatMarks(interview.marks)}/10` : '--'}</div>
+                                    <div className="text-xs font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Average Marks</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-3xl font-black text-white">{interview.totalQuestions}</div>
-                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">Questions</div>
+                                <div className="rounded-xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>{interview.totalQuestions}</div>
+                                    <div className="text-xs font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Questions</div>
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-4 shadow-sm">
-                                    <div className="text-sm font-black text-white">
+                                <div className="rounded-xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                                    <div className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                                         {new Date(interview.completedAt).toLocaleDateString()}
                                     </div>
-                                    <div className="text-xs text-gray-300 font-bold uppercase tracking-widest">{hasCompletedInterview ? 'Completed' : 'Last Update'}</div>
+                                    <div className="text-xs font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>{hasCompletedInterview ? 'Completed' : 'Last Update'}</div>
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="bg-white/15 hover:bg-white/25 rounded-full p-3 transition-colors"
+                            className="rounded-full p-3 transition-colors cursor-pointer shrink-0 ml-4 flex items-center justify-center hover:opacity-80"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', color: '#ffffff' }}
+                            title="Close Interview"
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-6 h-6" style={{ color: '#ffffff', stroke: '#ffffff' }} />
                         </button>
                     </div>
                 </div>
@@ -602,8 +608,8 @@ const InterviewDetail = ({ applicationId, onClose }) => {
                                                     {copiedTechCode ? 'Copied' : 'Copy Code'}
                                                 </button>
                                             </div>
-                                            <pre className="p-4 rounded-xl bg-[#0f172a] text-[#e2e8f0] font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner">
-                                                <code>{tech.submittedCode}</code>
+                                            <pre className="p-4 rounded-xl bg-[#0f172a] text-white font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-inner" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                                                <code style={{ color: '#ffffff' }}>{tech.submittedCode}</code>
                                             </pre>
                                         </div>
                                     )}
@@ -833,6 +839,11 @@ const InterviewDetail = ({ applicationId, onClose }) => {
             )}
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 };
 
 export default InterviewDetail;

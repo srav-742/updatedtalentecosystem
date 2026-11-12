@@ -174,22 +174,22 @@ const ProctoringDetail = ({ applicationId, onClose, onUpdate }) => {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="sticky top-0 p-8 rounded-t-3xl z-10 shadow-lg" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                <div className="sticky top-0 p-8 rounded-t-3xl z-10 shadow-lg proctoring-modal-header" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-4">
                                 <ShieldAlert className="w-8 h-8 text-red-500 shrink-0" />
                                 <div>
-                                    <h2 className="text-2xl font-black" style={{ color: '#ffffff' }}>Proctoring Integrity Report</h2>
-                                    <p className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>Authoritative Engine {report.scoreVersion || 'v2'} • Exam ID: {report.examId || application.recordingSessionId || 'N/A'}</p>
+                                    <h2 className="text-2xl font-black text-white" style={{ color: '#ffffff' }}>Proctoring Integrity Report</h2>
+                                    <p className="text-xs font-mono mt-0.5" style={{ color: '#cbd5e1' }}>Authoritative Engine {report.scoreVersion || 'v2'} • Exam ID: {report.examId || application.recordingSessionId || 'N/A'}</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                                    <div className="text-3xl font-black" style={{ color: '#ffffff' }}>
-                                        {integrityScore} <span className="text-xs font-normal" style={{ color: '#94a3b8' }}>/ 100</span>
+                                    <div className="text-3xl font-black text-white" style={{ color: '#ffffff' }}>
+                                        {integrityScore} <span className="text-xs font-normal" style={{ color: '#cbd5e1' }}>/ 100</span>
                                     </div>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Integrity Score</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Integrity Score</div>
                                 </div>
                                 <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
                                     <div className="text-sm font-black px-2.5 py-1 rounded-lg inline-block" style={{
@@ -199,20 +199,20 @@ const ProctoringDetail = ({ applicationId, onClose, onUpdate }) => {
                                     }}>
                                         {riskLevel}
                                     </div>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Risk Classification</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Risk Classification</div>
                                 </div>
                                 <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                                    <div className="text-2xl font-black">
+                                    <div className="text-2xl font-black text-white">
                                         <span style={{ color: criticalCount > 0 ? '#f87171' : '#ffffff' }}>{criticalCount}</span>
-                                        <span className="text-xs font-normal" style={{ color: '#94a3b8' }}> / {standardCount} std</span>
+                                        <span className="text-xs font-normal" style={{ color: '#cbd5e1' }}> / {standardCount} std</span>
                                     </div>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Incidents (Crit / Std)</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Incidents (Crit / Std)</div>
                                 </div>
                                 <div className="rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                                    <div className="text-sm font-black capitalize" style={{ color: '#ffffff' }}>
+                                    <div className="text-sm font-black capitalize text-white" style={{ color: '#ffffff' }}>
                                         {reviewStatus.replace(/_/g, ' ')}
                                     </div>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: '#cbd5e1' }}>Audit Status</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest mt-1 text-white" style={{ color: '#ffffff' }}>Audit Status</div>
                                 </div>
                             </div>
                         </div>
@@ -222,7 +222,7 @@ const ProctoringDetail = ({ applicationId, onClose, onUpdate }) => {
                             style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', color: '#ffffff' }}
                             title="Close Report"
                         >
-                            <X className="w-6 h-6" style={{ color: '#ffffff' }} />
+                            <X className="w-6 h-6" style={{ color: '#ffffff', stroke: '#ffffff' }} />
                         </button>
                     </div>
                 </div>

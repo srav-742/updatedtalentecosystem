@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
     X,
@@ -168,48 +169,51 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
     };
 
     if (loading) {
-        return (
+        const loadingContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-[#1a1d24] border border-white/5 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-teal-500 mx-auto mb-6"></div>
-                    <h3 className="text-xl font-bold text-white">Loading Coding Solutions</h3>
-                    <p className="text-gray-400 mt-2 text-sm">Fetching code submissions & AI reviews...</p>
+                    <h3 className="text-xl font-bold text-white" style={{ color: '#ffffff' }}>Loading Coding Solutions</h3>
+                    <p className="text-gray-400 mt-2 text-sm" style={{ color: '#94a3b8' }}>Fetching code submissions & AI reviews...</p>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(loadingContent, document.body) : loadingContent;
     }
 
     if (error || !data) {
         const isUpgradeError = error?.includes('unlock required') || error?.includes('Forbidden');
-        return (
+        const errorContent = (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+                <div className="bg-[#1a1d24] text-white border border-white/10 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     {isUpgradeError ? (
                         <>
                             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-teal-500/10">
                                 <Award className="w-8 h-8 text-black" />
                             </div>
-                            <h3 className="text-2xl font-black mb-3 text-white">Unlock Required</h3>
-                            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                            <h3 className="text-2xl font-black mb-3 text-white" style={{ color: '#ffffff' }}>Unlock Required</h3>
+                            <p className="text-gray-400 text-sm mb-8 leading-relaxed" style={{ color: '#cbd5e1' }}>
                                 Detailed candidate assessments are locked. Please unlock the candidate's assessment details in the applicant panel to view full solutions.
                             </p>
                         </>
                     ) : (
                         <>
                             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold mb-2">Error Loading Coding Solutions</h3>
-                            <p className="text-gray-400 mb-6">{error || 'Coding assessment data not found'}</p>
+                            <h3 className="text-xl font-bold mb-2 text-white" style={{ color: '#ffffff' }}>Error Loading Coding Solutions</h3>
+                            <p className="text-gray-400 mb-6" style={{ color: '#cbd5e1' }}>{error || 'Coding assessment data not found'}</p>
                         </>
                     )}
                     <button
                         onClick={onClose}
                         className="w-full py-3.5 bg-white/5 hover:bg-white/10 text-gray-300 font-bold rounded-xl border border-white/10 transition-colors cursor-pointer"
+                        style={{ color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                     >
                         Close
                     </button>
                 </div>
             </div>
         );
+        return typeof document !== 'undefined' ? createPortal(errorContent, document.body) : errorContent;
     }
 
     const { codingScore, codingAnswers, answers = codingAnswers || [] } = data;
@@ -218,24 +222,25 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
     const statusConfig = currentQuestion ? getStatusConfig(currentQuestion.aiEvaluationStatus) : null;
     const VerdictIcon = verdictConfig?.icon || AlertCircle;
 
-    return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-end">
+    const modalContent = (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-end coding-detail-modal">
             <motion.div
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 180 }}
                 className="w-full bg-[#0c0f16] border-l border-white/10 h-full flex flex-col shadow-2xl relative"
+                style={{ backgroundColor: '#0c0f16', color: '#ffffff' }}
             >
                 {/* Header */}
-                <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.01]">
+                <div className="p-6 border-b border-white/10 flex items-center justify-between" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400 border border-teal-500/20">
                             <Code2 size={20} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-black tracking-tight text-white">Coding Assessment</h2>
-                            <p className="text-xs text-gray-500">View code submissions and AI evaluations</p>
+                            <h2 className="text-xl font-black tracking-tight text-white" style={{ color: '#ffffff' }}>Coding Assessment</h2>
+                            <p className="text-xs" style={{ color: '#cbd5e1' }}>View code submissions and AI evaluations</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -688,6 +693,11 @@ const CodingAssessmentDetail = ({ applicationId, onClose, onScoreUpdate }) => {
             </motion.div>
         </div>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 };
 
 export default CodingAssessmentDetail;
