@@ -250,14 +250,15 @@ const LoginPage = () => {
                     email: formData.email.toLowerCase().trim(),
                     password: formData.password,
                     role: 'admin'
-                }, {
-                    headers: {
-                        'X-Client-ID': CLIENT_ID,
-                        'X-Client-Secret': CLIENT_SECRET
-                    }
                 });
 
                 profile = response.data.user;
+                if (response.data.accessToken) {
+                    localStorage.setItem('accessToken', response.data.accessToken);
+                }
+                if (response.data.refreshToken) {
+                    localStorage.setItem('refreshToken', response.data.refreshToken);
+                }
                 if (!profile) throw new Error("Invalid response from server.");
             } else {
                 const normalizedEmail = formData.email.toLowerCase().trim();
@@ -275,15 +276,16 @@ const LoginPage = () => {
                                 email: normalizedEmail,
                                 password: formData.password,
                                 role: role
-                            }, {
-                                headers: {
-                                    'X-Client-ID': CLIENT_ID,
-                                    'X-Client-Secret': CLIENT_SECRET
-                                }
                             });
                             
                             if (backendRes.data && backendRes.data.user) {
                                 backendUser = backendRes.data.user; 
+                                if (backendRes.data.accessToken) {
+                                    localStorage.setItem('accessToken', backendRes.data.accessToken);
+                                }
+                                if (backendRes.data.refreshToken) {
+                                    localStorage.setItem('refreshToken', backendRes.data.refreshToken);
+                                } 
                                 // Password matched in backend! 
                                 // Try to silently create the Firebase account to migrate them
                                 try {
@@ -368,11 +370,6 @@ const LoginPage = () => {
                         password: formData.password,
                         role: role,
                         uid: user.uid
-                    }, {
-                        headers: {
-                            'X-Client-ID': CLIENT_ID,
-                            'X-Client-Secret': CLIENT_SECRET
-                        }
                     }).catch(err => {
                         console.warn('[LOGIN] Password backfill failed (non-fatal):', err.message);
                     });
@@ -798,9 +795,7 @@ const LoginPage = () => {
             await sendVerificationEmail(currentUser);
 
             // Also trigger backend branded email with CTA button
-            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
-            }).catch(e => {
+            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationRequired.email }).catch(e => {
                 console.warn('[LOGIN] Backend resend-verification warning (non-fatal):', e.message);
             });
 

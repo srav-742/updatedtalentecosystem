@@ -140,8 +140,8 @@ body {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-white"],
-.recruiter-content :not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-gray-300"] {
+.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-white"],
+.recruiter-content :not(button):not(button *):not(a):not(a *):not([role="button"]):not([role="button"] *):not(.rec-job-banner-black):not(.rec-job-banner-black *):not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *):not(.rec-btn-primary):not(.rec-btn-primary *) [class~="text-gray-300"] {
   color: #111827 !important;
 }
 
@@ -152,36 +152,124 @@ body {
   color: #6b7280 !important;
 }
 
-.recruiter-content [class~="bg-black"],
-.recruiter-content [class~="bg-blue-600"],
-.recruiter-content [class~="bg-teal-600"],
-.recruiter-content [class~="bg-purple-600"],
-.recruiter-content [class~="bg-indigo-600"],
-.recruiter-content [class~="bg-gray-600"],
-.recruiter-content [class~="bg-red-500"],
-.recruiter-content [class~="bg-green-500"],
-.recruiter-content [class~="bg-emerald-500"],
-.recruiter-content [class~="bg-orange-500"],
-.recruiter-content [class~="bg-amber-500"],
-.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] {
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-black"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-blue-600"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-teal-600"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-purple-600"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-indigo-600"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-gray-600"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-red-500"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-green-500"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-emerald-500"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-orange-500"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-amber-500"],
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) :is(button, a)[class~="bg-white"][class~="text-black"] {
   background-color: #111827 !important;
   color: #ffffff !important;
 }
 
-.recruiter-content [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) *,
-.recruiter-content [class~="bg-black"] *,
-.recruiter-content [class~="bg-blue-600"] *,
-.recruiter-content [class~="bg-teal-600"] *,
-.recruiter-content [class~="bg-purple-600"] *,
-.recruiter-content [class~="bg-indigo-600"] *,
-.recruiter-content [class~="bg-gray-600"] *,
-.recruiter-content [class~="bg-red-500"] *,
-.recruiter-content [class~="bg-green-500"] *,
-.recruiter-content [class~="bg-emerald-500"] *,
-.recruiter-content [class~="bg-orange-500"] *,
-.recruiter-content [class~="bg-amber-500"] *,
-.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] * {
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-gradient-to-r"]:not([class~="bg-clip-text"]) *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-black"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-blue-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-teal-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-purple-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-indigo-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-gray-600"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-red-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-green-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-emerald-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-orange-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) [class~="bg-amber-500"] *,
+.recruiter-content :not(.buy-tickets-modal-container):not(.buy-tickets-modal-container *):not(.ticket-wallet-modal-container):not(.ticket-wallet-modal-container *) :is(button, a)[class~="bg-white"][class~="text-black"] * {
   color: inherit !important;
+}
+
+/* All dark buttons and action elements in recruiter-content MUST have crisp white text and white icons */
+.recruiter-content button[class*="bg-indigo-"],
+.recruiter-content button[class*="bg-indigo-"] *,
+.recruiter-content button[class*="bg-blue-6"],
+.recruiter-content button[class*="bg-blue-6"] *,
+.recruiter-content button[class*="bg-blue-7"],
+.recruiter-content button[class*="bg-blue-7"] *,
+.recruiter-content button[class*="bg-slate-9"],
+.recruiter-content button[class*="bg-slate-9"] *,
+.recruiter-content button[class*="bg-slate-8"],
+.recruiter-content button[class*="bg-slate-8"] *,
+.recruiter-content button[class*="bg-black"],
+.recruiter-content button[class*="bg-black"] *,
+.recruiter-content button[class*="bg-teal-6"],
+.recruiter-content button[class*="bg-teal-6"] *,
+.recruiter-content button[class*="bg-purple-6"],
+.recruiter-content button[class*="bg-purple-6"] *,
+.recruiter-content button[class*="bg-amber-6"],
+.recruiter-content button[class*="bg-amber-6"] *,
+.recruiter-content button[class*="bg-amber-5"],
+.recruiter-content button[class*="bg-amber-5"] *,
+.recruiter-content button[class*="bg-red-6"],
+.recruiter-content button[class*="bg-red-6"] *,
+.recruiter-content button[class*="bg-gradient-"],
+.recruiter-content button[class*="bg-gradient-"] *,
+.recruiter-content button[class~="text-white"],
+.recruiter-content button[class~="text-white"] *,
+.recruiter-content a[class*="bg-indigo-"],
+.recruiter-content a[class*="bg-indigo-"] *,
+.recruiter-content a[class*="bg-blue-6"],
+.recruiter-content a[class*="bg-blue-6"] *,
+.recruiter-content a[class*="bg-slate-9"],
+.recruiter-content a[class*="bg-slate-9"] *,
+.recruiter-content a[class*="bg-slate-8"],
+.recruiter-content a[class*="bg-slate-8"] *,
+.recruiter-content a[class*="bg-black"],
+.recruiter-content a[class*="bg-black"] *,
+.recruiter-content a[class*="bg-gradient-"],
+.recruiter-content a[class*="bg-gradient-"] *,
+.recruiter-content a[class~="text-white"],
+.recruiter-content a[class~="text-white"] *,
+.recruiter-content .rec-btn-primary,
+.recruiter-content .rec-btn-primary *,
+.recruiter-content [class~="bg-indigo-600"],
+.recruiter-content [class~="bg-indigo-600"] *,
+.recruiter-content [class~="bg-blue-600"],
+.recruiter-content [class~="bg-blue-600"] *,
+.recruiter-content [class~="bg-slate-900"],
+.recruiter-content [class~="bg-slate-900"] *,
+.recruiter-content [class~="bg-black"],
+.recruiter-content [class~="bg-black"] * {
+  color: #ffffff !important;
+  fill: currentColor !important;
+}
+
+.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] *,
+.recruiter-content :is(button, a)[class~="bg-white"][class~="text-black"] {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  fill: currentColor !important;
+}
+
+/* Explicit Protected Styles for BuyTicketsModal & TicketWalletModal */
+.buy-tickets-modal-container,
+.buy-tickets-modal-container *,
+.ticket-wallet-modal-container,
+.ticket-wallet-modal-container * {
+  box-sizing: border-box;
+}
+
+.buy-tickets-modal-container .ticket-btn-checkout,
+.buy-tickets-modal-container .ticket-btn-checkout * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-selected,
+.buy-tickets-modal-container .ticket-btn-selected * {
+  color: #ffffff !important;
+  background-color: #0f172a !important;
+}
+
+.buy-tickets-modal-container .ticket-btn-unselected,
+.buy-tickets-modal-container .ticket-btn-unselected * {
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
 }
 
 .recruiter-content input:not([type="range"]):not([type="file"]),

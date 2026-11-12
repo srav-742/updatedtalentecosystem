@@ -119,6 +119,7 @@ export default function PaymentUpgrade() {
     const [selectedJobId, setSelectedJobId] = useState('');
 
     const selectedPlan = packages.find(p => p.id === selectedPlanId || p.packageId === selectedPlanId) || packages[1] || packages[0];
+    const selectedJob = jobs.find(job => String(job._id) === String(selectedJobId));
     const resolvedApiUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
         ? 'http://localhost:5000/api'
         : (API_URL || import.meta.env.VITE_API_URL || 'https://updatedtalentecosystem-kl0c.onrender.com/api');
@@ -146,8 +147,10 @@ export default function PaymentUpgrade() {
                         .then(res => {
                             const jobList = Array.isArray(res.data) ? res.data : (res.data?.jobs || []);
                             setJobs(jobList);
-                            if (jobList.length >= 1) {
+                            if (jobList.length === 1) {
                                 setSelectedJobId(String(jobList[0]._id));
+                            } else {
+                                setSelectedJobId('');
                             }
                         })
                         .catch(err => console.warn("Failed to fetch recruiter jobs:", err.message));
@@ -186,6 +189,12 @@ export default function PaymentUpgrade() {
             setErrorMsg("You must be logged in as a recruiter to purchase tickets.");
             return;
         }
+        if (!selectedJobId) {
+            setErrorMsg(jobs.length === 0
+                ? 'Post a job first. Tickets must be assigned to a specific job.'
+                : 'Select the job that these tickets should be assigned to.');
+            return;
+        }
 
         setLoading(true);
         setErrorMsg("");
@@ -205,7 +214,7 @@ export default function PaymentUpgrade() {
             const orderRes = await axios.post(`${resolvedApiUrl}/tickets/order`, {
                 recruiterId,
                 packageId: selectedPlan.packageId || selectedPlan.id,
-                jobId: selectedJobId || null
+                jobId: selectedJobId
             });
 
             if (!orderRes.data || !orderRes.data.success) {
@@ -241,7 +250,7 @@ export default function PaymentUpgrade() {
                             razorpay_signature: response.razorpay_signature,
                             packageId: selectedPlan.packageId || selectedPlan.id,
                             recruiterId,
-                            jobId: selectedJobId || null
+                            jobId: selectedJobId
                         });
 
                         if (verifyRes.data && verifyRes.data.success) {
@@ -402,12 +411,26 @@ export default function PaymentUpgrade() {
                                         onChange={(e) => setSelectedJobId(e.target.value)}
                                         className="w-full px-4 py-2.5 bg-slate-900 border border-white/20 rounded-xl text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                     >
+                                        <option value="">Select a job...</option>
                                         {jobs.map((j, idx) => (
                                             <option key={j._id} value={j._id}>
                                                 Job {idx + 1}: {j.title} {j.company ? `(${j.company})` : ''}
                                             </option>
                                         ))}
                                     </select>
+                                </div>
+                            )}
+
+                            {jobs.length === 0 && (
+                                <div className="w-full max-w-xl mx-auto mb-8 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-sm font-semibold text-amber-200 flex items-center justify-between gap-3">
+                                    <span>Post a job first. Each ticket package is assigned to one job so ticket limits stay independent across your openings.</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/recruiter/post-job')}
+                                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold whitespace-nowrap"
+                                    >
+                                        Post a Job
+                                    </button>
                                 </div>
                             )}
 
@@ -514,7 +537,7 @@ export default function PaymentUpgrade() {
 
                                 <button
                                     onClick={handlePayment}
-                                    disabled={loading || verifying}
+                                    disabled={loading || verifying || !selectedJobId}
                                     className="w-full py-3.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xl shadow-blue-500/25 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                                 >
                                     {verifying ? (
@@ -558,7 +581,7 @@ export default function PaymentUpgrade() {
                                 Tickets Successfully Credited!
                             </h2>
                             <p className="text-slate-300 text-sm mb-6 leading-relaxed">
-                                You have added <strong className="text-emerald-400">+{selectedPlan.ticketCount} interview tickets</strong> to your wallet. Candidates can now begin skill assessments for your jobs.
+                                <strong className="text-emerald-400">+{selectedPlan.ticketCount} interview tickets</strong> have been assigned to <strong className="text-white">{selectedJob?.title || 'your selected job'}</strong>. The wallet total includes tickets across all jobs.
                             </p>
 
                             <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-8 max-w-sm mx-auto text-xs space-y-1 text-slate-300">
@@ -568,12 +591,12 @@ export default function PaymentUpgrade() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span>Client RBAC Status:</span>
-                                    <strong className="text-blue-400">Active (MySQL 8.4)</strong>
+                                    <strong className="text-blue-400">Active (Verified)</strong>
                                 </div>
                             </div>
 
                             <button
-                                onClick={() => navigate('/recruiter/applicants')}
+                                onClick={() => navigate(selectedJobId ? `/recruiter/applicants?jobId=${selectedJobId}` : '/recruiter/applicants')}
                                 className="w-full py-3.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 cursor-pointer"
                             >
                                 Continue to Applicants

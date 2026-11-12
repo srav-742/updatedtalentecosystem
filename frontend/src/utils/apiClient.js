@@ -66,9 +66,7 @@ export const refreshAccessToken = async () => {
     const response = await fetch(`${API_URL}/gateway/refresh`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'X-Client-ID': CLIENT_ID,
-            'X-Client-Secret': CLIENT_SECRET
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({ refreshToken })
     });
@@ -96,15 +94,18 @@ export const refreshAccessToken = async () => {
  */
 export const apiRequest = async (endpoint, options = {}, retry = true) => {
     const { accessToken, refreshToken } = getTokens();
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 
     const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
 
     const headers = {
         'Content-Type': 'application/json',
-        ...options.headers,
-        'X-Client-ID': CLIENT_ID,
-        'X-Client-Secret': CLIENT_SECRET
+        ...options.headers
     };
+
+    if (storedUser?.uid || storedUser?._id || storedUser?.id) {
+        headers['x-user-id'] = storedUser.uid || storedUser._id || storedUser.id;
+    }
 
     // Add auth tokens if available
     if (accessToken) {

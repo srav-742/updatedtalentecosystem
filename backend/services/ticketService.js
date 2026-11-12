@@ -243,6 +243,25 @@ const creditTickets = async ({
         throw new Error('Ticket count must be a positive number.');
     }
 
+    if (!jobId) {
+        throw new Error('A job is required to assign purchased tickets.');
+    }
+
+    const { allIds } = await resolveRecruiterIdentifiers(primaryId);
+    let targetJob = null;
+    try {
+        targetJob = await Job.findOne({
+            _id: jobId,
+            recruiterId: { $in: Array.from(new Set([primaryId, ...(allIds || [])])) }
+        }).lean();
+    } catch (jobErr) {
+        throw new Error('A valid job is required to assign purchased tickets.');
+    }
+    if (!targetJob) {
+        throw new Error('The selected job was not found for this recruiter.');
+    }
+    const targetJobTitle = targetJob.title || 'Job Assessment';
+
     // Idempotency check: check if this paymentOrderId was already processed
     if (paymentOrderId) {
         const existingTx = await TicketTransaction.findOne({
@@ -261,53 +280,33 @@ const creditTickets = async ({
         }
     }
 
-    // Fetch existing or initialize wallet
-    const wallet = await getWallet(primaryId);
-
-    // Resolve target job if provided
-    let targetJob = null;
-    let targetJobTitle = '';
-    if (jobId) {
-        try {
-            targetJob = await Job.findById(jobId).lean();
-            if (targetJob) {
-                targetJobTitle = targetJob.title || 'Job Assessment';
-            }
-        } catch (jErr) {
-            console.warn('[TICKET-SERVICE] Job resolution warning:', jErr.message);
-        }
-    }
-
-    // Update per-job allocation if jobId is present
-    if (jobId) {
-        const strJobId = jobId.toString();
-        let jobEntry = wallet.jobs.find(j => j.jobId && j.jobId.toString() === strJobId);
-
-        if (jobEntry) {
-            jobEntry.totalPurchased = (jobEntry.totalPurchased || 0) + count;
-            jobEntry.availableTickets = (jobEntry.availableTickets || 0) + count;
-            jobEntry.jobTitle = targetJobTitle || jobEntry.jobTitle || 'Job Assessment';
-            jobEntry.lastPurchasedAt = new Date();
-        } else {
-            wallet.jobs.push({
-                jobId: targetJob ? targetJob._id : jobId,
-                jobTitle: targetJobTitle || 'Job Assessment',
+    // Ensure the wallet has an allocation row, then update both the job and
+    // combined wallet counters in one atomic write.
+    await getWallet(primaryId);
+    const purchasedAt = new Date();
+    const wallet = await RecruiterTicketWallet.findOneAndUpdate(
+        { recruiterId: primaryId, 'jobs.jobId': targetJob._id },
+        {
+            $inc: {
                 totalPurchased: count,
-                totalConsumed: 0,
                 availableTickets: count,
-                lastPurchasedAt: new Date()
-            });
-        }
+                'jobs.$.totalPurchased': count,
+                'jobs.$.availableTickets': count
+            },
+            $set: {
+                'jobs.$.jobTitle': targetJobTitle,
+                'jobs.$.lastPurchasedAt': purchasedAt,
+                lastTransactionAt: purchasedAt
+            }
+        },
+        { new: true }
+    );
+    if (!wallet) {
+        throw new Error('Could not find this job in the recruiter ticket wallet. Please refresh and try again.');
     }
 
-    // Update wallet top-level totals (sum across jobs or increment)
-    wallet.totalPurchased = (wallet.totalPurchased || 0) + count;
-    wallet.availableTickets = (wallet.availableTickets || 0) + count;
-    wallet.lastTransactionAt = new Date();
-    await wallet.save();
-
-    const balanceBefore = wallet.availableTickets - count;
     const balanceAfter = wallet.availableTickets;
+    const balanceBefore = balanceAfter - count;
 
     // Record immutable transaction
     const transaction = new TicketTransaction({
@@ -370,6 +369,28 @@ const deductTicketForAssessment = async ({
         };
     }
 
+    if (!jobId || !applicationId || !candidateId) {
+        return {
+            success: false,
+            reason: 'INVALID_ASSESSMENT_CONTEXT',
+            message: 'A job, application, and candidate are required to start an assessment.'
+        };
+    }
+
+    const { allIds } = await resolveRecruiterIdentifiers(primaryId);
+    const targetJob = await Job.findOne({
+        _id: jobId,
+        recruiterId: { $in: Array.from(new Set([primaryId, ...(allIds || [])])) }
+    }).lean();
+    if (!targetJob) {
+        return {
+            success: false,
+            reason: 'JOB_NOT_OWNED',
+            message: 'The assessment job could not be matched to its recruiter.'
+        };
+    }
+    const targetJobTitle = targetJob.title || '';
+
     // 1. Idempotency Check: Did this candidate already consume a ticket for this job?
     const existingConsumption = await AssessmentTicketConsumption.findOne({
         jobId,
@@ -383,10 +404,12 @@ const deductTicketForAssessment = async ({
     if (existingConsumption) {
         console.log(`[TICKET-SERVICE] Candidate ${candidateId} / application ${applicationId} already consumed a ticket for job ${jobId}. Resuming session.`);
         const wallet = await getWallet(primaryId);
+        const jobEntry = wallet?.jobs?.find(j => j.jobId && j.jobId.toString() === jobId.toString());
         return {
             success: true,
             alreadyConsumed: true,
-            availableTickets: wallet.availableTickets,
+            availableTickets: wallet?.availableTickets || 0,
+            jobAvailableTickets: jobEntry?.availableTickets || 0,
             consumption: existingConsumption,
             message: 'Session resumed. No additional ticket was consumed.'
         };
@@ -403,105 +426,141 @@ const deductTicketForAssessment = async ({
         };
     }
 
-    let targetJob = null;
-    let targetJobTitle = '';
-    if (jobId) {
-        try {
-            targetJob = await Job.findById(jobId).lean();
-            if (targetJob) targetJobTitle = targetJob.title || '';
-        } catch (e) {}
-    }
+    // Compare and decrement atomically so simultaneous starts cannot consume
+    // more tickets than this specific job owns.
+    const balanceAfterWallet = await RecruiterTicketWallet.findOneAndUpdate(
+        {
+            recruiterId: primaryId,
+            availableTickets: { $gte: 1 },
+            jobs: { $elemMatch: { jobId, availableTickets: { $gte: 1 } } }
+        },
+        {
+            $inc: {
+                availableTickets: -1,
+                totalConsumed: 1,
+                'jobs.$.availableTickets': -1,
+                'jobs.$.totalConsumed': 1
+            },
+            $set: { lastTransactionAt: new Date() }
+        },
+        { new: true }
+    );
 
-    const strJobId = jobId ? jobId.toString() : null;
-    let jobEntry = strJobId && wallet.jobs ? wallet.jobs.find(j => j.jobId && j.jobId.toString() === strJobId) : null;
-
-    // Check availability: Strict per-job isolation
-    if (jobId && wallet.jobs && wallet.jobs.length > 0) {
-        if (!jobEntry || jobEntry.availableTickets < 1) {
-            console.warn(`[TICKET-SERVICE] Insufficient tickets for recruiter ${primaryId} on job ${jobId}.`);
-            return {
-                success: false,
-                reason: 'INSUFFICIENT_TICKETS',
-                availableTickets: wallet.availableTickets,
-                jobAvailableTickets: 0,
-                message: targetJobTitle 
-                    ? `No available interview tickets remaining for "${targetJobTitle}". Please purchase tickets for this job.`
-                    : 'No available interview tickets remaining for this job.'
-            };
-        }
-    } else if (wallet.availableTickets < 1) {
-        console.warn(`[TICKET-SERVICE] Insufficient tickets for recruiter ${primaryId}.`);
+    if (!balanceAfterWallet) {
+        const currentWallet = await getWallet(primaryId);
+        const currentJob = currentWallet?.jobs?.find(j => j.jobId && j.jobId.toString() === jobId.toString());
+        console.warn(`[TICKET-SERVICE] Insufficient tickets for recruiter ${primaryId} on job ${jobId}.`);
         return {
             success: false,
             reason: 'INSUFFICIENT_TICKETS',
-            availableTickets: 0,
-            jobAvailableTickets: 0,
-            message: 'Recruiter has no available interview tickets remaining.'
+            availableTickets: currentWallet?.availableTickets || 0,
+            jobAvailableTickets: currentJob?.availableTickets || 0,
+            message: targetJobTitle
+                ? `No available interview tickets remaining for "${targetJobTitle}". Please purchase tickets for this job.`
+                : 'No available interview tickets remaining for this job.'
         };
     }
 
-    // Deduct ticket from job allocation and top-level wallet
-    if (jobEntry && jobEntry.availableTickets >= 1) {
-        jobEntry.availableTickets -= 1;
-        jobEntry.totalConsumed = (jobEntry.totalConsumed || 0) + 1;
-    }
-
-    wallet.availableTickets = Math.max(0, wallet.availableTickets - 1);
-    wallet.totalConsumed = (wallet.totalConsumed || 0) + 1;
-    wallet.lastTransactionAt = new Date();
-    await wallet.save();
-
-    const balanceBefore = wallet.availableTickets + 1;
-    const balanceAfter = wallet.availableTickets;
-
-    // 3. Record transaction ledger
-    const transaction = new TicketTransaction({
-        recruiterId: primaryId,
-        candidateId: String(candidateId),
-        jobId: jobId || null,
-        jobTitle: targetJobTitle || '',
-        applicationId,
-        type: 'DEBIT',
-        quantity: 1,
-        balanceBefore,
-        balanceAfter,
-        status: 'completed',
-        notes: `Assessment started by candidate ${candidateEmail || candidateId} for job ${targetJobTitle || jobId}`
-    });
-    await transaction.save();
-
-    // 4. Record consumption entry with unique constraints
+    const updatedJobEntry = balanceAfterWallet.jobs.find(j => j.jobId && j.jobId.toString() === jobId.toString());
+    const balanceBefore = balanceAfterWallet.availableTickets + 1;
+    const balanceAfter = balanceAfterWallet.availableTickets;
+    let transaction = null;
     let consumption = null;
+
     try {
+        // Save the unique consumption record after the atomic reservation. Its
+        // unique indexes make retries idempotent; a duplicate reservation is
+        // returned to the wallet below.
         consumption = new AssessmentTicketConsumption({
             recruiterId: primaryId,
             jobId,
             candidateId: String(candidateId),
             candidateEmail: candidateEmail ? candidateEmail.toLowerCase().trim() : '',
-            applicationId,
-            transactionId: transaction._id
+            applicationId
         });
         await consumption.save();
-    } catch (dupErr) {
-        // If race condition triggered duplicate consumption, roll back ticket
-        if (dupErr.code === 11000) {
-            console.warn('[TICKET-SERVICE] Concurrent duplicate consumption detected. Rolling back ticket.');
-            if (jobEntry) {
-                jobEntry.availableTickets += 1;
-                jobEntry.totalConsumed = Math.max(0, jobEntry.totalConsumed - 1);
-            }
-            wallet.availableTickets += 1;
-            wallet.totalConsumed = Math.max(0, wallet.totalConsumed - 1);
-            await wallet.save();
 
-            return {
-                success: true,
-                alreadyConsumed: true,
-                availableTickets: balanceBefore,
-                message: 'Concurrent attempt handled safely.'
-            };
+        transaction = new TicketTransaction({
+            recruiterId: primaryId,
+            candidateId: String(candidateId),
+            jobId,
+            jobTitle: targetJobTitle,
+            applicationId,
+            type: 'DEBIT',
+            quantity: 1,
+            balanceBefore,
+            balanceAfter,
+            status: 'completed',
+            notes: `Assessment started by candidate ${candidateEmail || candidateId} for job ${targetJobTitle || jobId}`
+        });
+        await transaction.save();
+        consumption.transactionId = transaction._id;
+        await consumption.save();
+    } catch (writeErr) {
+        if (writeErr.code === 11000) {
+            if (transaction) {
+                await TicketTransaction.findByIdAndUpdate(transaction._id, {
+                    $set: { status: 'failed', notes: 'Duplicate assessment start; ticket reservation rolled back.' }
+                });
+            }
+            await RecruiterTicketWallet.updateOne(
+                { recruiterId: primaryId, 'jobs.jobId': jobId },
+                {
+                    $inc: {
+                        availableTickets: 1,
+                        totalConsumed: -1,
+                        'jobs.$.availableTickets': 1,
+                        'jobs.$.totalConsumed': -1
+                    },
+                    $set: { lastTransactionAt: new Date() }
+                }
+            );
+            const existing = await AssessmentTicketConsumption.findOne({
+                jobId,
+                $or: [
+                    { applicationId },
+                    { candidateId: String(candidateId) },
+                    ...(candidateEmail ? [{ candidateEmail: candidateEmail.toLowerCase().trim() }] : [])
+                ]
+            });
+            const currentWallet = await getWallet(primaryId);
+            const currentJob = currentWallet?.jobs?.find(j => j.jobId && j.jobId.toString() === jobId.toString());
+            if (existing) {
+                return {
+                    success: true,
+                    alreadyConsumed: true,
+                    availableTickets: currentWallet?.availableTickets || 0,
+                    jobAvailableTickets: currentJob?.availableTickets || 0,
+                    consumption: existing,
+                    message: 'Session resumed. No additional ticket was consumed.'
+                };
+            }
+            if (consumption) await AssessmentTicketConsumption.deleteOne({ _id: consumption._id });
+            if (transaction) {
+                await TicketTransaction.findByIdAndUpdate(transaction._id, { $set: { status: 'failed' } });
+            }
+            throw writeErr;
+        } else {
+            if (consumption) await AssessmentTicketConsumption.deleteOne({ _id: consumption._id });
+            if (transaction) await TicketTransaction.findByIdAndUpdate(transaction._id, { $set: { status: 'failed' } });
+            await RecruiterTicketWallet.updateOne(
+                { recruiterId: primaryId, 'jobs.jobId': jobId },
+                {
+                    $inc: {
+                        availableTickets: 1,
+                        totalConsumed: -1,
+                        'jobs.$.availableTickets': 1,
+                        'jobs.$.totalConsumed': -1
+                    },
+                    $set: { lastTransactionAt: new Date() }
+                }
+            );
+            throw writeErr;
         }
-        throw dupErr;
+    }
+
+    if (!transaction) {
+        throw new Error('Could not record the assessment ticket transaction.');
     }
 
     console.log(`[TICKET-SERVICE] Deducted 1 ticket for job ${jobId}. Remaining tickets for recruiter ${primaryId}: ${balanceAfter}`);
@@ -510,7 +569,7 @@ const deductTicketForAssessment = async ({
         success: true,
         alreadyConsumed: false,
         availableTickets: balanceAfter,
-        jobAvailableTickets: jobEntry ? jobEntry.availableTickets : balanceAfter,
+        jobAvailableTickets: updatedJobEntry?.availableTickets || 0,
         transaction,
         consumption,
         message: 'Ticket deducted successfully. Assessment session authorized.'
@@ -551,8 +610,8 @@ const checkJobAssessmentStatus = async (jobId) => {
     const jobPurchased = jobEntry ? jobEntry.totalPurchased : 0;
     const jobConsumed = jobEntry ? jobEntry.totalConsumed : 0;
 
-    // Unlocked if tickets exist specifically for this job, or overall wallet balance exists
-    const isUnlocked = jobAvailable > 0 || (wallet && wallet.availableTickets > 0 && (!wallet.jobs || wallet.jobs.length === 0));
+    // Strictly unlocked if tickets exist specifically for this job
+    const isUnlocked = jobAvailable > 0;
 
     return {
         exists: true,

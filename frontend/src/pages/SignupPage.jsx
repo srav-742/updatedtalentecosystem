@@ -161,9 +161,7 @@ const SignupPage = () => {
             await sendVerificationEmail(currentUser);
 
             // Also trigger backend branded email with CTA button
-            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
-            }).catch(e => {
+            axios.post(`${API_URL}/auth/resend-verification`, { email: verificationPending.email }).catch(e => {
                 console.warn('[SIGNUP] Backend resend-verification warning (non-fatal):', e.message);
             });
 
@@ -226,18 +224,19 @@ const SignupPage = () => {
             const [, savedProfile] = await Promise.all([
                 // 4a. Backend signup — persists password hash + UID to MongoDB
                 withRetry(async () => {
-                    await axios.post(`${API_URL}/signup`, {
+                    const res = await axios.post(`${API_URL}/signup`, {
                         name: formData.name,
                         email: normalizedEmail,
                         password: formData.password,
                         role: role,
                         uid: user.uid
-                    }, {
-                        headers: {
-                            'X-Client-ID': CLIENT_ID,
-                            'X-Client-Secret': CLIENT_SECRET
-                        }
                     });
+                    if (res?.data?.accessToken) {
+                        localStorage.setItem('accessToken', res.data.accessToken);
+                    }
+                    if (res?.data?.refreshToken) {
+                        localStorage.setItem('refreshToken', res.data.refreshToken);
+                    }
                 }, 3, 'backendSignup'),
                 // 4b. Profile save — upserts full profile
                 withRetry(
@@ -261,18 +260,8 @@ const SignupPage = () => {
                 console.warn('[SIGNUP] Sync call failed (non-fatal):', err.message);
             });
 
-            // 4d. Initialize Gateway session tokens
-            await withRetry(
-                () => apiClient.initializeGatewaySession(normalizedEmail, user.uid),
-                3, 'gatewaySession'
-            ).catch(err => {
-                console.warn('[SIGNUP] Gateway session warning:', err.message);
-            });
-
-            // 4e. Trigger backend branded verification email
-            axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }, {
-                headers: { 'X-Client-ID': CLIENT_ID, 'X-Client-Secret': CLIENT_SECRET }
-            }).catch(err => {
+            // 4d. Trigger backend branded verification email
+            axios.post(`${API_URL}/auth/send-verification`, { email: normalizedEmail }).catch(err => {
                 console.warn('[SIGNUP] Backend verification email warning (non-fatal):', err.message);
             });
 

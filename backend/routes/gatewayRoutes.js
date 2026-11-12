@@ -12,25 +12,6 @@ const { generateAccessToken, generateRefreshToken, refreshAccessToken, validateC
  */
 router.post('/token', async (req, res) => {
     try {
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
-
-        // Validate client credentials
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required.'
-            });
-        }
-
-        const client = await validateClient(clientId, clientSecret);
-        if (!client) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid client credentials.'
-            });
-        }
-
         const { email, uid } = req.body;
         if (!email && !uid) {
             return res.status(400).json({
@@ -86,25 +67,6 @@ router.post('/token', async (req, res) => {
  */
 router.post('/refresh', async (req, res) => {
     try {
-        const clientId = req.headers['x-client-id'];
-        const clientSecret = req.headers['x-client-secret'];
-
-        // Validate client credentials
-        if (!clientId || !clientSecret) {
-            return res.status(401).json({
-                success: false,
-                message: 'Client credentials required.'
-            });
-        }
-
-        const client = await validateClient(clientId, clientSecret);
-        if (!client) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid client credentials.'
-            });
-        }
-
         const { refreshToken } = req.body;
         if (!refreshToken) {
             return res.status(400).json({

@@ -239,21 +239,192 @@ const updateJob = async (req, res) => {
 
 const deleteJob = async (req, res) => {
     try {
-        // Restrict delete operation strictly to the primary admin (sravyaadmin@gmail.com)
-        const isPrimaryAdmin = req.user && req.user.role === 'admin' && req.user.email && req.user.email.toLowerCase() === 'sravyaadmin@gmail.com';
-        if (!isPrimaryAdmin) {
-            return res.status(403).json({ message: "Forbidden: Only the primary administrator (sravyaadmin@gmail.com) is authorized to delete jobs." });
+        const { jobId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ success: false, message: "Invalid Job ID" });
         }
 
-        if (!mongoose.Types.ObjectId.isValid(req.params.jobId)) {
-            return res.status(400).json({ message: "Invalid Job ID" });
+        const job = await Job.findById(jobId);
+        if (!job) {
+            return res.status(404).json({ success: false, message: "Job not found" });
         }
-        await Job.findByIdAndDelete(req.params.jobId);
-        clearJobsCache(); // Clear all job caches
-        res.json({ message: "Job deleted successfully" });
+
+        // Resolve requesting user
+        let reqUser = req.user;
+        const xUserId = req.headers['x-user-id'] || req.headers['x-h1p-user-id'] || req.query?.userId || req.body?.userId;
+        if (!reqUser && xUserId) {
+            const { findRecruiterUser } = require('../utils/userResolver');
+            reqUser = await findRecruiterUser(xUserId);
+        }
+
+        const isAdmin = reqUser && (
+            reqUser.role === 'admin' || 
+            (reqUser.email && reqUser.email.toLowerCase() === 'sravyaadmin@gmail.com')
+        );
+
+        // Ownership check: recruiters can delete their own jobs (any status)
+        // Admins can delete any job
+        let isOwner = false;
+        if (reqUser) {
+            const { resolveRecruiterIdentifiers } = require('../utils/userResolver');
+            const { allIds } = await resolveRecruiterIdentifiers(reqUser);
+            isOwner = allIds.some(id => String(id).toLowerCase() === String(job.recruiterId || '').toLowerCase());
+        } else if (xUserId) {
+            isOwner = String(xUserId).toLowerCase() === String(job.recruiterId || '').toLowerCase();
+        }
+
+        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
+
+        if (reqUser && !isAdmin && !isOwner) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied. You can only delete your own job postings."
+            });
+        }
+
+        if (!reqUser && !xUserId && !isLocalhost) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required to delete job postings."
+            });
+        }
+
+        console.log(`[DELETE-JOB] Initiating cascading deletion for job: ${job._id} ("${job.title}") requested by ${reqUser?.email || xUserId || 'localhost'}`);
+
+        // Cascading deletion of all related records
+        const jobObjectId = new mongoose.Types.ObjectId(jobId);
+        const jobQueryCondition = { $or: [{ jobId: jobObjectId }, { jobId: String(jobId) }] };
+
+        // 1. Applications & dependent records
+        try {
+            const Application = require('../models/Application');
+            const applications = await Application.find(jobQueryCondition).select('_id');
+            const applicationIds = applications.map(a => a._id);
+
+            if (applicationIds.length > 0) {
+                await Application.deleteMany({ _id: { $in: applicationIds } });
+                console.log(`[DELETE-JOB] Deleted ${applicationIds.length} candidate applications`);
+
+                // Delete unlocked applicants
+                try {
+                    const UnlockedApplicant = require('../models/UnlockedApplicant');
+                    await UnlockedApplicant.deleteMany({ applicationId: { $in: applicationIds } });
+                } catch (e) {
+                    console.warn('[DELETE-JOB] UnlockedApplicant cleanup:', e.message);
+                }
+
+                // Delete proctoring reports & violations
+                try {
+                    const ProctoringReport = require('../models/ProctoringReport');
+                    await ProctoringReport.deleteMany({ applicationId: { $in: applicationIds } });
+                } catch (e) {
+                    console.warn('[DELETE-JOB] ProctoringReport cleanup:', e.message);
+                }
+                try {
+                    const ProctoringViolation = require('../models/ProctoringViolation');
+                    await ProctoringViolation.deleteMany({ applicationId: { $in: applicationIds } });
+                } catch (e) {
+                    console.warn('[DELETE-JOB] ProctoringViolation cleanup:', e.message);
+                }
+                try {
+                    const ProctoringViolationEnhanced = require('../models/ProctoringViolationEnhanced');
+                    await ProctoringViolationEnhanced.deleteMany({ applicationId: { $in: applicationIds } });
+                } catch (e) {
+                    console.warn('[DELETE-JOB] ProctoringViolationEnhanced cleanup:', e.message);
+                }
+            }
+        } catch (appErr) {
+            console.warn('[DELETE-JOB] Application cleanup error:', appErr.message);
+        }
+
+        // 2. Assessment Submissions
+        try {
+            const AssessmentSubmission = require('../models/AssessmentSubmission');
+            await AssessmentSubmission.deleteMany(jobQueryCondition);
+        } catch (e) {
+            console.warn('[DELETE-JOB] AssessmentSubmission cleanup error:', e.message);
+        }
+
+        // 3. Assessment Ticket Consumptions
+        try {
+            const AssessmentTicketConsumption = require('../models/AssessmentTicketConsumption');
+            await AssessmentTicketConsumption.deleteMany(jobQueryCondition);
+        } catch (e) {
+            console.warn('[DELETE-JOB] AssessmentTicketConsumption cleanup error:', e.message);
+        }
+
+        // 4. Coding Rounds, Questions & Revisions
+        try {
+            const CodingRound = require('../models/CodingRound');
+            const CodingQuestion = require('../models/CodingQuestion');
+            const rounds = await CodingRound.find(jobQueryCondition).select('_id');
+            const roundIds = rounds.map(r => r._id);
+            if (roundIds.length > 0) {
+                const questions = await CodingQuestion.find({ codingRoundId: { $in: roundIds } }).select('_id');
+                const questionIds = questions.map(q => q._id);
+
+                if (questionIds.length > 0) {
+                    try {
+                        const CodeRevision = require('../models/CodeRevision');
+                        await CodeRevision.deleteMany({ questionId: { $in: questionIds } });
+                    } catch (e) {}
+                    await CodingQuestion.deleteMany({ _id: { $in: questionIds } });
+                }
+
+                await CodingRound.deleteMany({ _id: { $in: roundIds } });
+                console.log(`[DELETE-JOB] Deleted ${roundIds.length} coding rounds and ${questionIds.length} questions`);
+            }
+        } catch (e) {
+            console.warn('[DELETE-JOB] CodingRound cleanup error:', e.message);
+        }
+
+        // 5. Interview Sessions & Feedback
+        try {
+            const InterviewSession = require('../models/InterviewSession');
+            await InterviewSession.deleteMany(jobQueryCondition);
+        } catch (e) {
+            console.warn('[DELETE-JOB] InterviewSession cleanup error:', e.message);
+        }
+        try {
+            const InterviewFeedback = require('../models/InterviewFeedback');
+            await InterviewFeedback.deleteMany(jobQueryCondition);
+        } catch (e) {
+            console.warn('[DELETE-JOB] InterviewFeedback cleanup error:', e.message);
+        }
+
+        // 6. Resume Analysis
+        try {
+            const ResumeAnalysis = require('../models/ResumeAnalysis');
+            await ResumeAnalysis.deleteMany(jobQueryCondition);
+        } catch (e) {
+            console.warn('[DELETE-JOB] ResumeAnalysis cleanup error:', e.message);
+        }
+
+        // 7. Recruiter Ticket Wallet Allocations
+        try {
+            const RecruiterTicketWallet = require('../models/RecruiterTicketWallet');
+            await RecruiterTicketWallet.updateMany(
+                {},
+                { $pull: { jobs: { jobId: jobObjectId } } }
+            );
+        } catch (e) {
+            console.warn('[DELETE-JOB] RecruiterTicketWallet cleanup error:', e.message);
+        }
+
+        // 8. Delete the Job requisition itself
+        await job.deleteOne();
+        clearJobsCache(); // Clear all job caches so it disappears immediately across all views
+
+        console.log(`[DELETE-JOB] ✅ Successfully deleted job ${job._id} ("${job.title}")`);
+        return res.json({
+            success: true,
+            message: "Job requisition and all associated candidate progress deleted successfully."
+        });
+
     } catch (error) {
-        console.error("[GET-JOBS] Error:", error);
-        res.status(500).json({ message: error.message });
+        console.error("[DELETE-JOB] Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -301,7 +472,7 @@ const createJob = async (req, res) => {
         const savedJob = await job.save();
         clearJobsCache(); // Clear all job caches
 
-        // Provision / ensure Recruiter Client and roles exist in MySQL via Gateway / Auth-Service
+        // Provision / ensure Recruiter Client and roles exist in MongoDB
         if (jobData.recruiterId) {
             try {
                 const { findRecruiterUser } = require('../utils/userResolver');

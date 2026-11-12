@@ -85,19 +85,22 @@ export default function TicketWalletModal({
                 className="ticket-wallet-modal-container relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6"
             >
                 {/* 1. Header */}
-                <div className="relative px-6 py-5 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white flex items-center justify-between">
+                <div 
+                    className="modal-header relative px-6 py-4 bg-slate-900 border-b border-slate-800 text-white flex items-center justify-between shrink-0"
+                    style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
+                >
                     <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shadow-inner">
-                            <Wallet size={22} />
+                        <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shadow-inner">
+                            <Wallet size={20} style={{ color: '#60a5fa' }} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-xl font-black tracking-tight">Interview Tickets Wallet</h2>
+                                <h2 className="text-lg font-black tracking-tight" style={{ color: '#ffffff' }}>Interview Tickets Wallet</h2>
                                 <span className="px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-[10px] font-bold text-blue-300 uppercase">
                                     Live Balance
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-300">
+                            <p className="text-xs text-slate-300" style={{ color: '#94a3b8' }}>
                                 1 Ticket = 1 Full Candidate Assessment & Proctored AI Interview
                             </p>
                         </div>

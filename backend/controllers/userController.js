@@ -155,7 +155,7 @@ const updateUserProfile = async (req, res) => {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            // Provision / update Recruiter Client credentials in MySQL via Auth-Service / API Gateway in background
+            // Provision / update Recruiter Client credentials in MongoDB in background
             if (user.role === 'recruiter') {
                 try {
                     const { provisionClientForRecruiter } = require('./paymentController');

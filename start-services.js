@@ -2,21 +2,13 @@ import { spawn } from 'child_process';
 import path from 'path';
 
 const services = [
-  { name: 'auth-service', path: 'auth-service' },
-  { name: 'backend', path: 'backend', env: { PORT: '5010' } },
-  { name: 'job-service', path: 'services/job-service' },
-  { name: 'candidate-service', path: 'services/candidate-service' },
-  { name: 'recruiter-service', path: 'services/recruiter-service' },
-  { name: 'admin-service', path: 'services/admin-service' },
-  { name: 'assessment-service', path: 'services/assessment-service' },
-  { name: 'interview-service', path: 'services/interview-service' },
-  { name: 'resume-service', path: 'services/resume-service' },
-  { name: 'notification-service', path: 'services/notification-service' }
+  { name: 'backend', path: 'backend', env: { PORT: '5000' } },
+  { name: 'frontend', path: 'frontend' }
 ];
 
 const children = [];
 
-console.log('\x1b[36m%s\x1b[0m', 'Starting Hire1Percent Microservices...');
+console.log('\x1b[36m%s\x1b[0m', 'Starting Talent Ecosystem (Backend + Frontend)...');
 
 // Determine shell for running npm on Windows vs Unix
 const shell = process.platform === 'win32' ? true : '/bin/sh';
@@ -57,20 +49,14 @@ const startService = (service) => {
   return child;
 };
 
-// Start all downstream services
+// Start both backend and frontend
 services.forEach((service) => {
   startService(service);
 });
 
-// Wait 8 seconds for downstream services to initialize before starting api-gateway
-console.log('\x1b[33m%s\x1b[0m', '[Launcher] Waiting 8 seconds for services to initialize before starting api-gateway...');
-setTimeout(() => {
-  startService({ name: 'api-gateway', path: 'api-gateway' });
-}, 8000);
-
 // Graceful shutdown handler
 function shutdown() {
-  console.log('\n\x1b[36m%s\x1b[0m', 'Shutting down all microservices...');
+  console.log('\n\x1b[36m%s\x1b[0m', 'Shutting down Talent Ecosystem services...');
   children.forEach((child) => {
     if (child.pid) {
       child.kill('SIGINT');

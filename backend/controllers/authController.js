@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const { withRetry } = require('../utils/retry');
+const { generateAccessToken, generateRefreshToken } = require('../services/authService');
 const ALLOWED_ADMIN_EMAILS = ['sravyaadmin@gmail.com'];
 
 
@@ -206,10 +207,15 @@ const signup = async (req, res) => {
         }
 
         console.log(`[AUTH-SIGNUP] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
         res.status(201).json({ 
             message: "User created successfully", 
             userId: user._id,
-            uid: user.uid 
+            uid: user.uid,
+            user,
+            accessToken,
+            refreshToken
         });
     } catch (error) {
         console.error(`[AUTH-SIGNUP] Error in ${Date.now() - start}ms:`, error.message);
@@ -336,7 +342,9 @@ const login = async (req, res) => {
         }
 
         console.log(`[AUTH-LOGIN] Success for ${normalizedEmail} in ${Date.now() - start}ms`);
-        res.json({ message: "Login successful", user });
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+        res.json({ message: "Login successful", user, accessToken, refreshToken });
     } catch (error) {
         console.error(`[AUTH-LOGIN] Error in ${Date.now() - start}ms:`, error.message);
         res.status(500).json({ message: error.message });
@@ -369,7 +377,9 @@ const googleAuth = async (req, res) => {
                 const { syncUserToProfile } = require('../utils/dbSync');
                 await syncUserToProfile(user);
             }
-            return res.json({ message: "Login successful", user });
+            const accessToken = generateAccessToken(user);
+            const refreshToken = generateRefreshToken(user);
+            return res.json({ message: "Login successful", user, accessToken, refreshToken });
         } else {
             if (!role) return res.status(400).json({ message: "Role is required for first-time signup" });
             
@@ -385,7 +395,9 @@ const googleAuth = async (req, res) => {
             const { syncUserToProfile } = require('../utils/dbSync');
             await syncUserToProfile(user);
 
-            return res.json({ message: "Signup successful", user });
+            const accessToken = generateAccessToken(user);
+            const refreshToken = generateRefreshToken(user);
+            return res.json({ message: "Signup successful", user, accessToken, refreshToken });
         }
     } catch (error) {
         console.error("[GOOGLE-AUTH] Error:", error.message);
