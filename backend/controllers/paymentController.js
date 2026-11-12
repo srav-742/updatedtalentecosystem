@@ -7,14 +7,9 @@ const User = require('../models/User');
 const { findRecruiterUser } = require('../utils/userResolver');
 
 /**
- * Provision / Update recruiter client and roles in Authorization Service (MySQL) & MongoDB
+ * Provision / Update recruiter client and roles in MongoDB
  */
 const provisionClientForRecruiter = async (user, plan = 'combined', customClientName = null) => {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:8080/oauth-service';
-    const apiGatewayUrl = process.env.API_GATEWAY_URL || 'http://localhost:9090';
-    let clientProvisionResult = null;
-    let authSessionTokens = null;
-
     const uid = user.uid || user._id.toString();
     const clientId = `client_${uid}`;
 
@@ -36,51 +31,12 @@ const provisionClientForRecruiter = async (user, plan = 'combined', customClient
         clientSecretPlain = `h1p_sec_${crypto.randomBytes(8).toString('hex')}`;
     }
 
-    // 2. Provision / Update Client & Roles in API Gateway Inbound / Auth Service
     let clientName = customClientName
         || (user.company && user.company.name)
         || user.name
         || (user.email ? user.email.split('@')[0] : 'Recruiter Client');
 
-    const registerPayload = {
-        uid: uid,
-        plan: plan, // Grants RECRUITER_POST_JOB & RECRUITER_VIEW_APPLICANTS
-        clientName: clientName
-    };
-
-    // Try API Gateway inbound first (/oauth-service/api/v1/auth/client/register), then direct Auth-Service
-    const targetEndpoints = [
-        `${apiGatewayUrl}/oauth-service/api/v1/auth/client/register`,
-        `${authServiceUrl}/api/v1/auth/client/register`,
-        `${apiGatewayUrl}/api/v1/auth/client/register`,
-        `${apiGatewayUrl}/api/gateway/client/register`
-    ];
-
-    for (const endpoint of targetEndpoints) {
-        try {
-            const regRes = await axios.post(endpoint, registerPayload, {
-                headers: { 
-                    'Content-Type': 'application/json'
-                },
-                timeout: 4000
-            });
-            if (regRes.data && (regRes.data.success || regRes.data.clientId)) {
-                clientProvisionResult = regRes.data;
-                if (regRes.data.clientSecret) {
-                    clientSecretPlain = regRes.data.clientSecret;
-                }
-                if (regRes.data.clientName) {
-                    clientName = regRes.data.clientName;
-                }
-                console.log(`[PROVISION] Successfully registered client with Gateway/Auth-Service via ${endpoint}`);
-                break;
-            }
-        } catch (callErr) {
-            console.warn(`[PROVISION] Failed registering client at ${endpoint}:`, callErr.response?.data?.message || callErr.response?.data || callErr.message);
-        }
-    }
-
-    // 3. Synchronize with MongoDB Client, Role, ClientRole, and PlaintextClientCredential models
+    // 2. Synchronize with MongoDB Client, Role, ClientRole, and PlaintextClientCredential models
     try {
         const hashedSecret = await bcrypt.hash(clientSecretPlain, 10);
 
@@ -132,26 +88,19 @@ const provisionClientForRecruiter = async (user, plan = 'combined', customClient
         console.error('[PROVISION] MongoDB client sync error:', mongoErr.message);
     }
 
-    // 4. Authenticate to generate active OAuth session tokens if auth service available
+    // 3. Update user status in MongoDB
     try {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecretPlain}`).toString('base64');
-        const tokenRes = await axios.post(`${authServiceUrl}/oauth/authenticate`, {}, {
-            headers: { 'Authorization': `Basic ${basicAuth}` },
-            timeout: 3000
-        });
-        if (tokenRes.data) {
-            authSessionTokens = tokenRes.data;
-        }
-    } catch (tokErr) {
-        // Fallback local JWT tokens
-        try {
-            const { generateAccessToken, generateRefreshToken } = require('../services/authService');
-            authSessionTokens = {
-                accessToken: generateAccessToken(user),
-                refreshToken: generateRefreshToken(user)
-            };
-        } catch (jwtErr) {}
-    }
+        user.isPro = true;
+        user.hiringPattern = 'Premium Recruiter';
+        await user.save();
+    } catch (uErr) {}
+
+    // 4. Generate local JWT tokens
+    const { generateAccessToken, generateRefreshToken } = require('../services/authService');
+    const authSessionTokens = {
+        accessToken: generateAccessToken(user),
+        refreshToken: generateRefreshToken(user)
+    };
 
     return {
         client: {

@@ -35,7 +35,6 @@ const RecruiterLayout = () => {
     // Wallet States
     const [walletBalance, setWalletBalance] = React.useState(user.walletBalance || 0);
     const [ticketWallet, setTicketWallet] = React.useState({ availableTickets: 0, totalPurchased: 0, totalConsumed: 0, jobs: [] });
-    const [recruiterJobsList, setRecruiterJobsList] = React.useState([]);
     const [isTopUpOpen, setIsTopUpOpen] = React.useState(false);
     const [isTicketWalletOpen, setIsTicketWalletOpen] = React.useState(false);
     const [isBuyTicketsOpen, setIsBuyTicketsOpen] = React.useState(false);
@@ -49,46 +48,6 @@ const RecruiterLayout = () => {
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }, [location.pathname]);
 
-    // Unified list of jobs with their tickets for the sidebar under Applicants
-    const sidebarJobs = React.useMemo(() => {
-        const walletJobsMap = new Map();
-        (ticketWallet?.jobs || []).forEach(j => {
-            if (j.jobId) walletJobsMap.set(String(j.jobId), j);
-        });
-
-        const list = [];
-        const seenIds = new Set();
-
-        // 1. Add from recruiterJobsList
-        recruiterJobsList.forEach(job => {
-            const strId = String(job._id);
-            seenIds.add(strId);
-            const wJob = walletJobsMap.get(strId);
-            list.push({
-                jobId: strId,
-                jobTitle: job.title || 'Untitled Job',
-                totalPurchased: wJob?.totalPurchased || 0,
-                totalConsumed: wJob?.totalConsumed || 0,
-                availableTickets: wJob?.availableTickets || 0
-            });
-        });
-
-        // 2. Add any remaining from walletJobs
-        (ticketWallet?.jobs || []).forEach(wJob => {
-            if (wJob.jobId && !seenIds.has(String(wJob.jobId))) {
-                list.push({
-                    jobId: String(wJob.jobId),
-                    jobTitle: wJob.jobTitle || 'Untitled Job',
-                    totalPurchased: wJob.totalPurchased || 0,
-                    totalConsumed: wJob.totalConsumed || 0,
-                    availableTickets: wJob.availableTickets || 0
-                });
-            }
-        });
-
-        return list;
-    }, [recruiterJobsList, ticketWallet]);
-
     const activeNavItems = React.useMemo(() => {
         const items = [...navItems];
         if (user.role === 'admin') {
@@ -101,20 +60,15 @@ const RecruiterLayout = () => {
         const uid = user.uid || user._id || user.id;
         if (!uid) return;
         try {
-            const [balRes, tktRes, jobsRes] = await Promise.all([
+            const [balRes, tktRes] = await Promise.all([
                 axios.get(`${API_URL}/wallet/balance/${uid}`).catch(() => null),
-                axios.get(`${API_URL}/tickets/wallet/${uid}`).catch(() => null),
-                axios.get(`${API_URL}/jobs/recruiter/${uid}`).catch(() => null)
+                axios.get(`${API_URL}/tickets/wallet/${uid}`).catch(() => null)
             ]);
             if (balRes?.data && balRes.data.success) {
                 setWalletBalance(balRes.data.balance);
             }
             if (tktRes?.data && tktRes.data.success && tktRes.data.wallet) {
                 setTicketWallet(tktRes.data.wallet);
-            }
-            if (jobsRes?.data) {
-                const list = Array.isArray(jobsRes.data) ? jobsRes.data : (jobsRes.data?.jobs || []);
-                setRecruiterJobsList(list);
             }
         } catch (err) {
             console.error("Failed to fetch wallet balance:", err);
@@ -156,11 +110,16 @@ const RecruiterLayout = () => {
         const handleWalletUpdate = () => {
             fetchWalletBalance();
         };
+        const handleWindowFocus = () => {
+            fetchWalletBalance();
+        };
         window.addEventListener('wallet-update', handleWalletUpdate);
+        window.addEventListener('focus', handleWindowFocus);
         return () => {
             window.removeEventListener('wallet-update', handleWalletUpdate);
+            window.removeEventListener('focus', handleWindowFocus);
         };
-    }, [user.uid, user._id, user.id]);
+    }, [user.uid, user._id, user.id, location.pathname]);
 
 
     React.useEffect(() => {
@@ -323,115 +282,30 @@ const RecruiterLayout = () => {
                 <nav className={`flex-1 space-y-1 transition-all duration-300 ${isMinimized ? 'px-2' : 'px-2 pb-1'}`}>
                     {activeNavItems.map((item) => {
                         const Icon = item.icon;
-                        const isApplicants = item.path === '/recruiter/applicants';
-                        const isOnApplicantsPage = location.pathname.startsWith('/recruiter/applicants');
-                        const currentJobId = new URLSearchParams(location.search).get('jobId');
-
                         return (
-                            <div key={item.path} className="space-y-1">
-                                <NavLink
-                                    to={item.path}
-                                    end={item.path === '/recruiter'}
-                                    onClick={() => setIsSidebarOpen(false)}
-                                    title={isMinimized ? (isApplicants ? `Applicants (${ticketWallet.availableTickets || 0} Tickets)` : item.label) : undefined}
-                                    className={({ isActive }) => `
-                                        flex items-center transition w-full
-                                        ${isMinimized 
-                                            ? 'h-9 w-9 justify-center mx-auto rounded-xl border border-transparent' 
-                                            : 'gap-3 px-3.5 py-2.5 text-sm font-bold rounded-xl border'}
-                                        ${isActive
-                                            ? 'border-black bg-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
-                                            : 'border-transparent bg-transparent text-gray-600 hover:border-black/5 hover:bg-black/[0.04] hover:text-gray-900'}
-                                    `}
-                                >
-                                    <Icon size={18} className="shrink-0" />
-                                    {!isMinimized && (
-                                        <>
-                                            <span className="flex-1 text-[13.5px] font-bold tracking-tight truncate">
-                                                {item.label}
-                                            </span>
-                                            {isApplicants && (
-                                                <span 
-                                                    style={{
-                                                        backgroundColor: isOnApplicantsPage ? 'rgba(255,255,255,0.22)' : '#eff6ff',
-                                                        color: isOnApplicantsPage ? '#ffffff' : '#1d4ed8',
-                                                        border: isOnApplicantsPage ? 'none' : '1px solid rgba(59,130,246,0.3)'
-                                                    }}
-                                                    className="text-[10px] font-black px-2 py-0.5 rounded-full"
-                                                >
-                                                    {ticketWallet.availableTickets || 0} Tickets
-                                                </span>
-                                            )}
-                                        </>
-                                    )}
-                                </NavLink>
-
-                                {/* Jobs listed directly under Applicants button */}
-                                {isApplicants && !isMinimized && sidebarJobs.length > 0 && (
-                                    <div className="mt-1 ml-4 pl-3 border-l-2 border-black/10 space-y-1 py-1">
-                                        {/* All Candidates & Jobs */}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                navigate('/recruiter/applicants');
-                                                setIsSidebarOpen(false);
-                                            }}
-                                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition text-left cursor-pointer ${
-                                                isOnApplicantsPage && !currentJobId
-                                                    ? 'bg-black text-white shadow-xs'
-                                                    : 'text-gray-600 hover:bg-black/5 hover:text-gray-900'
-                                            }`}
-                                        >
-                                            <span className="truncate text-[11.5px]">All Jobs Combined</span>
-                                            <span 
-                                                style={{
-                                                    backgroundColor: (isOnApplicantsPage && !currentJobId) ? 'rgba(255,255,255,0.22)' : '#eff6ff',
-                                                    color: (isOnApplicantsPage && !currentJobId) ? '#ffffff' : '#1d4ed8',
-                                                    border: (isOnApplicantsPage && !currentJobId) ? 'none' : '1px solid rgba(59,130,246,0.3)'
-                                                }}
-                                                className="text-[9.5px] font-black px-1.5 py-0.2 rounded-md"
-                                            >
-                                                {ticketWallet.availableTickets || 0} left
-                                            </span>
-                                        </button>
-
-                                        {/* Individual Jobs with specific tickets */}
-                                        {sidebarJobs.map((job) => {
-                                            const isThisJobActive = isOnApplicantsPage && currentJobId === String(job.jobId);
-                                            const left = job.availableTickets || 0;
-
-                                            return (
-                                                <button
-                                                    key={job.jobId}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        navigate(`/recruiter/applicants?jobId=${job.jobId}`);
-                                                        setIsSidebarOpen(false);
-                                                    }}
-                                                    title={`${job.jobTitle}: ${left} tickets left (${job.totalPurchased || 0} bought, ${job.totalConsumed || 0} used)`}
-                                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition text-left cursor-pointer ${
-                                                        isThisJobActive
-                                                            ? 'bg-black text-white shadow-xs'
-                                                            : 'text-gray-600 hover:bg-black/5 hover:text-gray-900'
-                                                    }`}
-                                                >
-                                                    <span className="truncate pr-1 text-[11px] max-w-[110px]">{job.jobTitle}</span>
-                                                    <span 
-                                                        style={{
-                                                            backgroundColor: isThisJobActive ? 'rgba(255,255,255,0.22)' : (left > 0 ? '#ecfdf5' : '#fff1f2'),
-                                                            color: isThisJobActive ? '#ffffff' : (left > 0 ? '#047857' : '#be123c'),
-                                                            border: isThisJobActive ? 'none' : (left > 0 ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(244,63,94,0.3)')
-                                                        }}
-                                                        className="text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0"
-                                                    >
-                                                        {left} left
-                                                    </span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.path === '/recruiter'}
+                                onClick={() => setIsSidebarOpen(false)}
+                                title={isMinimized ? item.label : undefined}
+                                className={({ isActive }) => `
+                                    flex items-center transition w-full
+                                    ${isMinimized
+                                        ? 'h-9 w-9 justify-center mx-auto rounded-xl border border-transparent'
+                                        : 'gap-3 px-3.5 py-2.5 text-sm font-bold rounded-xl border'}
+                                    ${isActive
+                                        ? 'border-black bg-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
+                                        : 'border-transparent bg-transparent text-gray-600 hover:border-black/5 hover:bg-black/[0.04] hover:text-gray-900'}
+                                `}
+                            >
+                                <Icon size={18} className="shrink-0" />
+                                {!isMinimized && (
+                                    <span className="flex-1 text-[13.5px] font-bold tracking-tight truncate">
+                                        {item.label}
+                                    </span>
                                 )}
-                            </div>
+                            </NavLink>
                         );
                     })}
                 </nav>

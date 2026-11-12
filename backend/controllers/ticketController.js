@@ -4,7 +4,8 @@ const ticketService = require('../services/ticketService');
 const TicketPackage = require('../models/TicketPackage');
 const TicketTransaction = require('../models/TicketTransaction');
 const Job = require('../models/Job');
-const { findRecruiterUser } = require('../utils/userResolver');
+const mongoose = require('mongoose');
+const { findRecruiterUser, resolveRecruiterIdentifiers } = require('../utils/userResolver');
 const { provisionClientForRecruiter } = require('./paymentController');
 
 // Initialize Razorpay
@@ -97,14 +98,21 @@ exports.createTicketOrder = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Recruiter user not found.' });
         }
 
-        let targetJob = null;
-        let jobTitle = '';
-        if (jobId) {
-            try {
-                targetJob = await Job.findById(jobId).lean();
-                if (targetJob) jobTitle = targetJob.title;
-            } catch (je) {}
+        if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ success: false, message: 'Select a valid job before purchasing interview tickets.' });
         }
+
+        const { allIds } = await resolveRecruiterIdentifiers(recruiterId);
+        const ownedJob = await Job.findOne({
+            _id: jobId,
+            recruiterId: { $in: Array.from(new Set([recruiterUser.uid, recruiterUser._id.toString(), ...allIds].filter(Boolean))) }
+        }).lean();
+        if (!ownedJob) {
+            return res.status(404).json({ success: false, message: 'The selected job was not found for this recruiter.' });
+        }
+
+        const targetJob = ownedJob;
+        const jobTitle = targetJob.title || '';
 
         let ticketCount = 0;
         let amountInInr = 0;
@@ -206,7 +214,7 @@ exports.verifyTicketPayment = async (req, res) => {
         }
 
         // Validate HMAC SHA256 Signature
-        const secret = process.env.RAZORPAY_KEY_SECRET || 'g3rX2v3RjUf2F2h9a3A0K2cQ';
+        const secret = process.env.RAZORPAY_KEY_SECRET || 'Ux8B43q4JDdmsFYV527STi34';
         const expectedSignature = crypto
             .createHmac('sha256', secret)
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -227,8 +235,12 @@ exports.verifyTicketPayment = async (req, res) => {
         // Locate pending transaction
         const pendingTx = await TicketTransaction.findOne({ paymentOrderId: razorpay_order_id });
         let ticketCount = pendingTx ? pendingTx.quantity : null;
-        let effectiveRecruiterId = recruiterId || (pendingTx ? pendingTx.recruiterId : null);
-        let effectiveJobId = jobId || (pendingTx ? pendingTx.jobId : null);
+        let effectiveRecruiterId = pendingTx?.recruiterId || recruiterId;
+        let effectiveJobId = pendingTx?.jobId || jobId;
+
+        if (pendingTx?.jobId && jobId && String(pendingTx.jobId) !== String(jobId)) {
+            return res.status(400).json({ success: false, message: 'The selected job does not match this ticket order.' });
+        }
 
         if (!ticketCount && packageId) {
             const pkg = await TicketPackage.findOne({ packageId });
@@ -242,6 +254,19 @@ exports.verifyTicketPayment = async (req, res) => {
         const recruiterUser = await findRecruiterUser(effectiveRecruiterId);
         if (!recruiterUser) {
             return res.status(404).json({ success: false, message: 'Recruiter not found for ticket credit.' });
+        }
+
+        if (!effectiveJobId || !mongoose.Types.ObjectId.isValid(effectiveJobId)) {
+            return res.status(400).json({ success: false, message: 'A valid job is required to credit interview tickets.' });
+        }
+
+        const { allIds } = await resolveRecruiterIdentifiers(recruiterUser.uid || recruiterUser._id.toString());
+        const ownedJob = await Job.findOne({
+            _id: effectiveJobId,
+            recruiterId: { $in: Array.from(new Set([recruiterUser.uid, recruiterUser._id.toString(), ...allIds].filter(Boolean))) }
+        }).lean();
+        if (!ownedJob) {
+            return res.status(403).json({ success: false, message: 'Tickets can only be credited to a job owned by this recruiter.' });
         }
 
         const normalizedRecruiterId = recruiterUser.uid || recruiterUser._id.toString();

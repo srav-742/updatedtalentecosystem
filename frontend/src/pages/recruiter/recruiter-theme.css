@@ -105,8 +105,13 @@
 }
 
 .rec-btn-primary,
-.rec-btn-primary * {
+.rec-btn-primary *,
+.rec-btn-dark,
+.rec-btn-dark *,
+.rec-btn-black,
+.rec-btn-black * {
     color: #ffffff !important;
+    fill: currentColor !important;
 }
 
 .rec-btn-secondary {

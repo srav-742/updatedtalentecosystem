@@ -9,6 +9,7 @@ import {
     ArrowUpRight, 
     Search, 
     Clock, 
+    CheckCircle,
     CheckCircle2, 
     XCircle, 
     AlertCircle, 
@@ -44,6 +45,78 @@ import { RecruiterJobCardSkeleton } from '../../components/Skeleton';
 import './recruiter-theme.css';
 import './MyJobs.css';
 
+const toDisplayText = (value, fallback = '') => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    return fallback;
+};
+
+const toFiniteNumber = (value, fallback) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+};
+
+const normalizeAssessmentStage = (stage) => {
+    const source = stage && typeof stage === 'object' && !Array.isArray(stage) ? stage : {};
+    return {
+        ...source,
+        enabled: source.enabled === true || source.enabled === 'true',
+        passingScore: toFiniteNumber(source.passingScore, 70)
+    };
+};
+
+const normalizeRecruiterJobs = (payload) => {
+    const records = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.jobs)
+            ? payload.jobs
+            : Array.isArray(payload?.data?.jobs)
+                ? payload.data.jobs
+                : [];
+
+    return records
+        .filter((job) => job && typeof job === 'object' && !Array.isArray(job))
+        .map((job) => ({
+            ...job,
+            _id: toDisplayText(job._id),
+            title: toDisplayText(job.title, 'Untitled job'),
+            company: toDisplayText(job.company),
+            location: toDisplayText(job.location, 'Remote'),
+            type: toDisplayText(job.type, 'Full-time'),
+            salary: toDisplayText(job.salary),
+            experienceLevel: toDisplayText(job.experienceLevel),
+            status: toDisplayText(job.status, 'pending_approval'),
+            qualification: toDisplayText(job.qualification),
+            specialization: toDisplayText(job.specialization),
+            minPercentage: toFiniteNumber(job.minPercentage, 60),
+            applicantCount: Math.max(0, toFiniteNumber(job.applicantCount, 0)),
+            candidateLimit: toFiniteNumber(job.candidateLimit, null),
+            skills: Array.isArray(job.skills)
+                ? job.skills.map((skill) => toDisplayText(skill)).filter(Boolean)
+                : [],
+            education: Array.isArray(job.education)
+                ? job.education
+                    .filter((education) => education && typeof education === 'object' && !Array.isArray(education))
+                    .map((education) => ({
+                        ...education,
+                        qualification: toDisplayText(education.qualification),
+                        specialization: toDisplayText(education.specialization)
+                    }))
+                : [],
+            allowedCandidates: Array.isArray(job.allowedCandidates)
+                ? job.allowedCandidates.map((email) => toDisplayText(email)).filter(Boolean)
+                : [],
+            assessment: normalizeAssessmentStage(job.assessment),
+            codingAssessment: normalizeAssessmentStage(job.codingAssessment),
+            mockInterview: normalizeAssessmentStage(job.mockInterview),
+            adminFeedback: {
+                ...(job.adminFeedback && typeof job.adminFeedback === 'object' ? job.adminFeedback : {}),
+                reason: toDisplayText(job.adminFeedback?.reason)
+            }
+        }));
+};
+
 const MyJobs = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -75,25 +148,39 @@ const MyJobs = () => {
     }, [activeShareJobId]);
 
     // Fetch recruiter's jobs using React Query
-    const { data: jobs = [], isLoading: loading } = useQuery({
+    const { data: jobsResponse = [], isLoading: loading } = useQuery({
         queryKey: ['jobs', 'recruiter', userId],
         queryFn: async () => {
             if (!userId) return [];
             const res = await axios.get(`${API_URL}/jobs/recruiter/${userId}`);
-            return res.data;
+            return normalizeRecruiterJobs(res.data);
         },
         enabled: !!userId,
         staleTime: 0,
         refetchOnMount: 'always'
     });
 
+    const jobs = useMemo(() => normalizeRecruiterJobs(jobsResponse), [jobsResponse]);
+
     // Delete job mutation
     const deleteJobMutation = useMutation({
         mutationFn: async (jobId) => {
-            await axios.delete(`${API_URL}/jobs/${jobId}`);
+            const token = localStorage.getItem('accessToken');
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(userId ? { 'x-user-id': userId } : {}),
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
+            const res = await axios.delete(`${API_URL}/jobs/${jobId}`, { headers });
+            return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['jobs', 'recruiter', userId] });
+            queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        },
+        onError: (err) => {
+            const msg = err.response?.data?.message || err.message || 'Failed to delete job requisition';
+            alert(`Error deleting job: ${msg}`);
+            console.error('[DELETE-JOB] Error:', err);
         }
     });
 
@@ -890,6 +977,7 @@ const MyJobs = () => {
                                                 {/* Delete Requisition */}
                                                 <button
                                                     onClick={() => handleDelete(job._id)}
+                                                    disabled={deleteJobMutation.isPending}
                                                     className="myjobs-action-btn action-delete"
                                                     title="Delete Requisition"
                                                 >

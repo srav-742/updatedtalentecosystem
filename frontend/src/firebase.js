@@ -161,9 +161,7 @@ export const saveUserProfile = async (userId, data) => {
             method: 'PUT', // Using PUT for upsert (Create or Update)
             signal: controller.signal,
             headers: { 
-                'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({ ...data, uid: userId })
         }).finally(() => clearTimeout(timeoutId));
@@ -183,8 +181,7 @@ export const getUserProfile = async (userId) => {
         const response = await fetch(`${API_URL}/profile/${userId}`, {
             signal: controller.signal,
             headers: {
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                'Content-Type': 'application/json'
             }
         }).finally(() => clearTimeout(timeoutId));
         if (!response.ok) {
@@ -209,9 +206,7 @@ export const updateUserProfile = async (userId, data) => {
             method: 'PUT',
             signal: controller.signal,
             headers: { 
-                'Content-Type': 'application/json',
-                'X-Client-ID': CLIENT_ID,
-                'X-Client-Secret': CLIENT_SECRET
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(data)
         }).finally(() => clearTimeout(timeoutId));
@@ -224,51 +219,40 @@ export const updateUserProfile = async (userId, data) => {
 };
 
 export const getAuthHeaders = async () => {
-    const headers = {
-        'X-Client-ID': CLIENT_ID,
-        'X-Client-Secret': CLIENT_SECRET
-    };
+    const headers = {};
 
     // 1. Try Firebase Auth (Priority)
     const user = auth.currentUser;
     if (user) {
-        const token = await user.getIdToken();
-        headers['Authorization'] = `Bearer ${token}`;
+        try {
+            const token = await user.getIdToken();
+            headers['Authorization'] = `Bearer ${token}`;
+        } catch (e) {}
         headers['x-user-id'] = user.uid;
         return headers;
     }
 
-    // 2. Fallback to Local Storage (for local-only accounts like Admin/Recruiters with local gateway sessions)
+    // 2. Fallback to Local Storage (for local accounts like Admin/Recruiters)
     const storedUserStr = localStorage.getItem('user');
     if (storedUserStr) {
         try {
             const storedUser = JSON.parse(storedUserStr);
             const fallbackUserId = storedUser?.uid || storedUser?._id || storedUser?.id;
             if (fallbackUserId) {
-                console.log("[AUTH-HEADERS] Using local storage user identification:", fallbackUserId);
                 headers['x-user-id'] = fallbackUserId;
-
-                // Add Authorization header using stored JWT if it exists!
-                const localAccessToken = localStorage.getItem('accessToken');
-                if (localAccessToken) {
-                    headers['Authorization'] = `Bearer ${localAccessToken}`;
-                } else if (storedUser.token) {
-                    headers['Authorization'] = `Bearer ${storedUser.token}`;
-                }
-
-                const localRefreshToken = localStorage.getItem('refreshToken');
-                if (localRefreshToken) {
-                    headers['x-refresh-token'] = localRefreshToken;
-                } else if (storedUser.refreshToken) {
-                    headers['x-refresh-token'] = storedUser.refreshToken;
-                }
+            }
+            if (storedUser.token && !headers['Authorization']) {
+                headers['Authorization'] = `Bearer ${storedUser.token}`;
+            }
+            if (storedUser.refreshToken && !headers['x-refresh-token']) {
+                headers['x-refresh-token'] = storedUser.refreshToken;
             }
         } catch (e) {
             console.error("[AUTH-HEADERS] Failed to parse stored user:", e);
         }
     }
 
-    // Fallback: If no stored user, but tokens exist in localStorage
+    // 3. Fallback: If tokens exist directly in localStorage
     const localAccessToken = localStorage.getItem('accessToken');
     if (localAccessToken && !headers['Authorization']) {
         headers['Authorization'] = `Bearer ${localAccessToken}`;
@@ -278,7 +262,7 @@ export const getAuthHeaders = async () => {
         headers['x-refresh-token'] = localRefreshToken;
     }
 
-    // 3. Attach OAuth Access Token UUID for API Gateway Inbound & Auth Service validation
+    // 4. Attach OAuth / session token if present
     const accessTokenUUID = localStorage.getItem('accessTokenUUID') || 
         (() => {
             try {

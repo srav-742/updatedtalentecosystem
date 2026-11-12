@@ -7,6 +7,27 @@ const resolveRecruiterJobQuery = async (recruiterId) => {
     return await buildRecruiterJobQuery(recruiterId);
 };
 
+const hasCompletedEnabledAssessment = (application, job = application?.jobId) => {
+    if (!job) return false;
+
+    const enabledStageScores = [
+        job.assessment?.enabled === true ? application.assessmentScore : null,
+        job.codingAssessment?.enabled === true ? application.codingScore : null,
+        job.mockInterview?.enabled === true ? application.interviewScore : null
+    ];
+
+    return enabledStageScores.some(score => score !== null && score !== undefined);
+};
+
+const getVisibleApplications = (applications, jobs) => {
+    const jobById = new Map(jobs.map(job => [String(job._id), job]));
+
+    return applications.filter(application => {
+        const jobId = String(application.jobId?._id || application.jobId || '');
+        return hasCompletedEnabledAssessment(application, jobById.get(jobId));
+    });
+};
+
 const isPilotExpired = async (recruiterId, reqUser) => {
     if (reqUser && reqUser.role === 'recruiter' && reqUser.accountType === 'pilot') {
         if (reqUser.pilotExpiresAt && new Date() > new Date(reqUser.pilotExpiresAt)) {
@@ -77,7 +98,7 @@ const getRecruiterDashboard = async (req, res) => {
 
         // Fetch lean summary of all jobs sorted by creation date
         const allJobs = await Job.find(jobQuery)
-            .select('_id title location type minPercentage createdAt status')
+            .select('_id title location type minPercentage createdAt status assessment codingAssessment mockInterview')
             .sort({ createdAt: -1 })
             .lean();
 
@@ -120,16 +141,19 @@ const getRecruiterDashboard = async (req, res) => {
         const top5Jobs = allJobs.slice(0, 5);
         const top5JobIds = top5Jobs.map(j => j._id);
 
-        const [applicationCount, shortlistedCount, top5Counts] = await Promise.all([
-            Application.countDocuments({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } }),
-            Application.countDocuments({ jobId: { $in: jobIds }, status: 'SHORTLISTED' }),
-            Application.aggregate([
-                { $match: { jobId: { $in: top5JobIds }, status: { $ne: 'SAVED' } } },
-                { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
-            ])
-        ]);
-
-        const top5CountMap = new Map(top5Counts.map(item => [String(item._id), item.applicantCount]));
+        const applications = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
+            .select('jobId status assessmentScore codingScore interviewScore')
+            .lean();
+        const visibleApplications = getVisibleApplications(applications, allJobs);
+        const applicationCount = visibleApplications.length;
+        const shortlistedCount = visibleApplications.filter(application => application.status === 'SHORTLISTED').length;
+        const top5CountMap = new Map();
+        visibleApplications.forEach(application => {
+            const jobId = String(application.jobId);
+            if (top5JobIds.some(top5JobId => String(top5JobId) === jobId)) {
+                top5CountMap.set(jobId, (top5CountMap.get(jobId) || 0) + 1);
+            }
+        });
         const recentJobs = top5Jobs.map(job => ({
             ...job,
             applicantCount: top5CountMap.get(String(job._id)) || 0
@@ -204,7 +228,7 @@ const getRecruiterApplications = async (req, res) => {
             } catch (e) {}
         }
 
-        // Asynchronously ensure recruiter client credentials exist in MySQL and MongoDB
+        // Asynchronously ensure recruiter client credentials exist in MongoDB
         if (recruiterDoc && recruiterDoc.role === 'recruiter') {
             try {
                 const { provisionClientForRecruiter } = require('./paymentController');
@@ -457,7 +481,7 @@ const getRecruiterApplications = async (req, res) => {
         });
 
         res.setHeader('Cache-Control', 'private, no-cache, no-transform');
-        res.json(appsWithScore);
+        res.json(appsWithScore.filter(app => hasCompletedEnabledAssessment(app)));
     } catch (error) {
         console.error('[GET-APPS-REC] Failure:', error);
         res.status(500).json({ message: error.message });
@@ -487,19 +511,20 @@ const getRecruiterJobs = async (req, res) => {
         }
         
         const jobs = await Job.find(jobQuery)
-            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates')
+            .select('title company location type salary skills experienceLevel minPercentage status createdAt recruiterId isApproved candidateLimit candidateLimitTarget isRestrictedToWhitelist allowedCandidates assessment codingAssessment mockInterview')
             .sort({ createdAt: -1 })
             .lean();
         const jobIds = jobs.map((job) => job._id);
 
-        const counts = await Application.aggregate([
-            { $match: { jobId: { $in: jobIds }, status: { $ne: 'SAVED' } } },
-            { $group: { _id: '$jobId', applicantCount: { $sum: 1 } } }
-        ]);
-
-        const countMap = new Map(
-            counts.map((item) => [String(item._id), item.applicantCount])
-        );
+        const applications = await Application.find({ jobId: { $in: jobIds }, status: { $ne: 'SAVED' } })
+            .select('jobId assessmentScore codingScore interviewScore')
+            .lean();
+        const visibleApplications = getVisibleApplications(applications, jobs);
+        const countMap = new Map();
+        visibleApplications.forEach(application => {
+            const jobId = String(application.jobId);
+            countMap.set(jobId, (countMap.get(jobId) || 0) + 1);
+        });
 
         const jobsWithCounts = jobs.map((job) => ({
             ...job,
