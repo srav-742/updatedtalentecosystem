@@ -18,11 +18,10 @@ const clearJobsCache = () => {
     invalidateCache('/api/jobs');
 };
 
-// GET ALL JOBS — candidates see approved jobs (plus pending_approval on localhost for testing)
+// GET ALL JOBS — candidates only see approved & live jobs
 const getAllJobs = async (req, res) => {
     try {
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        const queryFilter = isLocalhost ? { status: { $in: ['approved', 'pending_approval'] } } : { status: 'approved' };
+        const queryFilter = { status: 'approved' };
 
         // L1 cache: serve from memory if fresh (sub-millisecond)
         if (jobsCache && Date.now() - jobsCacheTime < CACHE_DURATION) {
@@ -212,14 +211,18 @@ const updateJob = async (req, res) => {
             return res.status(404).json({ message: "Job not found" });
         }
 
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
         const jobData = { ...existingJob.toObject(), ...req.body };
-        if (isLocalhost) {
-            jobData.status = 'approved';
-        } else {
+        if (req.user && req.user.role === 'admin') {
             jobData.status = req.body.status || existingJob.status || 'pending_approval';
+        } else {
+            // Recruiters cannot self-approve. If previously rejected, editing resubmits it for review.
+            if (existingJob.status === 'rejected') {
+                jobData.status = 'pending_approval';
+                jobData.adminFeedback = { reason: '', reviewedAt: null };
+            } else {
+                jobData.status = existingJob.status || 'pending_approval';
+            }
         }
-        jobData.adminFeedback = { reason: '', reviewedAt: null };
 
         normalizeCandidateQuotaAndAccess(jobData);
 
@@ -271,9 +274,9 @@ const createJob = async (req, res) => {
             }
         }
 
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        const initialStatus = isLocalhost ? 'approved' : 'pending_approval';
-        const jobData = { ...req.body, status: initialStatus };
+        // Newly posted jobs must always be pending admin approval unless created by an admin
+        const initialStatus = (req.user && req.user.role === 'admin' && req.body.status) ? req.body.status : 'pending_approval';
+        const jobData = { ...req.body, status: initialStatus, adminFeedback: { reason: '', reviewedAt: null } };
 
         if (jobData.recruiterId) {
             const { findRecruiterUser } = require('../utils/userResolver');

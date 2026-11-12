@@ -65,6 +65,14 @@ const submitApplication = async (req, res) => {
             targetStatus = 'APPLIED';
         }
 
+        // Ensure job is approved and live before accepting applications
+        if (targetStatus !== 'SAVED' && jobDoc && jobDoc.status !== 'approved') {
+            return res.status(400).json({
+                success: false,
+                message: "This job is currently pending admin review and is not yet open for applications."
+            });
+        }
+
         // 🔒 Enforce Whitelist Restriction (Listed Candidates Only)
         const candidateEmail = String(resolvedEmail || '').trim().toLowerCase();
         const allowedList = (jobDoc?.allowedCandidates || []).map(e => String(e).trim().toLowerCase());

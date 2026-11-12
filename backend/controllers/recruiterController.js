@@ -561,8 +561,9 @@ const createJob = async (req, res) => {
         }
 
         delete jobData._id;
-        const isLocalhost = (req.headers.host && (req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1'))) || process.env.NODE_ENV === 'development';
-        jobData.status = isLocalhost ? 'approved' : 'pending_approval';
+        // Jobs posted by recruiters must always start as pending_approval until approved by admin
+        jobData.status = 'pending_approval';
+        jobData.adminFeedback = { reason: '', reviewedAt: null };
 
         const job = new Job(jobData);
         const savedJob = await job.save();
